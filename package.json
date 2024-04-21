@@ -1,0 +1,57 @@
+{
+  "name": "@swell/storefrontjs",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Swell JavaScript SDK for building isomorphic storefront apps.",
+  "author": "Swell",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.19.1",
+    "npm": ">=8.17.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/swellstores/swell-storefrontjs"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "browser": "./dist/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs",
+      "types": "./types/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "types"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs watch"
+  },
+  "dependencies": {
+    "@easyblocks/core": "^1.0.5-alpha.0",
+    "@easyblocks/editor": "^1.0.5-alpha.0",
+    "color": "^4.2.3",
+    "flatted": "^3.3.1",
+    "html-to-react": "^1.7.0",
+    "liquidjs": "^10.10.1",
+    "lodash": "^4.17.21",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "strftime": "^0.10.2",
+    "swell-js": "^4.0.3",
+    "textdiff-patch": "^1.1.8",
+    "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "@kruining/waterlogged": "^1.1.45",
+    "@types/color": "^3.0.6",
+    "@types/react": "^18.2.64",
+    "@types/react-dom": "^18.2.21",
+    "esbuild": "0.20.2"
+  }
+}
