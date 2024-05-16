@@ -344,11 +344,6 @@ export class SwellTheme {
         // TODO: paginate to support more than 1000 configs
         limit: 1000,
         fields: 'type, name, file, file_path, file_data',
-        // Do not return assets unless they end with .liquid.[ext]
-        $or: [
-          { file_path: { $regex: '^(?!theme/assets/)' } },
-          { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
-        ],
         include: {
           file_data: {
             url: '/:themes:configs/{id}/file/data',
@@ -365,6 +360,11 @@ export class SwellTheme {
                   { content_type: { $regex: '^(?!video)' } },
                 ],
               },
+              // Do not return assets unless they end with .liquid.[ext]
+              $or: [
+                { file_path: { $regex: '^(?!theme/assets/)' } },
+                { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
+              ],
             },
           },
         },
@@ -434,10 +434,6 @@ export class SwellTheme {
         return templateConfig;
       }
     }
-
-    console.log('not found', templatesByPriority);
-    const allConfigs = await this.getAllThemeConfigs();
-    console.log({ allConfigs });
   }
 
   getAssetUrl(filePath: string): string | null {

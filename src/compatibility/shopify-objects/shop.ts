@@ -34,7 +34,7 @@ export default function ShopifyShop(
     ),
     money_with_currency_format: {
       ...moneyFormat,
-      symbol: `${store.currency} ${moneyFormat.symbol}`,
+      symbol: `${store.currency} ${moneyFormat?.symbol || ''}`,
     },
     name: store.name,
     password_message: null, // TODO
