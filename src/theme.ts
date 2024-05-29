@@ -211,9 +211,11 @@ export class SwellTheme {
 
     const cart = await this.swell.getCached(
       'cart',
+      // Cookie changes when cart is updated
       [this.swell.storefront.session.getCookie()],
-      () => this.fetchCart(),
-      5000, // TODO: just for testing, make sure the cookie changes when modifying the cart
+      () => {
+        return this.fetchCart();
+      },
     );
 
     return {
@@ -225,10 +227,12 @@ export class SwellTheme {
 
   fetchCart() {
     const cart = new SwellStorefrontSingleton(this.swell, 'cart');
+
     if (this.shopifyCompatibility) {
       const compatProps = ShopifyCart(this.shopifyCompatibility, cart as any);
       cart.setCompatibilityProps(compatProps);
     }
+
     return cart;
   }
 
