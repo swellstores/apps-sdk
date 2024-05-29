@@ -1,11 +1,13 @@
-import { Liquid } from "liquidjs";
-import { bindTags } from "./tags";
-import { bindFilters } from "./filters";
+import { Liquid } from 'liquidjs';
+import { bindTags } from './tags';
+import { bindFilters } from './filters';
+import { swellOperators } from './operators';
 
-export * from "./color";
+export * from './color';
 export * from './font';
 
 export class LiquidSwell extends Liquid {
+  public theme: SwellTheme;
   public getThemeConfig: GetThemeConfig;
   public getThemeTemplateConfigByType: GetThemeTemplateConfigByType | undefined;
   public getAssetUrl: GetAssetUrl;
@@ -29,6 +31,7 @@ export class LiquidSwell extends Liquid {
   public globals: ThemeSettings = {};
 
   constructor({
+    theme,
     getThemeConfig,
     getThemeTemplateConfigByType,
     getAssetUrl,
@@ -45,6 +48,7 @@ export class LiquidSwell extends Liquid {
     componentsDir,
     sectionsDir,
   }: {
+    theme: SwellTheme;
     getThemeConfig: GetThemeConfig;
     getThemeTemplateConfigByType?: GetThemeTemplateConfigByType;
     getAssetUrl: GetAssetUrl;
@@ -62,14 +66,20 @@ export class LiquidSwell extends Liquid {
     sectionsDir?: string;
   }) {
     super();
-    this.getThemeConfig = getThemeConfig;
-    this.getThemeTemplateConfigByType = getThemeTemplateConfigByType;
-    this.getAssetUrl = getAssetUrl;
-    this.renderTemplate = renderTemplate;
-    this.renderTemplateString = renderTemplateString;
-    this.renderTemplateSections = renderTemplateSections;
-    this.renderLanguage = renderLanguage;
-    this.renderCurrency = renderCurrency;
+
+    this.theme = theme;
+    this.getThemeConfig = getThemeConfig || theme.getThemeConfig.bind(theme);
+    this.getThemeTemplateConfigByType =
+      getThemeTemplateConfigByType ||
+      theme.getThemeTemplateConfigByType.bind(theme);
+    this.getAssetUrl = getAssetUrl || theme.getAssetUrl.bind(theme);
+    this.renderTemplate = renderTemplate || theme.renderTemplate.bind(theme);
+    this.renderTemplateString =
+      renderTemplateString || theme.renderTemplateString.bind(theme);
+    this.renderTemplateSections =
+      renderTemplateSections || theme.renderTemplateSections.bind(theme);
+    this.renderLanguage = renderLanguage || theme.renderLanguage.bind(theme);
+    this.renderCurrency = renderCurrency || theme.renderCurrency.bind(theme);
     this.isEditor = isEditor;
     this.locale = locale || 'en-US';
     this.currency = currency || 'USD';
@@ -87,6 +97,7 @@ export class LiquidSwell extends Liquid {
       relativeReference: false,
       fs: this.getLiquidFS(),
       ownPropertyOnly: false,
+      operators: swellOperators,
     });
 
     bindTags(this);

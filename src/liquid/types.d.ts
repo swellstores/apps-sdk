@@ -35,6 +35,7 @@ type ThemeEditorSchema = {
 };
 
 type ThemeSection = {
+  id?: string;
   type: string;
   disabled?: boolean;
   settings: ThemeSettings;
@@ -50,10 +51,11 @@ type ThemeBlock = {
 };
 
 type ThemeSectionGroup = {
+  id?: string;
   sections: {
     [key: string]: ThemeSection;
   };
-  order: string[];
+  order?: string[];
 };
 
 type ThemeSectionGroupConfig = {

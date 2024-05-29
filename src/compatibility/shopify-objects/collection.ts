@@ -1,4 +1,4 @@
-import { ShopifyResource, defer } from './resource';
+import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 
 export default function ShopifyCollection(
@@ -9,8 +9,8 @@ export default function ShopifyCollection(
     return products.clone();
   }
   return new ShopifyResource({
-    products: defer(async () =>
-      (await products.results).map((product: any) =>
+    products: deferWith(products, async (products: any) =>
+      products.results?.map((product: any) =>
         ShopifyProduct(instance, product),
       ),
     ),

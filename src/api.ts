@@ -1,8 +1,15 @@
 import SwellJS from 'swell-js';
+import isObject from 'lodash/isObject';
 import { toBase64 } from './utils';
+import {
+  ShopifyResource,
+  DeferredShopifyResource,
+  DeferredShopifyLinkResource,
+} from './compatibility/shopify-objects';
 
 const DEFAULT_API_HOST = 'https://api.schema.io';
-const CACHE_TIMEOUT = 1000 * 60 * 1; // 1min
+const CACHE_TIMEOUT = 1000 * 60 * 15; // 15m
+const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
 const SWELL_CLIENT_HEADERS = [
   'swell-store-id',
   'swell-public-key',
@@ -10,6 +17,7 @@ const SWELL_CLIENT_HEADERS = [
   'swell-vault-url',
   'swell-environment-id',
   'swell-deployment-mode',
+  'swell-request-id',
   'swell-theme-id',
   'swell-theme-branch-id',
 ];
@@ -23,21 +31,21 @@ export class Swell implements Swell {
   public isPreview: boolean = false;
   public isEditor: boolean = false;
 
-  // Preview uses instance cache
-  public cache: Map<string, any> = new Map();
-
-  // Live uses static cache
   static cache: Map<string, any> = new Map();
 
   constructor({
     headers,
     swellHeaders,
     serverHeaders,
+    getCookie,
+    setCookie,
     ...clientProps
   }: {
     headers?: { [key: string]: any };
     swellHeaders?: { [key: string]: any };
     serverHeaders?: Headers; // Required on the server
+    getCookie?: (name: string) => string;
+    setCookie?: (name: string, value: string, options: any) => void;
     [key: string]: any;
   }) {
     if (serverHeaders) {
@@ -60,6 +68,8 @@ export class Swell implements Swell {
         {
           url: swellHeaders['admin-url'],
           vaultUrl: swellHeaders['vault-url'],
+          getCookie,
+          setCookie,
         },
       );
 
@@ -71,7 +81,7 @@ export class Swell implements Swell {
         'theme-branch-id',
       ]
         .map((key) => swellHeaders[key])
-        .join('_');
+        .join('|');
 
       this.isPreview =
         clientProps.isEditor || swellHeaders['deployment-mode'] === 'preview';
@@ -141,22 +151,16 @@ export class Swell implements Swell {
   }
 
   getClientProps() {
-    const clientHeaders = SWELL_CLIENT_HEADERS.reduce(
-      (acc, key) => {
-        acc[key] = this.headers[key];
-        return acc;
-      },
-      {} as { [key: string]: string },
-    );
+    const clientHeaders = SWELL_CLIENT_HEADERS.reduce((acc, key) => {
+      acc[key] = this.headers[key];
+      return acc;
+    }, {} as { [key: string]: string });
 
-    const clientSwellHeaders = SWELL_CLIENT_HEADERS.reduce(
-      (acc, key) => {
-        const swellKey = key.replace('swell-', '');
-        acc[swellKey] = this.swellHeaders[swellKey];
-        return acc;
-      },
-      {} as { [key: string]: string },
-    );
+    const clientSwellHeaders = SWELL_CLIENT_HEADERS.reduce((acc, key) => {
+      const swellKey = key.replace('swell-', '');
+      acc[swellKey] = this.swellHeaders[swellKey];
+      return acc;
+    }, {} as { [key: string]: string });
 
     const storefrontSettings = this.storefront.settings as any;
 
@@ -178,15 +182,6 @@ export class Swell implements Swell {
   }
 
   getCacheInstance() {
-    if (this.isPreview) {
-      // TODO: this is only used to avoid cross-request cache
-      // for resources that might change in a preview mode,
-      // however if we use a different cache mechanism i.e. cloudflare KV
-      // then this shouldn't be necessary as we can invalid changed files instead
-      // For other resources like Swell settings we do not want to avoid cache this way however
-      // return this.cache;
-    }
-
     let cacheInstance = Swell.cache.get(this.instanceId);
     if (!cacheInstance) {
       cacheInstance = new Map();
@@ -196,18 +191,7 @@ export class Swell implements Swell {
     return cacheInstance;
   }
 
-  setCacheValues(values: any) {
-    // TODO: fix type
-    if (this.isPreview) {
-      // TODO: this is only used to avoid cross-request cache
-      // for resources that might change in a preview mode,
-      // however if we use a different cache mechanism i.e. cloudflare KV
-      // then this shouldn't be necessary as we can invalid changed files instead
-      // For other resources like Swell settings we do not want to avoid cache this way however
-      // this.cache = new Map(values);
-      // return;
-    }
-
+  setCacheValues(values: Array<any>) {
     Swell.cache.set(this.instanceId, new Map(values));
   }
 
@@ -215,6 +199,7 @@ export class Swell implements Swell {
     key: string,
     args?: Array<any> | Function,
     handler?: Function,
+    timeout?: number,
   ): any {
     const cacheArgs = typeof args === 'function' ? undefined : args;
     const cacheHandler = typeof args === 'function' ? args : handler;
@@ -232,7 +217,6 @@ export class Swell implements Swell {
         if (result instanceof Promise) {
           result.then((data) => {
             cacheInstance.set(cacheKey, data);
-            return data;
           });
         } else {
           cacheInstance.set(cacheKey, result);
@@ -241,10 +225,11 @@ export class Swell implements Swell {
         console.error(err);
       }
 
-      // Clear live cache only, since preview lives just for the duration of the request
-      if (!this.isPreview) {
-        setTimeout(() => cacheInstance.delete(cacheKey), CACHE_TIMEOUT);
-      }
+      // Live cache lives longer than preview cache
+      setTimeout(
+        () => cacheInstance.delete(cacheKey),
+        timeout ?? CACHE_TIMEOUT,
+      );
 
       return result;
     }
@@ -254,8 +239,9 @@ export class Swell implements Swell {
     key: string,
     args: Array<any> | Function,
     handler?: Function,
+    timeout?: number,
   ): Promise<any> {
-    return await this.getCachedSync(key, args, handler);
+    return await this.getCachedSync(key, args, handler, timeout);
   }
 
   clearCache() {
@@ -478,6 +464,8 @@ export class SwellError extends Error {
 export class StorefrontResource implements StorefrontResource {
   public _getter: StorefrontResourceGetter | undefined;
   public _result: SwellData | null | undefined;
+  public _compatibilityProps: SwellData = {};
+
   [key: string]: any;
 
   constructor(getter?: StorefrontResourceGetter) {
@@ -506,7 +494,7 @@ export class StorefrontResource implements StorefrontResource {
         }
 
         if (prop === 'toJSON' || prop === 'toObject') {
-          return () => instance._result;
+          return () => instance.toObject();
         }
 
         // Return functions and props starting with _ directly
@@ -516,7 +504,18 @@ export class StorefrontResource implements StorefrontResource {
 
         // Get resource result if not yet fetched
         if (instance._result === undefined) {
-          instance._result = instance._get();
+          instance._result = instance._get().then((result: any) => {
+            // Merge result after resolution
+            Object.assign(instance, result);
+            Object.assign(instance, instance._compatibilityProps);
+            return instance[prop];
+          });
+
+          // Return prop if already defined
+          if (instance[prop] !== undefined) {
+            return instance[prop];
+          }
+
           if (prop === Symbol.toStringTag) {
             return '[object Promise]';
           }
@@ -526,8 +525,8 @@ export class StorefrontResource implements StorefrontResource {
 
         // Return prop then if result is a promise
         if (instance._result instanceof Promise) {
-          return instance._result.then((result: any) => {
-            return result[prop];
+          return instance._result.then(() => {
+            return instance[prop];
           });
         }
 
@@ -541,20 +540,11 @@ export class StorefrontResource implements StorefrontResource {
     });
   }
 
-  toJSON() {
-    return this._result;
-  }
-
-  toObject() {
-    return this._result;
-  }
-
   async _get(..._args: any): Promise<any> {
     if (this._getter) {
       this._result = Promise.resolve(this._getter()).then((result: any) => {
         if (result) {
           Object.assign(this, result);
-          //this.setCompatibilityProps(result);
         }
         return result;
       });
@@ -562,22 +552,101 @@ export class StorefrontResource implements StorefrontResource {
     return this._result;
   }
 
-  /* setCompatibilityData(
-    proxy: any,
-    compatibilityInstance: ShopifyCompatibility,
-    pageData: SwellData,
-  ) {
-    this._compatibilityInstance = compatibilityInstance;
-    Object.assign(pageData, compatibilityInstance.getResourceData(proxy));
+  async _resolve() {
+    if (this._result === undefined) {
+      await this._get();
+    }
+    return this._result;
   }
 
-  setCompatibilityProps(result: any) {
-    if (this._compatibilityInstance) {
-      const resourceProps = this._compatibilityInstance.getResourceProps(this);
-      Object.assign(this, resourceProps);
-      Object.assign(result, resourceProps);
+  async _resolveCompatibilityProps(
+    object = this._compatibilityProps,
+    depth: number = 3,
+  ): Promise<any> {
+    let result: any = {};
+
+    if (object instanceof Array) {
+      return await Promise.all(
+        object.map((item: any) => this._resolveCompatibilityProps(item, depth)),
+      );
     }
-  } */
+
+    if (!object || !isObject(object)) {
+      return object;
+    }
+
+    const keys = Object.keys(object);
+
+    try {
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i] as string;
+
+        if (object[key] instanceof Promise) {
+          result[key] = await object[key];
+        } else if (
+          // Resolve deferred resources but not deferred shopify links
+          object[key] instanceof StorefrontResource ||
+          object[key] instanceof DeferredShopifyResource
+        ) {
+          result[key] = await object[key].resolve();
+        } else {
+          result[key] = object[key];
+        }
+
+        // Resolve nested objects
+        if (isObject(result[key])) {
+          if (depth - 1 > 0) {
+            result[key] = await this._resolveCompatibilityProps(
+              result[key],
+              depth - 1,
+            );
+          } else {
+            delete result[key];
+          }
+        }
+      }
+    } catch (err) {
+      console.log(err);
+    }
+
+    return result;
+  }
+
+  async resolve(compatibilityDepth?: number) {
+    const combined = {};
+
+    const result = await this._resolve();
+    const compatibilityProps = await this._resolveCompatibilityProps(
+      this._compatibilityProps,
+      compatibilityDepth,
+    );
+
+    Object.assign(combined, result);
+    Object.assign(combined, compatibilityProps);
+
+    return combined;
+  }
+
+  toObject() {
+    const combined = {};
+
+    Object.assign(combined, this._result);
+    Object.assign(combined, this._compatibilityProps);
+
+    return combined;
+  }
+
+  toJSON() {
+    return this.toObject();
+  }
+
+  setCompatibilityProps(props: SwellData) {
+    this._compatibilityProps = props;
+  }
+
+  getCompatibilityProp(prop: string) {
+    return this._compatibilityProps[prop];
+  }
 }
 
 export class SwellStorefrontResource extends StorefrontResource {
@@ -607,7 +676,7 @@ export class SwellStorefrontResource extends StorefrontResource {
   }
 
   getResourceObject(): {
-    get: (id: string, query?: SwellData) => Promise<SwellData>;
+    get: (id?: string, query?: SwellData) => Promise<SwellData>;
     list: (query?: SwellData) => Promise<SwellData>;
   } {
     const { _swell, _collection } = this;
@@ -623,7 +692,7 @@ export class SwellStorefrontResource extends StorefrontResource {
       };
     }
 
-    if (!this._resource || !this._resource.get || !this._resource.list) {
+    if (!this._resource || !this._resource.get) {
       throw new Error(
         `Swell storefront resource for collection '${_collection}' does not exist.`,
       );
@@ -634,12 +703,12 @@ export class SwellStorefrontResource extends StorefrontResource {
 }
 
 export class SwellStorefrontCollection extends SwellStorefrontResource {
-  public results: SwellRecord[] = [];
   public length: number = 0;
-  public count: number = 0;
-  public page: number = 1;
-  public pages: SwellCollectionPages = {};
-  public page_count: number = 0;
+  public results?: SwellRecord[];
+  public count?: number;
+  public page?: number;
+  public pages?: SwellCollectionPages;
+  public page_count?: number;
 
   constructor(
     swell: Swell,
@@ -677,16 +746,17 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
 
     if (this._swell) {
       this._result = await this._swell
-        .getCached('storefront-list', [this._collection, this._query], () =>
-          (this._getter as StorefrontResourceGetter)(),
+        .getCached(
+          'storefront-list',
+          [this._collection, this._query],
+          () => (this._getter as StorefrontResourceGetter)(),
+          CACHE_TIMEOUT_RESOURCES,
         )
         .then((result: SwellCollection) => {
           if (result) {
-            Object.assign(this, {
-              ...result,
+            Object.assign(this, result, {
               length: result.results.length,
             });
-            //this.setCompatibilityProps(result);
           }
 
           return result;
@@ -701,7 +771,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
   }
 
   *iterator() {
-    for (const result of this.results) {
+    for (const result of this.results || []) {
       yield result;
     }
   }
@@ -709,7 +779,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
 
 export class SwellStorefrontRecord extends SwellStorefrontResource {
   public _id: string;
-  public id: string | undefined;
+  public id?: string;
 
   constructor(
     swell: Swell,
@@ -755,15 +825,58 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
           'storefront-record',
           [this._collection, this._id, this._query],
           () => (this._getter as StorefrontResourceGetter)(),
+          CACHE_TIMEOUT_RESOURCES,
         )
         .then((result: SwellRecord) => {
           if (result) {
             Object.assign(this, result);
-            //this.setCompatibilityProps(result);
           }
 
           return result;
         });
+    }
+
+    return this;
+  }
+}
+
+export class SwellStorefrontSingleton extends SwellStorefrontResource {
+  constructor(
+    swell: Swell,
+    collection: string,
+    getter?: StorefrontResourceGetter,
+  ) {
+    super(swell, collection, getter);
+
+    if (!getter) {
+      this._getter = this._defaultGetter();
+    }
+
+    return this._getProxy();
+  }
+
+  _getProxy() {
+    return super._getProxy() as SwellStorefrontSingleton;
+  }
+
+  _defaultGetter(): StorefrontResourceGetter {
+    const resource = this.getResourceObject();
+    return async () => {
+      return await resource.get();
+    };
+  }
+
+  async _get() {
+    if (this._swell) {
+      this._result = await (this._getter as StorefrontResourceGetter)().then(
+        (result: SwellRecord) => {
+          if (result) {
+            Object.assign(this, result);
+          }
+
+          return result;
+        },
+      );
     }
 
     return this;

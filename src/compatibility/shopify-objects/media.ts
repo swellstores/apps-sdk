@@ -7,9 +7,10 @@ export default function ShopifyMedia(
   if (image instanceof ShopifyResource) {
     return image.clone();
   }
+
   return new ShopifyResource({
     alt: image.alt,
-    id: image.file?.id,
+    id: image.id || image.file?.id,
     media_type: 'image',
     position: null,
     preview_image: image.file,

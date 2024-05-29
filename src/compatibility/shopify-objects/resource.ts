@@ -1,6 +1,74 @@
 import cloneDeep from 'lodash/cloneDeep';
 
-class DeferredResource {
+export class ShopifyResource {
+  props: { [key: string]: any };
+  stringProp?: string;
+  linkProps?: string[];
+
+  constructor(props: any, stringProp?: string, linkProps?: string[]) {
+    this.props = props;
+    this.stringProp = stringProp;
+    this.linkProps = linkProps;
+
+    return new Proxy(props, {
+      get: (target, prop) => {
+        const instance = target as any;
+
+        if (prop === 'toJSON') {
+          return props;
+        }
+
+        if (prop === 'clone') {
+          return () => {
+            return new ShopifyResource(cloneDeep(props));
+          };
+        }
+
+        if (prop === 'toString' && stringProp) {
+          return () => {
+            return props[stringProp];
+          };
+        }
+
+        if (prop === 'getLinkProps') {
+          return () => {
+            return linkProps;
+          };
+        }
+
+        if (instance[prop] instanceof DeferredShopifyResource) {
+          return instance[prop].resolve().then((value: any) => {
+            instance[prop] = value;
+            return value;
+          });
+        }
+
+        return instance[prop];
+      },
+
+      getPrototypeOf() {
+        return ShopifyResource.prototype;
+      },
+    });
+  }
+
+  valueOf() {
+    if (this.stringProp) {
+      return this.props[this.stringProp];
+    }
+    return this;
+  }
+
+  // For typescript
+  clone(): ShopifyResource {
+    return new ShopifyResource({});
+  }
+  getLinkProps() {
+    return this.linkProps;
+  }
+}
+
+export class DeferredShopifyResource {
   private handler: Function;
 
   constructor(handler: Function) {
@@ -12,46 +80,46 @@ class DeferredResource {
   }
 }
 
-export function defer(handler: Function) {
-  return new DeferredResource(handler);
+// TODO: consider removing this if it's not used
+export class DeferredShopifyLinkResource extends DeferredShopifyResource {}
+
+export function defer(
+  handler: Function,
+  deferredClass: typeof DeferredShopifyResource = DeferredShopifyResource,
+) {
+  return new deferredClass(handler);
 }
 
-export class ShopifyResource {
-  constructor(props: any, stringProp?: string) {
-    props.toJSON = () => {
-      return props;
-    };
+export function deferWith(
+  asyncProp: any,
+  handler: Function,
+  deferredClass: typeof DeferredShopifyResource = DeferredShopifyResource,
+) {
+  return new deferredClass(async () => {
+    const promise =
+      asyncProp instanceof Array
+        ? Promise.all(
+            asyncProp.map((prop: any) =>
+              typeof prop?._resolve === 'function' ? prop._resolve() : prop,
+            ),
+          )
+        : typeof asyncProp?._resolve === 'function'
+        ? asyncProp._resolve()
+        : asyncProp;
 
-    props.clone = () => {
-      return new ShopifyResource(cloneDeep(props));
-    };
-
-    if (stringProp) {
-      props.toString = () => {
-        return props[stringProp];
-      };
-    }
-
-    return new Proxy(props, {
-      get: (target, prop) => {
-        const instance = target as any;
-        if (instance[prop] instanceof DeferredResource) {
-          return instance[prop].resolve().then((value: any) => {
-            instance[prop] = value;
-            return value;
-          });
-        }
-        return instance[prop];
-      },
-
-      getPrototypeOf() {
-        return ShopifyResource.prototype;
-      },
+    return Promise.resolve(promise).then((value: any) => {
+      if (asyncProp instanceof Array) {
+        return handler(...value.map((prop: any) => prop || {}));
+      }
+      return handler(value || {});
     });
-  }
+  });
+}
 
-  // For typescript
-  clone(): ShopifyResource {
-    return new ShopifyResource({});
-  }
+export function deferLink(handler: Function) {
+  return defer(handler, DeferredShopifyLinkResource);
+}
+
+export function deferLinkWith(asyncProp: any, handler: Function) {
+  return deferWith(asyncProp, handler, DeferredShopifyLinkResource);
 }

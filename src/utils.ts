@@ -42,19 +42,7 @@ export async function getPageSections(
         }
       })
       .map(async (config: SwellRecord) => {
-        let schema;
-
-        // Extract {% schema %} from liquid files for Shopify compatibility
-        if (config?.file_path?.endsWith('.liquid')) {
-          schema = await renderTemplateSchema(config);
-        } else {
-          try {
-            schema = JSON.parse(config.file_data);
-          } catch {
-            schema = {};
-          }
-        }
-
+        const schema = await renderTemplateSchema(config);
         return {
           ...schema,
           id: config.name.split('.').pop(),
@@ -81,8 +69,6 @@ export async function getLayoutSectionGroups(
           c.file_path === config.file_path.replace(/\.json$/, '.liquid'),
       ),
   );
-
-  //console.log('sectionGroupConfigs', sectionGroupConfigs);
 
   const getSectionSchema = async (
     type: string,
@@ -111,23 +97,11 @@ export async function getLayoutSectionGroups(
       }
     });
 
-    // Extract {% schema %} from liquid files for Shopify compatibility
-    if (config?.file_path?.endsWith('.liquid')) {
-      const schema = await renderTemplateSchema(config);
-      return {
-        ...schema,
-        id: config?.name.split('.').pop(),
-      };
-    } else if (config) {
-      try {
-        return {
-          ...(JSON.parse(config?.file_data) || undefined),
-          id: config?.name.split('.').pop(),
-        };
-      } catch {
-        // noop
-      }
-    }
+    const schema = await renderTemplateSchema(config);
+    return {
+      ...schema,
+      id: config?.name.split('.').pop(),
+    };
   };
 
   return await Promise.all(
@@ -172,6 +146,10 @@ export async function getSectionGroupConfigs(
   const sections = await Promise.all(
     order.map((key: string): Promise<ThemeSectionGroupConfig> => {
       return new Promise(async (resolve) => {
+        const id = sectionGroup.id
+          ? `page__${sectionGroup.id}__${key}`
+          : (sectionGroup as any).type;
+
         const section: ThemeSection = sectionGroup.sections[key];
 
         const blockOrder =
@@ -187,14 +165,15 @@ export async function getSectionGroupConfigs(
 
         const settings = {
           section: {
+            id,
             ...section,
             blocks,
           },
         };
 
         resolve({
-          id: key,
-          section,
+          id,
+          section: { id, ...section },
           schema,
           settings,
           tag: schema?.tag || 'div',

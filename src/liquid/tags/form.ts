@@ -4,11 +4,12 @@ import {
   Tag,
   TagToken,
   Context,
+  Hash,
   TopLevelToken,
   Template,
   TypeGuards,
-} from "liquidjs";
-import { QuotedToken } from "liquidjs/dist/tokens";
+} from 'liquidjs';
+import { QuotedToken } from 'liquidjs/dist/tokens';
 
 // {% form 'form_type' %}
 // {% form 'form_type', param %}
@@ -18,6 +19,7 @@ export default function bind(liquidSwell: LiquidSwell) {
   return class FormTag extends Tag {
     private formConfig: any;
     private templates: Template[] = [];
+    private hash: Hash;
 
     constructor(
       token: TagToken,
@@ -37,9 +39,11 @@ export default function bind(liquidSwell: LiquidSwell) {
         );
       }
 
+      this.hash = new Hash(this.tokenizer.remaining());
+
       while (remainTokens.length) {
         const token = remainTokens.shift()!;
-        if (TypeGuards.isTagToken(token) && token.name === "endform") return;
+        if (TypeGuards.isTagToken(token) && token.name === 'endform') return;
         this.templates.push(liquid.parser.parseToken(token, remainTokens));
       }
 
@@ -49,8 +53,49 @@ export default function bind(liquidSwell: LiquidSwell) {
     *render(ctx: Context): any {
       const r = this.liquid.renderer;
       const html = yield r.renderTemplates(this.templates, ctx);
+      const hash = yield this.hash.render(ctx);
 
-      return `<form action="${this.formConfig.url}" method="post">${html}</form>`;
+      // const scope = ctx.getAll() as any;
+
+      const attrs =
+        ' ' +
+        Object.entries(hash)
+          .reduce((acc: any, [key, value]: Array<any>) => {
+            if (value !== true) {
+              // true represents the form type
+              return [...acc, `${key}="${value}"`];
+            }
+            return acc;
+          }, [])
+          .join(' ');
+
+      let compatibilityHtml = '';
+      if (liquidSwell.theme.shopifyCompatibility) {
+        const compatibilityOutput =
+          yield liquidSwell.theme.shopifyCompatibility.getAdaptedFormHtml(
+            this.formConfig.id,
+          );
+        if (compatibilityOutput) {
+          compatibilityHtml = yield liquidSwell.renderTemplateString(
+            compatibilityOutput,
+          );
+        }
+      }
+
+      return `
+        <form action="${
+          this.formConfig.url
+        }" method="post" accept-charset="UTF-8" enctype="multipart/form-data"${attrs}>
+          <input type="hidden" name="form_type" value="${this.formConfig.id}" />
+          ${
+            hash.return_to
+              ? `<input type="hidden" name="return_to" value="${hash.return_to}" />`
+              : ''
+          }
+          ${compatibilityHtml}
+          ${html}
+        </form>
+      `;
     }
   };
 }

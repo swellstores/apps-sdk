@@ -119,7 +119,6 @@ declare class Swell {
   public instanceId: string;
   public isPreview: boolean;
   public isEditor: boolean;
-  public cache: Map<string, any>;
   static cache: Map<string, any>;
 
   constructor(options: {
@@ -221,7 +220,7 @@ declare class SwellTheme {
   public page: any;
   public pageId: string | undefined;
   public globals: ThemeGlobals | undefined;
-  public request: ThemeSettings | null;
+  public request: ThemeSettings | null; // TODO: Should be ThemeRequest
   public shopifyCompatibility: SwellStorefrontShopifyCompatibility | null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility;
 
@@ -242,10 +241,11 @@ declare class SwellTheme {
   resolvePageData(
     configs: SwellData,
     pageId?: string,
-  ): {
+  ): Promise<{
     settings: ThemeSettings;
     page: ThemeSettings;
-  };
+    cart: SwellData | null;
+  }>;
 
   setCompatibilityData(pageData: SwellData): void;
 
@@ -258,6 +258,11 @@ declare class SwellTheme {
   getThemeConfig(filePath: string): Promise<SwellThemeConfig | null>;
 
   getThemeTemplateConfig(filePath: string): Promise<SwellThemeConfig | null>;
+
+  async getThemeTemplateConfigByType(
+    type: string,
+    name: string,
+  ): Promise<SwellThemeConfig | null | undefined>;
 
   getAssetUrl(filePath: string): string | null;
 
@@ -328,6 +333,7 @@ type StorefrontResourceGetter = () => Promise<SwellData> | SwellData;
 declare class StorefrontResource {
   public _getter: StorefrontResourceGetter | undefined;
   public _result: SwellData | null | undefined;
+  public _compatibilityProps: SwellData;
   [key: string]: any;
 
   constructor(getter?: StorefrontResourceGetter);
@@ -336,13 +342,15 @@ declare class StorefrontResource {
 
   _get(..._args: any): Promise<any>;
 
-  /* setCompatibilityData(
-    proxy: any,
-    compatibilityInstance: ShopifyCompatibility,
-    pageData: SwellData,
-  ): void;
+  _resolve(): Promise<SwellData | null>;
 
-  setCompatibilityProps(result: any): void; */
+  _resolveCompatibilityProps(object?: SwellData): Promise<SwellData | null>;
+
+  resolve(): Promise<SwellData>;
+
+  setCompatibilityProps(props: SwellData): void;
+
+  getCompatibilityProp(prop: string): SwellData;
 }
 
 declare class SwellStorefrontResource extends StorefrontResource {
@@ -366,11 +374,12 @@ declare class SwellStorefrontResource extends StorefrontResource {
 }
 
 declare class SwellStorefrontCollection extends SwellStorefrontResource {
-  public results: SwellRecord[];
-  public count: number;
-  public page: number;
-  public pages: SwellCollectionPages;
-  public page_count: number;
+  public length: number;
+  public results?: SwellRecord[];
+  public count?: number;
+  public page?: number;
+  public pages?: SwellCollectionPages;
+  public page_count?: number;
 
   constructor(
     swell: Swell,
@@ -409,15 +418,51 @@ declare class SwellStorefrontRecord extends SwellStorefrontResource {
   _get(id: string, query: SwellData): Promise<any>;
 }
 
+declare class SwellStorefrontSingleton extends SwellStorefrontResource {
+  [key: string]: any;
+
+  constructor(
+    swell: Swell,
+    collection: string,
+    getter?: StorefrontResourceGetter,
+  );
+
+  static get(swell: Swell, collection: string): SwellStorefrontRecord;
+
+  _get(): Promise<any>;
+}
+
 declare class ShopifyCompatibility {
   public swell: Swell;
   public pageId?: string;
-  public pageResourceMap?: ShopifyPageResourceMap;
-  public objectResourceMap?: ShopifyObjectResourceMap;
+  public pageResourceMap: ShopifyPageResourceMap;
+  public objectResourceMap: ShopifyObjectResourceMap;
+  public formResourceMap: ShopifyFormResourceMap;
+  public queryParams: { [key: string]: any };
 
   constructor(swell: Swell);
 
-  adaptGlobals: (globals: any, serverParams: any) => void;
+  adaptGlobals: (globals: any, url: URL) => void;
+
+  parseQueryParams: (searchParams: URLSearchParams) => { [key: string]: any };
+
+  adaptPageData: (pageData: SwellData) => void;
+
+  adaptObjectData: (objectData: SwellData) => void;
+
+  getAdaptedFormParams: (
+    pageId: string,
+    formId: string | undefined,
+    context: SwellData,
+  ) => Promise<SwellData>;
+
+  getAdaptedFormResponse: (
+    pageId: string,
+    formId: string | undefined,
+    context: SwellData,
+  ) => Promise<any>;
+
+  getAdaptedFormHtml: (formType: string) => Promise<any>;
 
   getPageType: (pageId: string) => string;
 
@@ -427,13 +472,11 @@ declare class ShopifyCompatibility {
 
   getThemeFilePath: (type: string, name: string) => string;
 
-  /* getResourceData: (resource: StorefrontResource) => SwellData;
-
-  getResourceProps: (resource: StorefrontResource) => SwellData; */
-
   getPageResourceMap: () => ShopifyPageResourceMap;
 
   getObjectResourceMap: () => ShopifyObjectResourceMap;
+
+  getFormResourceMap: () => ShopifyFormResourceMap;
 
   getMenuData: (menu: SwellMenu) => SwellData;
 
@@ -450,6 +493,11 @@ declare class ShopifyCompatibility {
   getThemeConfig: (settingsData: ShopifySettingsData) => ThemeSettings;
   getPresetsConfig: (settingsData: ShopifySettingsData) => SwellData;
   getSectionConfig: (sectionSchema: ShopifySectionSchema) => ThemeSectionSchema;
+  getLocaleConfig(
+    settingConfigs: SwellCollection,
+    localeCode: string,
+    getThemeConfig: Function,
+  ): Promise<SwellData | null>;
 }
 
 type ShopifyPageResourceMap = Array<{
@@ -464,4 +512,15 @@ type ShopifyPageResourceMap = Array<{
 type ShopifyObjectResourceMap = Array<{
   from: any;
   object: ShopifyResource;
+}>;
+
+type ShopifyFormResourceMap = Array<{
+  pageId?: string;
+  formType?: string;
+
+  params?: (context: SwellData) => SwellData;
+
+  response?: (context: SwellData) => SwellData;
+
+  clientHtml?: () => string;
 }>;

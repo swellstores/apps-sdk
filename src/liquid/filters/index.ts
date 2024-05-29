@@ -1,9 +1,10 @@
 import each from "lodash/each";
-import { LiquidSwell } from "..";
+import isObject from 'lodash/isObject';
+import { LiquidSwell } from '..';
 
-import asset_url from "./asset_url";
-import brightness_difference from "./brightness_difference";
-import color_brightness from "./color_brightness";
+import asset_url from './asset_url';
+import brightness_difference from './brightness_difference';
+import color_brightness from './color_brightness';
 import color_contrast from './color_contrast';
 import color_darken from './color_darken';
 import color_desaturate from './color_desaturate';
@@ -34,6 +35,8 @@ import where from './where';
 
 // Shopify compatibility only
 import hex_to_rgba from './shopify/hex_to_rgba';
+import item_count_for_variant from './shopify/item_count_for_variant';
+import payment_button from './shopify/payment_button';
 import placeholder_svg_tag from './shopify/placeholder_svg_tag';
 
 export const filters = {
@@ -71,11 +74,85 @@ export const filters = {
 
   // Shopify compatibility only
   hex_to_rgba,
+  item_count_for_variant,
+  payment_button,
   placeholder_svg_tag,
 };
 
 export function bindFilters(liquidSwell: LiquidSwell) {
-  each(filters, (bind, tag) =>
-    liquidSwell.engine.registerFilter(tag, bind(liquidSwell)),
-  );
+  each(filters, (handler, tag) => {
+    if (typeof handler === 'function') {
+      liquidSwell.engine.registerFilter(tag, handler(liquidSwell));
+    } else if (typeof handler.bind === 'function') {
+      const { bind, resolve } = handler;
+      liquidSwell.engine.registerFilter(
+        tag,
+        bindWithResolvedProps(liquidSwell, bind, resolve),
+      );
+    }
+  });
+}
+
+// Resolve specific nested props
+function bindWithResolvedProps(
+  liquidSwell: LiquidSwell,
+  bind: (liquidSwell: LiquidSwell) => any,
+  resolve: Array<Array<string>> = [],
+) {
+  const handler = bind(liquidSwell);
+  if (!Array.isArray(resolve)) {
+    return handler;
+  }
+
+  return async (...props: any) => {
+    const resolvedProps = await Promise.all(
+      props.map((prop: any, index: number) => {
+        if (Array.isArray(resolve[index]) || resolve[index] === true) {
+          return resolveAsyncProps(prop, resolve[index]);
+        }
+        return prop;
+      }),
+    );
+    return handler(...resolvedProps);
+  };
+}
+
+export async function resolveAsyncProps(
+  propArg: any,
+  resolveProps: boolean | Array<string>,
+): Promise<any> {
+  if (!propArg) {
+    return propArg;
+  }
+
+  let prop = propArg;
+
+  if (prop instanceof Promise) {
+    prop = await prop;
+  }
+
+  if (Array.isArray(resolveProps)) {
+    for (const propPath of resolveProps) {
+      if (typeof propPath !== 'string') {
+        continue;
+      }
+
+      const [key, ...remainingKeys] = propPath.split('.');
+      const targetProp = prop[key];
+
+      if (targetProp instanceof Promise) {
+        prop[key] = await targetProp;
+      } else if (typeof targetProp?.resolve === 'function') {
+        prop[key] = await targetProp.resolve();
+      }
+
+      if (remainingKeys.length > 0) {
+        prop[key] = await resolveAsyncProps(prop[key], [
+          remainingKeys.join('.'),
+        ]);
+      }
+    }
+  }
+
+  return prop;
 }

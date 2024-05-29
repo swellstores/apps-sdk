@@ -160,7 +160,15 @@ export function paramsToProps(params: any[]) {
       }
       return acc;
     }, {});
+  } else if (isObject(params)) {
+    // Convert object formatted params with number indexes to props object
+    const props: any = {};
+    const values = Object.values(params);
+    for (let i = 0; i < values.length; i++) {
+      props[values[i]] = values[i + 1];
+      i++;
+    }
+    return props;
   }
-
   return {};
 }

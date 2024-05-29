@@ -12,8 +12,7 @@ import {
   evalToken,
   Emitter,
 } from "liquidjs";
-import { ForloopDrop, toEnumerable } from "../utils";
-import { SwellStorefrontCollection } from '../../api';
+import { ForloopDrop, toEnumerable, isObject } from '../utils';
 
 const MODIFIERS = ['offset', 'limit', 'reversed'];
 
@@ -112,14 +111,23 @@ export default function bind(_liquidSwell: LiquidSwell) {
 
       ctx.push(scope);
 
+      let index = 0;
       for (const item of collection) {
+        if (isObject(item)) {
+          // index is expected by some shopify templates
+          item.index = index++;
+        }
+
         (scope as any)[this.variable] = item;
         yield r.renderTemplates(this.templates, ctx, emitter);
+
         if ((emitter as any)['break']) {
           (emitter as any)['break'] = false;
           break;
         }
+
         (emitter as any)['continue'] = false;
+
         scope.forloop.next();
       }
       ctx.pop();

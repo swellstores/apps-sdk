@@ -19,26 +19,23 @@ import { shopifyFontToThemeFront } from './shopify-fonts';
 export class ShopifyCompatibility implements ShopifyCompatibility {
   public swell: Swell;
   public pageId?: string;
-  public pageResourceMap?: ShopifyPageResourceMap;
-  public objectResourceMap?: ShopifyObjectResourceMap;
+  public pageResourceMap: ShopifyPageResourceMap;
+  public objectResourceMap: ShopifyObjectResourceMap;
+  public formResourceMap: ShopifyFormResourceMap;
+  public queryParams: { [key: string]: any } = {};
 
   constructor(swell: Swell) {
     this.swell = swell;
+    this.pageResourceMap = this.getPageResourceMap();
+    this.objectResourceMap = this.getObjectResourceMap();
+    this.formResourceMap = this.getFormResourceMap();
   }
 
-  adaptGlobals(
-    globals: ThemeGlobals,
-    serverParams: {
-      host: string;
-      origin: string;
-      path: string;
-    },
-  ) {
+  adaptGlobals(globals: ThemeGlobals, url: URL) {
     const { store, page, menus } = globals;
 
     this.pageId = this.getPageType(page?.id);
-    this.pageResourceMap = this.getPageResourceMap();
-    this.objectResourceMap = this.getObjectResourceMap();
+    this.queryParams = this.parseQueryParams(url.searchParams);
 
     globals.shop = this.getShopData(globals);
 
@@ -49,13 +46,14 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     globals.page = {
       ...(page || undefined),
       id: this.pageId,
-      url: serverParams.path,
+      url: url.pathname,
     };
 
     globals.request = {
-      host: serverParams.host,
-      origin: serverParams.origin,
-      path: serverParams.path,
+      host: url.host,
+      origin: url.origin,
+      path: url.pathname,
+      query: this.queryParams,
       locale: store?.locale,
       design_mode: this.swell.isEditor,
       visual_section_preview: false, // TODO: Add support for visual section preview
@@ -69,11 +67,15 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     globals.routes = this.getPageRouteMap();
   }
 
-  adaptPageData(pageData: SwellData) {
-    if (!this.pageId || !this.pageResourceMap) {
-      return;
+  parseQueryParams(searchParams: URLSearchParams) {
+    const queryParams: { [key: string]: any } = {};
+    for (const [key, value] of searchParams.entries()) {
+      queryParams[key] = value;
     }
+    return queryParams;
+  }
 
+  adaptPageData(pageData: SwellData) {
     const pageMap = this.pageResourceMap.find(
       ({ page }) => page === this.pageId,
     );
@@ -83,7 +85,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
       for (const [key, value] of Object.entries(pageData)) {
         const resourceMap = pageMap.resources.find(({ from }) => from === key);
         if (resourceMap && value instanceof StorefrontResource) {
-          pageData[key] = resourceMap.object(this as any, value);
+          pageData[resourceMap.to] = resourceMap.object(this as any, value);
         }
       }
     }
@@ -92,10 +94,6 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   }
 
   adaptObjectData(objectData: SwellData) {
-    if (!this.pageId || !this.objectResourceMap) {
-      return;
-    }
-
     // Adapt individual resources to shopify objects from page data
     for (const value of Object.values(objectData)) {
       const objectMap = this.objectResourceMap.find(
@@ -103,8 +101,51 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
       );
       if (objectMap) {
         const objectProps = objectMap.object(this as any, value);
-        Object.assign(value, objectProps);
+        if (value instanceof StorefrontResource) {
+          value.setCompatibilityProps(objectProps);
+        } else {
+          Object.assign(value, objectProps);
+        }
       }
+    }
+  }
+
+  async getAdaptedFormParams(
+    pageId: string,
+    formType: string | undefined,
+    context: SwellData,
+  ) {
+    const formMap = this.formResourceMap.find(
+      (form) =>
+        (pageId && form.pageId === pageId) ||
+        (formType && form.formType === formType),
+    );
+    if (formMap?.params) {
+      return await formMap.params(context);
+    }
+  }
+
+  async getAdaptedFormResponse(
+    pageId: string,
+    formType: string | undefined,
+    context: SwellData,
+  ) {
+    const formMap = this.formResourceMap.find(
+      (form) =>
+        (pageId && form.pageId === pageId) ||
+        (formType && form.formType === formType),
+    );
+    if (formMap?.response) {
+      return await formMap.response(context);
+    }
+  }
+
+  async getAdaptedFormHtml(formType: string) {
+    const formMap = this.formResourceMap.find(
+      (form) => form.formType === formType,
+    );
+    if (formMap?.clientHtml) {
+      return await formMap.clientHtml();
     }
   }
 
@@ -158,7 +199,11 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     return convertShopifySettingsPresets(this as any, settingsData);
   }
 
-  getLocaleConfig(settingConfigs: SwellCollection, localeCode: string) {
+  async getLocaleConfig(
+    settingConfigs: SwellCollection,
+    localeCode: string,
+    getThemeConfig: Function,
+  ) {
     const shopifyLocaleConfigs = settingConfigs?.results?.filter(
       (config: SwellRecord) => config?.file_path?.startsWith('theme/locales/'),
     );
@@ -184,11 +229,16 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
       }
     }
 
-    try {
-      return JSON.parse(localeConfig?.file_data);
-    } catch {
-      return {};
+    if (localeConfig) {
+      localeConfig = await getThemeConfig(localeConfig.file_path);
+      try {
+        return JSON.parse(localeConfig?.file_data);
+      } catch {
+        // noop
+      }
     }
+
+    return {};
   }
 
   getSectionConfig(sectionSchema: ShopifySectionSchema): ThemeSectionSchema {
@@ -220,7 +270,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
       cart_change_url: this.getPageRouteUrl('cart/change'),
       cart_clear_url: this.getPageRouteUrl('cart/clear'),
       cart_update_url: this.getPageRouteUrl('cart/update'),
-      cart_url: this.getPageRouteUrl('cart'),
+      cart_url: this.getPageRouteUrl('cart/index'),
       collections_url: this.getPageRouteUrl('categories/index'),
       predictive_search_url: this.getPageRouteUrl('search/suggest'),
       product_recommendations_url: this.getPageRouteUrl('products/index'),
@@ -241,11 +291,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     return [];
   }
 
-  /* getResourceData(resource: StorefrontResource): SwellData {
-    return {};
+  getFormResourceMap(): ShopifyFormResourceMap {
+    return [];
   }
-
-  getResourceProps(resource: StorefrontResource): SwellData {
-    return {};
-  } */
 }

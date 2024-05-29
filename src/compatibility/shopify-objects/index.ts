@@ -1,22 +1,34 @@
-import { SwellStorefrontCollection, SwellStorefrontRecord } from '../../api';
+import { SwellStorefrontCollection } from '../../api';
+import {
+  DeferredShopifyResource,
+  DeferredShopifyLinkResource,
+  ShopifyResource,
+} from './resource';
 import ShopifyArticle from './article';
 import ShopifyBlog from './blog';
+import ShopifyCart from './cart';
 import ShopifyCollection from './collection';
 import ShopifyFont from './font';
 import ShopifyProduct from './product';
 import ShopifyPage from './page';
 import ShopifyLink from './link';
 import ShopifySearch from './search';
+import ShopifyVariant from './variant';
 
 export {
+  DeferredShopifyResource,
+  DeferredShopifyLinkResource,
+  ShopifyResource,
   ShopifyArticle,
   ShopifyBlog,
+  ShopifyCart,
   ShopifyCollection,
   ShopifyFont,
   ShopifyProduct,
   ShopifyPage,
   ShopifyLink,
   ShopifySearch,
+  ShopifyVariant,
 };
 
 export function adaptShopifyMenuData(
@@ -47,7 +59,7 @@ export function adaptShopifyLookupData(
     if (collection === 'categories') {
       if (value === 'all') {
         const products = new SwellStorefrontCollection(
-          instance.swell,
+          instance.swell as any,
           'products',
         );
         return ShopifyCollection(instance, products);
