@@ -37,10 +37,17 @@ export class ShopifyResource {
         }
 
         if (instance[prop] instanceof DeferredShopifyResource) {
-          return instance[prop].resolve().then((value: any) => {
-            instance[prop] = value;
-            return value;
-          });
+          return instance[prop]
+            .resolve()
+            .then((value: any) => {
+              instance[prop] = value;
+              return value;
+            })
+            .catch((err: any) => {
+              console.log(err);
+              instance[prop] = null;
+              return null;
+            });
         }
 
         return instance[prop];
@@ -107,12 +114,17 @@ export function deferWith(
         ? asyncProp._resolve()
         : asyncProp;
 
-    return Promise.resolve(promise).then((value: any) => {
-      if (asyncProp instanceof Array) {
-        return handler(...value.map((prop: any) => prop || {}));
-      }
-      return handler(value || {});
-    });
+    return Promise.resolve(promise)
+      .then((value: any) => {
+        if (asyncProp instanceof Array) {
+          return handler(...value.map((prop: any) => prop || {}));
+        }
+        return handler(value || {});
+      })
+      .catch((err: any) => {
+        console.log(err);
+        return null;
+      });
   });
 }
 

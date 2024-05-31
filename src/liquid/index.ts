@@ -4,6 +4,7 @@ import { bindFilters } from './filters';
 import { swellOperators } from './operators';
 
 export * from './color';
+export * from './form';
 export * from './font';
 
 export class LiquidSwell extends Liquid {

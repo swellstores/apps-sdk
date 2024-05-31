@@ -8,8 +8,9 @@ import {
   SwellStorefrontRecord,
   SwellStorefrontSingleton,
 } from './api';
-import { LiquidSwell, ThemeColor, ThemeFont } from './liquid';
+import { LiquidSwell, ThemeColor, ThemeFont, ThemeForm } from './liquid';
 import { ShopifyCompatibility } from './compatibility/shopify';
+import ShopifyCustomer from './compatibility/shopify-objects/customer';
 import ShopifyCart from './compatibility/shopify-objects/cart';
 import { resolveMenuSettings } from './menus';
 import {
@@ -33,6 +34,8 @@ export class SwellTheme {
   public shopifyCompatibility: any = null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
     ShopifyCompatibility;
+
+  public formData: { [key: string]: ThemeForm } = {};
 
   constructor(
     swell: Swell,
@@ -69,10 +72,8 @@ export class SwellTheme {
     this.url = url;
 
     const { store, menus, configs } = await this.getSettingsAndConfigs();
-    const { settings, page, cart } = await this.resolvePageData(
-      configs,
-      pageId,
-    );
+    const { settings, page, cart, account, customer } =
+      await this.resolvePageData(configs, pageId);
 
     this.page = page;
 
@@ -83,6 +84,8 @@ export class SwellTheme {
         menus,
         page,
         cart,
+        account,
+        customer,
         configs,
         storefrontConfig: this.storefrontConfig,
         language: configs?.language,
@@ -189,7 +192,9 @@ export class SwellTheme {
   ): Promise<{
     settings: ThemeSettings;
     page: ThemeSettings;
-    cart: StorefrontResource;
+    cart: SwellStorefrontSingleton;
+    account: SwellStorefrontSingleton;
+    customer?: SwellStorefrontSingleton;
   }> {
     const { settings, page } = this.swell.getCachedSync(
       'theme-settings-resolved',
@@ -209,24 +214,37 @@ export class SwellTheme {
       },
     );
 
-    const cart = await this.swell.getCached(
-      'cart',
-      // Cookie changes when cart is updated
-      [this.swell.storefront.session.getCookie()],
-      () => {
-        return this.fetchCart();
-      },
-    );
+    const [cart, account] = await Promise.all([
+      this.fetchSingletonResourceCached('cart', () => this.fetchCart()),
+      this.fetchSingletonResourceCached('account', () => this.fetchAccount()),
+    ]);
+
+    let customer;
+    if (this.shopifyCompatibility) {
+      customer = account;
+    }
 
     return {
       settings,
       page,
       cart,
+      account,
+      customer, // Shopify only
     };
   }
 
+  fetchSingletonResourceCached(key: string, handler: () => any) {
+    // Cookie should change when cart/account is updated
+    const cacheKey = this.swell.storefront.session.getCookie();
+    if (!cacheKey) {
+      return null;
+    }
+
+    return this.swell.getCached(`${key}-${cacheKey}`, () => handler());
+  }
+
   fetchCart() {
-    const cart = new SwellStorefrontSingleton(this.swell, 'cart');
+    const cart = new SwellStorefrontSingleton(this.swell as any, 'cart');
 
     if (this.shopifyCompatibility) {
       const compatProps = ShopifyCart(this.shopifyCompatibility, cart as any);
@@ -234,6 +252,52 @@ export class SwellTheme {
     }
 
     return cart;
+  }
+
+  fetchAccount() {
+    const account = new SwellStorefrontSingleton(this.swell as any, 'account');
+
+    if (this.shopifyCompatibility) {
+      const compatProps = ShopifyCustomer(
+        this.shopifyCompatibility,
+        account as any,
+      );
+      account.setCompatibilityProps(compatProps);
+    }
+
+    return account;
+  }
+
+  setFormData(
+    formId: string,
+    options: {
+      params?: any;
+      success?: boolean;
+      errors?: ThemeFormErrorMessages;
+    },
+  ) {
+    const form = this.formData[formId] || new ThemeForm(formId);
+
+    if (form instanceof ThemeForm) {
+      if (options?.params) {
+        form.setParams(options.params);
+      }
+      if (options?.errors) {
+        form.setSuccess(false);
+        form.setErrors(options.errors);
+      } else if (options?.success) {
+        form.setSuccess(true);
+        form.clearErrors();
+      }
+
+      if (this.shopifyCompatibility) {
+        Object.assign(form, this.shopifyCompatibility.getFormData(form));
+      }
+    }
+
+    this.formData[formId] = form;
+
+    this.setGlobals({ forms: this.formData });
   }
 
   resolveLanguageLocale(languageConfig: ThemeSettings, localeCode: string) {
@@ -323,11 +387,15 @@ export class SwellTheme {
     if (collection) {
       const defaultHandler = () => {
         if (setting.multi) {
-          return new SwellStorefrontCollection(this.swell, collection, {
+          return new SwellStorefrontCollection(this.swell as any, collection, {
             limit: setting.limit || 15,
           });
         } else if (value !== null && value !== undefined) {
-          return new SwellStorefrontRecord(this.swell, collection, value);
+          return new SwellStorefrontRecord(
+            this.swell as any,
+            collection,
+            value,
+          );
         }
         return null;
       };
@@ -357,8 +425,8 @@ export class SwellTheme {
     return menu || null;
   }
 
-  async lang(key: string, data?: any): Promise<string> {
-    return await this.renderLanguage(key, data);
+  async lang(key: string, data?: any, fallback?: string): Promise<string> {
+    return await this.renderLanguage(key, data, fallback);
   }
 
   resolveFontSetting(value: string): ThemeFont | null {
@@ -384,14 +452,39 @@ export class SwellTheme {
   }
 
   async getAllThemeConfigs(): Promise<SwellCollection> {
-    const requestId = this.swell.swellHeaders['request-id'];
-    return this.swell.getCached('theme-configs-all', [requestId], async () => {
+    const cacheKey =
+      this.swell.swellHeaders['theme-config-version'] ||
+      this.swell.swellHeaders['request-id'];
+
+    return this.swell.getCached('theme-configs-all', [cacheKey], async () => {
       const configs = await this.swell.get('/:themes:configs', {
         ...this.themeConfigQuery(),
         // TODO: paginate to support more than 1000 configs
         limit: 1000,
         fields: 'type, name, file, file_path',
+        include: {
+          file_data: {
+            url: '/:themes:configs/{id}/file/data',
+            conditions: {
+              type: 'theme',
+              // Only expand theme files
+              // Do not expand non-text data
+              file: {
+                $and: [
+                  { content_type: { $regex: '^(?!image)' } },
+                  { content_type: { $regex: '^(?!video)' } },
+                ],
+              },
+              // Do not return assets unless they end with .liquid.[ext]
+              $or: [
+                { file_path: { $regex: '^(?!theme/assets/)' } },
+                { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
+              ],
+            },
+          },
+        },
       });
+
       return configs;
     });
   }
@@ -406,7 +499,7 @@ export class SwellTheme {
       (config: any) => config.file_path === filePath,
     );
 
-    if (config) {
+    if (config && config.file_data === undefined) {
       config.file_data = await this.swell.getCached(
         'theme-config-filedata',
         [filePath, config.file?.md5],
@@ -460,8 +553,11 @@ export class SwellTheme {
   }
 
   getAssetUrl(filePath: string): string | null {
-    const requestId = this.swell.swellHeaders['request-id'];
-    const configs = this.swell.getCachedSync('theme-configs-all', [requestId]);
+    const cacheKey =
+      this.swell.swellHeaders['theme-config-version'] ||
+      this.swell.swellHeaders['request-id'];
+
+    const configs = this.swell.getCachedSync('theme-configs-all', [cacheKey]);
 
     const assetConfig =
       configs?.results?.find(
@@ -896,9 +992,13 @@ export class SwellTheme {
       .join('\n');
   }
 
-  async renderLanguage(key: string, data?: any): Promise<string> {
+  async renderLanguage(
+    key: string,
+    data?: any,
+    fallback?: string,
+  ): Promise<string> {
     if (key === undefined) {
-      return '';
+      return fallback || '';
     }
 
     const lang = this.globals?.language;
@@ -919,10 +1019,12 @@ export class SwellTheme {
     }
 
     if (typeof localeValue !== 'string') {
-      return '';
+      return fallback || '';
     }
 
-    return await this.renderTemplateString(localeValue, data);
+    const result = await this.renderTemplateString(localeValue, data);
+
+    return result || fallback || '';
   }
 
   renderCurrency(amount: number, params: any): string {

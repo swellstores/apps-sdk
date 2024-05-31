@@ -14,7 +14,7 @@ export default function ShopifyShop(
     brand: {}, // TODO
     collections_count: 0, // TODO
     currency: store.currency,
-    customer_accounts_enabled: true, // TODO
+    customer_accounts_enabled: true, // TODO: consider if we should provide a standard option
     customer_accounts_optional: true, // TODO
     description: store.description, // TODO
     domain: store.url.replace(/^http[s]?:\/\//, ''),

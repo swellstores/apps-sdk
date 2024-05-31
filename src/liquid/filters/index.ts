@@ -1,5 +1,4 @@
-import each from "lodash/each";
-import isObject from 'lodash/isObject';
+import each from 'lodash/each';
 import { LiquidSwell } from '..';
 
 import asset_url from './asset_url';
@@ -18,9 +17,11 @@ import color_to_hex from './color_to_hex';
 import color_to_hsl from './color_to_hsl';
 import color_to_rgb from './color_to_rgb';
 import date from './date';
+import default_errors from './default_errors';
 import font_face from './font_face';
 import font_modify from './font_modify';
 import font_url from './font_url';
+import format_address from './format_address';
 import image_tag from './image_tag';
 import image_url from './image_url';
 import json from './json';
@@ -37,6 +38,7 @@ import where from './where';
 import hex_to_rgba from './shopify/hex_to_rgba';
 import item_count_for_variant from './shopify/item_count_for_variant';
 import payment_button from './shopify/payment_button';
+import payment_terms from './shopify/payment_terms';
 import placeholder_svg_tag from './shopify/placeholder_svg_tag';
 
 export const filters = {
@@ -56,9 +58,11 @@ export const filters = {
   color_to_hsl,
   color_to_rgb,
   date,
+  default_errors,
   font_face,
   font_modify,
   font_url,
+  format_address,
   image_tag,
   image_url,
   json,
@@ -76,6 +80,7 @@ export const filters = {
   hex_to_rgba,
   item_count_for_variant,
   payment_button,
+  payment_terms,
   placeholder_svg_tag,
 };
 

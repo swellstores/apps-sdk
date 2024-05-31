@@ -4,6 +4,7 @@ import {
   adaptShopifyMenuData,
   adaptShopifyLookupData,
   adaptShopifyFontData,
+  adaptShopifyFormData,
 } from './shopify-objects';
 import {
   convertShopifySettingsSchema,
@@ -110,42 +111,51 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     }
   }
 
-  async getAdaptedFormParams(
-    pageId: string,
-    formType: string | undefined,
-    context: SwellData,
-  ) {
+  async getAdaptedFormClientParams(formType: string, scope: SwellData) {
     const formMap = this.formResourceMap.find(
-      (form) =>
-        (pageId && form.pageId === pageId) ||
-        (formType && form.formType === formType),
+      (form) => form.formType === formType,
     );
-    if (formMap?.params) {
-      return await formMap.params(context);
+    if (formMap?.clientParams) {
+      return await formMap.clientParams(scope);
     }
   }
 
-  async getAdaptedFormResponse(
-    pageId: string,
-    formType: string | undefined,
-    context: SwellData,
-  ) {
-    const formMap = this.formResourceMap.find(
-      (form) =>
-        (pageId && form.pageId === pageId) ||
-        (formType && form.formType === formType),
-    );
-    if (formMap?.response) {
-      return await formMap.response(context);
-    }
-  }
-
-  async getAdaptedFormHtml(formType: string) {
+  async getAdaptedFormClientHtml(formType: string, scope: SwellData) {
     const formMap = this.formResourceMap.find(
       (form) => form.formType === formType,
     );
     if (formMap?.clientHtml) {
-      return await formMap.clientHtml();
+      return await formMap.clientHtml(scope);
+    }
+  }
+
+  async getAdaptedFormServerParams(
+    pageId: string,
+    formType: string | undefined,
+    context: SwellData,
+  ) {
+    const formMap = this.formResourceMap.find(
+      (form) =>
+        (pageId && form.pageId === pageId) ||
+        (formType && form.formType === formType),
+    );
+    if (formMap?.serverParams) {
+      return await formMap.serverParams(context);
+    }
+  }
+
+  async getAdaptedFormServerResponse(
+    pageId: string,
+    formType: string | undefined,
+    context: SwellData,
+  ) {
+    const formMap = this.formResourceMap.find(
+      (form) =>
+        (pageId && form.pageId === pageId) ||
+        (formType && form.formType === formType),
+    );
+    if (formMap?.serverResponse) {
+      return await formMap.serverResponse(context);
     }
   }
 
@@ -181,6 +191,10 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
 
   getFontData(font: ThemeFont): SwellData {
     return adaptShopifyFontData(this as any, font);
+  }
+
+  getFormData(form: ThemeForm): SwellData {
+    return adaptShopifyFormData(this as any, form);
   }
 
   getFontFromShopifySetting(fontSetting: string) {

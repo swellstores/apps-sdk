@@ -8,7 +8,10 @@ import ShopifyArticle from './article';
 import ShopifyBlog from './blog';
 import ShopifyCart from './cart';
 import ShopifyCollection from './collection';
+import ShopifyCustomer from './customer';
 import ShopifyFont from './font';
+import ShopifyForm from './form';
+import ShopifyOrder from './order';
 import ShopifyProduct from './product';
 import ShopifyPage from './page';
 import ShopifyLink from './link';
@@ -23,7 +26,10 @@ export {
   ShopifyBlog,
   ShopifyCart,
   ShopifyCollection,
+  ShopifyCustomer,
   ShopifyFont,
+  ShopifyForm,
+  ShopifyOrder,
   ShopifyProduct,
   ShopifyPage,
   ShopifyLink,
@@ -75,4 +81,11 @@ export function adaptShopifyFontData(
   font: ThemeFont,
 ): SwellData {
   return ShopifyFont(instance, font);
+}
+
+export function adaptShopifyFormData(
+  instance: ShopifyCompatibility,
+  form: ThemeForm,
+): SwellData {
+  return ShopifyForm(instance, form);
 }

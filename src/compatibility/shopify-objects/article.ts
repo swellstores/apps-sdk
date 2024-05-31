@@ -1,4 +1,4 @@
-import { ShopifyResource, defer } from './resource';
+import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyImage from './image';
 
 export default function ShopifyArticle(
@@ -22,10 +22,8 @@ export default function ShopifyArticle(
     excerpt_or_content: defer(() => blog.summary || blog.content),
     handle: defer(() => blog.slug),
     id: defer(() => blog.id),
-    image: defer(async () => {
-      const image = await blog.image;
-      console.log('blog before image load', image);
-      return image && ShopifyImage(instance, image);
+    image: deferWith(blog, (blog: any) => {
+      return blog.image && ShopifyImage(instance, blog.image);
     }),
     metafields: null,
     published_at: defer(

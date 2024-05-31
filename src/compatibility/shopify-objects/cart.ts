@@ -37,7 +37,7 @@ export default function ShopifyCart(
   });
 }
 
-function ShopifyLineItem(
+export function ShopifyLineItem(
   instance: ShopifyCompatibility,
   cart: StorefrontResource | SwellRecord,
   item: StorefrontResource | SwellRecord,

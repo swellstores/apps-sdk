@@ -1,4 +1,5 @@
 import { LiquidSwell } from "..";
+import { ThemeForm } from '../form';
 import {
   Liquid,
   Tag,
@@ -14,6 +15,8 @@ import { QuotedToken } from 'liquidjs/dist/tokens';
 // {% form 'form_type' %}
 // {% form 'form_type', param %}
 // {% form 'form_type', return_to: 'url %}
+
+const IGNORED_SHOPIFY_FORMS = ['new_comment'];
 
 export default function bind(liquidSwell: LiquidSwell) {
   return class FormTag extends Tag {
@@ -33,7 +36,8 @@ export default function bind(liquidSwell: LiquidSwell) {
       this.formConfig = liquidSwell.globals.storefrontConfig?.forms?.find(
         (form: any) => form.id === formType,
       );
-      if (!this.formConfig) {
+
+      if (!this.formConfig && !IGNORED_SHOPIFY_FORMS.includes(formType)) {
         throw new Error(
           `form '${formType}' not found in global 'storefrontConfig.forms'`,
         );
@@ -51,11 +55,14 @@ export default function bind(liquidSwell: LiquidSwell) {
     }
 
     *render(ctx: Context): any {
+      if (!this.formConfig) {
+        return;
+      }
+
       const r = this.liquid.renderer;
-      const html = yield r.renderTemplates(this.templates, ctx);
       const hash = yield this.hash.render(ctx);
 
-      // const scope = ctx.getAll() as any;
+      const scope = ctx.getAll() as any;
 
       const attrs =
         ' ' +
@@ -69,18 +76,44 @@ export default function bind(liquidSwell: LiquidSwell) {
           }, [])
           .join(' ');
 
+      const exForm = liquidSwell.theme.formData[this.formConfig.id];
+      const form = exForm || new ThemeForm(this.formConfig.id);
+
       let compatibilityHtml = '';
+
       if (liquidSwell.theme.shopifyCompatibility) {
-        const compatibilityOutput =
-          yield liquidSwell.theme.shopifyCompatibility.getAdaptedFormHtml(
-            this.formConfig.id,
+        if (!exForm) {
+          Object.assign(
+            form,
+            liquidSwell.theme.shopifyCompatibility.getFormData(form),
           );
+        }
+
+        const compatibilityOutput =
+          yield liquidSwell.theme.shopifyCompatibility.getAdaptedFormClientHtml(
+            this.formConfig.id,
+            scope,
+          );
+
         if (compatibilityOutput) {
           compatibilityHtml = yield liquidSwell.renderTemplateString(
             compatibilityOutput,
           );
         }
+
+        const compatibilityParams =
+          yield liquidSwell.theme.shopifyCompatibility.getAdaptedFormClientParams(
+            this.formConfig.id,
+            scope,
+          );
+        if (compatibilityParams) {
+          form.setParams(compatibilityParams);
+        }
       }
+
+      ctx.push({ form });
+
+      const html = yield r.renderTemplates(this.templates, ctx);
 
       return `
         <form action="${

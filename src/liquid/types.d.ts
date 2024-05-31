@@ -324,3 +324,38 @@ declare class ThemeFont {
 
   modify(prop: string, value: string): ThemeFont;
 }
+
+declare class ThemeForm {
+  public id: string;
+  public success: boolean = false;
+  public errors?: ThemeFormErrors;
+
+  constructor(id: string);
+
+  setSuccess(success: boolean = true): void;
+
+  setParams(params: SwellData): void;
+
+  setErrors(errors: ThemeFormErrorMessages): void;
+
+  clearErrors(): void;
+}
+
+declare class ThemeFormErrors implements Iterable<ThemeFormErrorMessages> {
+  private messages?: ThemeFormErrorMessages;
+
+  constructor(messages?: ThemeFormErrorMessages);
+
+  set(messages: ThemeFormErrorMessages): void;
+
+  clear(): void;
+}
+
+type ThemeFormErrorMessage = {
+  code?: string;
+  message: string;
+  field_name?: string;
+  field_label?: string;
+};
+
+type ThemeFormErrorMessages = Array<ThemeFormErrorMessage>;

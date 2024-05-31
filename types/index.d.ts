@@ -112,6 +112,7 @@ type SwellStorefrontConfig = {
 };
 
 declare class Swell {
+  public locals: SwellData;
   public headers: { [key: string]: string };
   public swellHeaders: { [key: string]: string };
   public backend?: SwellBackendAPI;
@@ -122,9 +123,12 @@ declare class Swell {
   static cache: Map<string, any>;
 
   constructor(options: {
+    locals?: SwellData;
     headers?: { [key: string]: any };
     swellHeaders?: { [key: string]: any };
     serverHeaders?: Headers; // Required on the server
+    getCookie?: (name: string) => string;
+    setCookie?: (name: string, value: string, options: any) => void;
     [key: string]: any;
   });
 
@@ -149,18 +153,22 @@ declare class Swell {
     };
   };
 
+  getStorefrontInstance(clientProps: SwellData): SwellJS;
+
   getCacheInstance(): Map<string, any>;
 
   getCachedSync(
     key: string,
     args?: Array<any> | Function,
     handler?: Function,
+    timeout?: number,
   ): any;
 
   getCached(
     key: string,
     args: Array<any> | Function,
     handler?: Function,
+    timeout?: number,
   ): Promise<any>;
 
   clearCache(): void;
@@ -224,6 +232,8 @@ declare class SwellTheme {
   public shopifyCompatibility: SwellStorefrontShopifyCompatibility | null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility;
 
+  public formData: { [key: string]: ThemeForm };
+
   constructor(
     swell: Swell,
     options?: {
@@ -244,12 +254,29 @@ declare class SwellTheme {
   ): Promise<{
     settings: ThemeSettings;
     page: ThemeSettings;
-    cart: SwellData | null;
+    cart: SwellStorefrontSingleton;
+    account: SwellStorefrontSingleton;
+    customer?: SwellStorefrontSingleton;
   }>;
+
+  fetchSingletonResourceCached(key: string, handler: () => any): any;
+
+  fetchCart(): Promise<SwellStorefrontSingleton>;
+
+  fetchAccount(): Promise<SwellStorefrontSingleton>;
+
+  setFormData(
+    formId: string,
+    options: {
+      params?: any;
+      success?: boolean;
+      errors?: ThemeFormErrorMessages;
+    },
+  ): void;
 
   setCompatibilityData(pageData: SwellData): void;
 
-  lang(key: string, data?: any): Promise<string>;
+  lang(key: string, data?: any, fallback?: string): Promise<string>;
 
   themeConfigQuery(): SwellData;
 
@@ -323,7 +350,7 @@ declare class SwellTheme {
     data: SwellData,
   ): Promise<string>;
 
-  renderLanguage(key: string, data?: any): Promise<string>;
+  renderLanguage(key: string, data?: any, fallback?: string): Promise<string>;
 
   renderCurrency(amount: number, params: any): string;
 }
@@ -442,57 +469,63 @@ declare class ShopifyCompatibility {
 
   constructor(swell: Swell);
 
-  adaptGlobals: (globals: any, url: URL) => void;
+  adaptGlobals(globals: any, url: URL): void;
 
-  parseQueryParams: (searchParams: URLSearchParams) => { [key: string]: any };
+  parseQueryParams(searchParams: URLSearchParams): { [key: string]: any };
 
-  adaptPageData: (pageData: SwellData) => void;
+  adaptPageData(pageData: SwellData): void;
 
-  adaptObjectData: (objectData: SwellData) => void;
+  adaptObjectData(objectData: SwellData): void;
 
-  getAdaptedFormParams: (
+  getAdaptedFormClientParams(formType: string, scope: SwellData): Promise<any>;
+
+  getAdaptedFormClientHtml(formType: string, scope: SwellData): Promise<any>;
+
+  getAdaptedFormServerParams(
     pageId: string,
     formId: string | undefined,
     context: SwellData,
-  ) => Promise<SwellData>;
+  ): Promise<SwellData>;
 
-  getAdaptedFormResponse: (
+  getAdaptedFormServerResponse(
     pageId: string,
     formId: string | undefined,
     context: SwellData,
-  ) => Promise<any>;
+  ): Promise<any>;
 
-  getAdaptedFormHtml: (formType: string) => Promise<any>;
+  getPageType(pageId: string): string;
 
-  getPageType: (pageId: string) => string;
+  getPageRouteUrl(pageId: string): string;
 
-  getPageRouteUrl: (pageId: string) => string;
+  getPageRouteMap(): { [key: string]: string };
 
-  getPageRouteMap: () => { [key: string]: string };
+  getThemeFilePath(type: string, name: string): string;
 
-  getThemeFilePath: (type: string, name: string) => string;
+  getPageResourceMap(): ShopifyPageResourceMap;
 
-  getPageResourceMap: () => ShopifyPageResourceMap;
+  getObjectResourceMap(): ShopifyObjectResourceMap;
 
-  getObjectResourceMap: () => ShopifyObjectResourceMap;
+  getFormResourceMap(): ShopifyFormResourceMap;
 
-  getFormResourceMap: () => ShopifyFormResourceMap;
+  getMenuData(menu: SwellMenu): SwellData;
 
-  getMenuData: (menu: SwellMenu) => SwellData;
-
-  getLookupData: (
+  getLookupData(
     collection: string,
     setting: ThemeSettingFieldSchema,
     value: any,
     defaultHandler: () => SwellData | null,
-  ) => SwellData | null;
+  ): SwellData | null;
 
-  getFontFromShopifySetting: (fontSetting: string) => string | null;
+  getFontData(font: ThemeFont): SwellData;
 
-  getEditorConfig: (settingsSchema: ShopifySettingsSchema) => ThemeEditorSchema;
-  getThemeConfig: (settingsData: ShopifySettingsData) => ThemeSettings;
-  getPresetsConfig: (settingsData: ShopifySettingsData) => SwellData;
-  getSectionConfig: (sectionSchema: ShopifySectionSchema) => ThemeSectionSchema;
+  getFormData(form: ThemeForm): SwellData;
+
+  getFontFromShopifySetting(fontSetting: string): string | null;
+
+  getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema;
+  getThemeConfig(settingsData: ShopifySettingsData): ThemeSettings;
+  getPresetsConfig(settingsData: ShopifySettingsData): SwellData;
+  getSectionConfig(sectionSchema: ShopifySectionSchema): ThemeSectionSchema;
   getLocaleConfig(
     settingConfigs: SwellCollection,
     localeCode: string,
@@ -518,9 +551,11 @@ type ShopifyFormResourceMap = Array<{
   pageId?: string;
   formType?: string;
 
-  params?: (context: SwellData) => SwellData;
+  clientParams?: (scope: SwellData) => SwellData;
 
-  response?: (context: SwellData) => SwellData;
+  clientHtml?: (scope: SwellData) => string;
 
-  clientHtml?: () => string;
+  serverParams?: (context: SwellData) => SwellData;
+
+  serverResponse?: (context: SwellData) => SwellData;
 }>;
