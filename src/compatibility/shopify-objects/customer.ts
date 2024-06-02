@@ -22,8 +22,11 @@ export default function ShopifyCustomer(
     company_available_locations: [], // TODO
     current_company: null, // TODO
     current_location: null, // TODO
-    default_address: deferWith(account, (account: any) =>
-      ShopifyAddress(instance, account.shipping || account.billing),
+    default_address: deferWith(
+      account,
+      (account: any) =>
+        (account.shipping || account.billing) &&
+        ShopifyAddress(instance, account.shipping || account.billing),
     ),
     email: defer(() => account.email),
     first_name: defer(() => account.first_name),
@@ -52,28 +55,40 @@ export default function ShopifyCustomer(
 }
 
 async function resolveAddresses(instance: ShopifyCompatibility, account: any) {
-  account._addresses =
-    account._addresses ||
-    (await instance.swell.storefront.account.listAddresses());
+  const addresses = await instance.swell.getCachedResource(
+    `addresses-${account.id}`,
+    () => {
+      return instance.swell.storefront.account.listAddresses();
+    },
+  );
 
-  return account._addresses?.results?.map((address: any) =>
+  return (addresses as any)?.results?.map((address: any) =>
     ShopifyAddress(instance, address),
   );
 }
 
 async function resolveOrders(instance: ShopifyCompatibility, account: any) {
-  account._orders =
-    account._orders || (await instance.swell.storefront.account.listOrders());
+  const orders = await instance.swell.getCachedResource(
+    `orders-${account.id}`,
+    () => instance.swell.storefront.account.listOrders(),
+  );
 
-  return account._orders?.results?.map((order: any) =>
+  return (orders as any)?.results?.map((order: any) =>
     ShopifyOrder(instance, order, account),
   );
 }
 
 async function resolveLastOrder(instance: ShopifyCompatibility, account: any) {
-  account._last_order =
-    account._last_order ||
-    (await instance.swell.storefront.account.listOrders({ limit: 1 }));
+  const lastOrder = await instance.swell.getCachedResource(
+    `last-order-${account.id}`,
+    async () => {
+      return (
+        await instance.swell.storefront.account.listOrders({
+          limit: 1,
+        })
+      )?.results?.[0];
+    },
+  );
 
-  return ShopifyOrder(instance, account._last_order, account);
+  return lastOrder && ShopifyOrder(instance, lastOrder as any, account);
 }

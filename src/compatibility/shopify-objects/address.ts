@@ -32,6 +32,7 @@ export default function ShopifyAddress(
     summary: deferWith(address, (address: any) =>
       joinAddressLines(
         address.name,
+        address.company,
         address.address1,
         address.address2,
         address.city,
@@ -55,14 +56,17 @@ export function ShopifyCountry(
   _instance: ShopifyCompatibility,
   countryCode: string,
 ): ShopifyResource {
-  return new ShopifyResource({
-    available_languages: [], // TODO
-    continent: '', // TODO
-    currency: '', // TODO
-    iso_code: countryCode,
-    market: null, // TODO
-    name: countryCode, // TODO
-    popular: true, // TODO
-    unit_system: 'metric', // TODO
-  });
+  return new ShopifyResource(
+    {
+      available_languages: [], // TODO
+      continent: '', // TODO
+      currency: '', // TODO
+      iso_code: countryCode,
+      market: null, // TODO
+      name: countryCode, // TODO
+      popular: true, // TODO
+      unit_system: 'metric', // TODO
+    },
+    'iso_code',
+  );
 }

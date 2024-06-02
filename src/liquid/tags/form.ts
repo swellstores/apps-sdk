@@ -9,6 +9,7 @@ import {
   TopLevelToken,
   Template,
   TypeGuards,
+  evalToken,
 } from 'liquidjs';
 import { QuotedToken } from 'liquidjs/dist/tokens';
 
@@ -23,6 +24,7 @@ export default function bind(liquidSwell: LiquidSwell) {
     private formConfig: any;
     private templates: Template[] = [];
     private hash: Hash;
+    private arg: any;
 
     constructor(
       token: TagToken,
@@ -43,6 +45,10 @@ export default function bind(liquidSwell: LiquidSwell) {
         );
       }
 
+      tokenizer.advance();
+
+      this.arg = tokenizer.readValue();
+
       this.hash = new Hash(this.tokenizer.remaining());
 
       while (remainTokens.length) {
@@ -60,6 +66,7 @@ export default function bind(liquidSwell: LiquidSwell) {
       }
 
       const r = this.liquid.renderer;
+      const arg = yield evalToken(this.arg, ctx);
       const hash = yield this.hash.render(ctx);
 
       const scope = ctx.getAll() as any;
@@ -82,17 +89,16 @@ export default function bind(liquidSwell: LiquidSwell) {
       let compatibilityHtml = '';
 
       if (liquidSwell.theme.shopifyCompatibility) {
-        if (!exForm) {
-          Object.assign(
-            form,
-            liquidSwell.theme.shopifyCompatibility.getFormData(form),
-          );
-        }
+        Object.assign(
+          form,
+          liquidSwell.theme.shopifyCompatibility.getFormData(form),
+        );
 
         const compatibilityOutput =
           yield liquidSwell.theme.shopifyCompatibility.getAdaptedFormClientHtml(
             this.formConfig.id,
             scope,
+            arg,
           );
 
         if (compatibilityOutput) {
@@ -105,13 +111,14 @@ export default function bind(liquidSwell: LiquidSwell) {
           yield liquidSwell.theme.shopifyCompatibility.getAdaptedFormClientParams(
             this.formConfig.id,
             scope,
+            arg,
           );
         if (compatibilityParams) {
           form.setParams(compatibilityParams);
         }
       }
 
-      ctx.push({ form });
+      ctx.push({ form: { ...(arg || undefined), ...form } });
 
       const html = yield r.renderTemplates(this.templates, ctx);
 

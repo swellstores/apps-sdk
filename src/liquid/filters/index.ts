@@ -136,27 +136,31 @@ export async function resolveAsyncProps(
     prop = await prop;
   }
 
-  if (Array.isArray(resolveProps)) {
-    for (const propPath of resolveProps) {
-      if (typeof propPath !== 'string') {
-        continue;
-      }
+  try {
+    if (Array.isArray(resolveProps)) {
+      for (const propPath of resolveProps) {
+        if (typeof propPath !== 'string') {
+          continue;
+        }
 
-      const [key, ...remainingKeys] = propPath.split('.');
-      const targetProp = prop[key];
+        const [key, ...remainingKeys] = propPath.split('.');
+        const targetProp = prop[key];
 
-      if (targetProp instanceof Promise) {
-        prop[key] = await targetProp;
-      } else if (typeof targetProp?.resolve === 'function') {
-        prop[key] = await targetProp.resolve();
-      }
+        if (targetProp instanceof Promise) {
+          prop[key] = await targetProp;
+        } else if (typeof targetProp?.resolve === 'function') {
+          prop[key] = await targetProp.resolve();
+        }
 
-      if (remainingKeys.length > 0) {
-        prop[key] = await resolveAsyncProps(prop[key], [
-          remainingKeys.join('.'),
-        ]);
+        if (remainingKeys.length > 0) {
+          prop[key] = await resolveAsyncProps(prop[key], [
+            remainingKeys.join('.'),
+          ]);
+        }
       }
     }
+  } catch {
+    // noop
   }
 
   return prop;

@@ -171,6 +171,13 @@ declare class Swell {
     timeout?: number,
   ): Promise<any>;
 
+  getCachedResource(
+    key: string,
+    args: Array<any> | Function,
+    handler?: Function,
+    timeout?: number,
+  ): Promise<any>;
+
   clearCache(): void;
 
   getStorefrontSettings(): Promise<SwellRecord>;
@@ -551,9 +558,9 @@ type ShopifyFormResourceMap = Array<{
   pageId?: string;
   formType?: string;
 
-  clientParams?: (scope: SwellData) => SwellData;
+  clientParams?: (scope: SwellData, arg?: any) => SwellData;
 
-  clientHtml?: (scope: SwellData) => string;
+  clientHtml?: (scope: SwellData, arg?: any) => string;
 
   serverParams?: (context: SwellData) => SwellData;
 

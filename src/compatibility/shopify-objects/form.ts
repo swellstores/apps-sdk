@@ -21,7 +21,6 @@ export default function ShopifyForm(
   return new ShopifyResource({
     ...(shopifyForm?.params?.(form) || undefined),
     errors: form.errors && new ShopifyFormErrors(form.errors),
-    this_is_a_shopify_resource: true,
   });
 }
 

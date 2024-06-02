@@ -16,11 +16,7 @@ export class ThemeForm {
   }
 
   setErrors(errors: ThemeFormErrorMessages) {
-    if (this.errors) {
-      this.errors.set(errors);
-    } else {
-      this.errors = new ThemeFormErrors(errors);
-    }
+    this.errors = new ThemeFormErrors(errors);
   }
 
   clearErrors() {
@@ -33,14 +29,6 @@ export class ThemeFormErrors {
 
   constructor(errors?: ThemeFormErrorMessages) {
     this.errors = errors;
-  }
-
-  set(errors: ThemeFormErrorMessages) {
-    this.errors = errors;
-  }
-
-  clear() {
-    this.errors = undefined;
   }
 
   [Symbol.iterator]() {

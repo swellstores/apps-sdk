@@ -1,7 +1,7 @@
 import isObject from 'lodash/isObject';
 import { DeferredShopifyResource } from './compatibility/shopify-objects';
 
-const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
+export const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
 
 export class StorefrontResource implements StorefrontResource {
   public _getter: StorefrontResourceGetter | undefined;

@@ -66,6 +66,8 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     globals.current_page = 1; // TODO: pagination page
 
     globals.routes = this.getPageRouteMap();
+
+    globals.all_country_option_tags = this.getAllCountryOptionTags(globals.geo);
   }
 
   parseQueryParams(searchParams: URLSearchParams) {
@@ -111,21 +113,29 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     }
   }
 
-  async getAdaptedFormClientParams(formType: string, scope: SwellData) {
+  async getAdaptedFormClientParams(
+    formType: string,
+    scope: SwellData,
+    arg?: any,
+  ) {
     const formMap = this.formResourceMap.find(
       (form) => form.formType === formType,
     );
     if (formMap?.clientParams) {
-      return await formMap.clientParams(scope);
+      return await formMap.clientParams(scope, arg);
     }
   }
 
-  async getAdaptedFormClientHtml(formType: string, scope: SwellData) {
+  async getAdaptedFormClientHtml(
+    formType: string,
+    scope: SwellData,
+    arg?: any,
+  ) {
     const formMap = this.formResourceMap.find(
       (form) => form.formType === formType,
     );
     if (formMap?.clientHtml) {
-      return await formMap.clientHtml(scope);
+      return await formMap.clientHtml(scope, arg);
     }
   }
 
@@ -307,5 +317,31 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
 
   getFormResourceMap(): ShopifyFormResourceMap {
     return [];
+  }
+
+  getAllCountryOptionTags(geoSettings: SwellRecord) {
+    return this.swell.getCachedSync(
+      'shopify-country-option-tags',
+      [geoSettings?.countries, geoSettings?.states],
+      () =>
+        geoSettings?.countries
+          ?.map((country: any) => {
+            if (!country) return;
+
+            const provinces = [
+              ...(geoSettings?.states || [])
+                .filter((state: any) => state.country === country.id)
+                .map((state: any) => [state.id, state.name]),
+            ];
+            const provincesEncoded = JSON.stringify(provinces).replace(
+              /"/g,
+              '&quot;',
+            );
+
+            return `<option value="${country.id}" data-provinces="${provincesEncoded}">${country.name}</option>`;
+          })
+          .filter(Boolean)
+          .join('\n'),
+    );
   }
 }

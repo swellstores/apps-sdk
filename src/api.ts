@@ -1,6 +1,6 @@
 import SwellJS from 'swell-js';
 import { toBase64 } from './utils';
-
+import { CACHE_TIMEOUT_RESOURCES } from './resources';
 export * from './resources';
 
 const DEFAULT_API_HOST = 'https://api.schema.io';
@@ -15,6 +15,7 @@ const SWELL_CLIENT_HEADERS = [
   'swell-request-id',
   'swell-theme-id',
   'swell-theme-branch-id',
+  'swell-theme-config-version',
 ];
 
 export class Swell implements Swell {
@@ -26,6 +27,7 @@ export class Swell implements Swell {
   public instanceId: string = '';
   public isPreview: boolean = false;
   public isEditor: boolean = false;
+  public sentResponse: boolean = false;
 
   static cache: Map<string, any> = new Map();
 
@@ -166,7 +168,10 @@ export class Swell implements Swell {
       url: swellHeaders['admin-url'],
       vaultUrl: swellHeaders['vault-url'],
       getCookie,
-      setCookie,
+      setCookie:
+        setCookie &&
+        ((name: string, value: string, options: any) =>
+          setCookie(name, value, options, this)),
     });
 
     if (storefrontSettingStates) {
@@ -209,12 +214,12 @@ export class Swell implements Swell {
       let result;
       try {
         result = cacheHandler();
+        cacheInstance.set(cacheKey, result);
+
         if (result instanceof Promise) {
           result.then((data) => {
             cacheInstance.set(cacheKey, data);
           });
-        } else {
-          cacheInstance.set(cacheKey, result);
         }
       } catch (err) {
         console.error(err);
@@ -237,6 +242,25 @@ export class Swell implements Swell {
     timeout?: number,
   ): Promise<any> {
     return await this.getCachedSync(key, args, handler, timeout);
+  }
+
+  async getCachedResource(
+    key: string,
+    args: Array<any> | Function,
+    handler?: Function,
+    timeout?: number,
+  ): Promise<any> {
+    const requestId = this.swellHeaders['request-id'];
+    const resourceArgs =
+      typeof args === 'function' ? [requestId] : [requestId, args];
+    const resourceHandler = typeof args === 'function' ? args : handler;
+
+    return await this.getCachedSync(
+      key,
+      resourceArgs,
+      resourceHandler,
+      timeout || CACHE_TIMEOUT_RESOURCES,
+    );
   }
 
   clearCache() {

@@ -36,6 +36,7 @@ export class SwellTheme {
     ShopifyCompatibility;
 
   public formData: { [key: string]: ThemeForm } = {};
+  public globalData: SwellData = {};
 
   constructor(
     swell: Swell,
@@ -71,7 +72,7 @@ export class SwellTheme {
     this.pageId = pageId;
     this.url = url;
 
-    const { store, menus, configs } = await this.getSettingsAndConfigs();
+    const { store, menus, geo, configs } = await this.getSettingsAndConfigs();
     const { settings, page, cart, account, customer } =
       await this.resolvePageData(configs, pageId);
 
@@ -79,6 +80,7 @@ export class SwellTheme {
 
     this.setGlobals(
       {
+        ...this.globalData,
         store,
         settings,
         menus,
@@ -86,6 +88,7 @@ export class SwellTheme {
         cart,
         account,
         customer,
+        geo,
         configs,
         storefrontConfig: this.storefrontConfig,
         language: configs?.language,
@@ -115,12 +118,14 @@ export class SwellTheme {
     store: SwellData;
     menus: { [key: string]: SwellMenu };
     configs: ThemeConfigs;
+    geo: SwellRecord;
   }> {
-    const [storefrontSettings, themeConfigs] = await Promise.all([
+    const [storefrontSettings, themeConfigs, geo] = await Promise.all([
       this.swell.getCached('store-settings', async () => {
         return await this.swell.getStorefrontSettings();
       }),
       this.getAllThemeConfigs(),
+      this.getGeoSettings(),
     ]);
 
     const settingConfigs = await Promise.all(
@@ -182,6 +187,7 @@ export class SwellTheme {
     return {
       store: storefrontSettings?.store,
       menus,
+      geo,
       configs,
     };
   }
@@ -240,7 +246,7 @@ export class SwellTheme {
       return null;
     }
 
-    return this.swell.getCached(`${key}-${cacheKey}`, () => handler());
+    return this.swell.getCachedResource(`${key}-${cacheKey}`, () => handler());
   }
 
   fetchCart() {
@@ -298,6 +304,34 @@ export class SwellTheme {
     this.formData[formId] = form;
 
     this.setGlobals({ forms: this.formData });
+  }
+
+  serializeFormData(): SwellData | null {
+    const serializedFormData: SwellData = {};
+
+    for (const formId in this.formData) {
+      serializedFormData[formId] = {
+        success: this.formData[formId].success,
+        errors: this.formData[formId].errors,
+      };
+    }
+
+    return Object.keys(serializedFormData).length > 0
+      ? serializedFormData
+      : null;
+  }
+
+  setGlobalData(data: SwellData = {}) {
+    this.globalData = {
+      ...this.globalData,
+      ...data,
+    };
+
+    this.setGlobals(this.globalData);
+  }
+
+  serializeGlobalData(): SwellData | null {
+    return Object.keys(this.globalData).length > 0 ? this.globalData : null;
   }
 
   resolveLanguageLocale(languageConfig: ThemeSettings, localeCode: string) {
@@ -451,12 +485,26 @@ export class SwellTheme {
     return themeConfigQuery(swellHeaders);
   }
 
+  async getGeoSettings(): Promise<SwellRecord> {
+    const cacheKey = this.swell.swellHeaders['theme-config-version'];
+
+    return this.swell.getCached(
+      'geo-settings',
+      [cacheKey],
+      async () => {
+        return await this.swell.get('/settings/geo');
+      },
+      // 1hr cache time
+      1000 * 60 * 60,
+    );
+  }
+
   async getAllThemeConfigs(): Promise<SwellCollection> {
-    const cacheKey =
-      this.swell.swellHeaders['theme-config-version'] ||
-      this.swell.swellHeaders['request-id'];
+    const cacheKey = this.swell.swellHeaders['theme-config-version'];
 
     return this.swell.getCached('theme-configs-all', [cacheKey], async () => {
+      console.log(`Retrieving theme configurations - version: ${cacheKey}`);
+
       const configs = await this.swell.get('/:themes:configs', {
         ...this.themeConfigQuery(),
         // TODO: paginate to support more than 1000 configs
@@ -553,9 +601,7 @@ export class SwellTheme {
   }
 
   getAssetUrl(filePath: string): string | null {
-    const cacheKey =
-      this.swell.swellHeaders['theme-config-version'] ||
-      this.swell.swellHeaders['request-id'];
+    const cacheKey = this.swell.swellHeaders['theme-config-version'];
 
     const configs = this.swell.getCachedSync('theme-configs-all', [cacheKey]);
 
