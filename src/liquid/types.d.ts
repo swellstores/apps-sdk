@@ -2,6 +2,21 @@ type ThemeSettings = {
   [key: string]: any;
 };
 
+type ThemeSettingsBlock = {
+  type: string;
+  settings: ThemeSettings;
+};
+
+interface ThemeSectionSettings extends ThemeSettings {
+  section: {
+    id: string;
+    type: string;
+    settings: ThemeSettings;
+    blocks: ThemeSettingsBlock[];
+    block_order: string[];
+  };
+}
+
 type ThemePage = {
   [key: string]: any; // TODO: fix this
 };
@@ -40,14 +55,9 @@ type ThemeSection = {
   disabled?: boolean;
   settings: ThemeSettings;
   blocks: {
-    [key: string]: ThemeBlock;
+    [key: string]: ThemeSettingsBlock;
   };
   block_order: string[];
-};
-
-type ThemeBlock = {
-  type: string;
-  settings: ThemeSettings;
 };
 
 type ThemeSectionGroup = {
@@ -58,19 +68,20 @@ type ThemeSectionGroup = {
   order?: string[];
 };
 
-type ThemeSectionGroupConfig = {
+type ThemeSectionConfig = {
   id: string;
   section: ThemeSection;
   tag: string;
   schema?: ThemeSectionSchema | null;
   output?: string;
-  settings?: ThemeSettings;
+  settings?: ThemeSectionSettings;
+  blocks?: ThemeSettingsBlock[];
   class?: string;
 };
 
 type ThemeSectionSchema = {
   label: string;
-  settings: ThemeSettingFieldSchema[];
+  fields: ThemeSettingFieldSchema[];
   type?: string; // layout sections only
   tag?: string;
   class?: string;
@@ -208,22 +219,23 @@ interface ThemePageSectionSchema extends ThemeSectionSchema {
   id: string;
 }
 
-type ThemeLayoutSectionGroupSchema = {
+type ThemeLayoutSectionGroupConfig = {
   id: string;
-  sectionConfigs: ThemeSectionGroupConfig[];
+  type: string;
+  sectionConfigs: ThemeSectionConfig[];
 };
 
 type ThemeBlockSchema = {
   type: string;
   label: string;
   limit?: number;
-  settings: ThemeSettingFieldSchema[];
+  fields: ThemeSettingFieldSchema[];
 };
 
 type ThemePresetSchema = {
   label: string;
   settings?: ThemeSettings;
-  blocks?: ThemeBlock[];
+  blocks?: ThemeSettingsBlock[];
 };
 
 type ThemeSectionEnabledDisabled = {

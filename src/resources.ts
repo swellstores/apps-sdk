@@ -212,6 +212,9 @@ export class StorefrontResource implements StorefrontResource {
 
   setCompatibilityProps(props: SwellData) {
     this._compatibilityProps = props;
+    if (this._result !== undefined) {
+      Object.assign(this, props);
+    }
   }
 
   getCompatibilityProp(prop: string) {

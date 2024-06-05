@@ -23,20 +23,20 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   public pageResourceMap: ShopifyPageResourceMap;
   public objectResourceMap: ShopifyObjectResourceMap;
   public formResourceMap: ShopifyFormResourceMap;
-  public queryParams: { [key: string]: any } = {};
+  public queryParamsMap: ShopifyQueryParamsMap;
 
   constructor(swell: Swell) {
     this.swell = swell;
     this.pageResourceMap = this.getPageResourceMap();
     this.objectResourceMap = this.getObjectResourceMap();
     this.formResourceMap = this.getFormResourceMap();
+    this.queryParamsMap = this.getQueryParamsMap();
   }
 
-  adaptGlobals(globals: ThemeGlobals, url: URL) {
+  adaptGlobals(globals: ThemeGlobals) {
     const { store, page, menus } = globals;
 
     this.pageId = this.getPageType(page?.id);
-    this.queryParams = this.parseQueryParams(url.searchParams);
 
     globals.shop = this.getShopData(globals);
 
@@ -47,14 +47,14 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     globals.page = {
       ...(page || undefined),
       id: this.pageId,
-      url: url.pathname,
+      url: this.swell.url.pathname,
     };
 
     globals.request = {
-      host: url.host,
-      origin: url.origin,
-      path: url.pathname,
-      query: this.queryParams,
+      host: this.swell.url.host,
+      origin: this.swell.url.origin,
+      path: this.swell.url.pathname,
+      query: this.swell.queryParams,
       locale: store?.locale,
       design_mode: this.swell.isEditor,
       visual_section_preview: false, // TODO: Add support for visual section preview
@@ -65,17 +65,9 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
 
     globals.current_page = 1; // TODO: pagination page
 
-    globals.routes = this.getPageRouteMap();
+    globals.routes = this.getPageRoutes();
 
     globals.all_country_option_tags = this.getAllCountryOptionTags(globals.geo);
-  }
-
-  parseQueryParams(searchParams: URLSearchParams) {
-    const queryParams: { [key: string]: any } = {};
-    for (const [key, value] of searchParams.entries()) {
-      queryParams[key] = value;
-    }
-    return queryParams;
   }
 
   adaptPageData(pageData: SwellData) {
@@ -97,7 +89,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   }
 
   adaptObjectData(objectData: SwellData) {
-    // Adapt individual resources to shopify objects from page data
+    // Adapt individual resources to Shopify objects from page data
     for (const value of Object.values(objectData)) {
       const objectMap = this.objectResourceMap.find(
         ({ from }: { from: any }) => value instanceof from,
@@ -111,6 +103,27 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
         }
       }
     }
+  }
+
+  adaptQueryParams() {
+    // Adapt query params from Shopify to Swell compatible format
+    const adaptedParams: SwellData = {};
+    for (const [key, value] of Object.entries(this.swell.queryParams)) {
+      const paramMap = this.queryParamsMap.find(({ from }) =>
+        typeof from === 'function' ? from(key) : from === key,
+      );
+      if (paramMap) {
+        const toObject =
+          typeof paramMap.to === 'function'
+            ? paramMap.to(key, value)
+            : { [paramMap.to]: value };
+        Object.assign(adaptedParams, toObject);
+      } else {
+        adaptedParams[key] = value;
+      }
+    }
+
+    this.swell.queryParams = adaptedParams;
   }
 
   async getAdaptedFormClientParams(
@@ -281,7 +294,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     return pageId;
   }
 
-  getPageRouteMap() {
+  getPageRoutes() {
     return {
       account_addresses_url: this.getPageRouteUrl('account/addresses'),
       account_login_url: this.getPageRouteUrl('account/login'),
@@ -303,6 +316,67 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     };
   }
 
+  getAdaptedPageUrl(url: string) {
+    let pageId;
+    const urlParams: SwellData = {};
+
+    const [_, segment1, segment2, segment3] = url.split('?')[0].split('/');
+
+    switch (segment1) {
+      case 'account':
+        switch (segment2) {
+          case 'order':
+            pageId = 'account/order';
+            urlParams.id = segment3;
+            break;
+          case 'register':
+            pageId = 'account/login';
+            break;
+          default:
+            break;
+        }
+        break;
+
+      case 'blog':
+        if (segment2) {
+          pageId = 'blogs/category';
+          urlParams.category = segment2;
+        }
+        if (segment3) {
+          pageId = 'blogs/blog';
+          urlParams.slug = segment3;
+        }
+        break;
+
+      case 'collections':
+        if (segment2) {
+          if (segment2 === 'all') {
+            pageId = 'products/index';
+          } else {
+            pageId = 'categories/category';
+            urlParams.slug = segment2;
+          }
+        } else {
+          pageId = 'categories/index';
+        }
+        break;
+
+      case 'gift_card':
+        if (segment2) {
+          pageId = 'gift-card';
+          urlParams.id = segment2;
+        }
+        break;
+    }
+
+    if (pageId) {
+      const pageUrl = this.getPageRouteUrl(pageId);
+      if (pageUrl) {
+        return pageUrl.replace(/{(\w+)}/g, (_match, key) => urlParams[key]);
+      }
+    }
+  }
+
   getThemeFilePath(type: string, name: string) {
     return `${type}/${name}`;
   }
@@ -317,6 +391,24 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
 
   getFormResourceMap(): ShopifyFormResourceMap {
     return [];
+  }
+
+  getQueryParamsMap(): ShopifyQueryParamsMap {
+    return [
+      {
+        from: 'sort_by',
+        to: 'sort',
+      },
+      {
+        from: (param: string) => param.startsWith('filter.v.'),
+        to: (param: string, value: string) => {
+          const filterKey = param.split('filter.v.')[1];
+          const filterValue = value;
+
+          return { [filterKey]: filterValue };
+        },
+      },
+    ];
   }
 
   getAllCountryOptionTags(geoSettings: SwellRecord) {

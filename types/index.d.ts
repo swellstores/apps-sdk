@@ -112,9 +112,10 @@ type SwellStorefrontConfig = {
 };
 
 declare class Swell {
-  public locals: SwellData;
-  public headers: { [key: string]: string };
-  public swellHeaders: { [key: string]: string };
+  public url: URL;
+  public headers: SwellData;
+  public swellHeaders: SwellData;
+  public queryParams: SwellData;
   public backend?: SwellBackendAPI;
   public storefront: typeof SwellJS;
   public instanceId: string;
@@ -123,23 +124,30 @@ declare class Swell {
   static cache: Map<string, any>;
 
   constructor(options: {
-    locals?: SwellData;
-    headers?: { [key: string]: any };
-    swellHeaders?: { [key: string]: any };
-    serverHeaders?: Headers; // Required on the server
+    url?: URL | string;
+    headers?: SwellData;
+    swellHeaders?: SwellData;
+    serverHeaders?: Headers | SwellData;
+    queryParams?: URLSearchParams | SwellData;
     getCookie?: (name: string) => string;
     setCookie?: (name: string, value: string, options: any) => void;
     [key: string]: any;
   });
 
-  static getSwellHeaders(serverHeaders: Headers): {
-    headers: { [key: string]: string };
-    swellHeaders: { [key: string]: string };
+  static formatHeaders(serverHeaders?: Headers | SwellData): {
+    headers: SwellData;
+    swellHeaders: SwellData;
   };
 
+  static formatQueryParams(
+    queryParams?: URLSearchParams | SwellData,
+  ): SwellData;
+
   getClientProps(): {
-    headers: { [key: string]: string };
-    swellHeaders: { [key: string]: string };
+    url: URL;
+    headers: SwellData;
+    swellHeaders: SwellData;
+    queryParams: SwellData;
     instanceId: string;
     isPreview: boolean;
     isEditor: boolean;
@@ -221,17 +229,11 @@ declare class SwellBackendAPI {
   delete(url: string, data?: SwellData): Promise<SwellData>;
 }
 
-interface SwellThemeInitOptions {
-  pageId?: string;
-  url?: URL;
-}
-
 declare class SwellTheme {
   public swell: Swell;
   public liquidSwell: LiquidSwell;
   public storefrontConfig?: SwellStorefrontConfig;
 
-  public url: URL | undefined;
   public page: any;
   public pageId: string | undefined;
   public globals: ThemeGlobals | undefined;
@@ -240,6 +242,7 @@ declare class SwellTheme {
   public shopifyCompatibilityClass: typeof ShopifyCompatibility;
 
   public formData: { [key: string]: ThemeForm };
+  public globalData: SwellData;
 
   constructor(
     swell: Swell,
@@ -249,9 +252,9 @@ declare class SwellTheme {
     },
   );
 
-  initGlobals(options: SwellThemeInitOptions): Promise<void>;
+  initGlobals(pageId: string): Promise<void>;
 
-  setGlobals(globals: ThemeGlobals, url?: URL): void;
+  setGlobals(globals: ThemeGlobals): void;
 
   getSettingsAndConfigs(): Promise<{ store: SwellData; configs: any }>;
 
@@ -280,6 +283,12 @@ declare class SwellTheme {
       errors?: ThemeFormErrorMessages;
     },
   ): void;
+
+  serializeFormData(): SwellData | null;
+
+  setGlobalData(data: SwellData = {}): void;
+
+  serializeGlobalData(): SwellData | null;
 
   setCompatibilityData(pageData: SwellData): void;
 
@@ -336,7 +345,7 @@ declare class SwellTheme {
 
   getSectionGroupConfigs(
     sectionGroup: ThemeSectionGroup,
-  ): Promise<ThemeSectionGroupConfig[]>;
+  ): Promise<ThemeSectionConfig[]>;
 
   getPageSections(): Promise<any>;
 
@@ -345,12 +354,12 @@ declare class SwellTheme {
   renderPageSections(
     sectionGroup: ThemeSectionGroup,
     data: SwellData,
-  ): Promise<ThemeSectionGroupConfig[]>;
+  ): Promise<ThemeSectionConfig[]>;
 
   renderSectionConfigs(
-    sectionConfigs: ThemeSectionGroupConfig[],
+    sectionConfigs: ThemeSectionConfig[],
     data: SwellData,
-  ): Promise<ThemeSectionGroupConfig[]>;
+  ): Promise<ThemeSectionConfig[]>;
 
   renderTemplateSections(
     sectionGroup: ThemeSectionGroup,
@@ -472,13 +481,11 @@ declare class ShopifyCompatibility {
   public pageResourceMap: ShopifyPageResourceMap;
   public objectResourceMap: ShopifyObjectResourceMap;
   public formResourceMap: ShopifyFormResourceMap;
-  public queryParams: { [key: string]: any };
+  public queryParamsMap: ShopifyQueryParamsMap;
 
   constructor(swell: Swell);
 
-  adaptGlobals(globals: any, url: URL): void;
-
-  parseQueryParams(searchParams: URLSearchParams): { [key: string]: any };
+  adaptGlobals(globals: any): void;
 
   adaptPageData(pageData: SwellData): void;
 
@@ -504,7 +511,9 @@ declare class ShopifyCompatibility {
 
   getPageRouteUrl(pageId: string): string;
 
-  getPageRouteMap(): { [key: string]: string };
+  getPageRoutes(): { [key: string]: string };
+
+  getAdaptedPageUrl(url: string): string | undefined;
 
   getThemeFilePath(type: string, name: string): string;
 
@@ -565,4 +574,9 @@ type ShopifyFormResourceMap = Array<{
   serverParams?: (context: SwellData) => SwellData;
 
   serverResponse?: (context: SwellData) => SwellData;
+}>;
+
+type ShopifyQueryParamsMap = Array<{
+  from: string | ((param: string) => boolean);
+  to: string | ((param: string, value: string) => SwellData);
 }>;

@@ -131,10 +131,10 @@ export default function ShopifyProduct(
     requires_selling_plan: false,
     selected_or_first_available_selling_plan_allocation: null,
     selected_or_first_available_variant: deferWith(product, (product: any) => {
-      const selectedVariant = instance.queryParams.variant
+      const selectedVariant = instance.swell.queryParams.variant
         ? product.variants?.results?.reverse().find(
             (variant: any) =>
-              variant.id === instance.queryParams.variant && // Selected by url param `variant`
+              variant.id === instance.swell.queryParams.variant && // Selected by url param `variant`
               (variant.stock_status === 'in_stock' || !variant.stock_status),
           )
         : null;

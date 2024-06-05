@@ -29,7 +29,9 @@ export default function ShopifyOrder(
     cancelled_at: defer(() => order.date_canceled),
     confirmation_number: defer(() => order.number),
     created_at: defer(() => order.date_created),
-    customer: defer(() => ShopifyCustomer(instance, customerAccount)),
+    customer:
+      customerAccount &&
+      defer(() => ShopifyCustomer(instance, customerAccount)),
     customer_order_url: deferWith(
       order,
       (order: any) => `/account/orders/${order.id}`,
@@ -38,7 +40,9 @@ export default function ShopifyOrder(
       order,
       (order: any) => `/account/orders/${order.id}`,
     ),
-    email: deferWith(customerAccount, (account: any) => account.email),
+    email:
+      customerAccount &&
+      deferWith(customerAccount, (account: any) => account.email),
     financial_status: deferWith(order, (order: any) =>
       shopifyFinancialStatus(order),
     ),
@@ -60,11 +64,13 @@ export default function ShopifyOrder(
     name: defer(() => order.number),
     number: defer(() => order.number),
     note: defer(() => order.comments),
-    phone: deferWith(
-      [order, customerAccount],
-      (order: any, account: any) =>
-        order.billing?.phone || order.shipping.phone || account.phone,
-    ),
+    phone:
+      customerAccount &&
+      deferWith(
+        [order, customerAccount],
+        (order: any, account: any) =>
+          order.billing?.phone || order.shipping.phone || account.phone,
+      ),
     shipping_address: deferWith(order, () =>
       ShopifyAddress(instance, order.shipping),
     ),

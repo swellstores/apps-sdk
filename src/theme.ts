@@ -26,7 +26,6 @@ export class SwellTheme {
   public storefrontConfig?: SwellStorefrontConfig;
   public liquidSwell: LiquidSwell;
 
-  public url: URL | undefined;
   public page: any;
   public pageId: string | undefined;
   public globals: ThemeGlobals | undefined;
@@ -68,9 +67,8 @@ export class SwellTheme {
     });
   }
 
-  async initGlobals({ url, pageId }: SwellThemeInitOptions) {
+  async initGlobals(pageId: string) {
     this.pageId = pageId;
-    this.url = url;
 
     const { store, menus, geo, configs } = await this.getSettingsAndConfigs();
     const { settings, page, cart, account, customer } =
@@ -78,32 +76,33 @@ export class SwellTheme {
 
     this.page = page;
 
-    this.setGlobals(
-      {
-        ...this.globalData,
-        store,
-        settings,
-        menus,
-        page,
-        cart,
-        account,
-        customer,
-        geo,
-        configs,
-        storefrontConfig: this.storefrontConfig,
-        language: configs?.language,
-        canonical_url: `${store.url}${this.url?.pathname || ''}`,
-        // Flag to enable Shopify compatibility in sections and tags/filters
-        shopify_compat: Boolean(settings.$shopify_compatibility),
-      },
-      url,
-    );
+    this.setGlobals({
+      ...this.globalData,
+      store,
+      settings,
+      menus,
+      page,
+      cart,
+      account,
+      customer,
+      geo,
+      configs,
+      storefrontConfig: this.storefrontConfig,
+      language: configs?.language,
+      canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
+      // Flag to enable Shopify compatibility in sections and tags/filters
+      shopify_compatibility: Boolean(settings.shopify_compatibility),
+    });
+
+    if (this.shopifyCompatibility) {
+      this.shopifyCompatibility.adaptQueryParams();
+    }
   }
 
-  setGlobals(globals: SwellData, url?: URL, query?: SwellData) {
+  setGlobals(globals: SwellData) {
     // Note: All globals are set manually on the client side in the editor
-    if (this.shopifyCompatibility && url) {
-      this.shopifyCompatibility.adaptGlobals(globals, url);
+    if (this.shopifyCompatibility && !this.globals) {
+      this.shopifyCompatibility.adaptGlobals(globals);
     }
 
     this.globals = {
@@ -180,7 +179,7 @@ export class SwellTheme {
       this as any,
       this.swell.getStorefrontMenus(),
       {
-        currentUrl: this.url?.pathname,
+        currentUrl: this.swell.url.pathname,
       },
     );
 
@@ -204,7 +203,7 @@ export class SwellTheme {
   }> {
     const { settings, page } = this.swell.getCachedSync(
       'theme-settings-resolved',
-      [this.url?.pathname, pageId],
+      [this.swell.url.pathname, pageId],
       () => {
         const settings = resolveThemeSettings(
           this,
@@ -225,6 +224,7 @@ export class SwellTheme {
       this.fetchSingletonResourceCached('account', () => this.fetchAccount()),
     ]);
 
+    // TODO: move this to compatibility class
     let customer;
     if (this.shopifyCompatibility) {
       customer = account;
@@ -249,8 +249,13 @@ export class SwellTheme {
     return this.swell.getCachedResource(`${key}-${cacheKey}`, () => handler());
   }
 
-  fetchCart() {
+  async fetchCart() {
     const cart = new SwellStorefrontSingleton(this.swell as any, 'cart');
+
+    await cart.id;
+    if (!cart.id) {
+      return null;
+    }
 
     if (this.shopifyCompatibility) {
       const compatProps = ShopifyCart(this.shopifyCompatibility, cart as any);
@@ -260,8 +265,13 @@ export class SwellTheme {
     return cart;
   }
 
-  fetchAccount() {
+  async fetchAccount() {
     const account = new SwellStorefrontSingleton(this.swell as any, 'account');
+
+    await account.id;
+    if (!account.id) {
+      return null;
+    }
 
     if (this.shopifyCompatibility) {
       const compatProps = ShopifyCustomer(
@@ -399,10 +409,10 @@ export class SwellTheme {
     }
 
     // Make sure compatibility instance and config setting are resolved
-    if (configs.theme.$shopify_compatibility) {
+    if (configs.theme.shopify_compatibility) {
       shopifyCompatibility();
     } else if (this.shopifyCompatibility) {
-      configs.theme.$shopify_compatibility = true;
+      configs.theme.shopify_compatibility = true;
     }
   }
 
@@ -478,6 +488,26 @@ export class SwellTheme {
     }
 
     return new ThemeFont(value);
+  }
+
+  resolveUrlSetting(value: string): string {
+    let resolvedUrl = value;
+
+    if (this.shopifyCompatibility) {
+      // Remove shopify:// protocol
+      if (value?.startsWith('shopify://')) {
+        resolvedUrl = value.replace('shopify://', '/');
+      }
+
+      const adaptedUrl =
+        this.shopifyCompatibility.getAdaptedPageUrl(resolvedUrl);
+
+      if (adaptedUrl) {
+        return adaptedUrl;
+      }
+    }
+
+    return resolvedUrl;
   }
 
   themeConfigQuery() {
@@ -914,7 +944,7 @@ export class SwellTheme {
 
   async getSectionGroupConfigs(
     sectionGroup: ThemeSectionGroup,
-  ): Promise<ThemeSectionGroupConfig[]> {
+  ): Promise<ThemeSectionConfig[]> {
     return await getSectionGroupConfigs(sectionGroup, (type) =>
       this.getSectionSchema(type),
     );
@@ -946,14 +976,12 @@ export class SwellTheme {
     return schema;
   }
 
-  async getPageSections(): Promise<any[]> {
-    // TODO: type
+  async getPageSections(): Promise<ThemePageSectionSchema[]> {
     const configs = await this.getAllThemeConfigs();
     return getPageSections(configs, this.getTemplateSchema.bind(this));
   }
 
-  async getLayoutSectionGroups(): Promise<any[]> {
-    // TODO: type
+  async getLayoutSectionGroups(): Promise<ThemeLayoutSectionGroupConfig[]> {
     const configs = await this.getAllThemeConfigs();
     // TODO: de-dupe with getPageSections
     let layoutSectionGroups = await getLayoutSectionGroups(
@@ -961,11 +989,22 @@ export class SwellTheme {
       this.getTemplateSchema.bind(this),
     );
 
+    console.log('getLayoutSectionGroups', layoutSectionGroups);
+
     // Resolve section config settings
     for (const layoutSectionGroup of layoutSectionGroups) {
       for (const sectionConfig of layoutSectionGroup.sectionConfigs) {
         const { schema } = sectionConfig;
-        if (schema?.settings && this.globals) {
+        console.log(
+          'cant resolve section settings in layout group',
+          layoutSectionGroup.id,
+          sectionConfig.id,
+        );
+        if (
+          schema?.fields &&
+          this.globals &&
+          sectionConfig.settings?.section?.settings
+        ) {
           // TODO: this is nested in section property so it doesn't work
           // FIXME
           sectionConfig.settings = resolveSectionSettings(this, sectionConfig);
@@ -979,46 +1018,44 @@ export class SwellTheme {
   async renderPageSections(
     sectionGroup: ThemeSectionGroup,
     data?: SwellData,
-  ): Promise<ThemeSectionGroupConfig[]> {
+  ): Promise<ThemeSectionConfig[]> {
     const sectionConfigs = await this.getSectionGroupConfigs(sectionGroup);
     return this.renderSectionConfigs(sectionConfigs, data);
   }
 
   async renderSectionConfigs(
-    sectionConfigs: ThemeSectionGroupConfig[],
+    sectionConfigs: ThemeSectionConfig[],
     data?: SwellData,
-  ): Promise<ThemeSectionGroupConfig[]> {
+  ): Promise<ThemeSectionConfig[]> {
     return await Promise.all(
-      sectionConfigs.map(
-        (sectionConfig: ThemeSectionGroupConfig, index: number) => {
-          const { section, schema } = sectionConfig;
-          let { settings } = sectionConfig;
+      sectionConfigs.map((sectionConfig: ThemeSectionConfig, index: number) => {
+        const { section, schema } = sectionConfig;
+        let { settings } = sectionConfig;
 
-          if (schema?.settings && this.globals) {
-            settings = resolveSectionSettings(this, sectionConfig);
-          }
+        if (schema?.fields && this.globals) {
+          settings = resolveSectionSettings(this, sectionConfig);
+        }
 
-          return new Promise(async (resolve) => {
-            const templateConfig = await this.getThemeTemplateConfigByType(
-              'sections',
-              `${section.type}.liquid`,
-            );
-            const output = templateConfig
-              ? await this.renderTemplate(templateConfig, {
-                  ...data,
-                  ...settings,
-                  index,
-                  template: templateConfig,
-                })
-              : '';
+        return new Promise(async (resolve) => {
+          const templateConfig = await this.getThemeTemplateConfigByType(
+            'sections',
+            `${section.type}.liquid`,
+          );
+          const output = templateConfig
+            ? await this.renderTemplate(templateConfig, {
+                ...data,
+                ...settings,
+                index,
+                template: templateConfig,
+              })
+            : '';
 
-            resolve({
-              ...sectionConfig,
-              output,
-            });
-          }) as Promise<ThemeSectionGroupConfig>;
-        },
-      ),
+          resolve({
+            ...sectionConfig,
+            output,
+          });
+        }) as Promise<ThemeSectionConfig>;
+      }),
     );
   }
 
@@ -1116,20 +1153,28 @@ export class PageNotFound extends PageError {
 
 export function resolveSectionSettings(
   theme: SwellTheme,
-  sectionConfig: ThemeSectionGroupConfig,
-): ThemeSettings | undefined {
+  sectionConfig: ThemeSectionConfig,
+): ThemeSectionSettings | undefined {
   const { settings, schema } = sectionConfig;
 
-  if (!settings?.section?.settings || !schema?.settings) {
+  if (!settings?.section?.settings || !schema?.fields) {
     return settings;
   }
 
   const editorSettings: ThemeSettingSectionSchema[] = [
     {
       label: sectionConfig.id,
-      fields: schema.settings,
+      fields: schema.fields,
     },
   ];
+
+  /* if (sectionConfig.id === 'page__index__image_banner') {
+    console.log(
+      'render section settings blocks? page__index__image_banner',
+      schema,
+      settings.section.blocks,
+    );
+  } */
 
   return {
     ...settings,
@@ -1140,6 +1185,16 @@ export function resolveSectionSettings(
         settings.section.settings,
         editorSettings,
       ),
+      blocks: settings.section.blocks?.map((block) => ({
+        ...block,
+        settings: resolveThemeSettings(
+          theme,
+          block.settings,
+          schema.blocks?.filter(
+            (schemaBlock) => schemaBlock.type === block.type,
+          ),
+        ),
+      })),
     },
   };
 }
@@ -1188,6 +1243,9 @@ export function resolveThemeSettings(
           break;
         case 'menu':
           settings[key] = theme.resolveMenuSetting(value);
+          break;
+        case 'url':
+          settings[key] = theme.resolveUrlSetting(value);
           break;
       }
     }

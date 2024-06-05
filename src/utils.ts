@@ -56,7 +56,7 @@ export async function getPageSections(
 export async function getLayoutSectionGroups(
   allSections: SwellCollection,
   renderTemplateSchema: (config: any) => Promise<any>,
-): Promise<ThemeLayoutSectionGroupSchema[]> {
+): Promise<ThemeLayoutSectionGroupConfig[]> {
   if (!allSections?.results) return [];
 
   const sectionGroupConfigs = allSections.results.filter(
@@ -106,7 +106,7 @@ export async function getLayoutSectionGroups(
 
   return await Promise.all(
     sectionGroupConfigs.map(
-      (config: SwellRecord): Promise<ThemeLayoutSectionGroupSchema> => {
+      (config: SwellRecord): Promise<ThemeLayoutSectionGroupConfig> => {
         return new Promise(async (resolve: any) => {
           let sectionGroup;
           try {
@@ -137,14 +137,14 @@ export async function getLayoutSectionGroups(
 export async function getSectionGroupConfigs(
   sectionGroup: ThemeSectionGroup | SwellRecord,
   getSchema: (type: string) => Promise<ThemeSectionSchema | undefined>,
-): Promise<ThemeSectionGroupConfig[]> {
+): Promise<ThemeSectionConfig[]> {
   const order =
     sectionGroup.order instanceof Array
       ? sectionGroup.order
       : Object.keys(sectionGroup.sections || {});
 
   const sections = await Promise.all(
-    order.map((key: string): Promise<ThemeSectionGroupConfig> => {
+    order.map((key: string): Promise<ThemeSectionConfig> => {
       return new Promise(async (resolve) => {
         const id = sectionGroup.id
           ? `page__${sectionGroup.id}__${key}`
@@ -157,7 +157,7 @@ export async function getSectionGroupConfigs(
             ? section.block_order
             : Object.keys(section.blocks || {});
 
-        const blocks: ThemeBlock[] = await Promise.all(
+        const blocks: ThemeSettingsBlock[] = await Promise.all(
           blockOrder.map((key: string) => section.blocks[key]),
         );
 

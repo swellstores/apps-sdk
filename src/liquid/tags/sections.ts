@@ -25,7 +25,7 @@ export default function bind(liquidSwell: LiquidSwell) {
       try {
         const sectionGroup = JSON.parse(themeConfig.file_data);
         const output = yield liquidSwell.renderTemplateSections(sectionGroup);
-        const sc = liquidSwell.globals.shopify_compat;
+        const sc = liquidSwell.globals.shopify_compatibility;
         return sc
           ? `
           <div class="swell-section-group swell-section-group--${this.fileName} shopify-section shopify-section-group-${this.fileName}" id="shopify-sections--${themeConfig.hash}__${this.fileName}">

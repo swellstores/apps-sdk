@@ -33,6 +33,9 @@
     "watch": "node scripts/build.mjs watch"
   },
   "dependencies": {
+    
+  },
+  "devDependencies": {
     "@easyblocks/core": "^1.0.5-alpha.0",
     "@easyblocks/editor": "^1.0.5-alpha.0",
     "color": "^4.2.3",
@@ -40,14 +43,13 @@
     "html-to-react": "^1.7.0",
     "liquidjs": "^10.10.1",
     "lodash": "^4.17.21",
+    "qs": "^6.12.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "strftime": "^0.10.2",
     "swell-js": "^4.0.3",
     "textdiff-patch": "^1.1.8",
-    "typescript": "^5.3.3"
-  },
-  "devDependencies": {
+    "typescript": "^5.3.3",
     "@kruining/waterlogged": "^1.1.45",
     "@types/color": "^3.0.6",
     "@types/react": "^18.2.64",

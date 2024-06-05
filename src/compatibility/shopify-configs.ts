@@ -52,7 +52,7 @@ export function convertShopifySectionConfig(
     class: section.class,
     enabled_on: section.enabled_on,
     disabled_on: section.disabled_on,
-    settings: (section.settings || []).map((setting) =>
+    fields: (section.settings || []).map((setting) =>
       shopifySchemaSettingToSwellSettingField(setting),
     ),
     blocks: (section.blocks || []).map((block) =>
@@ -73,7 +73,7 @@ export function shopifySchemaBlockToSwellBlockSchema(
     type: block.type,
     label: block.name, // TODO: translate if starting with t:
     limit: block.limit,
-    settings: (block.settings || []).map((setting) =>
+    fields: (block.settings || []).map((setting) =>
       shopifySchemaSettingToSwellSettingField(setting),
     ),
   };
@@ -316,5 +316,6 @@ export function shopifySchemaSettingToSwellSettingField(
     ...swellProps,
     id: setting.id,
     label: setting.label,
+    description: setting.info,
   };
 }

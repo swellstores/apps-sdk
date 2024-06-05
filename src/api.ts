@@ -1,4 +1,5 @@
 import SwellJS from 'swell-js';
+import qs from 'qs';
 import { toBase64 } from './utils';
 import { CACHE_TIMEOUT_RESOURCES } from './resources';
 export * from './resources';
@@ -19,9 +20,10 @@ const SWELL_CLIENT_HEADERS = [
 ];
 
 export class Swell implements Swell {
-  public locals: SwellData;
-  public headers: { [key: string]: string };
-  public swellHeaders: { [key: string]: string };
+  public url: URL;
+  public headers: SwellData;
+  public swellHeaders: SwellData;
+  public queryParams: SwellData;
   public backend?: SwellBackendAPI;
   public storefront: typeof SwellJS;
   public instanceId: string = '';
@@ -32,21 +34,31 @@ export class Swell implements Swell {
   static cache: Map<string, any> = new Map();
 
   constructor(params: {
-    locals?: SwellData; // Local request properties i.e. Astro.locals
-    headers?: { [key: string]: any };
-    swellHeaders?: { [key: string]: any };
-    serverHeaders?: Headers; // Required on the server
+    url: URL | string;
+    headers?: SwellData;
+    swellHeaders?: SwellData;
+    serverHeaders?: Headers | SwellData; // Required on the server
+    queryParams?: URLSearchParams | SwellData;
     getCookie?: (name: string) => string;
     setCookie?: (name: string, value: string, options: any) => void;
     [key: string]: any;
   }) {
-    const { locals, headers, swellHeaders, serverHeaders, ...clientProps } =
-      params;
+    const {
+      url,
+      headers,
+      swellHeaders,
+      serverHeaders,
+      queryParams,
+      ...clientProps
+    } = params;
 
-    this.locals = locals || {};
+    this.url = url instanceof URL ? url : new URL(params.url || '');
+    this.queryParams = Swell.formatQueryParams(
+      queryParams || this.url.searchParams,
+    );
 
     if (serverHeaders) {
-      const { headers, swellHeaders } = Swell.getSwellHeaders(serverHeaders);
+      const { headers, swellHeaders } = Swell.formatHeaders(serverHeaders);
 
       this.headers = headers;
       this.swellHeaders = swellHeaders;
@@ -109,40 +121,63 @@ export class Swell implements Swell {
     }
   }
 
-  static getSwellHeaders(serverHeaders: Headers): {
-    headers: { [key: string]: string };
-    swellHeaders: { [key: string]: string };
+  static formatHeaders(serverHeaders?: Headers | SwellData): {
+    headers: SwellData;
+    swellHeaders: SwellData;
   } {
-    const headers: { [key: string]: string } = {};
-    const swellHeaders: { [key: string]: string } = {};
+    let headers: SwellData = {};
+    const swellHeaders: SwellData = {};
 
-    serverHeaders.forEach((value: string, key: string) => {
-      headers[key] = value;
+    if (serverHeaders instanceof Headers) {
+      serverHeaders.forEach((value: string, key: string) => {
+        headers[key] = value;
+      });
+    } else if (serverHeaders) {
+      headers = serverHeaders;
+    }
+
+    for (const key in headers) {
       if (key.startsWith('swell-')) {
-        swellHeaders[key.replace('swell-', '')] = value || '';
+        swellHeaders[key.replace('swell-', '')] = headers[key] || '';
       }
-    });
+    }
 
     return { headers, swellHeaders };
+  }
+
+  static formatQueryParams(
+    queryParams?: URLSearchParams | SwellData,
+  ): SwellData {
+    let params: SwellData = {};
+
+    if (queryParams instanceof URLSearchParams) {
+      params = qs.parse(queryParams.toString());
+    } else if (queryParams) {
+      params = queryParams;
+    }
+
+    return params;
   }
 
   getClientProps() {
     const clientHeaders = SWELL_CLIENT_HEADERS.reduce((acc, key) => {
       acc[key] = this.headers[key];
       return acc;
-    }, {} as { [key: string]: string });
+    }, {} as SwellData);
 
     const clientSwellHeaders = SWELL_CLIENT_HEADERS.reduce((acc, key) => {
       const swellKey = key.replace('swell-', '');
       acc[swellKey] = this.swellHeaders[swellKey];
       return acc;
-    }, {} as { [key: string]: string });
+    }, {} as SwellData);
 
     const storefrontSettings = this.storefront.settings as any;
 
     return {
+      url: this.url,
       headers: clientHeaders,
       swellHeaders: clientSwellHeaders,
+      queryParams: this.queryParams,
       instanceId: this.instanceId,
       isPreview: this.isPreview,
       isEditor: this.isEditor,
@@ -368,7 +403,7 @@ export class SwellBackendAPI implements SwellBackendAPI {
   async makeRequest(method: string, url: string, data?: object) {
     const requestOptions: {
       method: string;
-      headers: { [key: string]: string };
+      headers: SwellData;
       body?: string;
     } = {
       method,

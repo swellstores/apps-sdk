@@ -7,6 +7,7 @@ import {
   UserDefinedTemplate,
 } from "@easyblocks/core";
 import { themeConfigQuery } from "./utils";
+import { Theme } from 'node_modules/@easyblocks/core/dist/types/compiler/types';
 
 export async function getThemeConfig(swell: Swell, themePath: string): Promise<SwellRecord | null> {
   if (!swell.swellHeaders["theme-id"]) {
@@ -36,39 +37,21 @@ export async function getThemeConfig(swell: Swell, themePath: string): Promise<S
   }
 }
 
-export async function getThemeSectionConfigs(swell: Swell): Promise<SwellCollection> {
-  const configs = await swell.getCached("editor-theme-section-configs", async () => {
-    return await swell.get("/:themes:configs", {
-      ...themeConfigQuery(swell.swellHeaders),
-      file_path: { $regex: "^theme/sections/" },
-      limit: 1000,
-      fields: "type, name, file, file_path, file_data",
-      include: {
-        file_data: {
-          url: "/:themes:configs/{id}/file/data",
-          conditions: {
-            type: "theme",
-          },
-        },
-      },
-    });
-  });
-
-  return configs;
-}
-
 export async function getEditorLanguageConfig(swell: Swell) {
   let editorLang = await getThemeConfig(swell, `config/language-editor`);
-  
+
   // Fallback to shopify theme locales
   // TODO: put this logic in ShopifyCompatibility class
   if (!editorLang) {
     const storefrontSettings = await swell.getStorefrontSettings();
-    const localeCode = storefrontSettings?.locale || "en-US";
+    const localeCode = storefrontSettings?.locale || 'en-US';
     editorLang = await getThemeConfig(swell, `locales/${localeCode}.schema`);
     if (!editorLang) {
-      const localeBaseCode = (localeCode as string).split("-")[0];
-      editorLang = await getThemeConfig(swell, `locales/${localeBaseCode}.schema`);
+      const localeBaseCode = (localeCode as string).split('-')[0];
+      editorLang = await getThemeConfig(
+        swell,
+        `locales/${localeBaseCode}.schema`,
+      );
     }
   }
 
@@ -99,9 +82,9 @@ export function renderLanguage(lang: any, key: string): string {
 }
 
 export function getEasyblocksPagePropsWithConfigs(
-  sectionConfigs: ThemeSectionGroupConfig[],
-  pageSections: any[],
-  layoutSectionGroups: any[],
+  sectionConfigs: ThemeSectionConfig[],
+  pageSections: ThemePageSectionSchema[],
+  layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
   pageId: string,
   lang: any,
 ) {
@@ -112,7 +95,7 @@ export function getEasyblocksPagePropsWithConfigs(
   };
 
   const getLayoutSectionGroupComponentProps = () => {
-    return layoutSectionGroups.map((sectionGroup: any) => ({
+    return layoutSectionGroups.map((sectionGroup) => ({
       prop: `SectionGroup_${sectionGroup.id}`,
       type: 'component-collection',
       required: true,
@@ -136,7 +119,7 @@ export function getEasyblocksPagePropsWithConfigs(
 
   const getAcceptedPageSections = () => {
     return pageSections
-      .reduce((acc: any, section: any) => {
+      .reduce((acc: string[], section) => {
         if (section.enabled_on) {
           if (checkEnabledDisabledOn(section.enabled_on, 'templates', pageId)) {
             acc.push(section.id);
@@ -150,9 +133,7 @@ export function getEasyblocksPagePropsWithConfigs(
         } else {
           // Default hide sections named after layout section group types
           if (
-            !layoutSectionGroups
-              .map(({ type }: any) => type)
-              .includes(section.id)
+            !layoutSectionGroups.map(({ type }) => type).includes(section.id)
           ) {
             acc.push(section.id);
           }
@@ -164,7 +145,7 @@ export function getEasyblocksPagePropsWithConfigs(
 
   const getAcceptedLayoutSections = (groupType: string) => {
     return pageSections
-      .reduce((acc: any, section: any) => {
+      .reduce((acc: string[], section) => {
         if (section.enabled_on) {
           if (checkEnabledDisabledOn(section.enabled_on, 'groups', groupType)) {
             acc.push(section.id);
@@ -213,19 +194,19 @@ export function getEasyblocksPagePropsWithConfigs(
         };
       },
     },
-    ...pageSections.map((section: any) => {
+    ...pageSections.map((section) => {
       return {
         id: `${section.id}`,
-        label: translateLabel(section.name, section.id),
+        label: translateLabel(section.label, section.id),
         schema: [
-          ...(section.settings || [])
-            .map((setting: any) => {
-              if (!setting.id || !setting.type) return;
+          ...(section.fields || [])
+            .map((field) => {
+              if (!field.id || !field.type) return;
               return {
-                prop: setting.id,
-                label: translateLabel(setting.label, setting.id),
-                defaultValue: setting.default,
-                ...schemaToEasyblocksProps(lang, setting),
+                prop: field.id,
+                label: translateLabel(field.label, field.id),
+                defaultValue: field.default,
+                ...schemaToEasyblocksProps(lang, field),
               };
             })
             .filter(Boolean),
@@ -236,32 +217,30 @@ export function getEasyblocksPagePropsWithConfigs(
                   type: 'component-collection',
                   required: true,
                   accepts: section.blocks.map(
-                    (block: any) => `Block__${section.id}__${block.type}`,
+                    (block) => `Block__${section.id}__${block.type}`,
                   ),
                   // TODO: figure out how to make this work, doesn't work for collections normally
-                  defaultValue: section.presets?.[0]?.blocks?.map(
-                    (block: any) => {
-                      const blockDef = section.blocks.find(
-                        ({ type }: any) => type === block.type,
-                      );
-                      if (!blockDef) return;
-                      return {
-                        _component: `Block__${section.id}__${block.type}`,
-                        ...reduce(
-                          blockDef.settings,
-                          (acc, blockSetting) => ({
-                            ...acc,
-                            [blockSetting.id]: schemaToEasyblocksValue(
-                              blockDef.settings,
-                              blockSetting.id,
-                              blockSetting.default,
-                            ),
-                          }),
-                          {},
-                        ),
-                      };
-                    },
-                  ),
+                  defaultValue: section.presets?.[0]?.blocks?.map((block) => {
+                    const blockDef = section.blocks?.find(
+                      ({ type }) => type === block.type,
+                    );
+                    if (!blockDef) return;
+                    return {
+                      _component: `Block__${section.id}__${block.type}`,
+                      ...reduce(
+                        blockDef.fields.filter((field) => field.id),
+                        (acc, blockField) => ({
+                          ...acc,
+                          [blockField.id as string]: schemaToEasyblocksValue(
+                            blockDef.fields,
+                            blockField.id as string,
+                            blockField.default,
+                          ),
+                        }),
+                        {},
+                      ),
+                    };
+                  }),
                   placeholderAppearance: {
                     height: 50,
                     label: 'Add block',
@@ -280,21 +259,21 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       };
     }),
-    ...pageSections.reduce((acc: any[], section: any) => {
+    ...pageSections.reduce((acc: any[], section) => {
       if (section.blocks) {
         acc.push(
-          ...section.blocks.map((block: any) => ({
+          ...section.blocks.map((block) => ({
             id: `Block__${section.id}__${block.type}`,
-            label: translateLabel(block.name, block.type),
+            label: translateLabel(block.label, block.type),
             schema: [
-              ...(block.settings || [])
-                .map((setting: any) => {
-                  if (!setting.id || !setting.type) return;
+              ...(block.fields || [])
+                .map((field) => {
+                  if (!field.id || !field.type) return;
                   return {
-                    prop: setting.id,
-                    label: translateLabel(setting.label, setting.id),
-                    defaultValue: setting.default,
-                    ...schemaToEasyblocksProps(lang, setting),
+                    prop: field.id,
+                    label: translateLabel(field.label, field.id),
+                    defaultValue: field.default,
+                    ...schemaToEasyblocksProps(lang, field),
                   };
                 })
                 .filter(Boolean),
@@ -315,33 +294,35 @@ export function getEasyblocksPagePropsWithConfigs(
 
   const getSectionGroupTemplateValues = () => {
     return layoutSectionGroups.reduce(
-      (acc: any, sectionGroup: any) => ({
+      (acc: any, sectionGroup: ThemeLayoutSectionGroupConfig) => ({
         ...acc,
         [`SectionGroup_${sectionGroup.id}`]: sectionGroup.sectionConfigs.map(
-          ({ section, settings, schema }: any) => ({
+          ({ section, settings, schema }) => ({
             _id: `SectionGroup__${section.type}_${Math.random()}`,
             _component: `${section.type}`,
             ...reduce(
               section.settings,
               (acc, value, key) => ({
                 ...acc,
-                [key]: schemaToEasyblocksValue(schema?.settings, key, value),
+                [key]: schemaToEasyblocksValue(schema?.fields, key, value),
               }),
               {},
             ),
-            ...(settings.section.blocks
+            ...(settings?.section.blocks
               ? {
                   Blocks: settings.section.blocks.map((block: any) => ({
-                    _id: `Block__${section.type}__${block.type}_${Math.random()}`,
+                    _id: `Block__${section.type}__${
+                      block.type
+                    }_${Math.random()}`,
                     _component: `Block__${section.type}__${block.type}`,
                     ...reduce(
                       block.settings,
                       (acc, value, key) => ({
                         ...acc,
                         [key]: schemaToEasyblocksValue(
-                          schema?.blocks.find(
-                            ({ type }: any) => type === block.type,
-                          )?.settings,
+                          schema?.blocks?.find(
+                            ({ type }) => type === block.type,
+                          )?.fields,
                           key,
                           value,
                         ),
@@ -367,30 +348,32 @@ export function getEasyblocksPagePropsWithConfigs(
         _id: `page_${pageId}`,
         _component: `page_${pageId}`,
         ContentSections: sectionConfigs.map(
-          ({ section, settings, schema }: any) => ({
+          ({ section, settings, schema }) => ({
             _id: `${section.type}_${Math.random()}`,
             _component: `${section.type}`,
             ...reduce(
               section.settings,
               (acc, value, key) => ({
                 ...acc,
-                [key]: schemaToEasyblocksValue(schema?.settings, key, value),
+                [key]: schemaToEasyblocksValue(schema?.fields, key, value),
               }),
               {},
             ),
-            ...(settings.section.blocks
+            ...(settings?.section.blocks
               ? {
                   Blocks: settings.section.blocks.map((block: any) => ({
-                    _id: `Block__${section.type}__${block.type}_${Math.random()}`,
+                    _id: `Block__${section.type}__${
+                      block.type
+                    }_${Math.random()}`,
                     _component: `Block__${section.type}__${block.type}`,
                     ...reduce(
                       block.settings,
                       (acc, value, key) => ({
                         ...acc,
                         [key]: schemaToEasyblocksValue(
-                          schema?.blocks.find(
-                            ({ type }: any) => type === block.type,
-                          )?.settings,
+                          schema?.blocks?.find(
+                            ({ type }) => type === block.type,
+                          )?.fields,
                           key,
                           value,
                         ),
@@ -547,13 +530,16 @@ export function getEasyblocksPagePropsWithConfigs(
   };
 }
 
-export function schemaToEasyblocksProps(lang: any, setting: any) {
+export function schemaToEasyblocksProps(
+  lang: any,
+  field: ThemeSettingFieldSchema,
+) {
   const sharedProps = {
-    description: setting.description || setting.info,
+    description: field.description,
   };
 
   let typeProps;
-  switch (setting?.type) {
+  switch (field?.type) {
     case 'text':
     case 'short_text':
     // Note these need a different component:
@@ -570,7 +556,6 @@ export function schemaToEasyblocksProps(lang: any, setting: any) {
       };
       break;
 
-    case 'range':
     case 'number':
       typeProps = {
         type: 'number',
@@ -581,7 +566,7 @@ export function schemaToEasyblocksProps(lang: any, setting: any) {
       typeProps = {
         type: 'select',
         params: {
-          options: setting.options?.map((option: any) => ({
+          options: field.options?.map((option) => ({
             label: option.label?.startsWith('t:')
               ? renderLanguage(lang, option.label.split('t:')[1]) ||
                 option.label
@@ -596,7 +581,7 @@ export function schemaToEasyblocksProps(lang: any, setting: any) {
       typeProps = {
         type: 'radio-group',
         params: {
-          options: setting.options?.map((option: any) => ({
+          options: field.options?.map((option) => ({
             label: option.label?.startsWith('t:')
               ? renderLanguage(lang, option.label.split('t:')[1]) ||
                 option.label
@@ -610,7 +595,7 @@ export function schemaToEasyblocksProps(lang: any, setting: any) {
     case 'checkbox':
       typeProps = {
         type: 'boolean',
-        defaultValue: setting.default,
+        defaultValue: field.default,
       };
       break;
 
@@ -625,7 +610,7 @@ export function schemaToEasyblocksProps(lang: any, setting: any) {
     case 'document':
     case 'video':
     case 'color_scheme':
-    case 'color_schema_group':
+    case 'color_scheme_group':
     default:
       typeProps = {
         type: 'string',
@@ -640,22 +625,22 @@ export function schemaToEasyblocksProps(lang: any, setting: any) {
 }
 
 export function getEasyblocksComponentDefinitions(
-  props: any,
+  props: {
+    pageSections: ThemePageSectionSchema[];
+    layoutSectionGroups: ThemeLayoutSectionGroupConfig[];
+  },
   pageId: string,
   getComponent: (type: string, data?: any) => any,
 ) {
   const { pageSections, layoutSectionGroups } = props;
 
-  const pageSectionComponents = pageSections.reduce(
-    (acc: any, section: any) => {
-      acc[`${section.id}`] = getComponent('pageSection', section);
-      return acc;
-    },
-    {},
-  );
+  const pageSectionComponents = pageSections.reduce((acc: any, section) => {
+    acc[`${section.id}`] = getComponent('pageSection', section);
+    return acc;
+  }, {});
 
   const layoutSectionGroupComponents = layoutSectionGroups.reduce(
-    (acc: any, sectionGroup: any) => {
+    (acc: any, sectionGroup) => {
       acc[`SectionGroup___${sectionGroup.id}`] = getComponent(
         'layoutSectionGroup',
         sectionGroup,
@@ -665,7 +650,7 @@ export function getEasyblocksComponentDefinitions(
     {},
   );
 
-  const blockComponents = pageSections.reduce((acc: any[], section: any) => {
+  const blockComponents = pageSections.reduce((acc: any, section) => {
     if (section.blocks) {
       for (const block of section.blocks) {
         const blockId = `Block__${section.id}__${block.type}` as any;
@@ -685,17 +670,16 @@ export function getEasyblocksComponentDefinitions(
 }
 
 export function schemaToEasyblocksValue(
-  settings: any,
-  settingId: string,
+  fields: ThemeSettingFieldSchema[] | undefined,
+  fieldId: string,
   value: any,
 ) {
-  const setting = settings?.find?.((setting: any) => setting.id === settingId);
-  switch (setting?.type) {
+  const field = fields?.find((field) => field.id === fieldId);
+  switch (field?.type) {
     // Note this should work for type "text" but it doesn't
     /* case "text":
     // Note these need a different component:
     case "textarea":
-      console.log('schemaToEasyblocksValue text!', settings, settingId, value)
       return {
         id: Math.random().toString(),
         value: {
@@ -708,9 +692,7 @@ export function schemaToEasyblocksValue(
   }
 }
 
-export function getEasyblocksBackend(
-  sectionConfigs: ThemeSectionGroupConfig[],
-) {
+export function getEasyblocksBackend(sectionConfigs: ThemeSectionConfig[]) {
   const easyblocksBackend: Backend = {
     documents: {
       get: async ({ id }) => {
