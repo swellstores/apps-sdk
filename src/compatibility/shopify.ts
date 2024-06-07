@@ -10,7 +10,8 @@ import {
   convertShopifySettingsSchema,
   convertShopifySettingsData,
   convertShopifySettingsPresets,
-  convertShopifySectionConfig,
+  convertShopifySectionSchema,
+  convertShopifySectionGroupConfig,
 } from './shopify-configs';
 import { shopifyFontToThemeFront } from './shopify-fonts';
 
@@ -278,8 +279,10 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     return {};
   }
 
-  getSectionConfig(sectionSchema: ShopifySectionSchema): ThemeSectionSchema {
-    return convertShopifySectionConfig(this as any, sectionSchema);
+  getSectionConfigSchema(
+    sectionSchema: ShopifySectionSchema,
+  ): ThemeSectionSchema {
+    return convertShopifySectionSchema(this as any, sectionSchema);
   }
 
   /*
@@ -378,7 +381,22 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   }
 
   getThemeFilePath(type: string, name: string) {
-    return `${type}/${name}`;
+    switch (type) {
+      case 'assets':
+        return `assets/${name}`;
+      case 'components':
+        return `snippets/${name}`;
+      case 'config':
+        return `config/${name}`;
+      case 'layouts':
+        return `layout/${name}`;
+      case 'pages':
+        return `templates/${this.getPageType(name)}`;
+      case 'sections':
+        return `sections/${name}`;
+      default:
+        throw new Error(`Theme file type not supported: ${type}`);
+    }
   }
 
   getPageResourceMap(): ShopifyPageResourceMap {

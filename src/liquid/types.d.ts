@@ -12,8 +12,8 @@ interface ThemeSectionSettings extends ThemeSettings {
     id: string;
     type: string;
     settings: ThemeSettings;
-    blocks: ThemeSettingsBlock[];
-    block_order: string[];
+    blocks?: ThemeSettingsBlock[];
+    block_order?: string[];
   };
 }
 
@@ -54,14 +54,15 @@ type ThemeSection = {
   type: string;
   disabled?: boolean;
   settings: ThemeSettings;
-  blocks: {
+  blocks?: {
     [key: string]: ThemeSettingsBlock;
   };
-  block_order: string[];
+  block_order?: string[];
 };
 
 type ThemeSectionGroup = {
   id?: string;
+  type?: string;
   sections: {
     [key: string]: ThemeSection;
   };
@@ -80,6 +81,7 @@ type ThemeSectionConfig = {
 };
 
 type ThemeSectionSchema = {
+  id?: string;
   label: string;
   fields: ThemeSettingFieldSchema[];
   type?: string; // layout sections only
@@ -222,7 +224,17 @@ interface ThemePageSectionSchema extends ThemeSectionSchema {
 type ThemeLayoutSectionGroupConfig = {
   id: string;
   type: string;
+  label: string;
   sectionConfigs: ThemeSectionConfig[];
+  sections: {
+    [key: string]: {
+      type: string;
+      settings: ThemeSettings;
+      blocks?: ThemeSettingsBlock[];
+      block_order?: string[];
+    };
+  };
+  order: string[];
 };
 
 type ThemeBlockSchema = {

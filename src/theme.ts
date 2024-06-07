@@ -4,6 +4,7 @@ import each from 'lodash/each';
 import reduce from 'lodash/reduce';
 import {
   Swell,
+  StorefrontResource,
   SwellStorefrontCollection,
   SwellStorefrontRecord,
   SwellStorefrontSingleton,
@@ -15,9 +16,9 @@ import ShopifyCart from './compatibility/shopify-objects/cart';
 import { resolveMenuSettings } from './menus';
 import {
   themeConfigQuery,
+  getAllSections,
   getPageSections,
   getLayoutSectionGroups,
-  getSectionGroupConfigs,
   isObject,
 } from './utils';
 
@@ -427,7 +428,12 @@ export class SwellTheme {
     setting: ThemeSettingFieldSchema,
     value: any,
   ): SwellData | SwellStorefrontRecord | SwellStorefrontCollection | null {
+    if (value instanceof StorefrontResource) {
+      return value;
+    }
+
     const collection = resolveLookupCollection(setting);
+
     if (collection) {
       const defaultHandler = () => {
         if (setting.multi) {
@@ -455,6 +461,7 @@ export class SwellTheme {
 
       return defaultHandler();
     }
+
     return null;
   }
 
@@ -702,7 +709,8 @@ export class SwellTheme {
 
         const schema = this.liquidSwell.lastSchema;
         if (schema) {
-          const result = this.shopifyCompatibility.getSectionConfig(schema);
+          const result =
+            this.shopifyCompatibility.getSectionConfigSchema(schema);
           return result;
         }
       }
@@ -942,14 +950,6 @@ export class SwellTheme {
     return '';
   }
 
-  async getSectionGroupConfigs(
-    sectionGroup: ThemeSectionGroup,
-  ): Promise<ThemeSectionConfig[]> {
-    return await getSectionGroupConfigs(sectionGroup, (type) =>
-      this.getSectionSchema(type),
-    );
-  }
-
   async getTemplateSchema(config: SwellThemeConfig): Promise<any> {
     let schema = {};
 
@@ -962,7 +962,7 @@ export class SwellTheme {
         await this.renderTemplate(resolvedConfig);
         const lastSchema = this.liquidSwell.lastSchema || {};
         if (lastSchema) {
-          schema = this.shopifyCompatibility.getSectionConfig(lastSchema);
+          schema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
         }
       }
     } else if (resolvedConfig?.file_data) {
@@ -976,38 +976,53 @@ export class SwellTheme {
     return schema;
   }
 
-  async getPageSections(): Promise<ThemePageSectionSchema[]> {
+  async getAllSections(): Promise<ThemePageSectionSchema[]> {
     const configs = await this.getAllThemeConfigs();
-    return getPageSections(configs, this.getTemplateSchema.bind(this));
+    return await getAllSections(configs, this.getTemplateSchema.bind(this));
   }
 
-  async getLayoutSectionGroups(): Promise<ThemeLayoutSectionGroupConfig[]> {
+  async getPageSections(
+    sectionGroup: ThemeSectionGroup,
+    resolveSettings: boolean = true,
+  ): Promise<ThemeSectionConfig[]> {
+    const sectionConfigs = await getPageSections(sectionGroup, (type) =>
+      this.getSectionSchema(type),
+    );
+
+    // Resolve page section settings
+    if (resolveSettings) {
+      for (const sectionConfig of sectionConfigs) {
+        const { schema } = sectionConfig;
+        if (schema?.fields && this.globals && sectionConfig.settings) {
+          sectionConfig.settings = resolveSectionSettings(this, sectionConfig);
+        }
+      }
+    }
+
+    return sectionConfigs;
+  }
+
+  async getLayoutSectionGroups(
+    resolveSettings: boolean = true,
+  ): Promise<ThemeLayoutSectionGroupConfig[]> {
     const configs = await this.getAllThemeConfigs();
-    // TODO: de-dupe with getPageSections
+    // TODO: de-dupe with getAllSections
     let layoutSectionGroups = await getLayoutSectionGroups(
       configs,
       this.getTemplateSchema.bind(this),
     );
 
-    console.log('getLayoutSectionGroups', layoutSectionGroups);
-
     // Resolve section config settings
-    for (const layoutSectionGroup of layoutSectionGroups) {
-      for (const sectionConfig of layoutSectionGroup.sectionConfigs) {
-        const { schema } = sectionConfig;
-        console.log(
-          'cant resolve section settings in layout group',
-          layoutSectionGroup.id,
-          sectionConfig.id,
-        );
-        if (
-          schema?.fields &&
-          this.globals &&
-          sectionConfig.settings?.section?.settings
-        ) {
-          // TODO: this is nested in section property so it doesn't work
-          // FIXME
-          sectionConfig.settings = resolveSectionSettings(this, sectionConfig);
+    if (resolveSettings) {
+      for (const layoutSectionGroup of layoutSectionGroups) {
+        for (const sectionConfig of layoutSectionGroup.sectionConfigs) {
+          const { schema } = sectionConfig;
+          if (schema?.fields && this.globals && sectionConfig.settings) {
+            sectionConfig.settings = resolveSectionSettings(
+              this,
+              sectionConfig,
+            );
+          }
         }
       }
     }
@@ -1019,7 +1034,7 @@ export class SwellTheme {
     sectionGroup: ThemeSectionGroup,
     data?: SwellData,
   ): Promise<ThemeSectionConfig[]> {
-    const sectionConfigs = await this.getSectionGroupConfigs(sectionGroup);
+    const sectionConfigs = await this.getPageSections(sectionGroup);
     return this.renderSectionConfigs(sectionConfigs, data);
   }
 
@@ -1168,14 +1183,6 @@ export function resolveSectionSettings(
     },
   ];
 
-  /* if (sectionConfig.id === 'page__index__image_banner') {
-    console.log(
-      'render section settings blocks? page__index__image_banner',
-      schema,
-      settings.section.blocks,
-    );
-  } */
-
   return {
     ...settings,
     section: {
@@ -1208,7 +1215,7 @@ export function resolveThemeSettings(
   each(settings, (value, key) => {
     const setting =
       editorSchemaSettings && findEditorSetting(editorSchemaSettings, key);
-    if (isObject(value)) {
+    if (isObject(value) && !(value instanceof StorefrontResource)) {
       // Object-based setting types
       switch (setting?.type) {
         case 'color_scheme_group':

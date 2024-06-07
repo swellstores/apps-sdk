@@ -65,18 +65,16 @@ export default function bind(_liquidSwell: LiquidSwell) {
       let pageSize = Number(yield evalToken(this.pageSize, ctx));
       const hash = yield this.hash.render(ctx);
 
-      if (isNaN(pageSize)) {
-        return;
-      }
-
-      if (
-        (!collection?._result && collection?._get) ||
-        (collection?._get && collection._query?.limit !== pageSize)
-      ) {
-        yield collection._get({
-          limit: pageSize,
-          window: hash.window_size || undefined,
-        });
+      if (!isNaN(pageSize)) {
+        if (
+          (!collection?._result && collection?._get) ||
+          (collection?._get && collection._query?.limit !== pageSize)
+        ) {
+          yield collection._get({
+            limit: pageSize,
+            window: hash.window_size || undefined,
+          });
+        }
       }
 
       yield r.renderTemplates(this.templates, ctx, emitter);

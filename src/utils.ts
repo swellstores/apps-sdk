@@ -1,4 +1,5 @@
 import reduce from 'lodash/reduce';
+import { StorefrontResource } from './resources';
 import { LANG_TO_COUNTRY_CODES } from './constants';
 
 /* export function dump(value: any, depth = 10) {
@@ -16,7 +17,7 @@ export function themeConfigQuery(swellHeaders: { [key: string]: any }): {
   };
 }
 
-export async function getPageSections(
+export async function getAllSections(
   allSections: SwellCollection,
   renderTemplateSchema: (config: any) => Promise<any>,
 ): Promise<ThemePageSectionSchema[]> {
@@ -111,12 +112,18 @@ export async function getLayoutSectionGroups(
           let sectionGroup;
           try {
             sectionGroup = JSON.parse(config.file_data);
+            // Convert name to label if shopify format
+            if (sectionGroup?.name) {
+              sectionGroup.label = sectionGroup.name;
+              delete sectionGroup.name;
+            }
           } catch {
             // noop
           }
+
           // Must have a type property
           if (sectionGroup?.type) {
-            const sectionConfigs = await getSectionGroupConfigs(
+            const sectionConfigs = await getPageSections(
               sectionGroup,
               getSectionSchema,
             );
@@ -134,7 +141,7 @@ export async function getLayoutSectionGroups(
   ).then((result: any[]) => result.filter(Boolean));
 }
 
-export async function getSectionGroupConfigs(
+export async function getPageSections(
   sectionGroup: ThemeSectionGroup | SwellRecord,
   getSchema: (type: string) => Promise<ThemeSectionSchema | undefined>,
 ): Promise<ThemeSectionConfig[]> {
@@ -143,45 +150,52 @@ export async function getSectionGroupConfigs(
       ? sectionGroup.order
       : Object.keys(sectionGroup.sections || {});
 
-  const sections = await Promise.all(
-    order.map((key: string): Promise<ThemeSectionConfig> => {
-      return new Promise(async (resolve) => {
-        const id = sectionGroup.id
-          ? `page__${sectionGroup.id}__${key}`
-          : (sectionGroup as any).type;
+  const sections = (
+    await Promise.all(
+      order.map((key: string): Promise<ThemeSectionConfig | void> => {
+        return new Promise(async (resolve) => {
+          const section: ThemeSection = sectionGroup.sections[key];
 
-        const section: ThemeSection = sectionGroup.sections[key];
+          const schema = await getSchema(section.type);
+          if (!schema) {
+            return resolve();
+          }
 
-        const blockOrder =
-          section.block_order instanceof Array
-            ? section.block_order
-            : Object.keys(section.blocks || {});
+          const id = sectionGroup.id
+            ? `page__${sectionGroup.id}__${key}`
+            : schema.id;
 
-        const blocks: ThemeSettingsBlock[] = await Promise.all(
-          blockOrder.map((key: string) => section.blocks[key]),
-        );
+          const blockOrder =
+            section.block_order instanceof Array
+              ? section.block_order
+              : Object.keys(section.blocks || {});
 
-        const schema = await getSchema(section.type);
+          const blocks: ThemeSettingsBlock[] = (
+            await Promise.all(
+              blockOrder.map((key: string) => section.blocks?.[key]),
+            )
+          ).filter(Boolean) as ThemeSettingsBlock[];
 
-        const settings = {
-          section: {
+          const settings = {
+            section: {
+              id,
+              ...section,
+              blocks,
+            },
+          };
+
+          resolve({
             id,
-            ...section,
-            blocks,
-          },
-        };
-
-        resolve({
-          id,
-          section: { id, ...section },
-          schema,
-          settings,
-          tag: schema?.tag || 'div',
-          class: schema?.class,
+            section: { id, ...section },
+            schema,
+            settings,
+            tag: schema.tag || 'div',
+            class: schema.class,
+          });
         });
-      });
-    }),
-  );
+      }),
+    )
+  ).filter(Boolean) as ThemeSectionConfig[];
 
   return sections;
 }
@@ -251,7 +265,6 @@ export function forEachKeyDeep(
   }
 }
 
-
 export function findCircularReferences(value: any) {
   let references: any[] = [];
 
@@ -300,4 +313,42 @@ export function dehydrateSwellRefsInStorefrontResources(obj: any) {
       dehydrateSwellRefsInStorefrontResources(obj[key]);
     }
   }
+}
+
+export async function resolveAsyncResources(
+  response: any,
+  resolveStorefrontResources: boolean = true,
+) {
+  let result = response;
+  let nextResolveStorefrontResources = resolveStorefrontResources;
+
+  if (response instanceof Promise) {
+    result = await response;
+  }
+
+  if (typeof response?.resolve === 'function') {
+    // Only resolve one level of storefront resources by default
+    if (response instanceof StorefrontResource && resolveStorefrontResources) {
+      nextResolveStorefrontResources = false;
+    }
+    result = await response.resolve();
+  }
+
+  if (result instanceof Array) {
+    result = await Promise.all(
+      result.map((item) =>
+        resolveAsyncResources(item, nextResolveStorefrontResources),
+      ),
+    );
+  } else if (typeof result === 'object' && result !== null) {
+    result = { ...result };
+    for (const [key] of Object.entries(result)) {
+      result[key] = await resolveAsyncResources(
+        result[key],
+        nextResolveStorefrontResources,
+      );
+    }
+  }
+
+  return result;
 }

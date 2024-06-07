@@ -1,4 +1,4 @@
-import { ShopifyResource, defer } from './resource';
+import { ShopifyResource, defer, deferWith } from './resource';
 
 export default function ShopifyImage(
   _instance: ShopifyCompatibility,
@@ -11,17 +11,20 @@ export default function ShopifyImage(
   }
 
   return new ShopifyResource({
-    alt: defer(() => image.alt || product?.name),
+    alt: deferWith(image, (image: any) => image.alt || product?.name),
     aspect_ratio: 1,
     attached_to_variant: true,
     height: defer(() => image.height),
-    id: defer(async () => (await image.file)?.id),
+    id: deferWith(image, (image: any) => image.file?.id),
     media_type: 'image',
     position: null,
     presentation: { focal_point: null }, // x, y
     preview_image: defer(() => image.file),
     product_id: defer(() => product?.id),
-    src: defer(async () => (await image.file) && ShopifyImageSrc(image.file)),
+    src: deferWith(
+      image,
+      async (image: any) => image.file && ShopifyImageSrc(image.file),
+    ),
     variants: null, // TODO
     width: defer(() => image.width),
   });

@@ -1,4 +1,5 @@
 import isObject from 'lodash/isObject';
+import { resolveAsyncResources } from './utils';
 import { DeferredShopifyResource } from './compatibility/shopify-objects';
 
 export const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
@@ -119,58 +120,12 @@ export class StorefrontResource implements StorefrontResource {
 
   async _resolveCompatibilityProps(
     object = this._compatibilityProps,
-    depth: number = 3,
   ): Promise<any> {
-    let result: any = {};
-
-    if (object instanceof Array) {
-      return await Promise.all(
-        object.map((item: any) => this._resolveCompatibilityProps(item, depth)),
-      );
-    }
-
-    if (!object || !isObject(object)) {
-      return object;
-    }
-
-    const keys = Object.keys(object);
-
-    try {
-      for (let i = 0; i < keys.length; i++) {
-        const key = keys[i] as string;
-
-        if (object[key] instanceof Promise) {
-          result[key] = await object[key];
-        } else if (
-          // Resolve deferred resources but not deferred shopify links
-          object[key] instanceof StorefrontResource ||
-          object[key] instanceof DeferredShopifyResource
-        ) {
-          result[key] = await object[key].resolve();
-        } else {
-          result[key] = object[key];
-        }
-
-        // Resolve nested objects
-        if (isObject(result[key])) {
-          if (depth - 1 > 0) {
-            result[key] = await this._resolveCompatibilityProps(
-              result[key],
-              depth - 1,
-            );
-          } else {
-            delete result[key];
-          }
-        }
-      }
-    } catch (err) {
-      console.log(err);
-    }
-
-    return result;
+    // TODO: make sure this works for JS-only endpoints i.e. /variant
+    return resolveAsyncResources(object);
   }
 
-  async resolve(compatibilityDepth?: number) {
+  async resolve() {
     const combined = {};
 
     const result = await this._resolve();
@@ -180,7 +135,6 @@ export class StorefrontResource implements StorefrontResource {
 
     const compatibilityProps = await this._resolveCompatibilityProps(
       this._compatibilityProps,
-      compatibilityDepth,
     );
 
     Object.assign(combined, result);

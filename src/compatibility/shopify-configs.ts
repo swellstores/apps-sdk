@@ -41,24 +41,24 @@ export function convertShopifySettingsPresets(
   return settingsData.presets;
 }
 
-export function convertShopifySectionConfig(
+export function convertShopifySectionSchema(
   _instance: ShopifyCompatibility,
-  section: ShopifySectionSchema,
+  sectionSchema: ShopifySectionSchema,
 ): ThemeSectionSchema {
   const schema = {
-    label: section.name, // TODO: translate if starting with t:
-    type: section.type,
-    tag: section.tag,
-    class: section.class,
-    enabled_on: section.enabled_on,
-    disabled_on: section.disabled_on,
-    fields: (section.settings || []).map((setting) =>
+    label: sectionSchema.name, // TODO: translate if starting with t:
+    type: sectionSchema.type,
+    tag: sectionSchema.tag,
+    class: sectionSchema.class,
+    enabled_on: sectionSchema.enabled_on,
+    disabled_on: sectionSchema.disabled_on,
+    fields: (sectionSchema.settings || []).map((setting) =>
       shopifySchemaSettingToSwellSettingField(setting),
     ),
-    blocks: (section.blocks || []).map((block) =>
+    blocks: (sectionSchema.blocks || []).map((block) =>
       shopifySchemaBlockToSwellBlockSchema(block),
     ),
-    presets: (section.presets || []).map((preset) =>
+    presets: (sectionSchema.presets || []).map((preset) =>
       shopifySchemaPresetToSwellPresetSchema(preset),
     ),
   };

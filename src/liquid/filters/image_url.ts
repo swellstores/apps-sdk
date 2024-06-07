@@ -19,6 +19,10 @@ export default {
           image,
       );
 
+      if (typeof imageUrl !== 'string') {
+        return '';
+      }
+
       const props = paramsToProps(params);
 
       const query = [
@@ -31,5 +35,5 @@ export default {
       return `${imageUrl}${query ? `?${query}` : ''}`;
     };
   },
-  resolve: [['images', 'image', 'preview_image']],
+  //resolve: [['images', 'image', 'preview_image']],
 };

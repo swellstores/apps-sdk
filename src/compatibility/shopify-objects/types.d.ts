@@ -128,6 +128,29 @@ type ShopifySectionPresetSchema = {
   blocks?: ShopifySectionBlockSchema[];
 };
 
+type ShopifySettingSection = {
+  name: string;
+  settings?: Array<ShopifySettingSchema>;
+};
+
+type ShopifySectionGroupSchema = {
+  name: string;
+  type: string;
+  sections: {
+    [key in string]: {
+      type: string;
+      settings: { [key in string]: any };
+      blocks: {
+        [key in string]: {
+          type: string;
+          settings: { [key in string]: any };
+        };
+      };
+    };
+  };
+  order: string[];
+};
+
 type ShopifySectionSchema = {
   type?: string; // layout sections only
   name: string;

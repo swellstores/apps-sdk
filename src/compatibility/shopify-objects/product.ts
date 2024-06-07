@@ -30,12 +30,12 @@ export default function ShopifyProduct(
     content: defer(() => product.description),
     created_at: defer(() => product.date_created),
     description: defer(() => product.description),
-    featured_image: deferWith(
-      product,
-      () =>
+    featured_image: deferWith(product, () => {
+      return (
         product.images?.[0] &&
-        ShopifyImage(instance, product.images[0], product),
-    ),
+        ShopifyImage(instance, product.images[0], product)
+      );
+    }),
     featured_media: deferWith(
       product,
       () => product.images?.[0] && ShopifyMedia(instance, product.images[0]),

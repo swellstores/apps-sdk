@@ -52,7 +52,7 @@ export class Swell implements Swell {
       ...clientProps
     } = params;
 
-    this.url = url instanceof URL ? url : new URL(params.url || '');
+    this.url = url instanceof URL ? url : new URL(url || '');
     this.queryParams = Swell.formatQueryParams(
       queryParams || this.url.searchParams,
     );

@@ -1,34 +1,36 @@
-import get from "lodash/get";
-import reduce from "lodash/reduce";
-import { Swell } from "./api";
-import {
-  Backend,
-  Document,
-  UserDefinedTemplate,
-} from "@easyblocks/core";
-import { themeConfigQuery } from "./utils";
-import { Theme } from 'node_modules/@easyblocks/core/dist/types/compiler/types';
+import get from 'lodash/get';
+import reduce from 'lodash/reduce';
+import { Swell } from '../api';
+import { Backend, Document, UserDefinedTemplate } from '@easyblocks/core';
+import { themeConfigQuery } from '../utils';
 
-export async function getThemeConfig(swell: Swell, themePath: string): Promise<SwellRecord | null> {
-  if (!swell.swellHeaders["theme-id"]) {
+export async function getThemeConfig(
+  swell: Swell,
+  themePath: string,
+): Promise<SwellRecord | null> {
+  if (!swell.swellHeaders['theme-id']) {
     return null;
   }
 
-  const config = await swell.getCached("editor-theme-config", [themePath], async () => {
-    return await swell.get("/:themes:configs/:last", {
-      ...themeConfigQuery(swell.swellHeaders),
-      file_path: `theme/${themePath}.json`,
-      fields: "type, name, file, file_path, file_data",
-      include: {
-        file_data: {
-          url: "/:themes:configs/{id}/file/data",
-          conditions: {
-            type: "theme",
+  const config = await swell.getCached(
+    'editor-theme-config',
+    [themePath],
+    async () => {
+      return await swell.get('/:themes:configs/:last', {
+        ...themeConfigQuery(swell.swellHeaders),
+        file_path: `theme/${themePath}.json`,
+        fields: 'type, name, file, file_path, file_data',
+        include: {
+          file_data: {
+            url: '/:themes:configs/{id}/file/data',
+            conditions: {
+              type: 'theme',
+            },
           },
         },
-      },
-    });
-  });
+      });
+    },
+  );
 
   try {
     return JSON.parse(config.file_data);
@@ -82,12 +84,13 @@ export function renderLanguage(lang: any, key: string): string {
 }
 
 export function getEasyblocksPagePropsWithConfigs(
-  sectionConfigs: ThemeSectionConfig[],
-  pageSections: ThemePageSectionSchema[],
+  allSections: ThemePageSectionSchema[],
+  pageSections: ThemeSectionConfig[],
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
   pageId: string,
   lang: any,
 ) {
+  console.log({ pageSections, allSections, layoutSectionGroups });
   const translateLabel = (label: string, fallback: string) => {
     return label?.startsWith('t:')
       ? renderLanguage(lang, label.split('t:')[1]) || fallback
@@ -117,8 +120,8 @@ export function getEasyblocksPagePropsWithConfigs(
     return false;
   };
 
-  const getAcceptedPageSections = () => {
-    return pageSections
+  const getAcceptedSections = () => {
+    return allSections
       .reduce((acc: string[], section) => {
         if (section.enabled_on) {
           if (checkEnabledDisabledOn(section.enabled_on, 'templates', pageId)) {
@@ -144,7 +147,7 @@ export function getEasyblocksPagePropsWithConfigs(
   };
 
   const getAcceptedLayoutSections = (groupType: string) => {
-    return pageSections
+    return allSections
       .reduce((acc: string[], section) => {
         if (section.enabled_on) {
           if (checkEnabledDisabledOn(section.enabled_on, 'groups', groupType)) {
@@ -170,14 +173,14 @@ export function getEasyblocksPagePropsWithConfigs(
 
   const components = [
     {
-      id: `page_${pageId}`,
+      id: `swell_page`,
       label: 'Page: ' + pageId,
       schema: [
         {
           prop: 'ContentSections',
           type: 'component-collection',
           required: true,
-          accepts: getAcceptedPageSections(),
+          accepts: getAcceptedSections(),
           placeholderAppearance: {
             height: 250,
             label: 'Add section',
@@ -194,7 +197,7 @@ export function getEasyblocksPagePropsWithConfigs(
         };
       },
     },
-    ...pageSections.map((section) => {
+    ...allSections.map((section) => {
       return {
         id: `${section.id}`,
         label: translateLabel(section.label, section.id),
@@ -259,7 +262,7 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       };
     }),
-    ...pageSections.reduce((acc: any[], section) => {
+    ...allSections.reduce((acc: any[], section) => {
       if (section.blocks) {
         acc.push(
           ...section.blocks.map((block) => ({
@@ -301,7 +304,7 @@ export function getEasyblocksPagePropsWithConfigs(
             _id: `SectionGroup__${section.type}_${Math.random()}`,
             _component: `${section.type}`,
             ...reduce(
-              section.settings,
+              settings?.section.settings,
               (acc, value, key) => ({
                 ...acc,
                 [key]: schemaToEasyblocksValue(schema?.fields, key, value),
@@ -339,62 +342,57 @@ export function getEasyblocksPagePropsWithConfigs(
     );
   };
 
-  console.log({ sectionConfigs });
-
   const templates = [
+    // TODO: add templates for all other components (sections) with preset setting defaults
     {
-      id: `page_${pageId}`,
+      id: `swell_page`,
       entry: {
-        _id: `page_${pageId}`,
-        _component: `page_${pageId}`,
-        ContentSections: sectionConfigs.map(
-          ({ section, settings, schema }) => ({
-            _id: `${section.type}_${Math.random()}`,
-            _component: `${section.type}`,
-            ...reduce(
-              section.settings,
-              (acc, value, key) => ({
-                ...acc,
-                [key]: schemaToEasyblocksValue(schema?.fields, key, value),
-              }),
-              {},
-            ),
-            ...(settings?.section.blocks
-              ? {
-                  Blocks: settings.section.blocks.map((block: any) => ({
-                    _id: `Block__${section.type}__${
-                      block.type
-                    }_${Math.random()}`,
-                    _component: `Block__${section.type}__${block.type}`,
-                    ...reduce(
-                      block.settings,
-                      (acc, value, key) => ({
-                        ...acc,
-                        [key]: schemaToEasyblocksValue(
-                          schema?.blocks?.find(
-                            ({ type }) => type === block.type,
-                          )?.fields,
-                          key,
-                          value,
-                        ),
-                      }),
-                      {},
-                    ),
-                  })),
-                }
-              : {}),
-          }),
-        ),
+        _id: `swell_page`,
+        _component: `swell_page`,
+        ContentSections: pageSections.map(({ section, settings, schema }) => ({
+          _id: `${section.type}_${Math.random()}`,
+          _component: `${section.type}`,
+          ...reduce(
+            settings?.section.settings,
+            (acc, value, key) => ({
+              ...acc,
+              [key]: schemaToEasyblocksValue(schema?.fields, key, value),
+            }),
+            {},
+          ),
+          ...(settings?.section.blocks
+            ? {
+                Blocks: settings.section.blocks.map((block: any) => ({
+                  _id: `Block__${section.type}__${block.type}_${Math.random()}`,
+                  _component: `Block__${section.type}__${block.type}`,
+                  ...reduce(
+                    block.settings,
+                    (acc, value, key) => ({
+                      ...acc,
+                      [key]: schemaToEasyblocksValue(
+                        schema?.blocks?.find(({ type }) => type === block.type)
+                          ?.fields,
+                        key,
+                        value,
+                      ),
+                    }),
+                    {},
+                  ),
+                })),
+              }
+            : {}),
+        })),
         ...getSectionGroupTemplateValues(),
       },
     },
   ];
 
-  console.log({ components, templates, sectionConfigs });
+  console.log({ components, templates });
 
   return {
-    sectionConfigs,
     easyblocksConfig: {
+      components,
+      templates,
       hideCloseButton: true,
       allowSave: true,
       locales: [
@@ -403,128 +401,19 @@ export function getEasyblocksPagePropsWithConfigs(
           isDefault: true,
         },
       ],
-      components,
-      templates,
+      types: {
+        menu: {
+          type: 'inline',
+          widget: {
+            id: 'menu',
+            label: 'Navigation menu',
+          },
+          defaultValue: null,
+        },
+      },
       tokens: {
-        // Note these are just examples, would actually need to transform from theme settings I guess
-        colors: [
-          {
-            id: 'black',
-            label: 'Black',
-            value: '#000000',
-            isDefault: true,
-          },
-          {
-            id: 'white',
-            label: 'White',
-            value: '#ffffff',
-          },
-          {
-            id: 'coral',
-            label: 'Coral',
-            value: '#ff7f50',
-          },
-        ],
-        fonts: [
-          {
-            id: 'body',
-            label: 'Body',
-            value: {
-              fontSize: 18,
-              lineHeight: 1.8,
-              fontFamily: 'sans-serif',
-            },
-            isDefault: true,
-          },
-          {
-            id: 'heading',
-            label: 'Heading',
-            value: {
-              fontSize: 24,
-              fontFamily: 'sans-serif',
-              lineHeight: 1.2,
-              fontWeight: 700,
-            },
-          },
-        ],
-        space: [
-          {
-            id: '0',
-            label: '0',
-            value: '0px',
-            isDefault: true,
-          },
-          {
-            id: '1',
-            label: '1',
-            value: '1px',
-          },
-          {
-            id: '2',
-            label: '2',
-            value: '2px',
-          },
-          {
-            id: '4',
-            label: '4',
-            value: '4px',
-          },
-          {
-            id: '6',
-            label: '6',
-            value: '6px',
-          },
-          {
-            id: '8',
-            label: '8',
-            value: '8px',
-          },
-          {
-            id: '12',
-            label: '12',
-            value: '12px',
-          },
-          {
-            id: '16',
-            label: '16',
-            value: '16px',
-          },
-          {
-            id: '24',
-            label: '24',
-            value: '24px',
-          },
-          {
-            id: '32',
-            label: '32',
-            value: '32px',
-          },
-          {
-            id: '48',
-            label: '48',
-            value: '48px',
-          },
-          {
-            id: '64',
-            label: '64',
-            value: '64px',
-          },
-          {
-            id: '96',
-            label: '96',
-            value: '96px',
-          },
-          {
-            id: '128',
-            label: '128',
-            value: '128px',
-          },
-          {
-            id: '160',
-            label: '160',
-            value: '160px',
-          },
-        ],
+        colors: [],
+        fonts: [],
       },
     },
   };
@@ -606,6 +495,20 @@ export function schemaToEasyblocksProps(
       break;
 
     // TODO: custom types
+    case 'menu':
+      typeProps = {
+        type: 'menu', // only testing
+      };
+      break;
+    case 'lookup':
+    case 'generic_lookup':
+    case 'product_lookup':
+    case 'category_lookup':
+    case 'customer_lookup':
+      typeProps = {
+        type: 'menu', // only testing
+      };
+      break;
     case 'image':
     case 'document':
     case 'video':
@@ -626,15 +529,20 @@ export function schemaToEasyblocksProps(
 
 export function getEasyblocksComponentDefinitions(
   props: {
-    pageSections: ThemePageSectionSchema[];
+    allSections: ThemePageSectionSchema[];
     layoutSectionGroups: ThemeLayoutSectionGroupConfig[];
   },
   pageId: string,
   getComponent: (type: string, data?: any) => any,
 ) {
-  const { pageSections, layoutSectionGroups } = props;
+  const { allSections, layoutSectionGroups } = props;
 
-  const pageSectionComponents = pageSections.reduce((acc: any, section) => {
+  console.log('getEasyblocksComponentDefinitions', {
+    allSections,
+    layoutSectionGroups,
+  });
+
+  const pageSectionComponents = allSections.reduce((acc: any, section) => {
     acc[`${section.id}`] = getComponent('pageSection', section);
     return acc;
   }, {});
@@ -650,7 +558,7 @@ export function getEasyblocksComponentDefinitions(
     {},
   );
 
-  const blockComponents = pageSections.reduce((acc: any, section) => {
+  const blockComponents = allSections.reduce((acc: any, section) => {
     if (section.blocks) {
       for (const block of section.blocks) {
         const blockId = `Block__${section.id}__${block.type}` as any;
@@ -665,7 +573,7 @@ export function getEasyblocksComponentDefinitions(
     ...layoutSectionGroupComponents,
     ...blockComponents,
     // Root component
-    [`page_${pageId}`]: getComponent('root'),
+    [`swell_page`]: getComponent('root'),
   };
 }
 
@@ -692,7 +600,7 @@ export function schemaToEasyblocksValue(
   }
 }
 
-export function getEasyblocksBackend(sectionConfigs: ThemeSectionConfig[]) {
+export function getEasyblocksBackend(_: any) {
   const easyblocksBackend: Backend = {
     documents: {
       get: async ({ id }) => {

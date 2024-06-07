@@ -12,11 +12,11 @@ export default function ShopifyCollection(
   }
 
   return new ShopifyResource({
-    products: deferWith(products, async (products: any) =>
-      products.results?.map((product: any) =>
+    products: deferWith(products, async (products: any) => {
+      return products.results?.map((product: any) =>
         ShopifyProduct(instance, product),
-      ),
-    ),
+      );
+    }),
     all_products_count: defer(() => products.count),
     all_tags: defer(async () =>
       (await products.results).reduce((types: any[], product: SwellRecord) => {
@@ -36,7 +36,7 @@ export default function ShopifyCollection(
     description: null,
     featured_image: null,
     filters: deferWith(products, (products: any) =>
-      products.filter_options.map((filter: any) =>
+      products.filter_options?.map((filter: any) =>
         ShopifyFilter(instance, filter),
       ),
     ),

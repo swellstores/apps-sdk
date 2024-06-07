@@ -68,7 +68,8 @@ export function adaptShopifyLookupData(
           instance.swell as any,
           'products',
         );
-        return ShopifyCollection(instance, products);
+        products.setCompatibilityProps(ShopifyCollection(instance, products));
+        return products;
       }
     }
   }

@@ -343,11 +343,11 @@ declare class SwellTheme {
 
   renderLayout(data?: SwellData): Promise<string>;
 
-  getSectionGroupConfigs(
+  getPageSections(
     sectionGroup: ThemeSectionGroup,
   ): Promise<ThemeSectionConfig[]>;
 
-  getPageSections(): Promise<any>;
+  getAllSections(): Promise<any>;
 
   getLayoutSectionGroups(): Promise<any>;
 
@@ -539,9 +539,15 @@ declare class ShopifyCompatibility {
   getFontFromShopifySetting(fontSetting: string): string | null;
 
   getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema;
+
   getThemeConfig(settingsData: ShopifySettingsData): ThemeSettings;
+
   getPresetsConfig(settingsData: ShopifySettingsData): SwellData;
-  getSectionConfig(sectionSchema: ShopifySectionSchema): ThemeSectionSchema;
+
+  getSectionConfigSchema(
+    sectionSchema: ShopifySectionSchema,
+  ): ThemeSectionSchema;
+
   getLocaleConfig(
     settingConfigs: SwellCollection,
     localeCode: string,
