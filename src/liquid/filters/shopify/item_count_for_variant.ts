@@ -5,7 +5,7 @@ import { LiquidSwell } from '../..';
 export default {
   bind(_liquidSwell: LiquidSwell) {
     return (cart: any, variantId: string) => {
-      const variantItem = cart.items?.find(
+      const variantItem = cart?.items?.find(
         (item: any) => item.variant_id === variantId,
       );
 

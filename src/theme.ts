@@ -198,9 +198,9 @@ export class SwellTheme {
   ): Promise<{
     settings: ThemeSettings;
     page: ThemeSettings;
-    cart: SwellStorefrontSingleton;
-    account: SwellStorefrontSingleton;
-    customer?: SwellStorefrontSingleton;
+    cart: SwellStorefrontSingleton | object;
+    account: SwellStorefrontSingleton | null;
+    customer?: SwellStorefrontSingleton | null;
   }> {
     const { settings, page } = this.swell.getCachedSync(
       'theme-settings-resolved',
@@ -221,8 +221,12 @@ export class SwellTheme {
     );
 
     const [cart, account] = await Promise.all([
-      this.fetchSingletonResourceCached('cart', () => this.fetchCart()),
-      this.fetchSingletonResourceCached('account', () => this.fetchAccount()),
+      this.fetchSingletonResourceCached('cart', () => this.fetchCart(), {}),
+      this.fetchSingletonResourceCached(
+        'account',
+        () => this.fetchAccount(),
+        null,
+      ),
     ]);
 
     // TODO: move this to compatibility class
@@ -240,11 +244,15 @@ export class SwellTheme {
     };
   }
 
-  fetchSingletonResourceCached(key: string, handler: () => any) {
+  fetchSingletonResourceCached(
+    key: string,
+    handler: () => any,
+    defaultValue: any,
+  ) {
     // Cookie should change when cart/account is updated
     const cacheKey = this.swell.storefront.session.getCookie();
     if (!cacheKey) {
-      return null;
+      return defaultValue;
     }
 
     return this.swell.getCachedResource(`${key}-${cacheKey}`, () => handler());
@@ -255,7 +263,7 @@ export class SwellTheme {
 
     await cart.id;
     if (!cart.id) {
-      return null;
+      return {};
     }
 
     if (this.shopifyCompatibility) {
