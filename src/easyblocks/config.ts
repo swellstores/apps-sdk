@@ -41,20 +41,23 @@ export async function getAllSections(
 ): Promise<ThemeSectionSchema[]> {
   if (!themeConfigs?.results) return [];
 
-  return await Promise.all(
-    themeConfigs.results
-      .filter((config) => filterSectionConfig(config, themeConfigs))
-      .map(async (config: SwellRecord) => {
-        const schema = await renderTemplateSchema(
-          theme,
-          config as SwellThemeConfig,
-        );
-        return {
-          ...schema,
-          id: config.name.split('.').pop(),
-        };
-      }),
+  const sectionConfigs = themeConfigs.results.filter((config) =>
+    filterSectionConfig(config, themeConfigs),
   );
+
+  const allSections = [];
+  for (const config of sectionConfigs) {
+    const schema = await renderTemplateSchema(
+      theme,
+      config as SwellThemeConfig,
+    );
+    allSections.push({
+      id: config.name.split('.').pop(),
+      ...schema,
+    });
+  }
+
+  return allSections;
 }
 
 export async function getPageSections(
@@ -67,54 +70,45 @@ export async function getPageSections(
       ? sectionGroup.order
       : Object.keys(sectionGroup.sections || {});
 
-  const sections = (
-    await Promise.all(
-      order.map((key: string): Promise<ThemeSectionConfig | void> => {
-        return new Promise(async (resolve) => {
-          const section: ThemeSection = sectionGroup.sections[key];
+  const pageSections = [];
+  for (const key of order) {
+    const section: ThemeSection = sectionGroup.sections[key];
 
-          const schema = await getSectionSchemaHandler(theme, section.type);
-          if (!schema) {
-            return resolve();
-          }
+    const schema = await getSectionSchemaHandler(theme, section.type);
+    if (!schema) {
+      continue;
+    }
 
-          const id = sectionGroup.id
-            ? `page__${sectionGroup.id}__${key}`
-            : schema.id;
+    const id = sectionGroup.id ? `page__${sectionGroup.id}__${key}` : schema.id;
 
-          const blockOrder =
-            section.block_order instanceof Array
-              ? section.block_order
-              : Object.keys(section.blocks || {});
+    const blockOrder =
+      section.block_order instanceof Array
+        ? section.block_order
+        : Object.keys(section.blocks || {});
 
-          const blocks: ThemeSettingsBlock[] = (
-            await Promise.all(
-              blockOrder.map((key: string) => section.blocks?.[key]),
-            )
-          ).filter(Boolean) as ThemeSettingsBlock[];
+    const blocks: ThemeSettingsBlock[] = blockOrder
+      .map((key: string) => section.blocks?.[key])
+      .filter(Boolean) as ThemeSettingsBlock[];
 
-          const settings = {
-            section: {
-              id,
-              ...section,
-              blocks,
-            },
-          };
+    const settings = {
+      section: {
+        id,
+        ...section,
+        blocks,
+      },
+    };
 
-          resolve({
-            id: id as string,
-            settings: settings as ThemeSectionSettings,
-            section: { id, ...section },
-            tag: schema.tag || 'div',
-            class: schema.class,
-            schema,
-          });
-        });
-      }),
-    )
-  ).filter(Boolean) as ThemeSectionConfig[];
+    pageSections.push({
+      id: id as string,
+      settings: settings as ThemeSectionSettings,
+      section: { id, ...section },
+      tag: schema.tag || 'div',
+      class: schema.class,
+      schema,
+    });
+  }
 
-  return sections;
+  return pageSections;
 }
 
 export async function getLayoutSectionGroups(
@@ -146,41 +140,36 @@ export async function getLayoutSectionGroups(
     };
   };
 
-  return await Promise.all(
-    layoutSectionGroupConfigs.map(
-      (config: SwellRecord): Promise<ThemeLayoutSectionGroupConfig> => {
-        return new Promise(async (resolve: any) => {
-          let sectionGroup;
-          try {
-            sectionGroup = JSON.parse(config.file_data);
-            // Convert name to label if shopify format
-            if (sectionGroup?.name) {
-              sectionGroup.label = sectionGroup.name;
-              delete sectionGroup.name;
-            }
-          } catch {
-            // noop
-          }
+  const layoutSectionGroups = [];
+  for (const config of layoutSectionGroupConfigs) {
+    let sectionGroup;
+    try {
+      sectionGroup = JSON.parse(config.file_data);
+      // Convert name to label if shopify format
+      if (sectionGroup?.name) {
+        sectionGroup.label = sectionGroup.name;
+        delete sectionGroup.name;
+      }
+    } catch {
+      // noop
+    }
 
-          // Must have a type property
-          if (sectionGroup?.type) {
-            const sectionConfigs = await getPageSections(
-              theme,
-              sectionGroup,
-              getSectionSchema,
-            );
-            resolve({
-              ...sectionGroup,
-              id: config.name.split('.').pop(),
-              sectionConfigs,
-            });
-          } else {
-            resolve();
-          }
-        });
-      },
-    ),
-  ).then((result: any[]) => result.filter(Boolean));
+    // Must have a type property
+    if (sectionGroup?.type) {
+      const sectionConfigs = await getPageSections(
+        theme,
+        sectionGroup,
+        getSectionSchema,
+      );
+      layoutSectionGroups.push({
+        ...sectionGroup,
+        id: config.name.split('.').pop(),
+        sectionConfigs,
+      });
+    }
+  }
+
+  return layoutSectionGroups;
 }
 
 export function getEasyblocksPagePropsWithConfigs(
@@ -188,7 +177,6 @@ export function getEasyblocksPagePropsWithConfigs(
   pageSections: ThemeSectionConfig[],
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
   pageId: string,
-  lang: any,
 ) {
   const getLayoutSectionGroupComponentProps = () => {
     return layoutSectionGroups.map((sectionGroup) => ({
@@ -302,7 +290,8 @@ export function getEasyblocksPagePropsWithConfigs(
                 prop: field.id,
                 label: field.label,
                 defaultValue: field.default,
-                ...schemaToEasyblocksProps(lang, field),
+                optional: true,
+                ...schemaToEasyblocksProps(field),
               };
             })
             .filter(Boolean),
@@ -369,7 +358,8 @@ export function getEasyblocksPagePropsWithConfigs(
                     prop: field.id,
                     label: field.label,
                     defaultValue: field.default,
-                    ...schemaToEasyblocksProps(lang, field),
+                    optional: true,
+                    ...schemaToEasyblocksProps(field),
                   };
                 })
                 .filter(Boolean),
@@ -487,6 +477,7 @@ export function getEasyblocksPagePropsWithConfigs(
       backend: getEasyblocksBackend(),
       hideCloseButton: true,
       allowSave: true,
+      readOnly: false,
       locales: [
         {
           code: 'en-US',
@@ -495,12 +486,13 @@ export function getEasyblocksPagePropsWithConfigs(
       ],
       types: {
         menu: {
-          type: 'inline',
-          widget: {
-            id: 'menu',
-            label: 'Navigation menu',
-          },
-          defaultValue: null,
+          type: 'external',
+          widgets: [
+            {
+              id: 'menu',
+              label: 'Navigation menu',
+            },
+          ],
         },
       },
       tokens: {
@@ -516,15 +508,9 @@ export function getEasyblocksComponentDefinitions(
     allSections: ThemePageSectionSchema[];
     layoutSectionGroups: ThemeLayoutSectionGroupConfig[];
   },
-  pageId: string,
   getComponent: (type: string, data?: any) => any,
 ) {
   const { allSections, layoutSectionGroups } = props;
-
-  console.log('getEasyblocksComponentDefinitions', {
-    allSections,
-    layoutSectionGroups,
-  });
 
   const pageSectionComponents = allSections.reduce((acc: any, section) => {
     acc[`${section.id}`] = getComponent('pageSection', section);
@@ -566,6 +552,7 @@ export function getEasyblocksBackend() {
   const easyblocksBackend: Backend = {
     documents: {
       get: async ({ id }) => {
+        console.log('Easyblocks backend documents.get()', id);
         const document = {
           id,
           version: 1,
@@ -577,26 +564,33 @@ export function getEasyblocksBackend() {
         return document;
       },
       create: async (payload) => {
+        console.log('Easyblocks backend documents.create()', payload);
         return {} as Document;
       },
       update: async (payload) => {
+        console.log('Easyblocks backend documents.update()', payload);
         return {} as Document;
       },
     },
     templates: {
       get: async (payload) => {
+        console.log('Easyblocks backend templates.get()', payload)
         return {} as UserDefinedTemplate;
       },
       getAll: async () => {
+        console.log('Easyblocks backend get templates.getAll()');
         return [] as UserDefinedTemplate[];
       },
       create: async (payload) => {
+        console.log('Easyblocks backend get templates.create()', payload);
         return {} as UserDefinedTemplate;
       },
       update: async (payload) => {
+        console.log('Easyblocks backend get templates.update()', payload);
         return {} as UserDefinedTemplate;
       },
       delete: async (payload) => {
+        console.log('Easyblocks backend get templates.delete()', payload);
         return;
       },
     },

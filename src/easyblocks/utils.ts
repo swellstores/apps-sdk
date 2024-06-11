@@ -36,27 +36,6 @@ export async function getThemeConfig(
   }
 }
 
-export async function getEditorLanguageConfig(swell: Swell) {
-  let editorLang = await getThemeConfig(swell, `config/language-editor`);
-
-  // Fallback to shopify theme locales
-  // TODO: put this logic in ShopifyCompatibility class
-  if (!editorLang) {
-    const storefrontSettings = await swell.getStorefrontSettings();
-    const localeCode = storefrontSettings?.locale || 'en-US';
-    editorLang = await getThemeConfig(swell, `locales/${localeCode}.schema`);
-    if (!editorLang) {
-      const localeBaseCode = (localeCode as string).split('-')[0];
-      editorLang = await getThemeConfig(
-        swell,
-        `locales/${localeBaseCode}.schema`,
-      );
-    }
-  }
-
-  return editorLang;
-}
-
 export async function getSectionSchema(
   theme: SwellTheme,
   sectionName: string,
@@ -160,10 +139,7 @@ export function isJsonOrLiquidConfig(
   return false;
 }
 
-export function schemaToEasyblocksProps(
-  lang: any,
-  field: ThemeSettingFieldSchema,
-) {
+export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
   const sharedProps = {
     description: field.description,
   };

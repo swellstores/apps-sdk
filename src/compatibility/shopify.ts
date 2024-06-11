@@ -11,7 +11,6 @@ import {
   convertShopifySettingsData,
   convertShopifySettingsPresets,
   convertShopifySectionSchema,
-  convertShopifySectionGroupConfig,
 } from './shopify-configs';
 import { shopifyFontToThemeFront } from './shopify-fonts';
 

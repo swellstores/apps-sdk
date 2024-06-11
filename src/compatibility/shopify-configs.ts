@@ -316,6 +316,7 @@ export function shopifySchemaSettingToSwellSettingField(
     ...swellProps,
     id: setting.id,
     label: setting.label,
+    default: setting.default,
     description: setting.info,
   };
 }

@@ -18,40 +18,39 @@ export function themeConfigQuery(swellHeaders: { [key: string]: any }): {
 }
 
 export async function getAllSections(
-  allSections: SwellCollection,
+  themeConfigs: SwellCollection,
   renderTemplateSchema: (config: any) => Promise<any>,
 ): Promise<ThemePageSectionSchema[]> {
-  if (!allSections?.results) return [];
+  if (!themeConfigs?.results) return [];
 
-  const pageSectionConfigs = await Promise.all(
-    allSections.results
-      .filter((config: SwellRecord) => {
-        if (!config.file_path?.startsWith('theme/sections/')) return false;
-        const isLiquidFile = config.file_path.endsWith('.liquid');
-        const isJsonFile = config.file_path.endsWith('.json');
+  const sectionConfigs = themeConfigs.results.filter((config: SwellRecord) => {
+    if (!config.file_path?.startsWith('theme/sections/')) return false;
+    const isLiquidFile = config.file_path.endsWith('.liquid');
+    const isJsonFile = config.file_path.endsWith('.json');
 
-        if (isLiquidFile) {
-          const hasJsonFile = allSections.results.find(
-            (c: any) =>
-              c.file_path === config.file_path.replace(/\.liquid$/, '.json'),
-          );
-          if (!hasJsonFile) {
-            return true;
-          }
-        } else if (isJsonFile) {
-          return true;
-        }
-      })
-      .map(async (config: SwellRecord) => {
-        const schema = await renderTemplateSchema(config);
-        return {
-          ...schema,
-          id: config.name.split('.').pop(),
-        };
-      }),
-  );
+    if (isLiquidFile) {
+      const hasJsonFile = themeConfigs.results.find(
+        (c: any) =>
+          c.file_path === config.file_path.replace(/\.liquid$/, '.json'),
+      );
+      if (!hasJsonFile) {
+        return true;
+      }
+    } else if (isJsonFile) {
+      return true;
+    }
+  });
 
-  return pageSectionConfigs;
+  const allSections = [];
+  for (const sectionConfig of sectionConfigs) {
+    const schema = await renderTemplateSchema(sectionConfig);
+    allSections.push({
+      id: sectionConfig.name.split('.').pop(),
+      ...schema,
+    });
+  }
+
+  return allSections;
 }
 
 export async function getLayoutSectionGroups(
@@ -105,40 +104,35 @@ export async function getLayoutSectionGroups(
     };
   };
 
-  return await Promise.all(
-    sectionGroupConfigs.map(
-      (config: SwellRecord): Promise<ThemeLayoutSectionGroupConfig> => {
-        return new Promise(async (resolve: any) => {
-          let sectionGroup;
-          try {
-            sectionGroup = JSON.parse(config.file_data);
-            // Convert name to label if shopify format
-            if (sectionGroup?.name) {
-              sectionGroup.label = sectionGroup.name;
-              delete sectionGroup.name;
-            }
-          } catch {
-            // noop
-          }
+  const layoutSectionGroups = [];
+  for (const config of sectionGroupConfigs) {
+    let sectionGroup;
+    try {
+      sectionGroup = JSON.parse(config.file_data);
+      // Convert name to label if shopify format
+      if (sectionGroup?.name) {
+        sectionGroup.label = sectionGroup.name;
+        delete sectionGroup.name;
+      }
+    } catch {
+      // noop
+    }
 
-          // Must have a type property
-          if (sectionGroup?.type) {
-            const sectionConfigs = await getPageSections(
-              sectionGroup,
-              getSectionSchema,
-            );
-            resolve({
-              ...sectionGroup,
-              id: config.name.split('.').pop(),
-              sectionConfigs,
-            });
-          } else {
-            resolve();
-          }
-        });
-      },
-    ),
-  ).then((result: any[]) => result.filter(Boolean));
+    // Must have a type property
+    if (sectionGroup?.type) {
+      const sectionConfigs = await getPageSections(
+        sectionGroup,
+        getSectionSchema,
+      );
+      layoutSectionGroups.push({
+        ...sectionGroup,
+        id: config.name.split('.').pop(),
+        sectionConfigs,
+      });
+    }
+  }
+
+  return layoutSectionGroups;
 }
 
 export async function getPageSections(
@@ -150,54 +144,45 @@ export async function getPageSections(
       ? sectionGroup.order
       : Object.keys(sectionGroup.sections || {});
 
-  const sections = (
-    await Promise.all(
-      order.map((key: string): Promise<ThemeSectionConfig | void> => {
-        return new Promise(async (resolve) => {
-          const section: ThemeSection = sectionGroup.sections[key];
+  const pageSections = [];
+  for (const key of order) {
+    const section: ThemeSection = sectionGroup.sections[key];
 
-          const schema = await getSchema(section.type);
-          if (!schema) {
-            return resolve();
-          }
+    const schema = await getSchema(section.type);
+    if (!schema) {
+      continue;
+    }
 
-          const id = sectionGroup.id
-            ? `page__${sectionGroup.id}__${key}`
-            : schema.id;
+    const id = sectionGroup.id ? `page__${sectionGroup.id}__${key}` : schema.id;
 
-          const blockOrder =
-            section.block_order instanceof Array
-              ? section.block_order
-              : Object.keys(section.blocks || {});
+    const blockOrder =
+      section.block_order instanceof Array
+        ? section.block_order
+        : Object.keys(section.blocks || {});
 
-          const blocks: ThemeSettingsBlock[] = (
-            await Promise.all(
-              blockOrder.map((key: string) => section.blocks?.[key]),
-            )
-          ).filter(Boolean) as ThemeSettingsBlock[];
+    const blocks: ThemeSettingsBlock[] = blockOrder
+      .map((key: string) => section.blocks?.[key])
+      .filter(Boolean) as ThemeSettingsBlock[];
 
-          const settings = {
-            section: {
-              id,
-              ...section,
-              blocks,
-            },
-          };
+    const settings = {
+      section: {
+        id,
+        ...section,
+        blocks,
+      },
+    };
 
-          resolve({
-            id,
-            section: { id, ...section },
-            schema,
-            settings,
-            tag: schema.tag || 'div',
-            class: schema.class,
-          });
-        });
-      }),
-    )
-  ).filter(Boolean) as ThemeSectionConfig[];
+    pageSections.push({
+      id,
+      section: { id, ...section },
+      schema,
+      settings,
+      tag: schema.tag || 'div',
+      class: schema.class,
+    });
+  }
 
-  return sections;
+  return pageSections as ThemeSectionConfig[];
 }
 
 export function isArray(value: any) {
