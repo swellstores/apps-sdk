@@ -410,6 +410,48 @@ export function getEasyblocksPagePropsWithConfigs(
           },
           defaultValue: null,
         },
+        boolean: {
+          type: 'inline',
+          widget: {
+            id: 'swellBoolean',
+          },
+        },
+        number: {
+          type: 'inline',
+          widget: {
+            id: 'swellNumber',
+          },
+        },
+        select: {
+          type: 'inline',
+          widget: {
+            id: 'swellSelect',
+          },
+        },
+        short_text: {
+          type: 'inline',
+          widget: {
+            id: 'swellShortText',
+          },
+        },
+        long_text: {
+          type: 'inline',
+          widget: {
+            id: 'swellLongText',
+          },
+        },
+        editor: {
+          type: 'inline',
+          widget: {
+            id: 'swellEditor',
+          },
+        },
+        file: {
+          type: 'inline',
+          widget: {
+            id: 'swellFile',
+          },
+        },
       },
       tokens: {
         colors: [],
@@ -425,29 +467,44 @@ export function schemaToEasyblocksProps(
 ) {
   const sharedProps = {
     description: field.description,
+    isLabelHidden: true,
+    layout: 'column',
   };
 
   let typeProps;
   switch (field?.type) {
     case 'text':
     case 'short_text':
-    // Note these need a different component:
+      typeProps = {
+        type: 'short_text',
+      };
+      break;
     case 'textarea':
     case 'long_text':
+      typeProps = {
+        type: 'long_text',
+      };
+      break;
+
     case 'basic_html':
     case 'rich_text':
     case 'rich_html':
     case 'markdown':
     case 'liquid':
       typeProps = {
-        //type: "text"
-        type: 'string',
+        type: 'editor',
       };
       break;
 
     case 'number':
       typeProps = {
         type: 'number',
+        params: {
+          min: field.min,
+          max: field.max,
+          unit: field.unit,
+          increment: field.increment,
+        },
       };
       break;
 
@@ -516,7 +573,7 @@ export function schemaToEasyblocksProps(
     case 'color_scheme_group':
     default:
       typeProps = {
-        type: 'string',
+        type: 'file',
       };
       break;
   }
