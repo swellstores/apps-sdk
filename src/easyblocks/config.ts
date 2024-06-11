@@ -494,6 +494,48 @@ export function getEasyblocksPagePropsWithConfigs(
             },
           ],
         },
+        boolean: {
+          type: 'inline',
+          widget: {
+            id: 'swellBoolean',
+          },
+        },
+        number: {
+          type: 'inline',
+          widget: {
+            id: 'swellNumber',
+          },
+        },
+        select: {
+          type: 'inline',
+          widget: {
+            id: 'swellSelect',
+          },
+        },
+        short_text: {
+          type: 'inline',
+          widget: {
+            id: 'swellString',
+          },
+        },
+        long_text: {
+          type: 'inline',
+          widget: {
+            id: 'swellString',
+          },
+        },
+        editor: {
+          type: 'inline',
+          widget: {
+            id: 'swellEditor',
+          },
+        },
+        file: {
+          type: 'inline',
+          widget: {
+            id: 'swellFile',
+          },
+        },
       },
       tokens: {
         colors: [],

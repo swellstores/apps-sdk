@@ -142,29 +142,44 @@ export function isJsonOrLiquidConfig(
 export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
   const sharedProps = {
     description: field.description,
+    isLabelHidden: true,
+    layout: 'column',
   };
 
   let typeProps;
   switch (field?.type) {
     case 'text':
     case 'short_text':
-    // Note these need a different component:
+      typeProps = {
+        type: 'short_text',
+      };
+      break;
     case 'textarea':
     case 'long_text':
+      typeProps = {
+        type: 'long_text',
+      };
+      break;
+
     case 'basic_html':
     case 'rich_text':
     case 'rich_html':
     case 'markdown':
     case 'liquid':
       typeProps = {
-        //type: "text"
-        type: 'string',
+        type: 'editor',
       };
       break;
 
     case 'number':
       typeProps = {
         type: 'number',
+        params: {
+          min: field.min,
+          max: field.max,
+          unit: field.unit,
+          increment: field.increment,
+        },
       };
       break;
 
@@ -227,7 +242,7 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'color_scheme_group':
     default:
       typeProps = {
-        type: 'string',
+        type: 'file',
       };
       break;
   }
