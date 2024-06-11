@@ -1,7 +1,4 @@
-import get from 'lodash/get';
-import reduce from 'lodash/reduce';
 import { Swell } from '../api';
-import { Backend, Document, UserDefinedTemplate } from '@easyblocks/core';
 import { themeConfigQuery } from '../utils';
 
 export async function getThemeConfig(
@@ -60,405 +57,107 @@ export async function getEditorLanguageConfig(swell: Swell) {
   return editorLang;
 }
 
-export function renderLanguage(lang: any, key: string): string {
-  if (key === undefined) {
-    return '';
-  }
+export async function getSectionSchema(
+  theme: SwellTheme,
+  sectionName: string,
+): Promise<ThemeSectionSchema | undefined> {
+  const config = await theme.getThemeTemplateConfigByType(
+    'sections',
+    sectionName,
+  );
 
-  const localeCode = /*String(this.globals?.store?.locale || "") ||*/ 'en-US';
-  const keyParts = key?.split('.') || [];
-  const keyName = keyParts.pop() || '';
-  const keyPath = keyParts.join('.');
-  const langObject = get(lang, keyPath);
-
-  const localeValue =
-    get(langObject?.[localeCode], keyName) ||
-    get(langObject?.[localeCode.split('-')[0]], keyName) ||
-    langObject?.[keyName];
-
-  if (typeof localeValue !== 'string') {
-    return '';
-  }
-
-  return localeValue;
+  return renderTemplateSchema(theme, config as SwellThemeConfig);
 }
 
-export function getEasyblocksPagePropsWithConfigs(
-  allSections: ThemePageSectionSchema[],
-  pageSections: ThemeSectionConfig[],
-  layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
-  pageId: string,
-  lang: any,
-) {
-  console.log({ pageSections, allSections, layoutSectionGroups });
-  const translateLabel = (label: string, fallback: string) => {
-    return label?.startsWith('t:')
-      ? renderLanguage(lang, label.split('t:')[1]) || fallback
-      : fallback;
-  };
+export async function renderTemplateSchema(
+  theme: SwellTheme,
+  config: SwellThemeConfig,
+): Promise<any> {
+  let schema = {};
 
-  const getLayoutSectionGroupComponentProps = () => {
-    return layoutSectionGroups.map((sectionGroup) => ({
-      prop: `SectionGroup_${sectionGroup.id}`,
-      type: 'component-collection',
-      required: true,
-      accepts: getAcceptedLayoutSections(sectionGroup.type),
-    }));
-  };
+  if (config?.file_path?.endsWith('.liquid')) {
+    if (theme.shopifyCompatibility) {
+      // Extract {% schema %} from liquid files for Shopify compatibility
+      theme.liquidSwell.lastSchema = undefined;
 
-  const checkEnabledDisabledOn = (
-    config: any,
-    key: string,
-    targetId: string,
-  ) => {
-    if (config.templates === '*') {
-      return true;
-    }
-    if (config[key]?.includes(targetId)) {
-      return true;
-    }
-    return false;
-  };
+      await theme.renderTemplate(config);
 
-  const getAcceptedSections = () => {
-    return allSections
-      .reduce((acc: string[], section) => {
-        if (section.enabled_on) {
-          if (checkEnabledDisabledOn(section.enabled_on, 'templates', pageId)) {
-            acc.push(section.id);
-          }
-        } else if (section.disabled_on) {
-          if (
-            !checkEnabledDisabledOn(section.disabled_on, 'templates', pageId)
-          ) {
-            acc.push(section.id);
-          }
-        } else {
-          // Default hide sections named after layout section group types
-          if (
-            !layoutSectionGroups.map(({ type }) => type).includes(section.id)
-          ) {
-            acc.push(section.id);
-          }
-        }
-        return acc;
-      }, [])
-      .map((sectionId: string) => `${sectionId}`);
-  };
+      const lastSchema = theme.liquidSwell.lastSchema || {};
 
-  const getAcceptedLayoutSections = (groupType: string) => {
-    return allSections
-      .reduce((acc: string[], section) => {
-        if (section.enabled_on) {
-          if (checkEnabledDisabledOn(section.enabled_on, 'groups', groupType)) {
-            acc.push(section.id);
-          }
-        } else if (section.disabled_on) {
-          if (
-            !checkEnabledDisabledOn(section.disabled_on, 'groups', groupType)
-          ) {
-            acc.push(section.id);
-          }
-        } else {
-          // Default to section of the same type name
-          // Note: limit is also supposed to be 1 for sections named after group types
-          if (section.id === groupType) {
-            acc.push(section.id);
-          }
-        }
-        return acc;
-      }, [])
-      .map((sectionId: string) => `${sectionId}`);
-  };
-
-  const components = [
-    {
-      id: `swell_page`,
-      label: 'Page: ' + pageId,
-      schema: [
-        {
-          prop: 'ContentSections',
-          type: 'component-collection',
-          required: true,
-          accepts: getAcceptedSections(),
-          placeholderAppearance: {
-            height: 250,
-            label: 'Add section',
-            aspectRatio: 1,
-          },
-        },
-        ...getLayoutSectionGroupComponentProps(),
-      ],
-      styles: () => {
-        return {
-          styled: {
-            Root: {},
-          },
-        };
-      },
-    },
-    ...allSections.map((section) => {
-      return {
-        id: `${section.id}`,
-        label: translateLabel(section.label, section.id),
-        schema: [
-          ...(section.fields || [])
-            .map((field) => {
-              if (!field.id || !field.type) return;
-              return {
-                prop: field.id,
-                label: translateLabel(field.label, field.id),
-                defaultValue: field.default,
-                ...schemaToEasyblocksProps(lang, field),
-              };
-            })
-            .filter(Boolean),
-          ...(section?.blocks
-            ? [
-                {
-                  prop: 'Blocks',
-                  type: 'component-collection',
-                  required: true,
-                  accepts: section.blocks.map(
-                    (block) => `Block__${section.id}__${block.type}`,
-                  ),
-                  // TODO: figure out how to make this work, doesn't work for collections normally
-                  defaultValue: section.presets?.[0]?.blocks?.map((block) => {
-                    const blockDef = section.blocks?.find(
-                      ({ type }) => type === block.type,
-                    );
-                    if (!blockDef) return;
-                    return {
-                      _component: `Block__${section.id}__${block.type}`,
-                      ...reduce(
-                        blockDef.fields.filter((field) => field.id),
-                        (acc, blockField) => ({
-                          ...acc,
-                          [blockField.id as string]: schemaToEasyblocksValue(
-                            blockDef.fields,
-                            blockField.id as string,
-                            blockField.default,
-                          ),
-                        }),
-                        {},
-                      ),
-                    };
-                  }),
-                  placeholderAppearance: {
-                    height: 50,
-                    label: 'Add block',
-                    aspectRatio: 1,
-                  },
-                },
-              ]
-            : []),
-        ],
-        styles: () => {
-          return {
-            styled: {
-              Root: {},
-            },
-          };
-        },
-      };
-    }),
-    ...allSections.reduce((acc: any[], section) => {
-      if (section.blocks) {
-        acc.push(
-          ...section.blocks.map((block) => ({
-            id: `Block__${section.id}__${block.type}`,
-            label: translateLabel(block.label, block.type),
-            schema: [
-              ...(block.fields || [])
-                .map((field) => {
-                  if (!field.id || !field.type) return;
-                  return {
-                    prop: field.id,
-                    label: translateLabel(field.label, field.id),
-                    defaultValue: field.default,
-                    ...schemaToEasyblocksProps(lang, field),
-                  };
-                })
-                .filter(Boolean),
-            ],
-            styles: () => {
-              return {
-                styled: {
-                  Root: {},
-                },
-              };
-            },
-          })),
-        );
+      if (lastSchema) {
+        schema = theme.shopifyCompatibility.getSectionConfigSchema(lastSchema);
       }
-      return acc;
-    }, []),
-  ];
+    }
+  } else if (config?.file_data) {
+    try {
+      schema = JSON.parse(config?.file_data) || undefined;
+    } catch {
+      // noop
+    }
+  }
 
-  const getSectionGroupTemplateValues = () => {
-    return layoutSectionGroups.reduce(
-      (acc: any, sectionGroup: ThemeLayoutSectionGroupConfig) => ({
-        ...acc,
-        [`SectionGroup_${sectionGroup.id}`]: sectionGroup.sectionConfigs.map(
-          ({ section, settings, schema }) => ({
-            _id: `SectionGroup__${section.type}_${Math.random()}`,
-            _component: `${section.type}`,
-            ...reduce(
-              settings?.section.settings,
-              (acc, value, key) => ({
-                ...acc,
-                [key]: schemaToEasyblocksValue(schema?.fields, key, value),
-              }),
-              {},
-            ),
-            ...(settings?.section.blocks
-              ? {
-                  Blocks: settings.section.blocks.map((block: any) => ({
-                    _id: `Block__${section.type}__${
-                      block.type
-                    }_${Math.random()}`,
-                    _component: `Block__${section.type}__${block.type}`,
-                    ...reduce(
-                      block.settings,
-                      (acc, value, key) => ({
-                        ...acc,
-                        [key]: schemaToEasyblocksValue(
-                          schema?.blocks?.find(
-                            ({ type }) => type === block.type,
-                          )?.fields,
-                          key,
-                          value,
-                        ),
-                      }),
-                      {},
-                    ),
-                  })),
-                }
-              : {}),
-          }),
-        ),
-      }),
-      {},
+  return schema;
+}
+
+export function filterSectionConfig(
+  config: SwellRecord,
+  themeConfigs: SwellCollection,
+) {
+  if (!config.file_path?.startsWith('theme/sections/')) return false;
+
+  return isJsonOrLiquidConfig(config, themeConfigs);
+}
+
+export function filterAllLayoutSectionGroupConfigs(
+  config: SwellRecord,
+  themeConfigs: SwellCollection,
+) {
+  return (
+    config.file_path?.startsWith('theme/sections/') &&
+    config.file_path?.endsWith('.json') &&
+    // Section groups must not have a liquid file
+    !themeConfigs.results.find(
+      (c: SwellRecord) =>
+        c.file_path === config.file_path.replace(/\.json$/, '.liquid'),
+    )
+  );
+}
+
+export function filterLayoutSectionGroupConfig(
+  config: SwellRecord,
+  themeConfigs: SwellCollection,
+  type: string,
+) {
+  if (
+    !config.file_path?.endsWith(`/${type}.json`) &&
+    !config.file_path?.endsWith(`/${type}.liquid`)
+  ) {
+    return false;
+  }
+
+  return isJsonOrLiquidConfig(config, themeConfigs);
+}
+
+export function isJsonOrLiquidConfig(
+  config: SwellRecord,
+  themeConfigs: SwellCollection,
+) {
+  const isLiquidFile = config.file_path.endsWith('.liquid');
+  const isJsonFile = config.file_path.endsWith('.json');
+
+  if (isLiquidFile) {
+    const hasJsonFile = themeConfigs.results.find(
+      (c: any) =>
+        c.file_path === config.file_path.replace(/\.liquid$/, '.json'),
     );
-  };
+    if (!hasJsonFile) {
+      return true;
+    }
+  } else if (isJsonFile) {
+    return true;
+  }
 
-  const templates = [
-    // TODO: add templates for all other components (sections) with preset setting defaults
-    {
-      id: `swell_page`,
-      entry: {
-        _id: `swell_page`,
-        _component: `swell_page`,
-        ContentSections: pageSections.map(({ section, settings, schema }) => ({
-          _id: `${section.type}_${Math.random()}`,
-          _component: `${section.type}`,
-          ...reduce(
-            settings?.section.settings,
-            (acc, value, key) => ({
-              ...acc,
-              [key]: schemaToEasyblocksValue(schema?.fields, key, value),
-            }),
-            {},
-          ),
-          ...(settings?.section.blocks
-            ? {
-                Blocks: settings.section.blocks.map((block: any) => ({
-                  _id: `Block__${section.type}__${block.type}_${Math.random()}`,
-                  _component: `Block__${section.type}__${block.type}`,
-                  ...reduce(
-                    block.settings,
-                    (acc, value, key) => ({
-                      ...acc,
-                      [key]: schemaToEasyblocksValue(
-                        schema?.blocks?.find(({ type }) => type === block.type)
-                          ?.fields,
-                        key,
-                        value,
-                      ),
-                    }),
-                    {},
-                  ),
-                })),
-              }
-            : {}),
-        })),
-        ...getSectionGroupTemplateValues(),
-      },
-    },
-  ];
-
-  console.log({ components, templates });
-
-  return {
-    easyblocksConfig: {
-      components,
-      templates,
-      hideCloseButton: true,
-      allowSave: true,
-      locales: [
-        {
-          code: 'en-US',
-          isDefault: true,
-        },
-      ],
-      types: {
-        menu: {
-          type: 'inline',
-          widget: {
-            id: 'menu',
-            label: 'Navigation menu',
-          },
-          defaultValue: null,
-        },
-        boolean: {
-          type: 'inline',
-          widget: {
-            id: 'swellBoolean',
-          },
-        },
-        number: {
-          type: 'inline',
-          widget: {
-            id: 'swellNumber',
-          },
-        },
-        select: {
-          type: 'inline',
-          widget: {
-            id: 'swellSelect',
-          },
-        },
-        short_text: {
-          type: 'inline',
-          widget: {
-            id: 'swellShortText',
-          },
-        },
-        long_text: {
-          type: 'inline',
-          widget: {
-            id: 'swellLongText',
-          },
-        },
-        editor: {
-          type: 'inline',
-          widget: {
-            id: 'swellEditor',
-          },
-        },
-        file: {
-          type: 'inline',
-          widget: {
-            id: 'swellFile',
-          },
-        },
-      },
-      tokens: {
-        colors: [],
-        fonts: [],
-      },
-    },
-  };
+  return false;
 }
 
 export function schemaToEasyblocksProps(
@@ -513,10 +212,7 @@ export function schemaToEasyblocksProps(
         type: 'select',
         params: {
           options: field.options?.map((option) => ({
-            label: option.label?.startsWith('t:')
-              ? renderLanguage(lang, option.label.split('t:')[1]) ||
-                option.label
-              : option.label,
+            label: option.label,
             value: option.value,
           })),
         },
@@ -528,10 +224,7 @@ export function schemaToEasyblocksProps(
         type: 'radio-group',
         params: {
           options: field.options?.map((option) => ({
-            label: option.label?.startsWith('t:')
-              ? renderLanguage(lang, option.label.split('t:')[1]) ||
-                option.label
-              : option.label,
+            label: option.label,
             value: option.value,
           })),
         },
@@ -584,56 +277,6 @@ export function schemaToEasyblocksProps(
   };
 }
 
-export function getEasyblocksComponentDefinitions(
-  props: {
-    allSections: ThemePageSectionSchema[];
-    layoutSectionGroups: ThemeLayoutSectionGroupConfig[];
-  },
-  pageId: string,
-  getComponent: (type: string, data?: any) => any,
-) {
-  const { allSections, layoutSectionGroups } = props;
-
-  console.log('getEasyblocksComponentDefinitions', {
-    allSections,
-    layoutSectionGroups,
-  });
-
-  const pageSectionComponents = allSections.reduce((acc: any, section) => {
-    acc[`${section.id}`] = getComponent('pageSection', section);
-    return acc;
-  }, {});
-
-  const layoutSectionGroupComponents = layoutSectionGroups.reduce(
-    (acc: any, sectionGroup) => {
-      acc[`SectionGroup___${sectionGroup.id}`] = getComponent(
-        'layoutSectionGroup',
-        sectionGroup,
-      );
-      return acc;
-    },
-    {},
-  );
-
-  const blockComponents = allSections.reduce((acc: any, section) => {
-    if (section.blocks) {
-      for (const block of section.blocks) {
-        const blockId = `Block__${section.id}__${block.type}` as any;
-        acc[blockId] = getComponent('block', { section, block });
-      }
-    }
-    return acc;
-  }, {});
-
-  return {
-    ...pageSectionComponents,
-    ...layoutSectionGroupComponents,
-    ...blockComponents,
-    // Root component
-    [`swell_page`]: getComponent('root'),
-  };
-}
-
 export function schemaToEasyblocksValue(
   fields: ThemeSettingFieldSchema[] | undefined,
   fieldId: string,
@@ -655,47 +298,4 @@ export function schemaToEasyblocksValue(
     default:
       return value;
   }
-}
-
-export function getEasyblocksBackend(_: any) {
-  const easyblocksBackend: Backend = {
-    documents: {
-      get: async ({ id }) => {
-        const document = {
-          id,
-          version: 1,
-          entry: {
-            _id: 'page',
-            _component: `page_${id}`,
-          },
-        } as Document;
-        return document;
-      },
-      create: async (payload) => {
-        return {} as Document;
-      },
-      update: async (payload) => {
-        return {} as Document;
-      },
-    },
-    templates: {
-      get: async (payload) => {
-        return {} as UserDefinedTemplate;
-      },
-      getAll: async () => {
-        return [] as UserDefinedTemplate[];
-      },
-      create: async (payload) => {
-        return {} as UserDefinedTemplate;
-      },
-      update: async (payload) => {
-        return {} as UserDefinedTemplate;
-      },
-      delete: async (payload) => {
-        return;
-      },
-    },
-  };
-
-  return easyblocksBackend;
 }
