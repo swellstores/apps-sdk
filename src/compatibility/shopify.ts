@@ -1,3 +1,5 @@
+import get from 'lodash/get';
+import isObject from 'lodash/isObject';
 import { Swell, StorefrontResource } from '../api';
 import ShopifyShop from './shopify-objects/shop';
 import {
@@ -24,6 +26,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   public objectResourceMap: ShopifyObjectResourceMap;
   public formResourceMap: ShopifyFormResourceMap;
   public queryParamsMap: ShopifyQueryParamsMap;
+  public editorLocaleConfig: { [key: string]: any } | undefined;
 
   constructor(swell: Swell) {
     this.swell = swell;
@@ -224,10 +227,6 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     return shopifyFontToThemeFront(fontSetting);
   }
 
-  getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema {
-    return convertShopifySettingsSchema(this as any, settingsSchema);
-  }
-
   getThemeConfig(settingsData: ShopifySettingsData): ThemeSettings {
     return convertShopifySettingsData(this as any, settingsData);
   }
@@ -236,38 +235,54 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     return convertShopifySettingsPresets(this as any, settingsData);
   }
 
+  getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema {
+    return convertShopifySettingsSchema(this as any, settingsSchema);
+  }
+
+  getSectionConfigSchema(
+    sectionSchema: ShopifySectionSchema,
+  ): ThemeSectionSchema {
+    return convertShopifySectionSchema(this as any, sectionSchema);
+  }
+
   async getLocaleConfig(
-    settingConfigs: SwellCollection,
-    localeCode: string,
-    getThemeConfig: Function,
+    theme: SwellTheme,
+    localeCode: string = 'en',
+    suffix = '.json',
   ) {
+    const settingConfigs = await theme.getAllThemeConfigs();
+
     const shopifyLocaleConfigs = settingConfigs?.results?.filter(
-      (config: SwellRecord) => config?.file_path?.startsWith('theme/locales/'),
+      (config: SwellRecord) =>
+        config?.file_path?.startsWith('theme/locales/') &&
+        config?.file_path?.endsWith(suffix),
     );
 
     let localeConfig = shopifyLocaleConfigs?.find(
       (config: SwellRecord) =>
-        config?.file_path === `theme/locales/${localeCode}.json`,
-    );
+        config?.file_path === `theme/locales/${localeCode}${suffix}`,
+    ) as SwellThemeConfig;
 
     if (!localeConfig) {
       // Fall back to short code locale
       const localeShortCode = localeCode.split('-')[0];
       localeConfig = shopifyLocaleConfigs?.find(
         (config: SwellRecord) =>
-          config?.file_path === `theme/locales/${localeShortCode}.json`,
-      );
+          config?.file_path === `theme/locales/${localeShortCode}${suffix}`,
+      ) as SwellThemeConfig;
 
       if (!localeConfig) {
         // Fall back to default locale
         localeConfig = shopifyLocaleConfigs?.find((config: SwellRecord) =>
-          config?.file_path?.endsWith(`.default.json`),
-        );
+          config?.file_path?.endsWith(`.default${suffix}`),
+        ) as SwellThemeConfig;
       }
     }
 
     if (localeConfig) {
-      localeConfig = await getThemeConfig(localeConfig.file_path);
+      localeConfig = (await theme.getThemeConfig(
+        localeConfig.file_path,
+      )) as SwellThemeConfig;
       try {
         return JSON.parse(localeConfig?.file_data);
       } catch {
@@ -278,10 +293,87 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     return {};
   }
 
-  getSectionConfigSchema(
-    sectionSchema: ShopifySectionSchema,
-  ): ThemeSectionSchema {
-    return convertShopifySectionSchema(this as any, sectionSchema);
+  async getEditorLocaleConfig(theme: SwellTheme, localeCode: string) {
+    if (this.editorLocaleConfig?.[localeCode]) {
+      return this.editorLocaleConfig[localeCode];
+    }
+
+    const editorLocaleConfig = await this.getLocaleConfig(
+      theme,
+      localeCode,
+      '.schema.json',
+    );
+
+    this.editorLocaleConfig = { [localeCode]: editorLocaleConfig };
+
+    return editorLocaleConfig;
+  }
+
+  async renderSchemaLanguage(
+    theme: SwellTheme,
+    schema: SwellData,
+    localeCode: string = 'en',
+  ): Promise<any> {
+    if (!isObject(schema)) {
+      return schema;
+    }
+
+    const editorLocaleConfig = await this.getEditorLocaleConfig(
+      theme,
+      localeCode,
+    );
+
+    return await this.renderSchemaLanguageValue(
+      theme,
+      schema,
+      localeCode,
+      editorLocaleConfig,
+    );
+  }
+
+  async renderSchemaLanguageValue(
+    theme: SwellTheme,
+    schemaValue: any,
+    localCode: string,
+    editorLocaleConfig: any,
+  ): Promise<any> {
+    if (typeof schemaValue === 'string') {
+      if (schemaValue.startsWith('t:')) {
+        const key = schemaValue.slice(2);
+        const keyParts = key?.split('.');
+        const keyName = keyParts.pop() || '';
+        const keyPath = keyParts.join('.');
+        const langObject = get(editorLocaleConfig, keyPath);
+
+        return langObject?.[keyName] ?? key;
+      }
+    } else if (schemaValue instanceof Array) {
+      const result = [];
+      for (const value of schemaValue) {
+        result.push(
+          await this.renderSchemaLanguageValue(
+            theme,
+            value,
+            localCode,
+            editorLocaleConfig,
+          ),
+        );
+      }
+      return result;
+    } else if (isObject(schemaValue)) {
+      const result: any = { ...schemaValue };
+      for (const [key, value] of Object.entries(schemaValue)) {
+        result[key] = await this.renderSchemaLanguageValue(
+          theme,
+          value,
+          localCode,
+          editorLocaleConfig,
+        );
+      }
+      return result;
+    }
+
+    return schemaValue;
   }
 
   /*

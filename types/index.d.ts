@@ -366,7 +366,20 @@ declare class SwellTheme {
     data: SwellData,
   ): Promise<string>;
 
-  renderLanguage(key: string, data?: any, fallback?: string): Promise<string>;
+  renderLanguage(
+    key: string,
+    data?: any,
+    fallback?: string,
+    langObject?: any,
+  ): Promise<string>;
+
+  renderLanguageValue(
+    localeCode: string,
+    langConfig: any,
+    key: string,
+    data?: any,
+    fallback?: string,
+  ): Promise<string>;
 
   renderCurrency(amount: number, params: any): string;
 }
@@ -538,11 +551,11 @@ declare class ShopifyCompatibility {
 
   getFontFromShopifySetting(fontSetting: string): string | null;
 
-  getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema;
-
   getThemeConfig(settingsData: ShopifySettingsData): ThemeSettings;
 
   getPresetsConfig(settingsData: ShopifySettingsData): SwellData;
+
+  getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema;
 
   getSectionConfigSchema(
     sectionSchema: ShopifySectionSchema,
@@ -552,7 +565,27 @@ declare class ShopifyCompatibility {
     settingConfigs: SwellCollection,
     localeCode: string,
     getThemeConfig: Function,
+    suffix?: string,
   ): Promise<SwellData | null>;
+
+  getEditorLocaleConfig(
+    settingConfigs: SwellCollection,
+    localeCode: string,
+    getThemeConfig: Function,
+  ): Promise<any>;
+
+  renderSchemaLanguage(
+    theme: SwellTheme,
+    schema: SwellData,
+    localeCode: string,
+  ): Promise<any>;
+
+  renderSchemaLanguageValue(
+    theme: SwellTheme,
+    schemaValue: any,
+    localCode: string,
+    editorLocaleConfig: any,
+  ): Promise<any>;
 }
 
 type ShopifyPageResourceMap = Array<{

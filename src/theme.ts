@@ -71,7 +71,8 @@ export class SwellTheme {
   async initGlobals(pageId: string) {
     this.pageId = pageId;
 
-    const { store, menus, geo, configs } = await this.getSettingsAndConfigs();
+    const { store, menus, geo, configs, localeCode } =
+      await this.getSettingsAndConfigs();
     const { settings, page, cart, account, customer } =
       await this.resolvePageData(configs, pageId);
 
@@ -88,6 +89,7 @@ export class SwellTheme {
       customer,
       geo,
       configs,
+      localeCode,
       storefrontConfig: this.storefrontConfig,
       language: configs?.language,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
@@ -117,8 +119,9 @@ export class SwellTheme {
   async getSettingsAndConfigs(): Promise<{
     store: SwellData;
     menus: { [key: string]: SwellMenu };
-    configs: ThemeConfigs;
     geo: SwellRecord;
+    configs: ThemeConfigs;
+    localeCode: string;
   }> {
     const [storefrontSettings, themeConfigs, geo] = await Promise.all([
       this.swell.getCached('store-settings', async () => {
@@ -189,6 +192,7 @@ export class SwellTheme {
       menus,
       geo,
       configs,
+      localeCode,
     };
   }
 
@@ -392,8 +396,13 @@ export class SwellTheme {
     };
 
     if (!Object.keys(configs.editor).length && configs.settings_schema) {
-      configs.editor = shopifyCompatibility().getEditorConfig(
+      configs.editor = await shopifyCompatibility().getEditorConfig(
         configs.settings_schema,
+      );
+      configs.editor = await shopifyCompatibility().renderSchemaLanguage(
+        this,
+        configs.editor,
+        localeCode,
       );
     }
 
@@ -411,9 +420,8 @@ export class SwellTheme {
 
     if (!Object.keys(configs.language).length) {
       configs.language = await shopifyCompatibility().getLocaleConfig(
-        themeConfigs,
+        this,
         localeCode,
-        this.getThemeConfig.bind(this),
       );
     }
 
@@ -719,7 +727,11 @@ export class SwellTheme {
         if (schema) {
           const result =
             this.shopifyCompatibility.getSectionConfigSchema(schema);
-          return result;
+          return this.shopifyCompatibility.renderSchemaLanguage(
+            this,
+            result,
+            this.globals?.localeCode,
+          );
         }
       }
     }
@@ -971,6 +983,11 @@ export class SwellTheme {
         const lastSchema = this.liquidSwell.lastSchema || {};
         if (lastSchema) {
           schema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
+          schema = await this.shopifyCompatibility.renderSchemaLanguage(
+            this,
+            schema,
+            this.globals?.localeCode,
+          );
         }
       }
     } else if (resolvedConfig?.file_data) {
@@ -1103,16 +1120,33 @@ export class SwellTheme {
     data?: any,
     fallback?: string,
   ): Promise<string> {
+    const langObject = this.globals?.language;
+    const localeCode = this.globals?.localeCode;
+
+    return this.renderLanguageValue(
+      localeCode,
+      langObject,
+      key,
+      data,
+      fallback,
+    );
+  }
+
+  async renderLanguageValue(
+    localeCode: string,
+    langConfig: any,
+    key: string,
+    data?: any,
+    fallback?: string,
+  ): Promise<string> {
     if (key === undefined) {
       return fallback || '';
     }
 
-    const lang = this.globals?.language;
-    const localeCode = String(this.globals?.store?.locale || '') || 'en-US';
     const keyParts = key?.split('.') || [];
     const keyName = keyParts.pop() || '';
     const keyPath = keyParts.join('.');
-    const langObject = get(lang, keyPath);
+    const langObject = get(langConfig, keyPath);
 
     let localeValue =
       get(langObject?.[localeCode], keyName) ||
@@ -1124,7 +1158,7 @@ export class SwellTheme {
       localeValue = data.count === 1 ? localeValue.one : localeValue.other;
     }
 
-    if (typeof localeValue !== 'string') {
+    if (typeof localeValue !== 'string' || localeValue === '') {
       return fallback || '';
     }
 

@@ -1,39 +1,142 @@
-import { Swell } from '../api';
-import { themeConfigQuery } from '../utils';
+export async function getPageTemplate(theme: SwellTheme, pageId: string) {
+  return await theme.renderPageTemplate(pageId);
+}
 
-export async function getThemeConfig(
-  swell: Swell,
-  themePath: string,
-): Promise<SwellRecord | null> {
-  if (!swell.swellHeaders['theme-id']) {
-    return null;
-  }
+export async function getAllSections(
+  theme: SwellTheme,
+  themeConfigs: SwellCollection,
+): Promise<ThemeSectionSchema[]> {
+  if (!themeConfigs?.results) return [];
 
-  const config = await swell.getCached(
-    'editor-theme-config',
-    [themePath],
-    async () => {
-      return await swell.get('/:themes:configs/:last', {
-        ...themeConfigQuery(swell.swellHeaders),
-        file_path: `theme/${themePath}.json`,
-        fields: 'type, name, file, file_path, file_data',
-        include: {
-          file_data: {
-            url: '/:themes:configs/{id}/file/data',
-            conditions: {
-              type: 'theme',
-            },
-          },
-        },
-      });
-    },
+  const sectionConfigs = themeConfigs.results.filter((config) =>
+    filterSectionConfig(config, themeConfigs),
   );
 
-  try {
-    return JSON.parse(config.file_data);
-  } catch {
-    return null;
+  const allSections = [];
+  for (const config of sectionConfigs) {
+    const schema = await renderTemplateSchema(
+      theme,
+      config as SwellThemeConfig,
+    );
+    allSections.push({
+      id: config.name.split('.').pop(),
+      ...schema,
+    });
   }
+
+  return allSections;
+}
+
+export async function getPageSections(
+  theme: SwellTheme,
+  sectionGroup: ThemeSectionGroup | SwellRecord,
+  getSectionSchemaHandler: any = getSectionSchema,
+): Promise<ThemeSectionConfig[]> {
+  const order =
+    sectionGroup.order instanceof Array
+      ? sectionGroup.order
+      : Object.keys(sectionGroup.sections || {});
+
+  const pageSections = [];
+  for (const key of order) {
+    const section: ThemeSection = sectionGroup.sections[key];
+
+    const schema = await getSectionSchemaHandler(theme, section.type);
+    if (!schema) {
+      continue;
+    }
+
+    const id = sectionGroup.id ? `page__${sectionGroup.id}__${key}` : schema.id;
+
+    const blockOrder =
+      section.block_order instanceof Array
+        ? section.block_order
+        : Object.keys(section.blocks || {});
+
+    const blocks: ThemeSettingsBlock[] = blockOrder
+      .map((key: string) => section.blocks?.[key])
+      .filter(Boolean) as ThemeSettingsBlock[];
+
+    const settings = {
+      section: {
+        id,
+        ...section,
+        blocks,
+      },
+    };
+
+    pageSections.push({
+      id: id as string,
+      settings: settings as ThemeSectionSettings,
+      section: { id, ...section },
+      tag: schema.tag || 'div',
+      class: schema.class,
+      schema,
+    });
+  }
+
+  return pageSections;
+}
+
+export async function getLayoutSectionGroups(
+  theme: SwellTheme,
+  themeConfigs: SwellCollection,
+): Promise<ThemeLayoutSectionGroupConfig[]> {
+  if (!themeConfigs?.results) return [];
+
+  const layoutSectionGroupConfigs = themeConfigs.results.filter((config) =>
+    filterAllLayoutSectionGroupConfigs(config, themeConfigs),
+  );
+
+  const getSectionSchema = async (
+    theme: SwellTheme,
+    type: string,
+  ): Promise<ThemeSectionSchema | undefined> => {
+    const config = themeConfigs.results.find((config) =>
+      filterLayoutSectionGroupConfig(config, themeConfigs, type),
+    );
+
+    const schema = await renderTemplateSchema(
+      theme,
+      config as SwellThemeConfig,
+    );
+
+    return {
+      ...schema,
+      id: config?.name.split('.').pop(),
+    };
+  };
+
+  const layoutSectionGroups = [];
+  for (const config of layoutSectionGroupConfigs) {
+    let sectionGroup;
+    try {
+      sectionGroup = JSON.parse(config.file_data);
+      // Convert name to label if shopify format
+      if (sectionGroup?.name) {
+        sectionGroup.label = sectionGroup.name;
+        delete sectionGroup.name;
+      }
+    } catch {
+      // noop
+    }
+
+    // Must have a type property
+    if (sectionGroup?.type) {
+      const sectionConfigs = await getPageSections(
+        theme,
+        sectionGroup,
+        getSectionSchema,
+      );
+      layoutSectionGroups.push({
+        ...sectionGroup,
+        id: config.name.split('.').pop(),
+        sectionConfigs,
+      });
+    }
+  }
+
+  return layoutSectionGroups;
 }
 
 export async function getSectionSchema(

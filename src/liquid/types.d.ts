@@ -35,7 +35,6 @@ type ThemeConfigs = {
   theme: ThemeSettings;
   presets: ThemePresetSchema[];
   language: ThemeSettings;
-  'language-editor'?: ThemeEditorSchema;
   [key: string]: any;
 
   // Shopify compatibility
