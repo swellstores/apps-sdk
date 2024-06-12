@@ -128,6 +128,7 @@ export function getEasyblocksPagePropsWithConfigs(
         },
         ...getLayoutSectionGroupComponentProps(),
       ],
+      allowSave: true,
       styles: () => {
         return {
           styled: {
@@ -344,13 +345,11 @@ export function getEasyblocksPagePropsWithConfigs(
       ],
       types: {
         menu: {
-          type: 'external',
-          widgets: [
-            {
-              id: 'menu',
-              label: 'Navigation menu',
-            },
-          ],
+          type: 'inline',
+          widget: {
+            id: 'swellMenu',
+            label: 'Navigation menu',
+          },
         },
         boolean: {
           type: 'inline',
