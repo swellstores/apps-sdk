@@ -553,41 +553,58 @@ export class SwellTheme {
   }
 
   async getAllThemeConfigs(): Promise<SwellCollection> {
-    const cacheKey = this.swell.swellHeaders['theme-config-version'];
+    const themeId = this.swell.swellHeaders['theme-id'];
+    const configVersion = this.swell.swellHeaders['theme-config-version'];
 
-    return this.swell.getCached('theme-configs-all', [cacheKey], async () => {
-      console.log(`Retrieving theme configurations - version: ${cacheKey}`);
+    return this.swell.getCached(
+      'theme-configs-all',
+      [themeId, configVersion],
+      async () => {
+        console.log(
+          `Retrieving theme configurations - version: ${configVersion}`,
+        );
 
-      const configs = await this.swell.get('/:themes:configs', {
-        ...this.themeConfigQuery(),
-        // TODO: paginate to support more than 1000 configs
-        limit: 1000,
-        fields: 'type, name, file, file_path',
-        include: {
-          file_data: {
-            url: '/:themes:configs/{id}/file/data',
-            conditions: {
-              type: 'theme',
-              // Only expand theme files
-              // Do not expand non-text data
-              file: {
-                $and: [
-                  { content_type: { $regex: '^(?!image)' } },
-                  { content_type: { $regex: '^(?!video)' } },
+        const configs = await this.swell.get('/:themes:configs', {
+          ...this.themeConfigQuery(),
+          // TODO: paginate to support more than 1000 configs
+          limit: 1000,
+          fields: 'type, name, file, file_path',
+          include: {
+            file_data: {
+              url: '/:themes:configs/{id}/file/data',
+              conditions: {
+                type: 'theme',
+                // Only expand theme files
+                // Do not expand non-text data
+                file: {
+                  $and: [
+                    { content_type: { $regex: '^(?!image)' } },
+                    { content_type: { $regex: '^(?!video)' } },
+                  ],
+                },
+                // Do not return assets unless they end with .liquid.[ext]
+                $or: [
+                  { file_path: { $regex: '^(?!theme/assets/)' } },
+                  { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
                 ],
               },
-              // Do not return assets unless they end with .liquid.[ext]
-              $or: [
-                { file_path: { $regex: '^(?!theme/assets/)' } },
-                { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
-              ],
             },
           },
-        },
-      });
+        });
 
-      return configs;
-    });
+        return configs;
+      },
+    );
+  }
+
+  getAllThemeConfigsCachedSync(): SwellCollection {
+    const themeId = this.swell.swellHeaders['theme-id'];
+    const configVersion = this.swell.swellHeaders['theme-config-version'];
+
+    return this.swell.getCachedSync(
+      'theme-configs-all',
+      [themeId, configVersion]
+    );
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
@@ -654,9 +671,7 @@ export class SwellTheme {
   }
 
   getAssetUrl(filePath: string): string | null {
-    const cacheKey = this.swell.swellHeaders['theme-config-version'];
-
-    const configs = this.swell.getCachedSync('theme-configs-all', [cacheKey]);
+    const configs = this.getAllThemeConfigsCachedSync();
 
     const assetConfig =
       configs?.results?.find(
