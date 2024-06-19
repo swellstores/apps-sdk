@@ -47,8 +47,9 @@ export default function ShopifyCollection(
     metafields: null,
     next_product: null,
     previous_product: null,
-    products: deferWith(category.products, (products: any) => {
-      return products.results?.map((product: any) =>
+    products: deferWith(category, (category: any) => {
+      console.log(category.products);
+      return category.products?.results?.map((product: any) =>
         ShopifyProduct(instance, product),
       );
     }),
@@ -60,7 +61,7 @@ export default function ShopifyCollection(
     sort_by: instance.swell.queryParams.sort || '',
     sort_options: deferWith(
       category.products,
-      (products: any) => products.sort_options,
+      (products: any) => products?.sort_options,
     ),
     tags: [],
     template_suffix: null,
