@@ -1,23 +1,27 @@
 import { ShopifyResource, deferWith } from './resource';
 import ShopifyProduct from './product';
+import ShopifyImage from './image';
 import qs from 'qs';
 
 export default function ShopifyCollection(
   instance: ShopifyCompatibility,
-  products: StorefrontResource | SwellRecord,
+  category: StorefrontResource | SwellRecord,
 ) {
-  if (products instanceof ShopifyResource) {
-    return products.clone();
+  if (category instanceof ShopifyResource) {
+    return category.clone();
   }
 
   return new ShopifyResource({
-    all_products_count: deferWith(products, (products: any) => products.count),
-    all_tags: deferWith(products, (products: any) =>
+    all_products_count: deferWith(
+      category.products,
+      (products: any) => products.count,
+    ),
+    all_tags: deferWith(category.products, (products: any) =>
       products.results?.reduce((types: any[], product: SwellRecord) => {
         return types.concat(product.tags || []);
       }, []),
     ),
-    all_types: deferWith(products, (products: any) =>
+    all_types: deferWith(category.products, (products: any) =>
       products.results?.reduce((types: any[], product: SwellRecord) => {
         return types.concat(product.type || []);
       }, []),
@@ -27,8 +31,12 @@ export default function ShopifyCollection(
     current_vendor: null,
     default_sort_by: 'popularity',
     description: null,
-    featured_image: null,
-    filters: deferWith(products, (products: any) =>
+    featured_image: deferWith(
+      category,
+      (category: any) =>
+        category.images?.[0] && ShopifyImage(instance, category.images[0]),
+    ),
+    filters: deferWith(category.products, (products: any) =>
       products.filter_options?.map((filter: any) =>
         ShopifyFilter(instance, filter),
       ),
@@ -39,22 +47,28 @@ export default function ShopifyCollection(
     metafields: null,
     next_product: null,
     previous_product: null,
-    products: deferWith(products, (products: any) => {
+    products: deferWith(category.products, (products: any) => {
       return products.results?.map((product: any) =>
         ShopifyProduct(instance, product),
       );
     }),
     products_count: deferWith(
-      products,
+      category.products,
       (products: any) => products.results?.length || 0,
     ),
     published_at: null,
     sort_by: instance.swell.queryParams.sort || '',
-    sort_options: deferWith(products, (products: any) => products.sort_options),
+    sort_options: deferWith(
+      category.products,
+      (products: any) => products.sort_options,
+    ),
     tags: [],
     template_suffix: null,
-    title: 'Products',
-    url: '/collections/all',
+    title: deferWith(category, (category: any) => category.name),
+    url: deferWith(
+      category,
+      (category: any) => `/collections/${category.slug}`,
+    ),
   });
 }
 

@@ -53,11 +53,11 @@ export class StorefrontResource implements StorefrontResource {
               // Merge result after resolution
               Object.assign(instance, result);
               Object.assign(instance, instance._compatibilityProps);
-              return instance[prop];
+              return instance._getCollectionResultOrProp(instance, prop);
             })
             .catch((err: any) => {
               console.log(err);
-              return instance[prop];
+              return instance._getCollectionResultOrProp(instance, prop);
             });
 
           // Return prop if already defined
@@ -76,7 +76,7 @@ export class StorefrontResource implements StorefrontResource {
         if (instance._result instanceof Promise) {
           return instance._result
             .then(() => {
-              return instance[prop];
+              return instance._getCollectionResultOrProp(instance, prop);
             })
             .catch((err: any) => {
               console.log(err);
@@ -92,6 +92,19 @@ export class StorefrontResource implements StorefrontResource {
         return true;
       },
     });
+  }
+
+  _getCollectionResultOrProp(instance: any, prop: string) {
+    if (Array.isArray(instance._result?.results)) {
+      const record = instance._result.results.find(
+        (result: SwellRecord) => result.slug === prop || result.id === prop,
+      );
+      if (record) {
+        console.log('_getCollectionResultOrProp', { prop, record });
+        return record;
+      }
+    }
+    return instance[prop];
   }
 
   async _get(..._args: any): Promise<any> {

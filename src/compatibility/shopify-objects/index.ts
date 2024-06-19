@@ -1,4 +1,4 @@
-import { SwellStorefrontCollection } from '../../api';
+import { SwellStorefrontRecord, SwellStorefrontCollection } from '../../api';
 import {
   DeferredShopifyResource,
   DeferredShopifyLinkResource,
@@ -8,6 +8,7 @@ import ShopifyArticle from './article';
 import ShopifyBlog from './blog';
 import ShopifyCart from './cart';
 import ShopifyCollection from './collection';
+import ShopifyCollections from './collections';
 import ShopifyCustomer from './customer';
 import ShopifyFont from './font';
 import ShopifyForm from './form';
@@ -26,6 +27,7 @@ export {
   ShopifyBlog,
   ShopifyCart,
   ShopifyCollection,
+  ShopifyCollections,
   ShopifyCustomer,
   ShopifyFont,
   ShopifyForm,
@@ -64,17 +66,43 @@ export function adaptShopifyLookupData(
   if (!setting.multiple) {
     if (collection === 'categories') {
       if (value === 'all') {
-        const products = new SwellStorefrontCollection(
-          instance.swell as any,
-          'products',
-        );
-        products.setCompatibilityProps(ShopifyCollection(instance, products));
-        return products;
+        // TODO: remove this once backend for "all" is done
+        const category = new AllCategoryResource(instance.swell);
+        category.setCompatibilityProps(ShopifyCollection(instance, category));
+        return category;
       }
     }
   }
 
   return defaultHandler();
+}
+
+// TODO: remove this once backend is implemented for "all"
+class AllCategoryResource extends SwellStorefrontRecord {
+  constructor(swell: Swell) {
+    super(swell, 'category', 'all', {}, async () => {
+      const category = {
+        id: 'all',
+        slug: 'all',
+        name: 'Products',
+      } as any;
+
+      const products = new SwellStorefrontCollection(swell, 'products');
+
+      await products.results;
+
+      category.products = {
+        results: products.results,
+        count: products.count,
+        limit: products.limit,
+        pages: products.pages,
+        page: products.page,
+        page_count: products.page_count,
+      };
+
+      return category;
+    });
+  }
 }
 
 export function adaptShopifyFontData(
