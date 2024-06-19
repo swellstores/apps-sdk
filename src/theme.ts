@@ -176,7 +176,7 @@ export class SwellTheme {
 
     this.resolveLanguageLocale(configs.language, localeCode);
 
-    await this.setCompatibilityConfigs(configs, themeConfigs, localeCode);
+    await this.setCompatibilityConfigs(configs, localeCode);
 
     // Resolve menus after compatibility is determined
     const menus = await resolveMenuSettings(
@@ -381,11 +381,7 @@ export class SwellTheme {
     );
   }
 
-  async setCompatibilityConfigs(
-    configs: ThemeConfigs,
-    themeConfigs: SwellCollection,
-    localeCode: string,
-  ) {
+  async setCompatibilityConfigs(configs: ThemeConfigs, localeCode: string) {
     const shopifyCompatibility = () => {
       if (!this.shopifyCompatibility) {
         this.shopifyCompatibility = new this.shopifyCompatibilityClass(
@@ -452,7 +448,7 @@ export class SwellTheme {
 
     if (collection) {
       const defaultHandler = () => {
-        if (setting.multi) {
+        if (setting.multiple) {
           return new SwellStorefrontCollection(this.swell as any, collection, {
             limit: setting.limit || 15,
           });
@@ -601,10 +597,10 @@ export class SwellTheme {
     const themeId = this.swell.swellHeaders['theme-id'];
     const configVersion = this.swell.swellHeaders['theme-config-version'];
 
-    return this.swell.getCachedSync(
-      'theme-configs-all',
-      [themeId, configVersion]
-    );
+    return this.swell.getCachedSync('theme-configs-all', [
+      themeId,
+      configVersion,
+    ]);
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {

@@ -245,8 +245,10 @@ export function isJsonOrLiquidConfig(
 export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
   const sharedProps = {
     description: field.description,
+    defaultValue: field.default !== undefined ? field.default : null,
     isLabelHidden: true,
     layout: 'column',
+    params: field,
   };
 
   let typeProps;
@@ -257,8 +259,10 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
         type: 'short_text',
       };
       break;
+
     case 'textarea':
     case 'long_text':
+    case 'liquid':
       typeProps = {
         type: 'long_text',
       };
@@ -268,7 +272,6 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'rich_text':
     case 'rich_html':
     case 'markdown':
-    case 'liquid':
       typeProps = {
         type: 'editor',
       };
@@ -277,43 +280,24 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'number':
       typeProps = {
         type: 'number',
-        params: {
-          min: field.min,
-          max: field.max,
-          unit: field.unit,
-          increment: field.increment,
-        },
       };
       break;
 
     case 'select':
       typeProps = {
         type: 'select',
-        params: {
-          options: field.options?.map((option) => ({
-            label: option.label,
-            value: option.value,
-          })),
-        },
       };
       break;
 
     case 'radio':
       typeProps = {
         type: 'radio-group',
-        params: {
-          options: field.options?.map((option) => ({
-            label: option.label,
-            value: option.value,
-          })),
-        },
       };
       break;
 
     case 'checkbox':
       typeProps = {
         type: 'boolean',
-        defaultValue: field.default,
       };
       break;
 
@@ -323,29 +307,70 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
       };
       break;
 
-    // TODO: custom types
-    case 'menu':
+    case 'color_scheme':
       typeProps = {
-        type: 'menu', // only testing
+        type: 'color_scheme',
       };
       break;
+
+    case 'color_scheme_group':
+      typeProps = {
+        type: 'color_scheme_group',
+      };
+      break;
+
+    case 'font_family':
+      typeProps = {
+        type: 'font_family',
+      };
+      break;
+
+    case 'url':
+      typeProps = {
+        type: 'url',
+      };
+      break;
+
+    case 'icon':
+      typeProps = {
+        type: 'menu',
+      };
+      break;
+
+    case 'menu':
+      typeProps = {
+        type: 'menu',
+      };
+      break;
+
     case 'lookup':
     case 'generic_lookup':
     case 'product_lookup':
     case 'category_lookup':
     case 'customer_lookup':
       typeProps = {
-        type: 'menu', // only testing
+        type: 'lookup',
       };
       break;
+
     case 'image':
+      typeProps = {
+        type: 'image',
+        defaultValue: '', // Easyblocks requires an empty string for image fields
+      };
+      break;
+
+    case 'asset':
     case 'document':
     case 'video':
-    case 'color_scheme':
-    case 'color_scheme_group':
-    default:
       typeProps = {
         type: 'file',
+      };
+      break;
+
+    default:
+      typeProps = {
+        type: 'short_text',
       };
       break;
   }
@@ -361,19 +386,29 @@ export function schemaToEasyblocksValue(
   fieldId: string,
   value: any,
 ) {
+  if (value === undefined) {
+    return null;
+  }
+
   const field = fields?.find((field) => field.id === fieldId);
+
   switch (field?.type) {
-    // Note this should work for type "text" but it doesn't
-    /* case "text":
-    // Note these need a different component:
-    case "textarea":
+    // These are needed for external type values
+    case 'lookup':
+    case 'product_lookup':
+    case 'category_lookup':
+    case 'customer_lookup':
       return {
-        id: Math.random().toString(),
-        value: {
-          ['en-US']: value || "",
-        },
-        widgetId: "@easyblocks/local-text"
-      } */
+        id: value,
+        widgetId: 'SwellLookup',
+      };
+
+    case 'menu':
+      return {
+        id: value,
+        widgetId: 'SwellMenu',
+      };
+
     default:
       return value;
   }

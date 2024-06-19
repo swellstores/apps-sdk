@@ -148,7 +148,6 @@ export function getEasyblocksPagePropsWithConfigs(
               return {
                 prop: field.id,
                 label: field.label,
-                defaultValue: field.default,
                 optional: true,
                 ...schemaToEasyblocksProps(field),
               };
@@ -216,7 +215,6 @@ export function getEasyblocksPagePropsWithConfigs(
                   return {
                     prop: field.id,
                     label: field.label,
-                    defaultValue: field.default,
                     optional: true,
                     ...schemaToEasyblocksProps(field),
                   };
@@ -295,11 +293,19 @@ export function getEasyblocksPagePropsWithConfigs(
           _id: `${section.type}_${Math.random()}`,
           _component: `${section.type}`,
           ...reduce(
-            settings?.section.settings,
-            (acc, value, key) => ({
-              ...acc,
-              [key]: schemaToEasyblocksValue(schema?.fields, key, value),
-            }),
+            schema?.fields,
+            //settings?.section.settings,
+            (acc, value) =>
+              value?.id
+                ? {
+                    ...acc,
+                    [value.id]: schemaToEasyblocksValue(
+                      schema?.fields,
+                      value.id,
+                      settings?.section?.settings?.[value.id],
+                    ),
+                  }
+                : acc,
             {},
           ),
           ...(settings?.section.blocks
@@ -344,53 +350,104 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       ],
       types: {
-        menu: {
+        color: {
           type: 'inline',
           widget: {
-            id: 'swellMenu',
-            label: 'Navigation menu',
+            id: 'SwellColor',
+          },
+        },
+        color_scheme: {
+          type: 'inline',
+          widget: {
+            id: 'SwellColorScheme',
+          },
+        },
+        color_scheme_group: {
+          type: 'inline',
+          widget: {
+            id: 'SwellColorSchemeGroup',
+          },
+        },
+        font_family: {
+          type: 'inline',
+          widget: {
+            id: 'SwellFontFamily',
+          },
+        },
+        icon: {
+          type: 'inline',
+          widget: {
+            id: 'SwellIcon',
+          },
+        },
+        lookup: {
+          type: 'external',
+          widgets: [
+            {
+              id: 'SwellLookup',
+            },
+          ],
+        },
+        menu: {
+          type: 'external',
+          widgets: [
+            {
+              id: 'SwellMenu',
+            },
+          ],
+        },
+        url: {
+          type: 'inline',
+          widget: {
+            id: 'SwellUrl',
           },
         },
         boolean: {
           type: 'inline',
           widget: {
-            id: 'swellBoolean',
+            id: 'SwellBoolean',
           },
         },
         number: {
           type: 'inline',
           widget: {
-            id: 'swellNumber',
+            id: 'SwellNumber',
           },
         },
         select: {
           type: 'inline',
           widget: {
-            id: 'swellSelect',
+            id: 'SwellSelect',
           },
         },
         short_text: {
           type: 'inline',
           widget: {
-            id: 'swellString',
+            id: 'SwellText',
           },
         },
         long_text: {
           type: 'inline',
           widget: {
-            id: 'swellString',
+            id: 'SwellTextarea',
           },
         },
         editor: {
           type: 'inline',
           widget: {
-            id: 'swellEditor',
+            id: 'SwellEditor',
           },
         },
         file: {
           type: 'inline',
           widget: {
-            id: 'swellFile',
+            id: 'SwellFile',
+          },
+        },
+        image: {
+          type: 'inline',
+          widget: {
+            id: 'SwellImage',
           },
         },
       },

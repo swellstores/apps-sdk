@@ -290,6 +290,16 @@ declare class SwellTheme {
 
   serializeGlobalData(): SwellData | null;
 
+  resolveLanguageLocale(
+    languageConfig: ThemeSettings,
+    localeCode: string,
+  ): SwellData;
+
+  setCompatibilityConfigs(
+    configs: ThemeConfigs,
+    localeCode: string,
+  ): Promise<void>;
+
   setCompatibilityData(pageData: SwellData): void;
 
   lang(key: string, data?: any, fallback?: string): Promise<string>;

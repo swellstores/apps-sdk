@@ -61,7 +61,7 @@ export function adaptShopifyLookupData(
   value: any,
   defaultHandler: () => SwellData | null,
 ): SwellData | null {
-  if (!setting.multi) {
+  if (!setting.multiple) {
     if (collection === 'categories') {
       if (value === 'all') {
         const products = new SwellStorefrontCollection(

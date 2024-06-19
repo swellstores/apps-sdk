@@ -173,7 +173,7 @@ type ThemeSettingFieldSchema = {
   digits?: number;
 
   // select, asset
-  multi?: boolean;
+  multiple?: boolean;
 
   // select
   options?: Array<{

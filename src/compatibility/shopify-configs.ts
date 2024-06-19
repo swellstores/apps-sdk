@@ -183,7 +183,7 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'collection_list':
       swellProps = {
         type: 'category_lookup',
-        multi: true,
+        multiple: true,
         limit: setting.limit,
       };
       break;
@@ -270,7 +270,7 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'product_list':
       swellProps = {
         type: 'product_lookup',
-        multi: true,
+        multiple: true,
         limit: setting.limit,
       };
       break;

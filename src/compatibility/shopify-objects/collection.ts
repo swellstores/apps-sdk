@@ -1,7 +1,6 @@
-import omit from 'lodash/omit';
-import qs from 'qs';
-import { ShopifyResource, defer, deferWith } from './resource';
+import { ShopifyResource, deferWith } from './resource';
 import ShopifyProduct from './product';
+import qs from 'qs';
 
 export default function ShopifyCollection(
   instance: ShopifyCompatibility,
@@ -12,23 +11,17 @@ export default function ShopifyCollection(
   }
 
   return new ShopifyResource({
-    products: deferWith(products, async (products: any) => {
-      return products.results?.map((product: any) =>
-        ShopifyProduct(instance, product),
-      );
-    }),
-    all_products_count: defer(() => products.count),
-    all_tags: defer(async () =>
-      (await products.results).reduce((types: any[], product: SwellRecord) => {
+    all_products_count: deferWith(products, (products: any) => products.count),
+    all_tags: deferWith(products, (products: any) =>
+      products.results?.reduce((types: any[], product: SwellRecord) => {
         return types.concat(product.tags || []);
       }, []),
     ),
-    all_types: defer(async () =>
-      (await products.results).reduce((types: any[], product: SwellRecord) => {
+    all_types: deferWith(products, (products: any) =>
+      products.results?.reduce((types: any[], product: SwellRecord) => {
         return types.concat(product.type || []);
       }, []),
     ),
-    products_count: defer(async () => (await products.results).length),
     all_vendors: [],
     current_type: null,
     current_vendor: null,
@@ -46,9 +39,18 @@ export default function ShopifyCollection(
     metafields: null,
     next_product: null,
     previous_product: null,
+    products: deferWith(products, (products: any) => {
+      return products.results?.map((product: any) =>
+        ShopifyProduct(instance, product),
+      );
+    }),
+    products_count: deferWith(
+      products,
+      (products: any) => products.results?.length || 0,
+    ),
     published_at: null,
     sort_by: instance.swell.queryParams.sort || '',
-    sort_options: defer(() => products.sort_options),
+    sort_options: deferWith(products, (products: any) => products.sort_options),
     tags: [],
     template_suffix: null,
     title: 'Products',
