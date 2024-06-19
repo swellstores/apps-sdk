@@ -68,7 +68,9 @@ export function adaptShopifyLookupData(
       if (value === 'all') {
         // TODO: remove this once backend for "all" is done
         const category = new AllCategoryResource(instance.swell);
-        category.setCompatibilityProps(ShopifyCollection(instance, category));
+        category.setCompatibilityProps(
+          ShopifyCollection(instance, category as StorefrontResource),
+        );
         return category;
       }
     }
@@ -80,7 +82,7 @@ export function adaptShopifyLookupData(
 // TODO: remove this once backend is implemented for "all"
 class AllCategoryResource extends SwellStorefrontRecord {
   constructor(swell: Swell) {
-    super(swell, 'category', 'all', {}, async () => {
+    super(swell, 'categories', 'all', {}, async () => {
       const category = {
         id: 'all',
         slug: 'all',
