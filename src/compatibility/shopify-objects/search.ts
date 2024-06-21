@@ -1,4 +1,4 @@
-import { ShopifyResource, defer } from './resource';
+import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 
 export default function ShopifySearch(
@@ -13,14 +13,12 @@ export default function ShopifySearch(
     default_sort_by: 'relevance',
     filters: [],
     performed: defer(async () =>
-      (await search.terms) && String(search.terms || '').length > 0
+      (await search.query) && String(search.query || '').length > 0
         ? true
         : false,
     ),
-    results: defer(async () => {
-      await search.products;
-      await search.products.results;
-      return search.products?.results?.map((product: any) => {
+    results: deferWith(search.products, async (products: any) => {
+      return products?.results?.map((product: any) => {
         const shopifyProduct = ShopifyProduct(instance, product) as any;
         shopifyProduct.object_type = 'product';
         return shopifyProduct;
@@ -33,6 +31,7 @@ export default function ShopifySearch(
       { value: 'price-ascending', name: 'Price, low to high' },
       { value: 'price-descending', name: 'Price, high to low' },
     ],
+    terms: search.query,
     types: ['product'],
 
     // TODO: Implement filters
