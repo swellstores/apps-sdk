@@ -1,4 +1,4 @@
-import { fontMap } from './font-map';
+import { fontMap } from '../fonts';
 
 export class ThemeFont {
   public id: string = '';
@@ -65,15 +65,17 @@ export class ThemeFont {
   }
 
   static findByFamily(family: string) {
-    return fontMap.find((f) => f.family.toLowerCase() === family.toLowerCase());
+    return family
+      ? fontMap.find((f) => f.family.toLowerCase() === family.toLowerCase())
+      : undefined;
   }
 
   static stringToSetting(fontSetting: string) {
     const [family, variant] = fontSetting.split(':');
     const [axisId, valueId] = variant?.toLowerCase().split('@') || [];
 
-    const axes = axisId.split(',');
-    const values = valueId.split(',');
+    const axes = axisId?.split(',') || [];
+    const values = valueId?.split(',') || [];
     const weight = parseInt(values[axes.indexOf('wght')], 10);
 
     return {
@@ -82,8 +84,8 @@ export class ThemeFont {
       style: axes.includes('ital')
         ? 'italic'
         : axes.includes('slnt')
-          ? 'oblique'
-          : 'normal',
+        ? 'oblique'
+        : 'normal',
       variant: {
         wght: weight,
         wdth: axes.includes('wdth')
@@ -108,20 +110,21 @@ export class ThemeFont {
   }
 
   static variantToString(variant: ThemeFontVariant) {
+    // Note: axes must be listed in alphabetical order
     const axes = [
-      'wght',
-      ...(variant.wdth !== undefined ? ['wdth'] : []),
-      ...(variant.slnt !== undefined ? ['slnt'] : []),
-      ...(variant.opsz !== undefined ? ['opsz'] : []),
       ...(variant.ital !== undefined ? ['ital'] : []),
+      ...(variant.opsz !== undefined ? ['opsz'] : []),
+      ...(variant.slnt !== undefined ? ['slnt'] : []),
+      ...(variant.wdth !== undefined ? ['wdth'] : []),
+      'wght',
     ];
 
     const values = [
+      ...(variant.ital !== undefined ? [variant.ital || 0] : []),
+      ...(variant.opsz !== undefined ? [variant.opsz || 0] : []),
+      ...(variant.slnt !== undefined ? [variant.slnt || 0] : []),
+      ...(variant.wdth !== undefined ? [variant.wdth || 0] : []),
       variant.wght,
-      ...(variant.wdth !== undefined ? [variant.wdth] : []),
-      ...(variant.slnt !== undefined ? [variant.slnt] : []),
-      ...(variant.opsz !== undefined ? [variant.opsz] : []),
-      ...(variant.ital !== undefined ? [variant.ital] : []),
     ];
 
     const axisId = axes.join(',');
@@ -141,8 +144,8 @@ export class ThemeFont {
       typeof variant?.ital === 'number'
         ? variant.ital
         : style === 'italic'
-          ? font?.variants.find((v) => v.ital && v.ital > 0)?.ital
-          : undefined;
+        ? font?.variants.find((v) => v.ital && v.ital > 0)?.ital
+        : undefined;
 
     const opszValue =
       typeof variant?.opsz === 'number' ? variant.opsz : undefined;
@@ -151,8 +154,8 @@ export class ThemeFont {
       typeof variant?.slnt === 'number'
         ? variant.slnt
         : style === 'oblique'
-          ? font?.variants.find((v) => v.slnt && v.slnt > 0)?.slnt
-          : undefined;
+        ? font?.variants.find((v) => v.slnt && v.slnt > 0)?.slnt
+        : undefined;
 
     return {
       family,
@@ -161,8 +164,8 @@ export class ThemeFont {
         italValue !== undefined
           ? 'italic'
           : slntValue !== undefined
-            ? 'oblique'
-            : 'normal',
+          ? 'oblique'
+          : 'normal',
       variant: {
         wght: weight || variant?.wght,
         wdth: wdthValue,
@@ -195,11 +198,12 @@ export class ThemeFont {
 
   googleFamily() {
     if (this.definition) {
-      const allAxes = this.definition.axes;
-      const allValues = this.definition.variants.map(
-        (variant: ThemeFontVariant) =>
-          allAxes.map((axis) => variant[axis]).join(','),
-      );
+      const allAxes = this.definition.axes.sort(); // Must be alphabetical
+      const allValues = this.definition.variants
+        .map((variant: ThemeFontVariant) =>
+          allAxes.map((axis) => variant[axis] || 0).join(','),
+        )
+        .sort();
       return `${this.family}:${allAxes.join(',')}@${allValues.join(';')}`;
     }
 
@@ -215,7 +219,11 @@ export class ThemeFont {
     @font-face {
       font-family: '${this.family}';
       font-style: ${this.style};
-      font-weight: ${this.weight};${options.font_display ? `\n      font-display: ${options.font_display};` : ''}
+      font-weight: ${this.weight};${
+      options.font_display
+        ? `\n      font-display: ${options.font_display};`
+        : ''
+    }
     }
   `;
     // trim whitespace

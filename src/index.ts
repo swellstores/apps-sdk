@@ -7,6 +7,7 @@ export * from './menus';
 export * from './products';
 export * from './resources';
 export * from './theme';
+export * from './fonts';
 export * from './utils';
 
 export * from './liquid';

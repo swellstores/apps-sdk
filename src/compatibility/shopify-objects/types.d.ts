@@ -17,6 +17,7 @@ type ShopifySpecializedInputType =
   | 'color_scheme'
   | 'color_scheme_group'
   | 'font_picker'
+  | 'header'
   | 'html'
   | 'image_picker'
   | 'inline_richtext'
@@ -39,6 +40,7 @@ type ShopifySettingSchema = {
   info?: string;
   default?: any;
   placeholder?: string;
+  content?: string;
 
   // select
   options?: Array<{

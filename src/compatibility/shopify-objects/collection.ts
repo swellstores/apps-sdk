@@ -13,18 +13,28 @@ export default function ShopifyCollection(
 
   return new ShopifyResource({
     all_products_count: deferWith(
-      category.products,
-      (products: any) => products.count,
+      category,
+      async (category: any) => category.products?.count || 0,
     ),
-    all_tags: deferWith(category.products, (products: any) =>
-      products.results?.reduce((types: any[], product: SwellRecord) => {
-        return types.concat(product.tags || []);
-      }, []),
+    all_tags: deferWith(
+      category,
+      async (category: any) =>
+        category.products?.results?.reduce(
+          (types: any[], product: SwellRecord) => {
+            return types.concat(product.tags || []);
+          },
+          [],
+        ) || [],
     ),
-    all_types: deferWith(category.products, (products: any) =>
-      products.results?.reduce((types: any[], product: SwellRecord) => {
-        return types.concat(product.type || []);
-      }, []),
+    all_types: deferWith(
+      category,
+      (category: any) =>
+        category.products?.results?.reduce(
+          (types: any[], product: SwellRecord) => {
+            return types.concat(product.type || []);
+          },
+          [],
+        ) || [],
     ),
     all_vendors: [],
     current_type: null,
@@ -36,10 +46,12 @@ export default function ShopifyCollection(
       (category: any) =>
         category.images?.[0] && ShopifyImage(instance, category.images[0]),
     ),
-    filters: deferWith(category.products, (products: any) =>
-      products.filter_options?.map((filter: any) =>
-        ShopifyFilter(instance, filter),
-      ),
+    filters: deferWith(
+      category,
+      (category: any) =>
+        category.products?.filter_options?.map((filter: any) =>
+          ShopifyFilter(instance, filter),
+        ) || [],
     ),
     handle: 'all',
     id: 'all',
@@ -47,21 +59,22 @@ export default function ShopifyCollection(
     metafields: null,
     next_product: null,
     previous_product: null,
-    products: deferWith(category, (category: any) => {
-      console.log(category.products);
-      return category.products?.results?.map((product: any) =>
-        ShopifyProduct(instance, product),
+    products: deferWith(category, async (category: any) => {
+      return (
+        category.products?.results?.map((product: any) =>
+          ShopifyProduct(instance, product),
+        ) || []
       );
     }),
     products_count: deferWith(
-      category.products,
-      (products: any) => products.results?.length || 0,
+      category,
+      (category: any) => category?.products.results?.length || 0,
     ),
     published_at: null,
     sort_by: instance.swell.queryParams.sort || '',
     sort_options: deferWith(
-      category.products,
-      (products: any) => products?.sort_options,
+      category,
+      (category: any) => category.products?.sort_options || [],
     ),
     tags: [],
     template_suffix: null,

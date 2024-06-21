@@ -1,6 +1,4 @@
-import isObject from 'lodash/isObject';
 import { resolveAsyncResources } from './utils';
-import { DeferredShopifyResource } from './compatibility/shopify-objects';
 
 export const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
 
@@ -31,9 +29,7 @@ export class StorefrontResource implements StorefrontResource {
 
         // Indicate props are thenable
         if (prop === 'then') {
-          return Boolean(
-            instance._result instanceof Promise || instance._result,
-          );
+          return false;
         }
 
         if (prop === 'toJSON' || prop === 'toObject') {
@@ -96,14 +92,15 @@ export class StorefrontResource implements StorefrontResource {
 
   _getCollectionResultOrProp(instance: any, prop: string) {
     if (Array.isArray(instance._result?.results)) {
-      const record = instance._result.results.find(
-        (result: SwellRecord) => result.slug === prop || result.id === prop,
-      );
+      const record =
+        instance._result.results.find(
+          (result: SwellRecord) => result.slug === prop || result.id === prop,
+        ) || instance._result.results[prop];
       if (record) {
-        console.log('_getCollectionResultOrProp', { prop, record });
         return record;
       }
     }
+
     return instance[prop];
   }
 

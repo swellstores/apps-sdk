@@ -1,7 +1,7 @@
-import clone from "lodash/clone";
-import get from "lodash/get";
+import get from 'lodash/get';
 import each from 'lodash/each';
 import reduce from 'lodash/reduce';
+import cloneDeep from 'lodash/cloneDeep';
 import {
   Swell,
   StorefrontResource,
@@ -449,10 +449,13 @@ export class SwellTheme {
     if (collection) {
       const defaultHandler = () => {
         if (setting.multiple) {
-          return new SwellStorefrontCollection(this.swell as any, collection, {
-            limit: setting.limit || 15,
-          });
-        } else if (value !== null && value !== undefined) {
+          if (value instanceof Array) {
+            return value.map(
+              (id: string) =>
+                new SwellStorefrontRecord(this.swell as any, collection, id),
+            );
+          }
+        } else if (value !== '' && value !== null && value !== undefined) {
           return new SwellStorefrontRecord(
             this.swell as any,
             collection,
@@ -936,7 +939,8 @@ export class SwellTheme {
   getContentForHeader(): string {
     let content = '\n';
 
-    // Include google font stylesheet for all font settings
+    // Include google font stylesheet for global font settings
+    // Note: this means fonts will not be loaded if they are used in section settings
     content += this.renderFontHeaderLinks();
 
     if (this.shopifyCompatibility) {
@@ -947,19 +951,19 @@ export class SwellTheme {
   }
 
   renderFontHeaderLinks() {
-    const themeSettings = this.globals?.configs?.theme;
+    const themeSettings = this.globals?.settings;
     const editorSettings = this.globals?.configs?.editor?.settings || [];
 
     if (themeSettings && editorSettings) {
       const fontSettings = findThemeSettingsByType(
-        'font_family',
+        'font',
         themeSettings,
         editorSettings,
       );
 
       const combinedFonts: string[] = [];
       for (let i = 0; i < fontSettings.length; i++) {
-        const value = fontSettings[i].value;
+        const value = fontSettings[i].value?.id || fontSettings[i].value;
         // Adapt shopify fonts first if applicable
         if (this.shopifyCompatibility) {
           const fontSetting =
@@ -1264,7 +1268,7 @@ export function resolveThemeSettings(
   themeSettings: ThemeSettings,
   editorSchemaSettings?: ThemeSettingSectionSchema[],
 ): ThemeSettings {
-  const settings = clone(themeSettings);
+  const settings = cloneDeep(themeSettings);
   each(settings, (value, key) => {
     const setting =
       editorSchemaSettings && findEditorSetting(editorSchemaSettings, key);
@@ -1298,7 +1302,7 @@ export function resolveThemeSettings(
             settings[key] = new ThemeColor(value);
           }
           break;
-        case 'font_family':
+        case 'font':
           settings[key] = theme.resolveFontSetting(value);
           break;
         case 'menu':
@@ -1322,7 +1326,7 @@ export function findThemeSettingsByType(
   const foundSettings: Array<{ setting: any; value: any }> = [];
 
   each(themeSettings, (value, key) => {
-    if (isObject(value)) {
+    if (isObject(value) && !(value instanceof ThemeFont)) {
       // Nested settings
       foundSettings.push(
         ...findThemeSettingsByType(type, value, editorSchemaSettings),

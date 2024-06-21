@@ -105,13 +105,13 @@ type ThemeSettingBasicInputType =
   | 'color'
   | 'color_scheme'
   | 'color_scheme_group'
-  | 'font_family'
+  | 'font'
+  | 'header'
   | 'lookup'
   | 'generic_lookup'
   | 'menu'
   | 'icon'
-  | 'field_group'
-  | 'field_row';
+  | 'field_group';
 
 type ThemeSettingAliasInputType =
   | 'text'

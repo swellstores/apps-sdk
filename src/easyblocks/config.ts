@@ -31,6 +31,7 @@ export async function getEasyblocksPropsFromThemeConfigs(
 }
 
 export function getEasyblocksPagePropsWithConfigs(
+  themeGlobals: ThemeGlobals,
   allSections: ThemePageSectionSchema[],
   pageSections: ThemeSectionConfig[],
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
@@ -110,6 +111,26 @@ export function getEasyblocksPagePropsWithConfigs(
       .map((sectionId: string) => `${sectionId}`);
   };
 
+  const getEditorSchemaComponentProps = () => {
+    return themeGlobals?.configs?.editor?.settings?.reduce(
+      (acc: any, settingGroup: any) => {
+        for (const field of settingGroup.fields || []) {
+          if (field?.id) {
+            acc.push({
+              prop: field.id,
+              label: field.label,
+              optional: true,
+              group: settingGroup.label,
+              ...schemaToEasyblocksProps(field),
+            });
+          }
+        }
+        return acc;
+      },
+      [],
+    );
+  };
+
   const components = [
     {
       id: `swell_page`,
@@ -127,6 +148,7 @@ export function getEasyblocksPagePropsWithConfigs(
           },
         },
         ...getLayoutSectionGroupComponentProps(),
+        ...getEditorSchemaComponentProps(),
       ],
       allowSave: true,
       styles: () => {
@@ -235,7 +257,7 @@ export function getEasyblocksPagePropsWithConfigs(
     }, []),
   ];
 
-  const getSectionGroupTemplateValues = () => {
+  const getLayoutSectionGroupTemplateValues = () => {
     return layoutSectionGroups.reduce(
       (acc: any, sectionGroup: ThemeLayoutSectionGroupConfig) => ({
         ...acc,
@@ -278,6 +300,24 @@ export function getEasyblocksPagePropsWithConfigs(
           }),
         ),
       }),
+      {},
+    );
+  };
+
+  const getEditorSchemaTemplateValues = () => {
+    return themeGlobals?.configs?.editor?.settings?.reduce(
+      (acc: any, settingGroup: any) => {
+        for (const field of settingGroup.fields || []) {
+          if (field?.id) {
+            acc[field.id] = schemaToEasyblocksValue(
+              settingGroup.fields,
+              field.id,
+              themeGlobals?.configs?.theme?.[field.id],
+            );
+          }
+        }
+        return acc;
+      },
       {},
     );
   };
@@ -330,7 +370,8 @@ export function getEasyblocksPagePropsWithConfigs(
               }
             : {}),
         })),
-        ...getSectionGroupTemplateValues(),
+        ...getLayoutSectionGroupTemplateValues(),
+        ...getEditorSchemaTemplateValues(),
       },
     },
   ];
@@ -350,101 +391,103 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       ],
       types: {
-        color: {
-          type: 'inline',
-          widget: {
-            id: 'SwellColor',
-          },
-        },
-        color_scheme: {
-          type: 'inline',
-          widget: {
-            id: 'SwellColorScheme',
-          },
-        },
-        color_scheme_group: {
-          type: 'inline',
-          widget: {
-            id: 'SwellColorSchemeGroup',
-          },
-        },
-        font_family: {
-          type: 'inline',
-          widget: {
-            id: 'SwellFontFamily',
-          },
-        },
-        icon: {
-          type: 'inline',
-          widget: {
-            id: 'SwellIcon',
-          },
-        },
-        lookup: {
-          type: 'external',
-          widgets: [
-            {
-              id: 'SwellLookup',
-            },
-          ],
-        },
-        menu: {
-          type: 'external',
-          widgets: [
-            {
-              id: 'SwellMenu',
-            },
-          ],
-        },
-        url: {
-          type: 'inline',
-          widget: {
-            id: 'SwellUrl',
-          },
-        },
-        boolean: {
+        swell_boolean: {
           type: 'inline',
           widget: {
             id: 'SwellBoolean',
           },
         },
-        number: {
+        swell_color: {
+          type: 'inline',
+          widget: {
+            id: 'SwellColor',
+          },
+        },
+        swell_color_scheme: {
+          type: 'inline',
+          widget: {
+            id: 'SwellColorScheme',
+          },
+        },
+        swell_color_scheme_group: {
+          type: 'inline',
+          widget: {
+            id: 'SwellColorSchemeGroup',
+          },
+        },
+        swell_font: {
+          type: 'inline',
+          widget: {
+            id: 'SwellFont',
+          },
+        },
+        swell_header: {
+          type: 'inline',
+          widget: {
+            id: 'SwellHeader',
+          },
+        },
+        swell_icon: {
+          type: 'inline',
+          widget: {
+            id: 'SwellIcon',
+          },
+        },
+        swell_lookup: {
+          type: 'inline',
+          widget: {
+            id: 'SwellLookup',
+          },
+        },
+        swell_menu: {
+          type: 'inline',
+          widget: {
+            id: 'SwellMenu',
+          },
+        },
+        swell_url: {
+          type: 'inline',
+          widget: {
+            id: 'SwellUrl',
+          },
+        },
+        swell_number: {
           type: 'inline',
           widget: {
             id: 'SwellNumber',
           },
         },
-        select: {
+        swell_select: {
           type: 'inline',
           widget: {
             id: 'SwellSelect',
           },
         },
-        short_text: {
+        swell_short_text: {
           type: 'inline',
           widget: {
             id: 'SwellText',
           },
         },
-        long_text: {
+        swell_long_text: {
           type: 'inline',
           widget: {
             id: 'SwellTextarea',
           },
         },
-        editor: {
+        swell_editor: {
           type: 'inline',
           widget: {
             id: 'SwellEditor',
           },
         },
-        file: {
+        swell_file: {
           type: 'inline',
           widget: {
             id: 'SwellFile',
           },
         },
-        image: {
+        swell_image: {
           type: 'inline',
           widget: {
             id: 'SwellImage',

@@ -87,6 +87,7 @@ class AllCategoryResource extends SwellStorefrontRecord {
         id: 'all',
         slug: 'all',
         name: 'Products',
+        products: new SwellStorefrontCollection(swell, 'products'),
       } as any;
 
       const products = new SwellStorefrontCollection(swell, 'products');

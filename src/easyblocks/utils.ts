@@ -256,7 +256,7 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'text':
     case 'short_text':
       typeProps = {
-        type: 'short_text',
+        type: 'swell_short_text',
       };
       break;
 
@@ -264,7 +264,7 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'long_text':
     case 'liquid':
       typeProps = {
-        type: 'long_text',
+        type: 'swell_long_text',
       };
       break;
 
@@ -273,73 +273,79 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'rich_html':
     case 'markdown':
       typeProps = {
-        type: 'editor',
+        type: 'swell_editor',
       };
       break;
 
     case 'number':
       typeProps = {
-        type: 'number',
+        type: 'swell_number',
       };
       break;
 
     case 'select':
       typeProps = {
-        type: 'select',
+        type: 'swell_select',
       };
       break;
 
     case 'radio':
       typeProps = {
-        type: 'radio-group',
+        type: 'swell_radio',
       };
       break;
 
     case 'checkbox':
       typeProps = {
-        type: 'boolean',
+        type: 'swell_boolean',
       };
       break;
 
     case 'color':
       typeProps = {
-        type: 'color',
+        type: 'swell_color',
       };
       break;
 
     case 'color_scheme':
       typeProps = {
-        type: 'color_scheme',
+        type: 'swell_color_scheme',
       };
       break;
 
     case 'color_scheme_group':
       typeProps = {
-        type: 'color_scheme_group',
+        type: 'swell_color_scheme_group',
       };
       break;
 
-    case 'font_family':
+    case 'font':
       typeProps = {
-        type: 'font_family',
+        type: 'swell_font',
       };
       break;
 
-    case 'url':
+    case 'header':
       typeProps = {
-        type: 'url',
+        type: 'swell_header',
       };
       break;
 
     case 'icon':
       typeProps = {
-        type: 'menu',
+        type: 'swell_menu',
       };
       break;
 
     case 'menu':
       typeProps = {
-        type: 'menu',
+        type: 'swell_menu',
+      };
+      break;
+
+    case 'url':
+      typeProps = {
+        type: 'swell_url',
       };
       break;
 
@@ -349,13 +355,13 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'category_lookup':
     case 'customer_lookup':
       typeProps = {
-        type: 'lookup',
+        type: 'swell_lookup',
       };
       break;
 
     case 'image':
       typeProps = {
-        type: 'image',
+        type: 'swell_image',
         defaultValue: '', // Easyblocks requires an empty string for image fields
       };
       break;
@@ -364,13 +370,13 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
     case 'document':
     case 'video':
       typeProps = {
-        type: 'file',
+        type: 'swell_file',
       };
       break;
 
     default:
       typeProps = {
-        type: 'short_text',
+        type: 'swell_short_text',
       };
       break;
   }
@@ -394,6 +400,12 @@ export function schemaToEasyblocksValue(
 
   switch (field?.type) {
     // These are needed for external type values
+    /* case 'color':
+      return {
+        id: value,
+        widgetId: 'SwellColor',
+      };
+
     case 'lookup':
     case 'product_lookup':
     case 'category_lookup':
@@ -407,9 +419,51 @@ export function schemaToEasyblocksValue(
       return {
         id: value,
         widgetId: 'SwellMenu',
-      };
+      }; */
 
     default:
       return value;
   }
+}
+
+export function getThemeSettingsFromProps(props: any, editorSchema: any) {
+  return editorSchema?.reduce((acc: any, settingGroup: any) => {
+    for (const field of settingGroup.fields || []) {
+      if (field?.id) {
+        acc[field.id] = props[field.id];
+      }
+    }
+    return acc;
+  }, {});
+}
+
+export function getSectionSettingsFromProps(props: any, sectionSchema: any) {
+  return sectionSchema
+    ? {
+        settings: sectionSchema.fields?.reduce((acc: any, field: any) => {
+          if (field?.id) {
+            acc[field.id] = props[field.id];
+          }
+          return acc;
+        }, {}),
+        blocks: props.Blocks?.filter(
+          (propBlock: any) => propBlock.props.compiled?._component,
+        ).map((propBlock: any) => {
+          const blockProps = propBlock.props.compiled.props;
+          const blockType = propBlock.props.compiled._component.split('__')[2];
+          const blockSchema = sectionSchema.blocks?.find(
+            (block: any) => block.type === blockType,
+          );
+          return {
+            type: blockType,
+            settings: blockSchema?.fields?.reduce((acc: any, field: any) => {
+              if (field?.id) {
+                acc[field.id] = blockProps[field.id];
+              }
+              return acc;
+            }, {}),
+          };
+        }),
+      }
+    : {};
 }

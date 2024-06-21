@@ -220,7 +220,7 @@ export function shopifySchemaSettingToSwellSettingField(
 
     case 'font_picker':
       swellProps = {
-        type: 'font_family',
+        type: 'font',
       };
       break;
 
@@ -293,7 +293,6 @@ export function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'url':
-      // TODO: support generic_lookup combined with url
       swellProps = {
         type: 'url',
       };
@@ -310,13 +309,21 @@ export function shopifySchemaSettingToSwellSettingField(
         type: 'url',
       };
       break;
+
+    case 'header':
+      swellProps = {
+        type: 'header',
+        id: setting.content,
+        label: setting.content,
+      };
+      break;
   }
 
   return {
-    ...swellProps,
     id: setting.id,
     label: setting.label,
     default: setting.default,
     description: setting.info,
+    ...swellProps,
   };
 }
