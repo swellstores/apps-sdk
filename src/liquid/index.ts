@@ -1,4 +1,5 @@
 import { Liquid } from 'liquidjs';
+import { SwellTheme } from '../theme';
 import { bindTags } from './tags';
 import { bindFilters } from './filters';
 import { swellOperators } from './operators';
@@ -171,7 +172,7 @@ export class LiquidSwell extends Liquid {
 
   async getSectionPath(sectionName: string): Promise<string> {
     return (
-      (await this.resolveFilePathByType('components', sectionName)) ||
+      (await this.resolveFilePathByType('sections', sectionName)) ||
       this.resolveFilePath(`${this.componentsDir}/${sectionName}`)
     );
   }

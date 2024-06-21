@@ -5,8 +5,7 @@ import placeholderSvgs from "./placeholder-svgs";
 
 export default function bind(_liquidSwell: LiquidSwell) {
   return (name: string): string => {
-    const svg =
-      placeholderSvgs[name as keyof typeof placeholderSvgs];
+    const svg = placeholderSvgs[name as keyof typeof placeholderSvgs] as any;
 
     return svg?.src
       ? `<img src="${svg.src}" alt="${name}"` +

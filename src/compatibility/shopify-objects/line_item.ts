@@ -1,3 +1,5 @@
+import { ShopifyCompatibility } from '../shopify';
+import { StorefrontResource } from '../../resources';
 import { ShopifyResource, deferWith } from './resource';
 import ShopifyImage from './image';
 import ShopifyProduct from './product';

@@ -1,3 +1,4 @@
+import { ShopifyCompatibility } from '../shopify';
 import { ShopifyResource } from './resource';
 
 export default function ShopifyShop(

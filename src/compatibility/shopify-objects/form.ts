@@ -1,3 +1,5 @@
+import { ShopifyCompatibility } from '../shopify';
+import { ThemeForm } from '../../liquid/form';
 import { ShopifyResource } from './resource';
 
 const SHOPIFY_FORMS = {

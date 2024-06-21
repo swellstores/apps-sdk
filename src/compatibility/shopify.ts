@@ -1,6 +1,9 @@
 import get from 'lodash/get';
 import isObject from 'lodash/isObject';
 import { Swell, StorefrontResource } from '../api';
+import { SwellTheme } from '../theme';
+import { ThemeFont } from '../liquid/font';
+import { ThemeForm } from '../liquid/form';
 import ShopifyShop from './shopify-objects/shop';
 import {
   adaptShopifyMenuData,
@@ -83,7 +86,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
       for (const [key, value] of Object.entries(pageData)) {
         const resourceMap = pageMap.resources.find(({ from }) => from === key);
         if (resourceMap && value instanceof StorefrontResource) {
-          pageData[resourceMap.to] = resourceMap.object(this as any, value);
+          pageData[resourceMap.to] = resourceMap.object(this, value);
         }
       }
     }
@@ -98,7 +101,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
         ({ from }: { from: any }) => value instanceof from,
       );
       if (objectMap) {
-        const objectProps = objectMap.object(this as any, value);
+        const objectProps = objectMap.object(this, value);
         if (value instanceof StorefrontResource) {
           value.setCompatibilityProps(objectProps);
         } else {
@@ -166,7 +169,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
         (formType && form.formType === formType),
     );
     if (formMap?.serverParams) {
-      return await formMap.serverParams(context);
+      return formMap.serverParams(context);
     }
   }
 
@@ -187,7 +190,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
 
   getShopData({ store }: ThemeGlobals) {
     if (store) {
-      return ShopifyShop(this as any, store);
+      return ShopifyShop(this, store);
     }
     return {};
   }
@@ -197,7 +200,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   }
 
   getMenuData(menu: SwellMenu): SwellData {
-    return adaptShopifyMenuData(this as any, menu);
+    return adaptShopifyMenuData(this, menu);
   }
 
   getLookupData(
@@ -207,7 +210,7 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
     defaultHandler: () => SwellData | null,
   ): SwellData | null {
     return adaptShopifyLookupData(
-      this as any,
+      this,
       collection,
       setting,
       value,
@@ -216,11 +219,11 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   }
 
   getFontData(font: ThemeFont): SwellData {
-    return adaptShopifyFontData(this as any, font);
+    return adaptShopifyFontData(this, font);
   }
 
   getFormData(form: ThemeForm): SwellData {
-    return adaptShopifyFormData(this as any, form);
+    return adaptShopifyFormData(this, form);
   }
 
   getFontFromShopifySetting(fontSetting: string) {
@@ -228,21 +231,21 @@ export class ShopifyCompatibility implements ShopifyCompatibility {
   }
 
   getThemeConfig(settingsData: ShopifySettingsData): ThemeSettings {
-    return convertShopifySettingsData(this as any, settingsData);
+    return convertShopifySettingsData(settingsData);
   }
 
-  getPresetsConfig(settingsData: ShopifySettingsData): SwellData {
-    return convertShopifySettingsPresets(this as any, settingsData);
+  getPresetsConfig(settingsData: ShopifySettingsData): ThemePresetSchema[] {
+    return convertShopifySettingsPresets(settingsData);
   }
 
   getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema {
-    return convertShopifySettingsSchema(this as any, settingsSchema);
+    return convertShopifySettingsSchema(settingsSchema);
   }
 
   getSectionConfigSchema(
     sectionSchema: ShopifySectionSchema,
   ): ThemeSectionSchema {
-    return convertShopifySectionSchema(this as any, sectionSchema);
+    return convertShopifySectionSchema(sectionSchema);
   }
 
   async getLocaleConfig(

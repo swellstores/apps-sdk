@@ -21,6 +21,7 @@ import {
   getLayoutSectionGroups,
   isObject,
 } from './utils';
+import { template } from 'lodash';
 
 export class SwellTheme {
   public swell: Swell;
@@ -31,7 +32,7 @@ export class SwellTheme {
   public pageId: string | undefined;
   public globals: ThemeGlobals | undefined;
   public request: ThemeSettings | null = null;
-  public shopifyCompatibility: any = null;
+  public shopifyCompatibility: ShopifyCompatibility | null = null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
     ShopifyCompatibility;
 
@@ -54,7 +55,7 @@ export class SwellTheme {
       shopifyCompatibilityClass || ShopifyCompatibility;
 
     this.liquidSwell = new LiquidSwell({
-      theme: this as any,
+      theme: this,
       getThemeConfig: this.getThemeConfig.bind(this),
       getAssetUrl: this.getAssetUrl.bind(this),
       getThemeTemplateConfigByType:
@@ -180,7 +181,7 @@ export class SwellTheme {
 
     // Resolve menus after compatibility is determined
     const menus = await resolveMenuSettings(
-      this as any,
+      this,
       this.swell.getStorefrontMenus(),
       {
         currentUrl: this.swell.url.pathname,
@@ -263,7 +264,7 @@ export class SwellTheme {
   }
 
   async fetchCart() {
-    const cart = new SwellStorefrontSingleton(this.swell as any, 'cart');
+    const cart = new SwellStorefrontSingleton(this.swell, 'cart');
 
     await cart.id;
     if (!cart.id) {
@@ -271,7 +272,7 @@ export class SwellTheme {
     }
 
     if (this.shopifyCompatibility) {
-      const compatProps = ShopifyCart(this.shopifyCompatibility, cart as any);
+      const compatProps = ShopifyCart(this.shopifyCompatibility, cart);
       cart.setCompatibilityProps(compatProps);
     }
 
@@ -279,7 +280,7 @@ export class SwellTheme {
   }
 
   async fetchAccount() {
-    const account = new SwellStorefrontSingleton(this.swell as any, 'account');
+    const account = new SwellStorefrontSingleton(this.swell, 'account');
 
     await account.id;
     if (!account.id) {
@@ -287,10 +288,7 @@ export class SwellTheme {
     }
 
     if (this.shopifyCompatibility) {
-      const compatProps = ShopifyCustomer(
-        this.shopifyCompatibility,
-        account as any,
-      );
+      const compatProps = ShopifyCustomer(this.shopifyCompatibility, account);
       account.setCompatibilityProps(compatProps);
     }
 
@@ -452,15 +450,11 @@ export class SwellTheme {
           if (value instanceof Array) {
             return value.map(
               (id: string) =>
-                new SwellStorefrontRecord(this.swell as any, collection, id),
+                new SwellStorefrontRecord(this.swell, collection, id),
             );
           }
         } else if (value !== '' && value !== null && value !== undefined) {
-          return new SwellStorefrontRecord(
-            this.swell as any,
-            collection,
-            value,
-          );
+          return new SwellStorefrontRecord(this.swell, collection, value);
         }
         return null;
       };
@@ -985,7 +979,9 @@ export class SwellTheme {
     return '';
   }
 
-  async getTemplateSchema(config: SwellThemeConfig): Promise<any> {
+  async getTemplateSchema(
+    config: SwellThemeConfig,
+  ): Promise<ThemeSectionSchema | {}> {
     let schema = {};
 
     const resolvedConfig = await this.getThemeConfig(config.file_path);
@@ -995,9 +991,12 @@ export class SwellTheme {
         // Extract {% schema %} from liquid files for Shopify compatibility
         this.liquidSwell.lastSchema = undefined;
         await this.renderTemplate(resolvedConfig);
+
         const lastSchema = this.liquidSwell.lastSchema || {};
         if (lastSchema) {
-          schema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
+          schema = this.shopifyCompatibility.getSectionConfigSchema(
+            lastSchema as ShopifySectionSchema,
+          );
           schema = await this.shopifyCompatibility.renderSchemaLanguage(
             this,
             schema,
@@ -1014,6 +1013,54 @@ export class SwellTheme {
     }
 
     return schema;
+  }
+
+  async resolveSectionDefaultSettings(
+    sectionSchema: ThemeSectionSchema,
+    presetSchema?: ThemePresetSchema,
+  ): Promise<SwellData> {
+    const defaults: SwellData = {};
+
+    const defaultSchema = presetSchema || sectionSchema.default || {};
+
+    if (sectionSchema?.fields) {
+      sectionSchema.fields.forEach((field: ThemeSettingFieldSchema) => {
+        if (field.default !== undefined) {
+          defaults[field.id as string] = field.default;
+        }
+      });
+    }
+
+    Object.assign(defaults, defaultSchema.settings, {
+      blocks: defaultSchema.blocks,
+    });
+
+    if (defaults.blocks instanceof Array) {
+      defaults.blocks = defaults.blocks.map((block: any) => {
+        const blockDefaults: SwellData = {};
+
+        const blockSchema = sectionSchema?.blocks?.find(
+          (schema) => schema.type === block.type,
+        );
+
+        if (blockSchema?.fields) {
+          blockSchema.fields.forEach((field: ThemeSettingFieldSchema) => {
+            if (field.default !== undefined) {
+              blockDefaults[field.id as string] = field.default;
+            }
+          });
+        }
+        return {
+          ...block,
+          settings: {
+            ...blockDefaults,
+            ...(block.settings || undefined),
+          },
+        };
+      });
+    }
+
+    return defaults;
   }
 
   async getAllSections(): Promise<ThemePageSectionSchema[]> {
@@ -1184,15 +1231,14 @@ export class SwellTheme {
 
   renderCurrency(amount: number, params: any): string {
     // FIXME: Total hack because on the client side the currency is getting set to `[object Promise]` for some reason
-    const settingState = (this.swell.storefront.settings as any).state;
-    const code = ((this.swell.storefront.currency as any).code =
+    const settingState = this.swell.storefront.settings.state;
+    const code = (this.swell.storefront.currency.code =
       settingState?.store?.currency || 'USD');
-    (this.swell.storefront.currency as any).locale =
+    this.swell.storefront.currency.locale =
       settingState?.store?.locale || 'en-US';
-    (this.swell.storefront.currency as any).state =
-      settingState?.store?.locales?.find(
-        (locale: any) => locale.code === code,
-      ) || { code };
+    this.swell.storefront.currency.state = settingState?.store?.locales?.find(
+      (locale: any) => locale.code === code,
+    ) || { code };
 
     return this.swell.storefront.currency.format(amount, params);
   }

@@ -46,8 +46,8 @@ export default function bind(_liquidSwell: LiquidSwell) {
     };
 
     return `<img ${Object.entries(imgAttrs)
-      .filter(([_, value]) => value !== undefined && value !== null)
-      .map(([key, value]) => `${key}="${value}"`)
+      .filter(([_, value]: any) => value !== undefined && value !== null)
+      .map(([key, value]: any) => `${key}="${value}"`)
       .join(' ')} />`;
   };
 }

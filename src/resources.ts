@@ -1,3 +1,5 @@
+import { Swell } from './api';
+import { ShopifyCompatibility } from './compatibility/shopify';
 import { resolveAsyncResources } from './utils';
 
 export const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s

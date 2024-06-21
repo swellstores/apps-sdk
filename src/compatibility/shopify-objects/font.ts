@@ -1,3 +1,5 @@
+import { ShopifyCompatibility } from '../shopify';
+import { ThemeFont } from '../../liquid/font';
 import { ShopifyResource } from './resource';
 
 export default function ShopifyFont(

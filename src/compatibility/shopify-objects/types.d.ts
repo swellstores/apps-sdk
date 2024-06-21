@@ -163,4 +163,5 @@ type ShopifySectionSchema = {
   settings: ShopifySettingSchema[];
   blocks?: ShopifySectionBlockSchema[];
   presets?: ShopifySectionPresetSchema[];
+  default?: ShopifySettingSchema;
 };

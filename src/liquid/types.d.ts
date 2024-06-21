@@ -90,6 +90,11 @@ type ThemeSectionSchema = {
   disabled_on?: ThemeSectionEnabledDisabled;
   blocks?: ThemeBlockSchema[];
   presets?: ThemePresetSchema[];
+  default?: {
+    settings?: ThemeSettings;
+    blocks?: ThemeSettingsBlock[];
+    block_order?: string[];
+  };
 };
 
 type ThemeSettingBasicInputType =
@@ -309,70 +314,6 @@ type ThemeFontVariantSetting = {
   style?: 'normal' | 'italic' | 'oblique' | string;
   variant?: ThemeFontVariant;
 };
-
-declare class ThemeFont {
-  id: string;
-  family: string;
-  weight: number;
-  style: string;
-  fallback_families: string;
-
-  system: boolean;
-  variant: ThemeFontVariant;
-
-  variants: ThemeFont[];
-  definition: ThemeFontConfig;
-
-  constructor(fontSetting: ThemeFontVariantSetting | string);
-
-  static get(fontSetting: string | ThemeFont): ThemeFont;
-
-  static stringToSetting(fontSetting: string): ThemeFontVariantSetting;
-
-  static settingToString(setting: ThemeFontVariantSetting): string;
-
-  static resolveSetting(
-    setting: ThemeFontVariantSetting,
-  ): ThemeFontVariantSetting;
-
-  static combinedGoogleFontUrl(fonts: any[]): string;
-
-  toString(): string;
-
-  googleFamily(): string;
-
-  url(): string;
-
-  face(options?: { font_display?: string }): string;
-
-  modify(prop: string, value: string): ThemeFont;
-}
-
-declare class ThemeForm {
-  public id: string;
-  public success: boolean = false;
-  public errors?: ThemeFormErrors;
-
-  constructor(id: string);
-
-  setSuccess(success: boolean = true): void;
-
-  setParams(params: SwellData): void;
-
-  setErrors(errors: ThemeFormErrorMessages): void;
-
-  clearErrors(): void;
-}
-
-declare class ThemeFormErrors implements Iterable<ThemeFormErrorMessages> {
-  private messages?: ThemeFormErrorMessages;
-
-  constructor(messages?: ThemeFormErrorMessages);
-
-  set(messages: ThemeFormErrorMessages): void;
-
-  clear(): void;
-}
 
 type ThemeFormErrorMessage = {
   code?: string;

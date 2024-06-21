@@ -1,4 +1,9 @@
-import { SwellStorefrontRecord, SwellStorefrontCollection } from '../../api';
+import {
+  SwellStorefrontRecord,
+  SwellStorefrontCollection,
+  StorefrontResource,
+} from '../../api';
+import { ShopifyCompatibility } from '../shopify';
 import {
   DeferredShopifyResource,
   DeferredShopifyLinkResource,

@@ -1,3 +1,4 @@
+import { ShopifyCompatibility } from '../shopify';
 import { SwellStorefrontCollection } from '../../resources';
 import ShopifyCollection from './collection';
 

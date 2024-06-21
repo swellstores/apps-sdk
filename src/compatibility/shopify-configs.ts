@@ -1,5 +1,4 @@
 export function convertShopifySettingsSchema(
-  _instance: ShopifyCompatibility,
   settingsSchema: ShopifySettingsSchema,
 ): ThemeEditorSchema {
   const editor: ThemeEditorSchema = {
@@ -27,7 +26,6 @@ export function convertShopifySettingsSchema(
 }
 
 export function convertShopifySettingsData(
-  _instance: ShopifyCompatibility,
   settingsData: ShopifySettingsData,
 ): ThemeSettings {
   // Shopify's current settings in the first object
@@ -35,18 +33,21 @@ export function convertShopifySettingsData(
 }
 
 export function convertShopifySettingsPresets(
-  _instance: ShopifyCompatibility,
   settingsData: ShopifySettingsData,
-): SwellData {
-  return settingsData.presets;
+): ThemePresetSchema[] {
+  return Object.entries(settingsData.presets || {}).map(
+    ([name, preset]: [string, any]) => ({
+      label: name,
+      settings: preset,
+    }),
+  );
 }
 
 export function convertShopifySectionSchema(
-  _instance: ShopifyCompatibility,
   sectionSchema: ShopifySectionSchema,
 ): ThemeSectionSchema {
   const schema = {
-    label: sectionSchema.name, // TODO: translate if starting with t:
+    label: sectionSchema.name,
     type: sectionSchema.type,
     tag: sectionSchema.tag,
     class: sectionSchema.class,
@@ -61,6 +62,7 @@ export function convertShopifySectionSchema(
     presets: (sectionSchema.presets || []).map((preset) =>
       shopifySchemaPresetToSwellPresetSchema(preset),
     ),
+    default: sectionSchema.default,
   };
 
   return schema;
@@ -71,7 +73,7 @@ export function shopifySchemaBlockToSwellBlockSchema(
 ): ThemeBlockSchema {
   const schema: ThemeBlockSchema = {
     type: block.type,
-    label: block.name, // TODO: translate if starting with t:
+    label: block.name,
     limit: block.limit,
     fields: (block.settings || []).map((setting) =>
       shopifySchemaSettingToSwellSettingField(setting),
@@ -85,7 +87,7 @@ export function shopifySchemaPresetToSwellPresetSchema(
   preset: ShopifySectionPresetSchema,
 ): ThemePresetSchema {
   const schema: ThemePresetSchema = {
-    label: preset.name, // TODO: translate if starting with t:
+    label: preset.name,
     settings: preset.settings,
     blocks: preset.blocks,
   };

@@ -1,3 +1,5 @@
+import { SwellTheme } from '../theme';
+
 export async function getPageTemplate(theme: SwellTheme, pageId: string) {
   return await theme.renderPageTemplate(pageId);
 }
@@ -167,7 +169,9 @@ export async function renderTemplateSchema(
       const lastSchema = theme.liquidSwell.lastSchema || {};
 
       if (lastSchema) {
-        schema = theme.shopifyCompatibility.getSectionConfigSchema(lastSchema);
+        schema = theme.shopifyCompatibility.getSectionConfigSchema(
+          lastSchema as ShopifySectionSchema,
+        );
       }
     }
   } else if (config?.file_data) {

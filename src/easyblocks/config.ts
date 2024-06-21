@@ -1,4 +1,5 @@
 import reduce from 'lodash/reduce';
+import { SwellTheme } from '../theme';
 import { Backend, Document, UserDefinedTemplate } from '@easyblocks/core';
 import {
   getPageTemplate,
@@ -131,6 +132,107 @@ export function getEasyblocksPagePropsWithConfigs(
     );
   };
 
+  const getAllSectionComponents = () => {
+    return [
+      ...allSections.map((section) => {
+        return {
+          id: `${section.id}`,
+          label: section.label,
+          schema: [
+            ...(section.fields || [])
+              .map((field) => {
+                if (!field.id || !field.type) return;
+                return {
+                  prop: field.id,
+                  label: field.label,
+                  optional: true,
+                  ...schemaToEasyblocksProps(field),
+                };
+              })
+              .filter(Boolean),
+            ...(section?.blocks
+              ? [
+                  {
+                    prop: 'Blocks',
+                    type: 'component-collection',
+                    required: true,
+                    accepts: section.blocks.map(
+                      (block) => `Block__${section.id}__${block.type}`,
+                    ),
+                    // TODO: figure out how to make this work, doesn't work for collections normally
+                    defaultValue: section.presets?.[0]?.blocks?.map((block) => {
+                      const blockDef = section.blocks?.find(
+                        ({ type }) => type === block.type,
+                      );
+                      if (!blockDef) return;
+                      return {
+                        _component: `Block__${section.id}__${block.type}`,
+                        ...reduce(
+                          blockDef.fields.filter((field) => field.id),
+                          (acc, blockField: any) => ({
+                            ...acc,
+                            [blockField.id]: schemaToEasyblocksValue(
+                              blockDef.fields,
+                              blockField.id,
+                              blockField.default,
+                            ),
+                          }),
+                          {},
+                        ),
+                      };
+                    }),
+                    placeholderAppearance: {
+                      height: 50,
+                      label: 'Add block',
+                      aspectRatio: 1,
+                    },
+                  },
+                ]
+              : []),
+          ],
+          styles: () => {
+            return {
+              styled: {
+                Root: {},
+              },
+            };
+          },
+        };
+      }),
+      ...allSections.reduce((acc: any[], section) => {
+        if (section.blocks) {
+          acc.push(
+            ...section.blocks.map((block) => ({
+              id: `Block__${section.id}__${block.type}`,
+              label: block.label,
+              schema: [
+                ...(block.fields || [])
+                  .map((field) => {
+                    if (!field.id || !field.type) return;
+                    return {
+                      prop: field.id,
+                      label: field.label,
+                      optional: true,
+                      ...schemaToEasyblocksProps(field),
+                    };
+                  })
+                  .filter(Boolean),
+              ],
+              styles: () => {
+                return {
+                  styled: {
+                    Root: {},
+                  },
+                };
+              },
+            })),
+          );
+        }
+        return acc;
+      }, []),
+    ];
+  };
+
   const components = [
     {
       id: `swell_page`,
@@ -159,102 +261,7 @@ export function getEasyblocksPagePropsWithConfigs(
         };
       },
     },
-    ...allSections.map((section) => {
-      return {
-        id: `${section.id}`,
-        label: section.label,
-        schema: [
-          ...(section.fields || [])
-            .map((field) => {
-              if (!field.id || !field.type) return;
-              return {
-                prop: field.id,
-                label: field.label,
-                optional: true,
-                ...schemaToEasyblocksProps(field),
-              };
-            })
-            .filter(Boolean),
-          ...(section?.blocks
-            ? [
-                {
-                  prop: 'Blocks',
-                  type: 'component-collection',
-                  required: true,
-                  accepts: section.blocks.map(
-                    (block) => `Block__${section.id}__${block.type}`,
-                  ),
-                  // TODO: figure out how to make this work, doesn't work for collections normally
-                  defaultValue: section.presets?.[0]?.blocks?.map((block) => {
-                    const blockDef = section.blocks?.find(
-                      ({ type }) => type === block.type,
-                    );
-                    if (!blockDef) return;
-                    return {
-                      _component: `Block__${section.id}__${block.type}`,
-                      ...reduce(
-                        blockDef.fields.filter((field) => field.id),
-                        (acc, blockField) => ({
-                          ...acc,
-                          [blockField.id as string]: schemaToEasyblocksValue(
-                            blockDef.fields,
-                            blockField.id as string,
-                            blockField.default,
-                          ),
-                        }),
-                        {},
-                      ),
-                    };
-                  }),
-                  placeholderAppearance: {
-                    height: 50,
-                    label: 'Add block',
-                    aspectRatio: 1,
-                  },
-                },
-              ]
-            : []),
-        ],
-        styles: () => {
-          return {
-            styled: {
-              Root: {},
-            },
-          };
-        },
-      };
-    }),
-    ...allSections.reduce((acc: any[], section) => {
-      if (section.blocks) {
-        acc.push(
-          ...section.blocks.map((block) => ({
-            id: `Block__${section.id}__${block.type}`,
-            label: block.label,
-            schema: [
-              ...(block.fields || [])
-                .map((field) => {
-                  if (!field.id || !field.type) return;
-                  return {
-                    prop: field.id,
-                    label: field.label,
-                    optional: true,
-                    ...schemaToEasyblocksProps(field),
-                  };
-                })
-                .filter(Boolean),
-            ],
-            styles: () => {
-              return {
-                styled: {
-                  Root: {},
-                },
-              };
-            },
-          })),
-        );
-      }
-      return acc;
-    }, []),
+    ...getAllSectionComponents(),
   ];
 
   const getLayoutSectionGroupTemplateValues = () => {
@@ -322,6 +329,104 @@ export function getEasyblocksPagePropsWithConfigs(
     );
   };
 
+  const getAllSectionComponentTemplates = () => {
+    // Filter templates with settings because
+    // easyblocks creates a default template for each component otherwise
+    const filterTemplateWithSettings = (template: any) => {
+      return Object.keys(template.entry).some(
+        (key) => key !== '_id' && key !== '_component',
+      );
+    };
+
+    return [
+      ...allSections
+        .reduce(
+          (acc: any[], section) => [
+            ...acc,
+            ...(section.presets?.map((preset, index) => ({
+              id: `${section.id}__preset_${index}`,
+              entry: {
+                _id: `${section.id}__preset_${index}`,
+                _component: section.id,
+                ...reduce(
+                  section.fields,
+                  (acc, field: any) => ({
+                    ...acc,
+                    [field.id]: schemaToEasyblocksValue(
+                      section.fields,
+                      field.id,
+                      preset.settings?.[field.id],
+                    ),
+                  }),
+                  {},
+                ),
+                Blocks: preset.blocks?.reduce((acc: any, block) => {
+                  const blockDef = section.blocks?.find(
+                    ({ type }) => type === block.type,
+                  );
+                  return blockDef
+                    ? [
+                        ...acc,
+                        {
+                          _id: `Block__${section.id}__${block.type}__preset_${index}`,
+                          _component: `Block__${section.id}__${block.type}`,
+                          ...reduce(
+                            blockDef.fields.filter((field) => field.id),
+                            (acc, blockField: any) => ({
+                              ...acc,
+                              [blockField.id]: schemaToEasyblocksValue(
+                                blockDef.fields,
+                                blockField.id,
+                                block.settings?.[blockField.id],
+                              ),
+                            }),
+                            {},
+                          ),
+                        },
+                      ]
+                    : acc;
+                }, []),
+              },
+            })) || []),
+          ],
+          [],
+        )
+        .filter(filterTemplateWithSettings),
+      ...allSections
+        .reduce(
+          (acc: any[], section) => [
+            ...acc,
+            ...(section.blocks?.map((block) => ({
+              id: `Block__${section.id}__${block.type}`,
+              entry: {
+                _id: `Block__${section.id}__${block.type}`,
+                _component: `Block__${section.id}__${block.type}`,
+                ...reduce(
+                  block.fields,
+                  (acc, field: any) => {
+                    if (field.id && field.default !== undefined) {
+                      return {
+                        ...acc,
+                        [field.id]: schemaToEasyblocksValue(
+                          block.fields,
+                          field.id,
+                          field.default,
+                        ),
+                      };
+                    }
+                    return acc;
+                  },
+                  {},
+                ),
+              },
+            })) || []),
+          ],
+          [],
+        )
+        .filter(filterTemplateWithSettings),
+    ];
+  };
+
   const templates = [
     // TODO: add templates for all other components (sections) with preset setting defaults
     {
@@ -334,15 +439,14 @@ export function getEasyblocksPagePropsWithConfigs(
           _component: `${section.type}`,
           ...reduce(
             schema?.fields,
-            //settings?.section.settings,
-            (acc, value) =>
-              value?.id
+            (acc, field) =>
+              field?.id
                 ? {
                     ...acc,
-                    [value.id]: schemaToEasyblocksValue(
+                    [field.id]: schemaToEasyblocksValue(
                       schema?.fields,
-                      value.id,
-                      settings?.section?.settings?.[value.id],
+                      field.id,
+                      settings?.section?.settings?.[field.id],
                     ),
                   }
                 : acc,
@@ -374,6 +478,7 @@ export function getEasyblocksPagePropsWithConfigs(
         ...getEditorSchemaTemplateValues(),
       },
     },
+    ...getAllSectionComponentTemplates(),
   ];
 
   return {

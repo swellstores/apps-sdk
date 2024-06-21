@@ -1,3 +1,4 @@
+import { ShopifyCompatibility } from '../shopify';
 import { ShopifyResource, defer } from './resource';
 
 export default function ShopifyPage(

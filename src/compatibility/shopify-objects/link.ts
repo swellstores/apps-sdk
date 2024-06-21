@@ -1,3 +1,4 @@
+import { ShopifyCompatibility } from '../shopify';
 import snakeCase from 'lodash/snakeCase';
 import { ShopifyResource } from './resource';
 

@@ -1,3 +1,4 @@
+import { ShopifyCompatibility } from '../shopify';
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 

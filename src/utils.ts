@@ -1,6 +1,7 @@
 import reduce from 'lodash/reduce';
 import { StorefrontResource } from './resources';
 import { LANG_TO_COUNTRY_CODES } from './constants';
+import { settings } from 'swell-js';
 
 /* export function dump(value: any, depth = 10) {
   console.log(util.inspect(value, { depth, colors: true }));
@@ -47,10 +48,50 @@ export async function getAllSections(
     allSections.push({
       id: sectionConfig.name.split('.').pop(),
       ...schema,
+      presets: resolveSectionPresets(schema),
     });
   }
 
   return allSections;
+}
+
+export function resolveSectionPresets(schema: ThemeSectionSchema) {
+  if (!Array.isArray(schema.presets)) return [];
+
+  return schema.presets.map((preset) => ({
+    settings: {
+      ...schema.fields.reduce((acc: any, field) => {
+        if (field.id && field.default !== undefined) {
+          return {
+            ...acc,
+            [field.id]: field.default,
+          };
+        }
+        return acc;
+      }, {}),
+      ...(preset.settings || undefined),
+    },
+    blocks: preset.blocks?.map((block) => {
+      const blockDef = schema.blocks?.find((b) => b.type === block.type);
+      return blockDef
+        ? {
+            ...block,
+            settings: {
+              ...blockDef.fields.reduce((acc: any, field) => {
+                if (field.id && field.default !== undefined) {
+                  return {
+                    ...acc,
+                    [field.id]: field.default,
+                  };
+                }
+                return acc;
+              }, {}),
+              ...(block.settings || undefined),
+            },
+          }
+        : block;
+    }),
+  }));
 }
 
 export async function getLayoutSectionGroups(

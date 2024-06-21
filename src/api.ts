@@ -171,7 +171,7 @@ export class Swell implements Swell {
       return acc;
     }, {} as SwellData);
 
-    const storefrontSettings = this.storefront.settings as any;
+    const storefrontSettings = this.storefront.settings;
 
     return {
       url: this.url,
@@ -348,7 +348,7 @@ export class Swell implements Swell {
   }
 
   getStorefrontMenus(): SwellMenu[] {
-    const menus = (this.storefront.settings as any).getState(
+    const menus = this.storefront.settings.getState(
       '/settings/menus',
       'menuState',
     );
