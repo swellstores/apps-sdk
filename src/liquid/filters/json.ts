@@ -1,30 +1,18 @@
 import { LiquidSwell } from '..';
+import { StorefrontResource } from '../../resources';
 
 // {{ product | json }}
 
 export default function bind(_liquidSwell: LiquidSwell) {
   return async (value: any, space = 0) => {
-    // Catch circular references, for example StorefrontResource
-    let references: any[] = [];
-
-    async function resolveAllKeys(value: any) {
-      await forEachKeyDeep(value, async (key, value) => {
-        if (value[key] instanceof Promise) {
-          value[key] = await value[key];
-          await resolveAllKeys(value[key]);
-        } else if (typeof value[key] === 'object' && value[key] !== null) {
-          if (references.includes(value[key])) {
-            // Ignore circular reference
-            return false;
-          }
-          references.push(value[key]);
-        }
-      });
+    if (value instanceof StorefrontResource) {
+      await value.resolve();
     }
 
     await resolveAllKeys(value);
 
-    references = [];
+    // Catch circular references, for example StorefrontResource
+    const references: any[] = [];
 
     return JSON.stringify(
       value,
@@ -41,6 +29,21 @@ export default function bind(_liquidSwell: LiquidSwell) {
       space,
     );
   };
+}
+
+async function resolveAllKeys(value: any, references: any[] = []) {
+  await forEachKeyDeep(value, async (key, value) => {
+    if (value[key] instanceof Promise) {
+      value[key] = await value[key];
+      await resolveAllKeys(value[key], references);
+    } else if (typeof value[key] === 'object' && value[key] !== null) {
+      if (references.includes(value[key])) {
+        // Ignore circular reference
+        return false;
+      }
+      references.push(value[key]);
+    }
+  });
 }
 
 async function forEachKeyDeep(

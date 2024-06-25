@@ -1,7 +1,7 @@
 import reduce from 'lodash/reduce';
 import { StorefrontResource } from './resources';
 import { LANG_TO_COUNTRY_CODES } from './constants';
-import { settings } from 'swell-js';
+import qs from 'qs';
 
 /* export function dump(value: any, depth = 10) {
   console.log(util.inspect(value, { depth, colors: true }));
@@ -377,4 +377,18 @@ export async function resolveAsyncResources(
   }
 
   return result;
+}
+
+export function stringifyQueryParams(queryParams: SwellData) {
+  return (
+    qs
+      .stringify({
+        ...queryParams,
+        sections: undefined,
+        section_id: undefined,
+      })
+      // Use actual brackets
+      .replace(/%5B/g, '[')
+      .replace(/%5D/g, ']')
+  );
 }

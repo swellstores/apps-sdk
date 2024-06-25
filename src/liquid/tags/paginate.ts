@@ -12,6 +12,11 @@ import {
   Emitter,
   evalToken,
 } from 'liquidjs';
+import {
+  SwellStorefrontCollection,
+  SwellStorefrontPagination,
+} from '../../resources';
+import { ShopifyPaginate } from '../../compatibility/shopify-objects';
 
 /*
   {% paginate array by page_size %}
@@ -21,7 +26,7 @@ import {
   {% endpaginate %}
 */
 
-export default function bind(_liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell) {
   return class PaginateTag extends Tag {
     private collection: ValueToken;
     private pageSize: ValueToken | undefined;
@@ -65,17 +70,25 @@ export default function bind(_liquidSwell: LiquidSwell) {
       let pageSize = Number(yield evalToken(this.pageSize, ctx));
       const hash = yield this.hash.render(ctx);
 
-      if (!isNaN(pageSize)) {
-        if (
-          (!collection?._result && collection?._get) ||
-          (collection?._get && collection._query?.limit !== pageSize)
-        ) {
-          yield collection._get({
-            limit: pageSize,
-            window: hash.window_size || undefined,
-          });
-        }
+      if (
+        !isNaN(pageSize) &&
+        collection instanceof SwellStorefrontCollection &&
+        collection.page_limit != pageSize
+      ) {
+        yield collection._get({
+          limit: pageSize,
+          window: hash.window_size || undefined,
+        });
       }
+
+      const paginate = new SwellStorefrontPagination(collection);
+      if (liquidSwell.theme.shopifyCompatibility) {
+        paginate.setCompatibilityProps(
+          ShopifyPaginate(liquidSwell.theme.shopifyCompatibility, paginate),
+        );
+      }
+
+      ctx.push({ paginate });
 
       yield r.renderTemplates(this.templates, ctx, emitter);
     }

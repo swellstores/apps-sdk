@@ -18,6 +18,8 @@ import ShopifyCustomer from './customer';
 import ShopifyFont from './font';
 import ShopifyForm from './form';
 import ShopifyOrder from './order';
+import ShopifyPaginate from './paginate';
+import ShopifyPredictiveSearch from './predictive_search';
 import ShopifyProduct from './product';
 import ShopifyPage from './page';
 import ShopifyLink from './link';
@@ -37,6 +39,8 @@ export {
   ShopifyFont,
   ShopifyForm,
   ShopifyOrder,
+  ShopifyPaginate,
+  ShopifyPredictiveSearch,
   ShopifyProduct,
   ShopifyPage,
   ShopifyLink,
@@ -100,12 +104,12 @@ class AllCategoryResource extends SwellStorefrontRecord {
       await products.results;
 
       category.products = {
-        results: products.results,
-        count: products.count,
-        limit: products.limit,
-        pages: products.pages,
         page: products.page,
+        count: products.count,
+        results: products.results,
         page_count: products.page_count,
+        page_limit: products.page_limit,
+        pages: products.pages,
       };
 
       return category;

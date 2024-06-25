@@ -21,7 +21,6 @@ import {
   getLayoutSectionGroups,
   isObject,
 } from './utils';
-import { template } from 'lodash';
 
 export class SwellTheme {
   public swell: Swell;
@@ -729,7 +728,12 @@ export class SwellTheme {
       if (this.shopifyCompatibility) {
         this.liquidSwell.lastSchema = undefined;
 
-        await this.renderTemplate(config);
+        const configWithSchema = this.getSectionConfigWithSchemaTagOnly(config);
+        if (!configWithSchema) {
+          return;
+        }
+
+        await this.renderTemplate(configWithSchema);
 
         const schema = this.liquidSwell.lastSchema;
         if (schema) {
@@ -743,6 +747,26 @@ export class SwellTheme {
         }
       }
     }
+  }
+
+  getSectionConfigWithSchemaTagOnly(config: SwellThemeConfig) {
+    const schemaTag = '{% schema %}';
+    const schemaEndTag = '{% endschema %}';
+    const schemaStartIndex = config.file_data.indexOf(schemaTag);
+    const schemaEndIndex = config.file_data.indexOf(schemaEndTag);
+    const schemaData = config.file_data.slice(
+      schemaStartIndex + schemaTag.length,
+      schemaEndIndex,
+    );
+
+    if (schemaStartIndex === -1 || schemaEndIndex === -1) {
+      return null;
+    }
+
+    return {
+      ...config,
+      file_data: schemaTag + schemaData + schemaEndTag,
+    };
   }
 
   async renderThemeTemplate(

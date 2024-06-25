@@ -14,11 +14,12 @@ type SwellRecord = {
 };
 
 type SwellCollection = {
+  page: number;
   count: number;
   results: SwellRecord[];
-  page: number;
-  pages: SwellCollectionPages;
   page_count: number;
+  page_limit: number;
+  pages: SwellCollectionPages;
 };
 
 type SwellCollectionPages = {
@@ -111,492 +112,7 @@ type SwellStorefrontConfig = {
   }>;
 };
 
-declare class Swell {
-  public url: URL;
-  public headers: SwellData;
-  public swellHeaders: SwellData;
-  public queryParams: SwellData;
-  public backend?: SwellBackendAPI;
-  public storefront: typeof SwellJS;
-  public instanceId: string;
-  public isPreview: boolean;
-  public isEditor: boolean;
-  static cache: Map<string, any>;
-
-  constructor(options: {
-    url?: URL | string;
-    headers?: SwellData;
-    swellHeaders?: SwellData;
-    serverHeaders?: Headers | SwellData;
-    queryParams?: URLSearchParams | SwellData;
-    getCookie?: (name: string) => string;
-    setCookie?: (name: string, value: string, options: any) => void;
-    [key: string]: any;
-  });
-
-  static formatHeaders(serverHeaders?: Headers | SwellData): {
-    headers: SwellData;
-    swellHeaders: SwellData;
-  };
-
-  static formatQueryParams(
-    queryParams?: URLSearchParams | SwellData,
-  ): SwellData;
-
-  getClientProps(): {
-    url: URL;
-    headers: SwellData;
-    swellHeaders: SwellData;
-    queryParams: SwellData;
-    instanceId: string;
-    isPreview: boolean;
-    isEditor: boolean;
-    cache: Map<string, any>;
-    storefrontSettingStates: {
-      state: any;
-      menuState: any;
-      paymentState: any;
-      subscriptionState: any;
-      sessionState: any;
-    };
-  };
-
-  getStorefrontInstance(clientProps: SwellData): SwellJS;
-
-  getCacheInstance(): Map<string, any>;
-
-  getCachedSync(
-    key: string,
-    args?: Array<any> | Function,
-    handler?: Function,
-    timeout?: number,
-  ): any;
-
-  getCached(
-    key: string,
-    args: Array<any> | Function,
-    handler?: Function,
-    timeout?: number,
-  ): Promise<any>;
-
-  getCachedResource(
-    key: string,
-    args: Array<any> | Function,
-    handler?: Function,
-    timeout?: number,
-  ): Promise<any>;
-
-  clearCache(): void;
-
-  getStorefrontSettings(): Promise<SwellRecord>;
-
-  getStorefrontMenus(): SwellMenu[];
-
-  get(
-    ...args: Parameters<SwellBackendAPI['get']>
-  ): Promise<SwellData> | undefined;
-  put(
-    ...args: Parameters<SwellBackendAPI['get']>
-  ): Promise<SwellData> | undefined;
-  post(
-    ...args: Parameters<SwellBackendAPI['get']>
-  ): Promise<SwellData> | undefined;
-  delete(
-    ...args: Parameters<SwellBackendAPI['get']>
-  ): Promise<SwellData> | undefined;
-}
-
-declare class SwellBackendAPI {
-  public apiHost: string;
-  public apiAuth: string;
-
-  constructor(options: {
-    storeId: string;
-    accessToken: string;
-    apiHost?: string;
-  });
-
-  makeRequest(method: string, url: string, data?: object): Promise<SwellData>;
-
-  stringifyQuery(queryObject: object, prefix?: string): string;
-
-  get(url: string, query?: SwellData): Promise<SwellData>;
-
-  put(url: string, data: SwellData): Promise<SwellData>;
-
-  post(url: string, data: SwellData): Promise<SwellData>;
-
-  delete(url: string, data?: SwellData): Promise<SwellData>;
-}
-
-declare class SwellTheme {
-  public swell: Swell;
-  public liquidSwell: LiquidSwell;
-  public storefrontConfig?: SwellStorefrontConfig;
-
-  public page: any;
-  public pageId: string | undefined;
-  public globals: ThemeGlobals | undefined;
-  public request: ThemeSettings | null; // TODO: Should be ThemeRequest
-  public shopifyCompatibility: SwellStorefrontShopifyCompatibility | null;
-  public shopifyCompatibilityClass: typeof ShopifyCompatibility;
-
-  public formData: { [key: string]: ThemeForm };
-  public globalData: SwellData;
-
-  constructor(
-    swell: Swell,
-    options?: {
-      storefrontConfig: SwellStorefrontConfig;
-      shopifyCompatibilityClass: typeof ShopifyCompatibility;
-    },
-  );
-
-  initGlobals(pageId: string): Promise<void>;
-
-  setGlobals(globals: ThemeGlobals): void;
-
-  getSettingsAndConfigs(): Promise<{ store: SwellData; configs: any }>;
-
-  resolvePageData(
-    configs: SwellData,
-    pageId?: string,
-  ): Promise<{
-    settings: ThemeSettings;
-    page: ThemeSettings;
-    cart: SwellStorefrontSingleton;
-    account: SwellStorefrontSingleton;
-    customer?: SwellStorefrontSingleton;
-  }>;
-
-  fetchSingletonResourceCached(key: string, handler: () => any): any;
-
-  fetchCart(): Promise<SwellStorefrontSingleton>;
-
-  fetchAccount(): Promise<SwellStorefrontSingleton>;
-
-  setFormData(
-    formId: string,
-    options: {
-      params?: any;
-      success?: boolean;
-      errors?: ThemeFormErrorMessages;
-    },
-  ): void;
-
-  serializeFormData(): SwellData | null;
-
-  setGlobalData(data: SwellData = {}): void;
-
-  serializeGlobalData(): SwellData | null;
-
-  resolveLanguageLocale(
-    languageConfig: ThemeSettings,
-    localeCode: string,
-  ): SwellData;
-
-  setCompatibilityConfigs(
-    configs: ThemeConfigs,
-    localeCode: string,
-  ): Promise<void>;
-
-  setCompatibilityData(pageData: SwellData): void;
-
-  lang(key: string, data?: any, fallback?: string): Promise<string>;
-
-  themeConfigQuery(): SwellData;
-
-  getAllThemeConfigs(): Promise<SwellCollection>;
-
-  getThemeConfig(filePath: string): Promise<SwellThemeConfig | null>;
-
-  getThemeTemplateConfig(filePath: string): Promise<SwellThemeConfig | null>;
-
-  async getThemeTemplateConfigByType(
-    type: string,
-    name: string,
-  ): Promise<SwellThemeConfig | null | undefined>;
-
-  getAssetUrl(filePath: string): string | null;
-
-  renderTemplate(
-    config: SwellThemeConfig | null,
-    data?: SwellData,
-  ): Promise<string>;
-
-  renderTemplateString(
-    templateString: string,
-    data?: SwellData,
-  ): Promise<string>;
-
-  getSectionSchema(
-    sectionName: string,
-  ): Promise<ThemeSectionSchema | undefined>;
-
-  renderThemeTemplate(
-    filePath: string,
-    data?: SwellData,
-  ): Promise<string | ThemeSectionGroup>;
-
-  renderLayoutTemplate(name: string, data?: SwellData): Promise<string>;
-
-  renderPageTemplate(
-    name: string,
-    data?: SwellData,
-    altTemplateId?: string,
-  ): Promise<string | ThemeSectionGroup>;
-
-  renderPage(
-    pageData?: SwellData,
-    altTemplateId?: string,
-  ): Promise<string | ThemeSectionGroup>;
-
-  renderLayout(data?: SwellData): Promise<string>;
-
-  getPageSections(
-    sectionGroup: ThemeSectionGroup,
-  ): Promise<ThemeSectionConfig[]>;
-
-  getAllSections(): Promise<any>;
-
-  getLayoutSectionGroups(): Promise<any>;
-
-  renderPageSections(
-    sectionGroup: ThemeSectionGroup,
-    data: SwellData,
-  ): Promise<ThemeSectionConfig[]>;
-
-  renderSectionConfigs(
-    sectionConfigs: ThemeSectionConfig[],
-    data: SwellData,
-  ): Promise<ThemeSectionConfig[]>;
-
-  renderTemplateSections(
-    sectionGroup: ThemeSectionGroup,
-    data: SwellData,
-  ): Promise<string>;
-
-  renderLanguage(
-    key: string,
-    data?: any,
-    fallback?: string,
-    langObject?: any,
-  ): Promise<string>;
-
-  renderLanguageValue(
-    localeCode: string,
-    langConfig: any,
-    key: string,
-    data?: any,
-    fallback?: string,
-  ): Promise<string>;
-
-  renderCurrency(amount: number, params: any): string;
-}
-
 type StorefrontResourceGetter = () => Promise<SwellData> | SwellData;
-
-declare class StorefrontResource {
-  public _getter: StorefrontResourceGetter | undefined;
-  public _result: SwellData | null | undefined;
-  public _compatibilityProps: SwellData;
-  [key: string]: any;
-
-  constructor(getter?: StorefrontResourceGetter);
-
-  _getProxy(): any;
-
-  _get(..._args: any): Promise<any>;
-
-  _resolve(): Promise<SwellData | null>;
-
-  _resolveCompatibilityProps(object?: SwellData): Promise<SwellData | null>;
-
-  resolve(): Promise<SwellData>;
-
-  setCompatibilityProps(props: SwellData): void;
-
-  getCompatibilityProp(prop: string): SwellData;
-}
-
-declare class SwellStorefrontResource extends StorefrontResource {
-  public _swell?: Swell;
-  public _resource: any;
-  public _compatibilityInstance: ShopifyCompatibility | null;
-
-  public readonly _collection: string;
-  public _query: SwellData = {};
-
-  constructor(
-    swell: Swell,
-    collection: string,
-    getter?: StorefrontResourceGetter,
-  );
-
-  getResourceObject: () => {
-    get: (id: string, query?: SwellData) => Promise<SwellData>;
-    list: (query?: SwellData) => Promise<SwellData>;
-  };
-}
-
-declare class SwellStorefrontCollection extends SwellStorefrontResource {
-  public length: number;
-  public results?: SwellRecord[];
-  public count?: number;
-  public page?: number;
-  public pages?: SwellCollectionPages;
-  public page_count?: number;
-
-  constructor(
-    swell: Swell,
-    collection: string,
-    query: SwellData = {},
-    getter?: StorefrontResourceGetter,
-  );
-
-  static get(
-    swell: Swell,
-    collection: string,
-    query: SwellData,
-  ): SwellStorefrontCollection;
-
-  _get(query: SwellData): Promise<SwellStorefrontCollection>;
-}
-
-declare class SwellStorefrontRecord extends SwellStorefrontResource {
-  [key: string]: any;
-
-  constructor(
-    swell: Swell,
-    collection: string,
-    id: string,
-    query: SwellData = {},
-    getter?: StorefrontResourceGetter,
-  );
-
-  static get(
-    swell: Swell,
-    collection: string,
-    id: string,
-    query: SwellData,
-  ): SwellStorefrontRecord;
-
-  _get(id: string, query: SwellData): Promise<any>;
-}
-
-declare class SwellStorefrontSingleton extends SwellStorefrontResource {
-  [key: string]: any;
-
-  constructor(
-    swell: Swell,
-    collection: string,
-    getter?: StorefrontResourceGetter,
-  );
-
-  static get(swell: Swell, collection: string): SwellStorefrontRecord;
-
-  _get(): Promise<any>;
-}
-
-declare class ShopifyCompatibility {
-  public swell: Swell;
-  public pageId?: string;
-  public pageResourceMap: ShopifyPageResourceMap;
-  public objectResourceMap: ShopifyObjectResourceMap;
-  public formResourceMap: ShopifyFormResourceMap;
-  public queryParamsMap: ShopifyQueryParamsMap;
-
-  constructor(swell: Swell);
-
-  adaptGlobals(globals: any): void;
-
-  adaptPageData(pageData: SwellData): void;
-
-  adaptObjectData(objectData: SwellData): void;
-
-  getAdaptedFormClientParams(formType: string, scope: SwellData): Promise<any>;
-
-  getAdaptedFormClientHtml(formType: string, scope: SwellData): Promise<any>;
-
-  getAdaptedFormServerParams(
-    pageId: string,
-    formId: string | undefined,
-    context: SwellData,
-  ): Promise<SwellData>;
-
-  getAdaptedFormServerResponse(
-    pageId: string,
-    formId: string | undefined,
-    context: SwellData,
-  ): Promise<any>;
-
-  getPageType(pageId: string): string;
-
-  getPageRouteUrl(pageId: string): string;
-
-  getPageRoutes(): { [key: string]: string };
-
-  getAdaptedPageUrl(url: string): string | undefined;
-
-  getThemeFilePath(type: string, name: string): string;
-
-  getPageResourceMap(): ShopifyPageResourceMap;
-
-  getObjectResourceMap(): ShopifyObjectResourceMap;
-
-  getFormResourceMap(): ShopifyFormResourceMap;
-
-  getMenuData(menu: SwellMenu): SwellData;
-
-  getLookupData(
-    collection: string,
-    setting: ThemeSettingFieldSchema,
-    value: any,
-    defaultHandler: () => SwellData | null,
-  ): SwellData | null;
-
-  getFontData(font: ThemeFont): SwellData;
-
-  getFormData(form: ThemeForm): SwellData;
-
-  getFontFromShopifySetting(fontSetting: string): string | null;
-
-  getThemeConfig(settingsData: ShopifySettingsData): ThemeSettings;
-
-  getPresetsConfig(settingsData: ShopifySettingsData): SwellData;
-
-  getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema;
-
-  getSectionConfigSchema(
-    sectionSchema: ShopifySectionSchema,
-  ): ThemeSectionSchema;
-
-  getLocaleConfig(
-    settingConfigs: SwellCollection,
-    localeCode: string,
-    getThemeConfig: Function,
-    suffix?: string,
-  ): Promise<SwellData | null>;
-
-  getEditorLocaleConfig(
-    settingConfigs: SwellCollection,
-    localeCode: string,
-    getThemeConfig: Function,
-  ): Promise<any>;
-
-  renderSchemaLanguage(
-    theme: SwellTheme,
-    schema: SwellData,
-    localeCode: string,
-  ): Promise<any>;
-
-  renderSchemaLanguageValue(
-    theme: SwellTheme,
-    schemaValue: any,
-    localCode: string,
-    editorLocaleConfig: any,
-  ): Promise<any>;
-}
 
 type ShopifyPageResourceMap = Array<{
   page: string;
@@ -629,3 +145,329 @@ type ShopifyQueryParamsMap = Array<{
   from: string | ((param: string) => boolean);
   to: string | ((param: string, value: string) => SwellData);
 }>;
+
+type ThemeSettings = {
+  [key: string]: any;
+};
+
+type ThemeSettingsBlock = {
+  type: string;
+  settings: ThemeSettings;
+};
+
+interface ThemeSectionSettings extends ThemeSettings {
+  section: {
+    id: string;
+    type: string;
+    settings: ThemeSettings;
+    blocks?: ThemeSettingsBlock[];
+    block_order?: string[];
+  };
+}
+
+type ThemePage = {
+  [key: string]: any; // TODO: fix this
+};
+
+interface ThemeGlobals extends SwellData {
+  store?: ThemeSettings;
+  settings?: ThemeSettings;
+  menus?: { [key: string]: SwellMenu };
+  page?: ThemePage;
+  configs?: ThemeConfigs;
+  [key: string]: any;
+}
+
+type ThemeConfigs = {
+  editor: ThemeEditorSchema;
+  theme: ThemeSettings;
+  presets: ThemePresetSchema[];
+  language: ThemeSettings;
+  [key: string]: any;
+
+  // Shopify compatibility
+  settings_schema?: any;
+  settings_data?: any;
+};
+
+type ThemeEditorSchema = {
+  settings?: ThemeSettingSectionSchema[];
+  language?: ThemeSettingSectionSchema[];
+  menus?: any; // TODO menu schema
+};
+
+type ThemeSection = {
+  id?: string;
+  type: string;
+  disabled?: boolean;
+  settings: ThemeSettings;
+  blocks?: {
+    [key: string]: ThemeSettingsBlock;
+  };
+  block_order?: string[];
+};
+
+type ThemeSectionGroup = {
+  id?: string;
+  type?: string;
+  sections: {
+    [key: string]: ThemeSection;
+  };
+  order?: string[];
+};
+
+type ThemeSectionConfig = {
+  id: string;
+  section: ThemeSection;
+  tag: string;
+  schema?: ThemeSectionSchema | null;
+  output?: string;
+  settings?: ThemeSectionSettings;
+  blocks?: ThemeSettingsBlock[];
+  class?: string;
+};
+
+type ThemeSectionSchema = {
+  id?: string;
+  label: string;
+  fields: ThemeSettingFieldSchema[];
+  type?: string; // layout sections only
+  tag?: string;
+  class?: string;
+  enabled_on?: ThemeSectionEnabledDisabled;
+  disabled_on?: ThemeSectionEnabledDisabled;
+  blocks?: ThemeBlockSchema[];
+  presets?: ThemePresetSchema[];
+  default?: {
+    settings?: ThemeSettings;
+    blocks?: ThemeSettingsBlock[];
+    block_order?: string[];
+  };
+};
+
+type ThemeSettingBasicInputType =
+  | 'short_text'
+  | 'long_text'
+  | 'boolean'
+  | 'number'
+  | 'date'
+  | 'select'
+  | 'asset'
+  | 'tags'
+  | 'collection'
+  | 'color'
+  | 'color_scheme'
+  | 'color_scheme_group'
+  | 'font'
+  | 'header'
+  | 'lookup'
+  | 'generic_lookup'
+  | 'menu'
+  | 'icon'
+  | 'field_group';
+
+type ThemeSettingAliasInputType =
+  | 'text'
+  | 'textarea'
+  | 'rich_text'
+  | 'asset'
+  | 'phone'
+  | 'email'
+  | 'url'
+  | 'slug'
+  | 'basic_html'
+  | 'rich_html'
+  | 'markdown'
+  | 'liquid'
+  | 'checkbox'
+  | 'toggle'
+  | 'image'
+  | 'document'
+  | 'video'
+  | 'radio'
+  | 'dropdown'
+  | 'checkboxes'
+  | 'integer'
+  | 'float'
+  | 'currency'
+  | 'percent'
+  | 'slider'
+  | 'time'
+  | 'datetime'
+  | 'child_collection'
+  | 'product_lookup'
+  | 'category_lookup'
+  | 'customer_lookup';
+
+type ThemeSettingFieldSchema = {
+  type: ThemeSettingBasicInputType | ThemeSettingAliasInputType;
+  label: string;
+  id?: string;
+  default?: any;
+  hint?: string;
+  description?: string;
+  placeholder?: string;
+  value_type?: string;
+  fallback?: any;
+  required?: boolean;
+  fields?: Array<ThemeSettingFieldSchema>;
+  localized?: boolean;
+
+  // short_text
+  format?: string;
+
+  // short_text, long_text, number, date
+  min?: number;
+  max?: number;
+
+  // number
+  increment?: number;
+  unit?: string;
+  digits?: number;
+
+  // select, asset
+  multiple?: boolean;
+
+  // select
+  options?: Array<{
+    label: string;
+    value: string;
+  }>;
+
+  // asset
+  asset_types?: Array<'image' | 'video' | 'document'>;
+
+  // collection, lookup
+  collection?: string;
+
+  // collection
+  item_types?: Array<string>;
+  item_label?: string;
+  icon?: string;
+  child?: boolean;
+  link?: {
+    url: string;
+    data?: SwellData;
+    params?: SwellData;
+  };
+
+  // lookup
+  collection_parent_id?: string;
+  collection_parent_field?: string;
+  model?: string;
+  key?: string;
+  key_field?: string;
+  name_pattern?: string;
+  query?: SwellData;
+  params?: SwellData;
+  limit?: number;
+};
+
+type ThemeSettingSectionSchema = {
+  label: string;
+  id?: string;
+  fields: ThemeSettingFieldSchema[];
+};
+
+interface ThemePageSectionSchema extends ThemeSectionSchema {
+  id: string;
+}
+
+type ThemeLayoutSectionGroupConfig = {
+  id: string;
+  type: string;
+  label: string;
+  sectionConfigs: ThemeSectionConfig[];
+  sections: {
+    [key: string]: {
+      type: string;
+      settings: ThemeSettings;
+      blocks?: ThemeSettingsBlock[];
+      block_order?: string[];
+    };
+  };
+  order: string[];
+};
+
+type ThemeBlockSchema = {
+  type: string;
+  label: string;
+  limit?: number;
+  fields: ThemeSettingFieldSchema[];
+};
+
+type ThemePresetSchema = {
+  label: string;
+  settings?: ThemeSettings;
+  blocks?: ThemeSettingsBlock[];
+};
+
+type ThemeSectionEnabledDisabled = {
+  templates?: string[];
+  groups?: string[];
+};
+
+type GetThemeConfig = (fileName: string) => Promise<SwellThemeConfig | null>;
+
+type GetThemeTemplateConfigByType = (
+  type: string,
+  name: string,
+) => Promise<SwellThemeConfig | null | undefined>;
+
+type GetAssetUrl = (assetPath: string) => string | null;
+
+type RenderTemplate = (
+  config: SwellThemeConfig | null,
+  data?: any,
+) => Promise<string>;
+
+type RenderTemplateString = (
+  templateString: string,
+  data?: any,
+) => Promise<string>;
+
+type RenderTemplateSections = (
+  sections: ThemeSectionGroup,
+  data?: any,
+) => Promise<string>;
+
+type RenderLanguage = (key: string, locale?: string) => Promise<string>;
+
+type RenderCurrency = (
+  amount: number,
+  params?: { code?: string; rate?: number; locale?: string; decimals?: number },
+) => string;
+
+type ResolveFilePath = (fileName: string, extName?: string) => string;
+
+type ThemeFontConfig = {
+  family: string;
+  fallback?: string;
+  axes: Array<'wght' | 'wdth' | 'slnt' | 'opsz' | 'ital'>;
+  variants: ThemeFontVariant[];
+  system?: boolean;
+};
+
+type ThemeFontVariant = {
+  wght?: number;
+  wdth?: number;
+  slnt?: number;
+  opsz?: number;
+  ital?: number;
+};
+
+type ThemeFontVariantSetting = {
+  family: string;
+  weight?: number;
+  style?: 'normal' | 'italic' | 'oblique' | string;
+  variant?: ThemeFontVariant;
+};
+
+type ThemeFormErrorMessage = {
+  code?: string;
+  message: string;
+  field_name?: string;
+  field_label?: string;
+};
+
+type ThemeFormErrorMessages = Array<ThemeFormErrorMessage>;

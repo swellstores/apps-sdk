@@ -16,11 +16,12 @@ export default function ShopifyCollections(
       });
 
       return {
-        count: categories.count,
-        pages: categories.pages,
         page: categories.page,
-        page_count: categories.page_count,
+        count: categories.count,
         results,
+        page_count: categories.page_count,
+        page_limit: categories.page_limit,
+        pages: categories.pages,
       };
     },
   );

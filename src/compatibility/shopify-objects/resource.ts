@@ -1,4 +1,5 @@
 import cloneDeep from 'lodash/cloneDeep';
+import { StorefrontResource } from '../../resources';
 
 export class ShopifyResource {
   props: { [key: string]: any };
@@ -97,35 +98,47 @@ export function defer(
   return new deferredClass(handler);
 }
 
+export function isResolvable(asyncProp: any) {
+  return (
+    asyncProp instanceof Promise || typeof asyncProp?._resolve === 'function'
+  );
+}
+
+export async function resolveAsyncProp(asyncProp: any) {
+  return asyncProp instanceof Array
+    ? Promise.all(
+        asyncProp.map((prop: any) =>
+          typeof prop?._resolve === 'function' ? prop._resolve() : prop,
+        ),
+      )
+    : typeof asyncProp?._resolve === 'function'
+    ? asyncProp._resolve()
+    : asyncProp;
+}
+
+export async function handleDeferredProp(asyncProp: any, handler: Function) {
+  return resolveAsyncProp(asyncProp)
+    .then((value: any): any => {
+      if (isResolvable(value)) {
+        return handleDeferredProp(value, handler);
+      }
+      if (asyncProp instanceof Array) {
+        return handler(...value.map((prop: any) => prop || {}));
+      }
+      return handler(value || {});
+    })
+    .catch((err: any) => {
+      console.log(err);
+      return null;
+    });
+}
+
 export function deferWith(
   asyncProp: any,
   handler: Function,
   deferredClass: typeof DeferredShopifyResource = DeferredShopifyResource,
 ) {
-  return new deferredClass(async () => {
-    const promise =
-      asyncProp instanceof Array
-        ? Promise.all(
-            asyncProp.map((prop: any) =>
-              typeof prop?._resolve === 'function' ? prop._resolve() : prop,
-            ),
-          )
-        : typeof asyncProp?._resolve === 'function'
-        ? asyncProp._resolve()
-        : asyncProp;
-
-    return Promise.resolve(promise)
-      .then((value: any) => {
-        if (asyncProp instanceof Array) {
-          return handler(...value.map((prop: any) => prop || {}));
-        }
-        return handler(value || {});
-      })
-      .catch((err: any) => {
-        console.log(err);
-        return null;
-      });
-  });
+  return new deferredClass(() => handleDeferredProp(asyncProp, handler));
 }
 
 export function deferLink(handler: Function) {

@@ -22,7 +22,7 @@ import { shopifyFontToThemeFront } from './shopify-fonts';
 /*
  * This class is meant to be extended by a storefront app to provide compatibility with Shopify's Liquid
  */
-export class ShopifyCompatibility implements ShopifyCompatibility {
+export class ShopifyCompatibility {
   public swell: Swell;
   public pageId?: string;
   public pageResourceMap: ShopifyPageResourceMap;

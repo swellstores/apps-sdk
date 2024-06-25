@@ -19,7 +19,7 @@ const SWELL_CLIENT_HEADERS = [
   'swell-theme-config-version',
 ];
 
-export class Swell implements Swell {
+export class Swell {
   public url: URL;
   public headers: SwellData;
   public swellHeaders: SwellData;
@@ -383,7 +383,7 @@ export class Swell implements Swell {
   }
 }
 
-export class SwellBackendAPI implements SwellBackendAPI {
+export class SwellBackendAPI {
   public apiHost: string = DEFAULT_API_HOST;
   public apiAuth: string = '';
 
