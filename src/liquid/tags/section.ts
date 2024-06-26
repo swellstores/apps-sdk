@@ -22,6 +22,11 @@ export default function bind(liquidSwell: LiquidSwell) {
       const filePath = yield liquidSwell.getSectionPath(this.fileName);
       const themeConfig = yield liquidSwell.getThemeConfig(filePath);
 
+      if (!themeConfig) {
+        console.error(`Section not found: ${filePath}`);
+        return;
+      }
+
       const sectionSchema = yield liquidSwell.theme.getTemplateSchema(
         themeConfig,
       );

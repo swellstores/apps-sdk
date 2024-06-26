@@ -484,7 +484,7 @@ export class ShopifyCompatibility {
         return `config/${name}`;
       case 'layouts':
         return `layout/${name}`;
-      case 'pages':
+      case 'templates':
         return `templates/${this.getPageType(name)}`;
       case 'sections':
         return `sections/${name}`;

@@ -189,10 +189,13 @@ export async function getPageSections(
   for (const key of order) {
     const section: ThemeSection = sectionGroup.sections[key];
 
-    const schema = await getSchema(section.type);
-    if (!schema) {
-      continue;
-    }
+    const schema = (await getSchema(section.type)) || {
+      id: section.type,
+      tag: 'div',
+      class: '',
+      fields: [],
+      blocks: [],
+    };
 
     const id = sectionGroup.id ? `page__${sectionGroup.id}__${key}` : schema.id;
 
@@ -366,7 +369,11 @@ export async function resolveAsyncResources(
         resolveAsyncResources(item, nextResolveStorefrontResources),
       ),
     );
-  } else if (typeof result === 'object' && result !== null) {
+  } else if (
+    typeof result === 'object' &&
+    result !== null &&
+    !(result instanceof StorefrontResource)
+  ) {
     result = { ...result };
     for (const [key] of Object.entries(result)) {
       result[key] = await resolveAsyncResources(

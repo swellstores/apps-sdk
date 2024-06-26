@@ -29,6 +29,7 @@ export class Swell {
   public instanceId: string = '';
   public isPreview: boolean = false;
   public isEditor: boolean = false;
+  public isDevelopment: boolean = false;
   public sentResponse: boolean = false;
 
   static cache: Map<string, any> = new Map();
@@ -119,6 +120,8 @@ export class Swell {
         'Swell client requires `serverHeaders` when initialized on the server-side, or `headers` and `swellHeaders` when initialized on the client-side.',
       );
     }
+
+    this.isDevelopment = this.isPreview || this.isEditor;
   }
 
   static formatHeaders(serverHeaders?: Headers | SwellData): {

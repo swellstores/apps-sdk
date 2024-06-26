@@ -78,13 +78,21 @@ export class ShopifyResource {
 
 export class DeferredShopifyResource {
   private handler: Function;
+  private result: any;
 
   constructor(handler: Function) {
     this.handler = handler;
   }
 
   resolve() {
-    return Promise.resolve(this.handler());
+    if (this.result === undefined) {
+      this.result = Promise.resolve(this.handler()).then((value: any) => {
+        this.result = value !== undefined ? value : null;
+        return value;
+      });
+    }
+
+    return this.result;
   }
 }
 

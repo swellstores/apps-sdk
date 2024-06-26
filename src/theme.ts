@@ -822,14 +822,14 @@ export class SwellTheme {
     let templateConfig;
     if (altTemplateId) {
       templateConfig = await this.getThemeTemplateConfigByType(
-        'pages',
+        'templates',
         `${name}.${altTemplateId}`,
       );
     }
 
     templateConfig =
       templateConfig ||
-      (await this.getThemeTemplateConfigByType('pages', name));
+      (await this.getThemeTemplateConfigByType('templates', name));
 
     if (templateConfig) {
       const themeTemplate = await this.renderThemeTemplate(
@@ -842,7 +842,9 @@ export class SwellTheme {
       return themeTemplate;
     }
 
-    throw new Error(`Page template not found: ${name}`);
+    console.error(`Page template not found: templates/${name}.liquid`);
+
+    throw new PageNotFound();
   }
 
   async renderPage(
@@ -911,7 +913,7 @@ export class SwellTheme {
       .reverse();
 
     let templateConfig = await this.getThemeTemplateConfigByType(
-      pageId ? 'pages' : 'sections',
+      pageId ? 'templates' : 'sections',
       pageId ? pageId : sectionKey,
     );
 
@@ -1269,16 +1271,20 @@ export class SwellTheme {
 }
 
 export class PageError {
-  public statusCode: number = 500;
+  public title: string;
+  public status: number = 500;
   public message: string | Error;
-  public template: string;
+  public description?: string;
 
   constructor(
     title: string | Error = 'Something went wrong',
-    template: string = '500',
+    status: number = 500,
+    description?: string,
   ) {
-    this.message = String(title);
-    this.template = template;
+    this.title = String(title);
+    this.status = status;
+    this.message = this.title + (description ? `: ${description}` : '');
+    this.description = description;
   }
 
   toString() {
@@ -1287,9 +1293,12 @@ export class PageError {
 }
 
 export class PageNotFound extends PageError {
-  constructor(message: string = 'Page not found', template: string = '404') {
-    super(message, template);
-    this.statusCode = 404;
+  constructor(
+    title: string = 'Page not found',
+    status: number = 404,
+    description?: string,
+  ) {
+    super(title, status, description);
   }
 }
 

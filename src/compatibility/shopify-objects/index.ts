@@ -1,4 +1,5 @@
 import {
+  Swell,
   SwellStorefrontRecord,
   SwellStorefrontCollection,
   StorefrontResource,
@@ -99,18 +100,7 @@ class AllCategoryResource extends SwellStorefrontRecord {
         products: new SwellStorefrontCollection(swell, 'products'),
       } as any;
 
-      const products = new SwellStorefrontCollection(swell, 'products');
-
-      await products.results;
-
-      category.products = {
-        page: products.page,
-        count: products.count,
-        results: products.results,
-        page_count: products.page_count,
-        page_limit: products.page_limit,
-        pages: products.pages,
-      };
+      category.products = new SwellStorefrontCollection(swell, 'products');
 
       return category;
     });

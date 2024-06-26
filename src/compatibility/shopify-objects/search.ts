@@ -20,28 +20,30 @@ export default function ShopifySearch(
     filters: deferWith(
       search,
       async (search: any) =>
-        (await search.products.filter_options)?.map((filter: any) =>
+        (await search.products?.filter_options)?.map((filter: any) =>
           ShopifyFilter(instance, filter),
         ) || [],
     ),
-    performed: defer(() => search.performed),
-    results: deferWith(search, () => {
-      return search.products._cloneWithCompatibilityResult((products: any) => {
-        return {
-          results: products?.results?.map((product: any) => {
-            const shopifyProduct = ShopifyProduct(instance, product) as any;
-            shopifyProduct.object_type = 'product';
-            return shopifyProduct;
-          }),
-        };
-      });
+    performed: deferWith(search, (search: any) => search.performed),
+    results: deferWith(search, (search: any) => {
+      return (
+        search.products?._cloneWithCompatibilityResult((products: any) => {
+          return {
+            results: products?.results?.map((product: any) => {
+              const shopifyProduct = ShopifyProduct(instance, product) as any;
+              shopifyProduct.object_type = 'product';
+              return shopifyProduct;
+            }),
+          };
+        }) || []
+      );
     }),
     results_count: deferWith(
       search,
       async (search: any) => (await search.products)?.count || 0,
     ),
     sort_by: defer(() => search.sort),
-    sort_options: defer(() => search.sort_options),
+    sort_options: deferWith(search, (search: any) => search.sort_options),
     terms: defer(() => search.query),
     types: ['product'],
   });

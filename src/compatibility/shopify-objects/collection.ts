@@ -47,26 +47,26 @@ export default function ShopifyCollection(
     ),
     filters: deferWith(category, async (category: any) => {
       return (
-        (await category.products.filter_options)?.map((filter: any) =>
+        (await category.products?.filter_options)?.map((filter: any) =>
           ShopifyFilter(instance, filter),
         ) || []
       );
     }),
-    handle: 'all',
-    id: 'all',
+    handle: defer(() => category.slug),
+    id: deferWith(category, (category: any) => category.id),
     image: null,
     metafields: null,
     next_product: null,
     previous_product: null,
     products: deferWith(category, (category: any) => {
-      return category.products._cloneWithCompatibilityResult(
-        (products: any) => {
+      return (
+        category.products?._cloneWithCompatibilityResult((products: any) => {
           return {
             results: products?.results?.map((product: any) =>
               ShopifyProduct(instance, product),
             ),
           };
-        },
+        }) || []
       );
     }),
     products_count: deferWith(

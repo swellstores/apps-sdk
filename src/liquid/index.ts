@@ -173,14 +173,14 @@ export class LiquidSwell extends Liquid {
   async getSectionPath(sectionName: string): Promise<string> {
     return (
       (await this.resolveFilePathByType('sections', sectionName)) ||
-      this.resolveFilePath(`${this.componentsDir}/${sectionName}`)
+      this.resolveFilePath(`${this.sectionsDir}/${sectionName}`)
     );
   }
 
   async getSectionGroupPath(sectionName: string): Promise<string> {
     return (
       (await this.resolveFilePathByType('sections', `${sectionName}.json`)) ||
-      this.resolveFilePath(`${this.componentsDir}/${sectionName}`, 'json')
+      this.resolveFilePath(`${this.sectionsDir}/${sectionName}`, 'json')
     );
   }
 }

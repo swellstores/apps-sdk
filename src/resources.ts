@@ -103,7 +103,7 @@ export class StorefrontResource {
 
   async _get(..._args: any): Promise<any> {
     if (this._getter) {
-      this._result = await Promise.resolve(this._getter())
+      this._result = Promise.resolve(this._getter())
         .then((result: any) => {
           if (result) {
             Object.assign(this, result);
@@ -118,6 +118,8 @@ export class StorefrontResource {
           console.log(err);
           return null;
         });
+
+      this._result = await this._result;
     }
     return this._result;
   }
@@ -304,24 +306,25 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
       ...query,
     };
 
-    console.log(
-      'SwellStorefrontCollection._get',
-      this._collection,
-      this._query,
-    );
-
     if (this._swell) {
-      this._result = await this._swell
+      this._result = this._swell
         .getCached(
           'storefront-list',
           [this._collection, this._query],
-          () => (this._getter as StorefrontResourceGetter)(),
+          async () => {
+            console.log(
+              'SwellStorefrontCollection._get',
+              this._collection,
+              this._query,
+            );
+            return (this._getter as StorefrontResourceGetter)();
+          },
           CACHE_TIMEOUT_RESOURCES,
         )
         .then((result: SwellCollection) => {
           if (result) {
             Object.assign(this, result, {
-              length: result.results.length,
+              length: result.results?.length || 0,
             });
           }
           if (this._compatibilityProps) {
@@ -334,6 +337,8 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
           console.log(err);
           return null;
         });
+
+      this._result = await this._result;
     }
 
     return this;
@@ -374,25 +379,40 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
   _cloneWithCompatibilityResult(
     compatibilityGetter: (result: SwellCollection) => SwellData,
   ) {
+    const originalGetter = this._getter;
+
     const cloned = this._clone({
       _getter: async () => {
-        const result = await cloned._defaultGetter().call(cloned);
-        const compatibilityProps = compatibilityGetter(
-          result as SwellCollection,
-        );
-        return {
-          ...result,
-          ...compatibilityProps,
-        };
+        const result = await originalGetter?.call(cloned);
+
+        if (result) {
+          const compatibilityProps = compatibilityGetter(
+            result as SwellCollection,
+          );
+          return {
+            ...result,
+            ...(compatibilityProps || undefined),
+          };
+        }
+
+        return result;
       },
     });
 
     // Assign compatibility props on existing result if already resolved
     if (this._isResultResolved()) {
       const result = cloneDeep(this._result);
-      const compatibilityProps = compatibilityGetter(result as SwellCollection);
-      Object.assign(cloned, result);
-      Object.assign(cloned, compatibilityProps);
+      if (result) {
+        const compatibilityProps = compatibilityGetter(
+          result as SwellCollection,
+        );
+
+        Object.assign(cloned, result);
+
+        if (compatibilityProps) {
+          Object.assign(cloned, compatibilityProps);
+        }
+      }
     }
 
     return cloned;
@@ -441,19 +461,20 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
       ...query,
     };
 
-    console.log(
-      'SwellStorefrontRecord._get',
-      this._collection,
-      this._id,
-      this._query,
-    );
-
     if (this._swell) {
-      this._result = await this._swell
+      this._result = this._swell
         .getCached(
           'storefront-record',
           [this._collection, this._id, this._query],
-          () => (this._getter as StorefrontResourceGetter)(),
+          async () => {
+            console.log(
+              'SwellStorefrontRecord._get',
+              this._collection,
+              this._id,
+              this._query,
+            );
+            return (this._getter as StorefrontResourceGetter)();
+          },
           CACHE_TIMEOUT_RESOURCES,
         )
         .then((result: SwellRecord) => {
@@ -470,6 +491,8 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
           console.log(err);
           return null;
         });
+
+      this._result = await this._result;
     }
 
     return this;
@@ -504,7 +527,7 @@ export class SwellStorefrontSingleton extends SwellStorefrontResource {
 
   async _get() {
     if (this._swell) {
-      this._result = await (this._getter as StorefrontResourceGetter)()
+      this._result = (this._getter as StorefrontResourceGetter)()
         .then((result: SwellRecord) => {
           if (result) {
             Object.assign(this, result);
@@ -519,6 +542,8 @@ export class SwellStorefrontSingleton extends SwellStorefrontResource {
           console.log(err);
           return null;
         });
+
+      this._result = await this._result;
     }
 
     return this;
