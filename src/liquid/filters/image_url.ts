@@ -35,5 +35,5 @@ export default {
       return `${imageUrl}${query ? `?${query}` : ''}`;
     };
   },
-  //resolve: [['images', 'image', 'preview_image']],
+  resolve: [['images', 'image', 'preview_image']],
 };

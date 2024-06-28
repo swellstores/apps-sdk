@@ -182,7 +182,7 @@ type ThemeConfigs = {
   editor: ThemeEditorSchema;
   theme: ThemeSettings;
   presets: ThemePresetSchema[];
-  language: ThemeSettings;
+  translations: ThemeSettings;
   [key: string]: any;
 
   // Shopify compatibility
@@ -190,10 +190,19 @@ type ThemeConfigs = {
   settings_data?: any;
 };
 
+type ThemeResources = {
+  singletons?: {
+    account?: StorefrontResource;
+    cart?: StorefrontResource;
+  };
+  records?: {
+    [key: string]: StorefrontResource;
+  };
+};
+
 type ThemeEditorSchema = {
   settings?: ThemeSettingSectionSchema[];
-  language?: ThemeSettingSectionSchema[];
-  menus?: any; // TODO menu schema
+  menus?: any; // TODO menu schema?
 };
 
 type ThemeSection = {
@@ -431,7 +440,7 @@ type RenderTemplateSections = (
   data?: any,
 ) => Promise<string>;
 
-type RenderLanguage = (key: string, locale?: string) => Promise<string>;
+type RenderTranslation = (key: string, locale?: string) => Promise<string>;
 
 type RenderCurrency = (
   amount: number,

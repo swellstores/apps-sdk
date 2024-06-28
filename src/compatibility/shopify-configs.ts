@@ -3,8 +3,6 @@ export function convertShopifySettingsSchema(
 ): ThemeEditorSchema {
   const editor: ThemeEditorSchema = {
     settings: [],
-    menus: [],
-    language: [],
   };
 
   if (!Array.isArray(settingsSchema)) {

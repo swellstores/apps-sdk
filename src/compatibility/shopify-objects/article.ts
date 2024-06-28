@@ -17,30 +17,36 @@ export default function ShopifyArticle(
   }
 
   return new ShopifyResource({
-    author: defer(async () => (await blog.author)?.name || blog.author?.email),
-    content: defer(() => blog.content),
+    author: deferWith(
+      blog,
+      (blog: any) => blog.author?.name || blog.author?.email,
+    ),
+    content: deferWith(blog, (blog: any) => blog.content),
     created_at: defer(() => blog.date_created),
     excerpt: defer(() => blog.summary),
     excerpt_or_content: defer(() => blog.summary || blog.content),
     handle: defer(() => blog.slug),
-    id: defer(() => blog.id),
-    image: deferWith(blog, (blog: any) => {
-      return blog.image && ShopifyImage(instance, blog.image);
-    }),
+    id: deferWith(blog, (blog: any) => blog.id),
+    image: deferWith(
+      blog,
+      (blog: any) => blog.image && ShopifyImage(instance, blog.image),
+    ),
     metafields: null,
-    published_at: defer(
-      async () => (await blog.date_published) || blog.date_created,
+    published_at: deferWith(
+      blog,
+      (blog: any) => blog.date_published || blog.date_created,
     ),
-    tags: defer(() => blog.tags),
+    tags: deferWith(blog, (blog: any) => blog.tags),
     template_suffix: null, // TODO
-    title: defer(() => blog.title),
-    updated_at: defer(
-      async () => (await blog.date_updated) || blog.date_created,
+    title: deferWith(blog, (blog: any) => blog.title),
+    updated_at: deferWith(
+      blog,
+      (blog: any) => blog.date_updated || blog.date_created,
     ),
-    url: defer(
-      async () =>
-        (await blog.category?.slug) &&
-        `/blogs/${blog.category?.slug}/${blog.slug}`,
+    url: deferWith(
+      [blog, blog.category],
+      (blog: any, blogCategory: any) =>
+        blogCategory && `/blogs/${blogCategory?.slug}/${blog.slug}`,
     ),
     user: defer(() => blog.author),
 

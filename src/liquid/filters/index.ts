@@ -25,6 +25,7 @@ import format_address from './format_address';
 import image_tag from './image_tag';
 import image_url from './image_url';
 import json from './json';
+import json_pretty from './json_pretty';
 import money from './money';
 import money_with_currency from './money_with_currency';
 import money_without_currency from './money_without_currency';
@@ -66,6 +67,7 @@ export const filters = {
   image_tag,
   image_url,
   json,
+  json_pretty,
   money,
   money_with_currency,
   money_without_currency,

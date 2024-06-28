@@ -1,5 +1,5 @@
 import { ShopifyCompatibility } from '../shopify';
-import { StorefrontResource, SwellStorefrontCollection } from '../../resources';
+import { StorefrontResource } from '../../resources';
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 import ShopifyFilter from './filter';
@@ -12,35 +12,36 @@ export default function ShopifySearch(
     return search.clone();
   }
 
+  const productResults = deferWith(search, (search: any) => {
+    return (
+      search.products?._cloneWithCompatibilityResult((products: any) => {
+        return {
+          results: products?.results?.map((product: any) => {
+            const shopifyProduct = ShopifyProduct(instance, product) as any;
+            shopifyProduct.object_type = 'product';
+            return shopifyProduct;
+          }),
+        };
+      }) || []
+    );
+  });
+
   return new ShopifyResource({
     default_sort_by: deferWith(
       search,
       (search: any) => search.sort_options?.[0].value,
     ),
-    filters: deferWith(
-      search,
-      async (search: any) =>
-        (await search.products?.filter_options)?.map((filter: any) =>
-          ShopifyFilter(instance, filter),
-        ) || [],
-    ),
-    performed: deferWith(search, (search: any) => search.performed),
-    results: deferWith(search, (search: any) => {
+    filters: defer(async () => {
       return (
-        search.products?._cloneWithCompatibilityResult((products: any) => {
-          return {
-            results: products?.results?.map((product: any) => {
-              const shopifyProduct = ShopifyProduct(instance, product) as any;
-              shopifyProduct.object_type = 'product';
-              return shopifyProduct;
-            }),
-          };
-        }) || []
+        (await productResults.resolve())?.filter_options?.map((filter: any) =>
+          ShopifyFilter(instance, filter),
+        ) || []
       );
     }),
-    results_count: deferWith(
-      search,
-      async (search: any) => (await search.products)?.count || 0,
+    performed: deferWith(search, (search: any) => search.performed),
+    results: productResults,
+    results_count: defer(
+      async () => (await productResults.resolve())?.count || 0,
     ),
     sort_by: defer(() => search.sort),
     sort_options: deferWith(search, (search: any) => search.sort_options),

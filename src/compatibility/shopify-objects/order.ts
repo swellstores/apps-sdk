@@ -57,14 +57,14 @@ export default function ShopifyOrder(
     fulfillment_status_label: deferWith(order, (order: any) =>
       shopifyFulfillmentStatusLabel(order),
     ),
-    id: defer(() => order.id),
+    id: deferWith(order, (order: any) => order.id),
     item_count: deferWith(order, (order: any) =>
       countItemQuantity(order.items),
     ),
     line_items: lineItems,
     line_items_subtotal_price: defer(() => order.sub_total),
     name: defer(() => order.number),
-    number: defer(() => order.number),
+    number: deferWith(order, (order: any) => order.number),
     note: defer(() => order.comments),
     phone:
       customerAccount &&

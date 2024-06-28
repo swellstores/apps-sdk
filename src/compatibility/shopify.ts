@@ -7,7 +7,6 @@ import { ThemeForm } from '../liquid/form';
 import ShopifyShop from './shopify-objects/shop';
 import {
   adaptShopifyMenuData,
-  adaptShopifyLookupData,
   adaptShopifyFontData,
   adaptShopifyFormData,
 } from './shopify-objects';
@@ -203,21 +202,6 @@ export class ShopifyCompatibility {
     return adaptShopifyMenuData(this, menu);
   }
 
-  getLookupData(
-    collection: string,
-    setting: ThemeSettingFieldSchema,
-    value: any,
-    defaultHandler: () => SwellData | null,
-  ): SwellData | null {
-    return adaptShopifyLookupData(
-      this,
-      collection,
-      setting,
-      value,
-      defaultHandler,
-    );
-  }
-
   getFontData(font: ThemeFont): SwellData {
     return adaptShopifyFontData(this, font);
   }
@@ -312,7 +296,7 @@ export class ShopifyCompatibility {
     return editorLocaleConfig;
   }
 
-  async renderSchemaLanguage(
+  async renderSchemaTranslations(
     theme: SwellTheme,
     schema: SwellData,
     localeCode: string = 'en',
@@ -326,7 +310,7 @@ export class ShopifyCompatibility {
       localeCode,
     );
 
-    return await this.renderSchemaLanguageValue(
+    return await this.renderSchemaTranslationValue(
       theme,
       schema,
       localeCode,
@@ -334,7 +318,7 @@ export class ShopifyCompatibility {
     );
   }
 
-  async renderSchemaLanguageValue(
+  async renderSchemaTranslationValue(
     theme: SwellTheme,
     schemaValue: any,
     localCode: string,
@@ -354,7 +338,7 @@ export class ShopifyCompatibility {
       const result = [];
       for (const value of schemaValue) {
         result.push(
-          await this.renderSchemaLanguageValue(
+          await this.renderSchemaTranslationValue(
             theme,
             value,
             localCode,
@@ -366,7 +350,7 @@ export class ShopifyCompatibility {
     } else if (isObject(schemaValue)) {
       const result: any = { ...schemaValue };
       for (const [key, value] of Object.entries(schemaValue)) {
-        result[key] = await this.renderSchemaLanguageValue(
+        result[key] = await this.renderSchemaTranslationValue(
           theme,
           value,
           localCode,

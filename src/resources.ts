@@ -1,6 +1,6 @@
 import { Swell } from './api';
 import { ShopifyCompatibility } from './compatibility/shopify';
-import { resolveAsyncResources, stringifyQueryParams } from './utils';
+import { md5, resolveAsyncResources, stringifyQueryParams } from './utils';
 import cloneDeep from 'lodash/cloneDeep';
 
 export const MAX_QUERY_PAGE_LIMIT = 100;
@@ -8,15 +8,16 @@ export const DEFAULT_QUERY_PAGE_LIMIT = 15;
 export const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
 
 export class StorefrontResource {
-  public _getter: StorefrontResourceGetter | undefined;
-  public _result: SwellData | null | undefined;
+  public _getter?: StorefrontResourceGetter;
+  public _getterHash?: string;
+  public _result?: SwellData | null;
   public _compatibilityProps: SwellData = {};
 
   [key: string]: any;
 
   constructor(getter?: StorefrontResourceGetter) {
     if (getter) {
-      this._getter = getter;
+      this._setGetter(getter);
     }
 
     return this._getProxy();
@@ -46,10 +47,22 @@ export class StorefrontResource {
           return instance[prop];
         }
 
+        if (typeof prop === 'symbol') {
+          if (prop === Symbol.toStringTag) {
+            if (instance._result instanceof Promise) {
+              return '[object Promise]';
+            } else if (instance._result !== undefined) {
+              return '[object Object]';
+            } else {
+              return 'undefined';
+            }
+          }
+        }
+
         // Get resource result if not yet fetched
         if (instance._result === undefined) {
-          // Return prop if already defined
           if (instance[prop] !== undefined) {
+            // Return prop if already defined
             return instance[prop];
           }
 
@@ -57,12 +70,6 @@ export class StorefrontResource {
             console.log(err);
             return instance._getCollectionResultOrProp(instance, prop);
           });
-
-          if (prop === Symbol.toStringTag) {
-            return '[object Promise]';
-          }
-        } else if (prop === Symbol.toStringTag) {
-          return '[object Object]';
         }
 
         // Return prop then if result is a promise
@@ -75,6 +82,12 @@ export class StorefrontResource {
               console.log(err);
               return null;
             });
+        }
+
+        if (prop in instance._compatibilityProps) {
+          return instance._compatibilityProps[prop];
+        } else if (instance._result && prop in instance._result) {
+          return instance._result[prop];
         }
 
         return instance[prop];
@@ -105,11 +118,10 @@ export class StorefrontResource {
     if (this._getter) {
       this._result = Promise.resolve(this._getter())
         .then((result: any) => {
+          this._result = result;
+
           if (result) {
             Object.assign(this, result);
-          }
-          if (this._compatibilityProps) {
-            Object.assign(this, this._compatibilityProps);
           }
 
           return result;
@@ -118,10 +130,13 @@ export class StorefrontResource {
           console.log(err);
           return null;
         });
-
-      this._result = await this._result;
     }
     return this._result;
+  }
+
+  _setGetter(getter: StorefrontResourceGetter) {
+    this._getter = getter;
+    this._getterHash = md5(getter.toString());
   }
 
   async _resolve() {
@@ -129,13 +144,6 @@ export class StorefrontResource {
       return await this._get();
     }
     return this._result;
-  }
-
-  async _resolveCompatibilityProps(
-    object = this._compatibilityProps,
-  ): Promise<any> {
-    // TODO: make sure this works for JS-only endpoints i.e. /variant
-    return resolveAsyncResources(object);
   }
 
   _isResultResolved() {
@@ -150,14 +158,10 @@ export class StorefrontResource {
       return null;
     }
 
-    const compatibilityProps = await this._resolveCompatibilityProps(
-      this._compatibilityProps,
-    );
-
     Object.assign(combined, result);
-    Object.assign(combined, compatibilityProps);
+    Object.assign(combined, this._compatibilityProps);
 
-    return combined;
+    return await resolveAsyncResources(combined);
   }
 
   toObject() {
@@ -183,9 +187,6 @@ export class StorefrontResource {
 
   setCompatibilityProps(props: SwellData) {
     this._compatibilityProps = props;
-    if (this._isResultResolved()) {
-      Object.assign(this, props);
-    }
   }
 
   getCompatibilityProp(prop: string) {
@@ -194,7 +195,7 @@ export class StorefrontResource {
 }
 
 export class SwellStorefrontResource extends StorefrontResource {
-  public _swell?: Swell = undefined;
+  public _swell: Swell;
   public _resource: any;
 
   public readonly _collection: string;
@@ -209,7 +210,12 @@ export class SwellStorefrontResource extends StorefrontResource {
   ) {
     super(getter);
 
-    this._swell = swell;
+    if (swell instanceof Swell) {
+      this._swell = swell;
+    } else {
+      throw new Error('Storefront resource requires `swell` instance.');
+    }
+
     this._collection = collection;
 
     return this._getProxy();
@@ -228,7 +234,7 @@ export class SwellStorefrontResource extends StorefrontResource {
     this._resource = (_swell?.storefront as any)[_collection];
 
     if (_swell && _collection.startsWith('content/')) {
-      const type = _collection.split('/')[1];
+      const type = _collection.split('/')[1]?.replace(/\/$/, '').trim();
       this._resource = {
         list: (query: SwellData) => _swell.storefront.content.list(type, query),
         get: (id: string, query: SwellData) =>
@@ -266,7 +272,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
     this._query = this._initQuery(query);
 
     if (!getter) {
-      this._getter = this._defaultGetter();
+      this._setGetter(this._defaultGetter());
     }
 
     return this._getProxy();
@@ -295,8 +301,8 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
 
   _defaultGetter(): StorefrontResourceGetter {
     const resource = this.getResourceObject();
-    return async () => {
-      return await resource.list(this._query);
+    return async function (this: SwellStorefrontCollection) {
+      return resource.list(this._query);
     };
   }
 
@@ -306,42 +312,37 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
       ...query,
     };
 
-    if (this._swell) {
-      this._result = this._swell
-        .getCached(
-          'storefront-list',
-          [this._collection, this._query],
-          async () => {
-            console.log(
-              'SwellStorefrontCollection._get',
-              this._collection,
-              this._query,
-            );
-            return (this._getter as StorefrontResourceGetter)();
-          },
-          CACHE_TIMEOUT_RESOURCES,
-        )
-        .then((result: SwellCollection) => {
-          if (result) {
-            Object.assign(this, result, {
-              length: result.results?.length || 0,
-            });
-          }
-          if (this._compatibilityProps) {
-            Object.assign(this, this._compatibilityProps);
-          }
+    this._result = this._swell
+      .getCached(
+        'storefront-list',
+        [this._collection, this._query, this._getterHash],
+        async () => {
+          console.log(
+            'SwellStorefrontCollection._get',
+            this._collection,
+            this._query,
+          );
+          return (this._getter as StorefrontResourceGetter).call(this);
+        },
+        CACHE_TIMEOUT_RESOURCES,
+      )
+      .then((result: SwellCollection) => {
+        this._result = result;
 
-          return result;
-        })
-        .catch((err: any) => {
-          console.log(err);
-          return null;
-        });
+        if (result) {
+          Object.assign(this, result, {
+            length: result.results?.length || 0,
+          });
+        }
 
-      this._result = await this._result;
-    }
+        return result;
+      })
+      .catch((err: any) => {
+        console.log(err);
+        return null;
+      });
 
-    return this;
+    return this._result;
   }
 
   [Symbol.iterator]() {
@@ -359,6 +360,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
       this._swell as Swell,
       this._collection,
       this._query,
+      this._getter,
     );
 
     if (this._isResultResolved()) {
@@ -371,6 +373,10 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
 
     if (newProps !== undefined) {
       Object.assign(cloned, newProps);
+
+      if (newProps._getter) {
+        cloned._setGetter(newProps._getter);
+      }
     }
 
     return cloned;
@@ -436,7 +442,7 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
     this._query = query;
 
     if (!getter) {
-      this._getter = this._defaultGetter();
+      this._setGetter(this._defaultGetter());
     }
 
     return this._getProxy();
@@ -448,8 +454,8 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
 
   _defaultGetter(): StorefrontResourceGetter {
     const resource = this.getResourceObject();
-    return async () => {
-      return await resource.get(this._id, this._query);
+    return async function (this: SwellStorefrontRecord) {
+      return resource.get(this._id, this._query);
     };
   }
 
@@ -461,41 +467,30 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
       ...query,
     };
 
-    if (this._swell) {
-      this._result = this._swell
-        .getCached(
-          'storefront-record',
-          [this._collection, this._id, this._query],
-          async () => {
-            console.log(
-              'SwellStorefrontRecord._get',
-              this._collection,
-              this._id,
-              this._query,
-            );
-            return (this._getter as StorefrontResourceGetter)();
-          },
-          CACHE_TIMEOUT_RESOURCES,
-        )
-        .then((result: SwellRecord) => {
-          if (result) {
-            Object.assign(this, result);
-          }
-          if (this._compatibilityProps) {
-            Object.assign(this, this._compatibilityProps);
-          }
+    this._result = this._swell
+      .getCached(
+        'storefront-record',
+        [this._collection, this._id, this._query, this._getterHash],
+        async () => {
+          return (this._getter as StorefrontResourceGetter).call(this);
+        },
+        CACHE_TIMEOUT_RESOURCES,
+      )
+      .then((result: SwellRecord) => {
+        this._result = result;
 
-          return result;
-        })
-        .catch((err: any) => {
-          console.log(err);
-          return null;
-        });
+        if (result) {
+          Object.assign(this, result);
+        }
 
-      this._result = await this._result;
-    }
+        return result;
+      })
+      .catch((err: any) => {
+        console.log(err);
+        return null;
+      });
 
-    return this;
+    return this._result;
   }
 }
 
@@ -508,7 +503,7 @@ export class SwellStorefrontSingleton extends SwellStorefrontResource {
     super(swell, collection, getter);
 
     if (!getter) {
-      this._getter = this._defaultGetter();
+      this._setGetter(this._defaultGetter());
     }
 
     return this._getProxy();
@@ -520,33 +515,29 @@ export class SwellStorefrontSingleton extends SwellStorefrontResource {
 
   _defaultGetter(): StorefrontResourceGetter {
     const resource = this.getResourceObject();
-    return async () => {
-      return await resource.get();
+    return async function (this: SwellStorefrontSingleton) {
+      return resource.get();
     };
   }
 
   async _get() {
-    if (this._swell) {
-      this._result = (this._getter as StorefrontResourceGetter)()
-        .then((result: SwellRecord) => {
-          if (result) {
-            Object.assign(this, result);
-          }
-          if (this._compatibilityProps) {
-            Object.assign(this, this._compatibilityProps);
-          }
+    this._result = (this._getter as StorefrontResourceGetter)
+      .call(this)
+      .then((result: SwellRecord) => {
+        this._result = result;
 
-          return result;
-        })
-        .catch((err: any) => {
-          console.log(err);
-          return null;
-        });
+        if (result) {
+          Object.assign(this, result);
+        }
 
-      this._result = await this._result;
-    }
+        return result;
+      })
+      .catch((err: any) => {
+        console.log(err);
+        return null;
+      });
 
-    return this;
+    return this._result;
   }
 }
 

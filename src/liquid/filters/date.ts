@@ -1,4 +1,3 @@
-import { date } from 'astro/zod';
 import { LiquidSwell } from '..';
 import { paramsToProps } from '../utils';
 import strftime from 'strftime';

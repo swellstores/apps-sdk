@@ -22,7 +22,8 @@ export default function ShopifyProduct(
   return new ShopifyResource({
     available: deferWith(
       product,
-      () => product.stock_status === 'in_stock' || !product.stock_status,
+      (product: any) =>
+        product.stock_status === 'in_stock' || !product.stock_status,
     ),
     collections: [], // TODO: need to support this in the resource class somehow
     compare_at_price: defer(() => product.compare_price), // Note: This field hasn't been standardized as of May 2024
@@ -31,8 +32,8 @@ export default function ShopifyProduct(
     compare_at_price_varies: false,
     content: defer(() => product.description),
     created_at: defer(() => product.date_created),
-    description: defer(() => product.description),
-    featured_image: deferWith(product, () => {
+    description: deferWith(product, (product: any) => product.description),
+    featured_image: deferWith(product, (product: any) => {
       return (
         product.images?.[0] &&
         ShopifyImage(instance, product.images[0], product)
@@ -40,7 +41,8 @@ export default function ShopifyProduct(
     }),
     featured_media: deferWith(
       product,
-      () => product.images?.[0] && ShopifyMedia(instance, product.images[0]),
+      (product: any) =>
+        product.images?.[0] && ShopifyMedia(instance, product.images[0]),
     ),
     first_available_variant: deferWith(product, (product: any) =>
       product.variants?.results?.find(
@@ -48,13 +50,16 @@ export default function ShopifyProduct(
           variant.stock_status === 'in_stock' || variant.stock_status === null,
       ),
     ),
-    gift_card: defer(() => product.type === 'giftcard'),
+    gift_card: deferWith(
+      product,
+      (product: any) => product.type === 'giftcard',
+    ),
     handle: defer(() => product.slug),
     has_only_default_variant: deferWith(
       product,
       (product: any) => !product.options?.length,
     ),
-    id: defer(() => product.id),
+    id: deferWith(product, (product: any) => product.id),
     images: deferWith(product, (product: any) =>
       product.images?.map(
         (image: any) => image && ShopifyImage(instance, image, product),
@@ -110,7 +115,7 @@ export default function ShopifyProduct(
         ),
       })),
     ),
-    price: defer(() => product.price),
+    price: deferWith(product, (product: any) => product.price),
     price_max: deferWith(product, (product: any) =>
       product.variants?.results?.reduce(
         (max: any, variant: any) => Math.max(max, variant.price),
@@ -129,7 +134,10 @@ export default function ShopifyProduct(
       ),
     ),
     published_at: defer(() => product.date_created),
-    quantity_price_breaks_configured: defer(() => product.prices?.length > 0),
+    quantity_price_breaks_configured: deferWith(
+      product,
+      (product: any) => product.prices?.length > 0,
+    ),
     requires_selling_plan: false,
     selected_or_first_available_selling_plan_allocation: null,
     selected_or_first_available_variant: deferWith(product, (product: any) => {
@@ -155,11 +163,11 @@ export default function ShopifyProduct(
     selected_selling_plan: null,
     selected_variant: null,
     selling_plan_groups: null,
-    tags: defer(() => product.tags),
+    tags: deferWith(product, (product: any) => product.tags),
     template_suffix: null,
     title: defer(() => product.name),
-    type: defer(() => product.type),
-    url: defer(() => `/products/${product.slug}`), // TODO: pass theme settings to get this correctly
+    type: deferWith(product, (product: any) => product.type),
+    url: deferWith(product, (product: any) => `/products/${product.slug}`), // TODO: pass theme settings to get this correctly
     variants: deferWith(product, (product: any) =>
       // Note variants must be in the same order as options
       product.variants?.results

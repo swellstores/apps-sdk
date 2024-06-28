@@ -17,8 +17,10 @@ export default function ShopifyVariant(
   const product = productIn || variant.product || {};
 
   return new ShopifyResource({
-    available: defer(
-      () => variant.stock_status === 'in_stock' || !variant.stock_status,
+    available: deferWith(
+      variant,
+      (variant: any) =>
+        variant.stock_status === 'in_stock' || !variant.stock_status,
     ),
     barcode: null,
     compare_at_price: defer(() => variant.compare_price),
@@ -36,7 +38,7 @@ export default function ShopifyVariant(
         return image && ShopifyMedia(instance, image);
       },
     ),
-    id: defer(() => variant.id),
+    id: deferWith(variant, (variant: any) => variant.id),
     image: deferWith([product, variant], (product: any, variant: any) => {
       const image = variant.images?.[0] || product.images?.[0];
       return image && ShopifyMedia(instance, image);
@@ -72,16 +74,16 @@ export default function ShopifyVariant(
     selected: false,
     selected_selling_plan_allocation: null,
     selling_plan_allocations: null,
-    sku: defer(() => variant.sku),
+    sku: deferWith(variant, (variant: any) => variant.sku),
     store_availabilities: null,
     taxable: true,
     title: defer(() => variant.name),
     unit_price: defer(() => variant.price),
     unit_price_measurement: null,
     url: defer(() => product.url),
-    weight: defer(() => variant.weight),
+    weight: deferWith(variant, (variant: any) => variant.weight),
     weight_in_unit: defer(() => variant.weight_unit),
-    weight_unit: defer(() => variant.weight_unit),
+    weight_unit: deferWith(variant, (variant: any) => variant.weight_unit),
   });
 }
 

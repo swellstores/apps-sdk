@@ -1,5 +1,5 @@
 import cloneDeep from 'lodash/cloneDeep';
-import { StorefrontResource } from '../../resources';
+import { ShopifyCompatibility } from '../shopify';
 
 export class ShopifyResource {
   props: { [key: string]: any };
@@ -28,12 +28,6 @@ export class ShopifyResource {
         if (prop === 'toString' && stringProp) {
           return () => {
             return props[stringProp];
-          };
-        }
-
-        if (prop === 'getLinkProps') {
-          return () => {
-            return linkProps;
           };
         }
 
@@ -71,9 +65,6 @@ export class ShopifyResource {
   clone(): ShopifyResource {
     return new ShopifyResource({});
   }
-  getLinkProps() {
-    return this.linkProps;
-  }
 }
 
 export class DeferredShopifyResource {
@@ -84,7 +75,7 @@ export class DeferredShopifyResource {
     this.handler = handler;
   }
 
-  resolve() {
+  async resolve() {
     if (this.result === undefined) {
       this.result = Promise.resolve(this.handler()).then((value: any) => {
         this.result = value !== undefined ? value : null;
@@ -96,14 +87,8 @@ export class DeferredShopifyResource {
   }
 }
 
-// TODO: consider removing this if it's not used
-export class DeferredShopifyLinkResource extends DeferredShopifyResource {}
-
-export function defer(
-  handler: Function,
-  deferredClass: typeof DeferredShopifyResource = DeferredShopifyResource,
-) {
-  return new deferredClass(handler);
+export function defer(handler: Function) {
+  return new DeferredShopifyResource(handler);
 }
 
 export function isResolvable(asyncProp: any) {
@@ -141,18 +126,32 @@ export async function handleDeferredProp(asyncProp: any, handler: Function) {
     });
 }
 
-export function deferWith(
+export function deferWith(asyncProp: any, handler: Function) {
+  return new DeferredShopifyResource(() =>
+    handleDeferredProp(asyncProp, handler),
+  );
+}
+
+export function deferSwellCollectionWithShopifyResults(
+  instance: ShopifyCompatibility,
   asyncProp: any,
-  handler: Function,
-  deferredClass: typeof DeferredShopifyResource = DeferredShopifyResource,
+  key: string,
+  ShopifyObject: any,
+  handler?: Function,
 ) {
-  return new deferredClass(() => handleDeferredProp(asyncProp, handler));
-}
-
-export function deferLink(handler: Function) {
-  return defer(handler, DeferredShopifyLinkResource);
-}
-
-export function deferLinkWith(asyncProp: any, handler: Function) {
-  return deferWith(asyncProp, handler, DeferredShopifyLinkResource);
-}
+  return deferWith(asyncProp, (value: any) => {
+    return (
+      value[key]?._cloneWithCompatibilityResult((valueResult: any) => {
+        return {
+          results: valueResult?.results?.map((result: any) => {
+            const shopifyResult = ShopifyObject(instance, result);
+            if (handler) {
+              handler(shopifyResult, result);
+            }
+            return shopifyResult;
+          }),
+        };
+      }) || []
+    );
+  });
+};

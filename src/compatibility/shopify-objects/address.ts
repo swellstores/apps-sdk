@@ -11,20 +11,20 @@ export default function ShopifyAddress(
   }
 
   return new ShopifyResource({
-    address1: defer(() => address.address1),
-    address2: defer(() => address.address2),
-    city: defer(() => address.city),
-    company: defer(() => address.company),
+    address1: deferWith(address, (address: any) => address.address1),
+    address2: deferWith(address, (address: any) => address.address2),
+    city: deferWith(address, (address: any) => address.city),
+    company: deferWith(address, (address: any) => address.company),
     country: deferWith(address, (address: any) =>
       ShopifyCountry(instance, address.country),
     ),
-    country_code: defer(() => address.country_code),
-    first_name: defer(() => address.first_name),
-    id: defer(() => address.id),
-    last_name: defer(() => address.last_name),
-    name: defer(() => address.name),
-    phone: defer(() => address.phone),
-    province: defer(() => address.state),
+    country_code: deferWith(address, (address: any) => address.country_code),
+    first_name: deferWith(address, (address: any) => address.first_name),
+    id: deferWith(address, (address: any) => address.id),
+    last_name: deferWith(address, (address: any) => address.last_name),
+    name: deferWith(address, (address: any) => address.name),
+    phone: deferWith(address, (address: any) => address.phone),
+    province: deferWith(address, (address: any) => address.state),
     province_code: deferWith(address, (address: any) =>
       String(address.state || '').substring(0, 2),
     ),
@@ -46,7 +46,7 @@ export default function ShopifyAddress(
       address,
       (address: any) => `/account/addresses/${address.id}`,
     ),
-    zip: defer(() => address.zip),
+    zip: deferWith(address, (address: any) => address.zip),
   });
 }
 

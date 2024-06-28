@@ -60,11 +60,12 @@ export default function ShopifyLineItem(
     error_message: null, // N/A
     final_line_price: item.price_total - item.discount_total,
     final_price: item.price - item.discount_each,
-    fulfillment: options.order
+    // May not want to support this
+    /* fulfillment: options.order
       ? deferWith(cart, async (cart: any) => {
           return await resolveFulfillment(instance, cart, item);
         })
-      : undefined,
+      : undefined, */
     fulfillment_service: 'manual', // TODO
     gift_card: item.delivery === 'giftcard',
     grams: item.shipment_weight,
@@ -143,16 +144,19 @@ async function resolveFulfillment(
     `shipments-${order.id}`,
     async () => {
       return (
-        await instance.swell.storefront.account.getOrder(order.id, {
-          include: {
-            url: '/shipments',
-            data: {
-              limit: 10,
-              canceled: { $ne: true },
+        // Note: this does not work with the current Swell API
+        (
+          await instance.swell.storefront.account.getOrder(order.id, {
+            include: {
+              url: '/shipments',
+              data: {
+                limit: 10,
+                canceled: { $ne: true },
+              },
             },
-          },
-        })
-      )?.shipments?.results;
+          })
+        )?.shipments?.results
+      );
     },
   );
 

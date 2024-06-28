@@ -21,9 +21,11 @@ import {
   getLayoutSectionGroups,
   isObject,
 } from './utils';
+import { Theme } from 'node_modules/@easyblocks/core/dist/types/compiler/types';
 
 export class SwellTheme {
   public swell: Swell;
+  public resources?: ThemeResources;
   public storefrontConfig?: SwellStorefrontConfig;
   public liquidSwell: LiquidSwell;
 
@@ -41,14 +43,16 @@ export class SwellTheme {
   constructor(
     swell: Swell,
     options: {
+      resources?: ThemeResources;
       storefrontConfig?: SwellStorefrontConfig;
       shopifyCompatibilityClass?: typeof ShopifyCompatibility;
     } = {},
   ) {
-    const { storefrontConfig, shopifyCompatibilityClass } = options;
+    const { resources, storefrontConfig, shopifyCompatibilityClass } = options;
 
     this.swell = swell;
 
+    this.resources = resources;
     this.storefrontConfig = storefrontConfig;
     this.shopifyCompatibilityClass =
       shopifyCompatibilityClass || ShopifyCompatibility;
@@ -62,7 +66,7 @@ export class SwellTheme {
       renderTemplate: this.renderTemplate.bind(this),
       renderTemplateString: this.renderTemplateString.bind(this),
       renderTemplateSections: this.renderTemplateSections.bind(this),
-      renderLanguage: this.lang.bind(this),
+      renderTranslation: this.lang.bind(this),
       renderCurrency: this.renderCurrency.bind(this),
       isEditor: swell.isEditor,
     });
@@ -91,7 +95,7 @@ export class SwellTheme {
       configs,
       localeCode,
       storefrontConfig: this.storefrontConfig,
-      language: configs?.language,
+      translations: configs?.translations,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
       // Flag to enable Shopify compatibility in sections and tags/filters
       shopify_compatibility: Boolean(settings.shopify_compatibility),
@@ -147,7 +151,7 @@ export class SwellTheme {
     const configs: ThemeConfigs = {
       theme: {},
       editor: {},
-      language: {},
+      translations: {},
       presets: [],
       ...settingConfigs.reduce(
         (acc: any, config: SwellRecord | null): { [key: string]: any } => {
@@ -174,7 +178,7 @@ export class SwellTheme {
 
     const localeCode = storefrontSettings?.store?.locale || 'en-US';
 
-    this.resolveLanguageLocale(configs.language, localeCode);
+    this.resolveTranslationLocale(configs.translations, localeCode);
 
     await this.setCompatibilityConfigs(configs, localeCode);
 
@@ -263,7 +267,10 @@ export class SwellTheme {
   }
 
   async fetchCart() {
-    const cart = new SwellStorefrontSingleton(this.swell, 'cart');
+    const CartResource = this.resources?.singletons?.cart;
+    const cart = CartResource
+      ? new CartResource(this.swell)
+      : new SwellStorefrontSingleton(this.swell, 'cart');
 
     await cart.id;
     if (!cart.id) {
@@ -279,7 +286,10 @@ export class SwellTheme {
   }
 
   async fetchAccount() {
-    const account = new SwellStorefrontSingleton(this.swell, 'account');
+    const AccountResource = this.resources?.singletons?.account;
+    const account = AccountResource
+      ? new AccountResource(this.swell)
+      : new SwellStorefrontSingleton(this.swell, 'account');
 
     await account.id;
     if (!account.id) {
@@ -354,22 +364,25 @@ export class SwellTheme {
     return Object.keys(this.globalData).length > 0 ? this.globalData : null;
   }
 
-  resolveLanguageLocale(languageConfig: ThemeSettings, localeCode: string) {
-    if (!languageConfig) {
+  resolveTranslationLocale(
+    translationsConfig: ThemeSettings,
+    localeCode: string,
+  ) {
+    if (!translationsConfig) {
       return {};
     }
 
     const localeShortCode = localeCode.split('-')[0];
 
     return reduce(
-      languageConfig,
+      translationsConfig,
       (acc: any, value: any, key: string) => {
         if (isObject(value)) {
-          acc[key] = this.resolveLanguageLocale(value, localeCode);
+          acc[key] = this.resolveTranslationLocale(value, localeCode);
         } else {
           acc[key] =
-            get(languageConfig, `$locale.${localeCode}.${key}`) ||
-            get(languageConfig, `$locale.${localeShortCode}.${key}`) ||
+            get(translationsConfig, `$locale.${localeCode}.${key}`) ||
+            get(translationsConfig, `$locale.${localeShortCode}.${key}`) ||
             value;
         }
         return acc;
@@ -392,7 +405,7 @@ export class SwellTheme {
       configs.editor = await shopifyCompatibility().getEditorConfig(
         configs.settings_schema,
       );
-      configs.editor = await shopifyCompatibility().renderSchemaLanguage(
+      configs.editor = await shopifyCompatibility().renderSchemaTranslations(
         this,
         configs.editor,
         localeCode,
@@ -411,11 +424,14 @@ export class SwellTheme {
       );
     }
 
-    if (!Object.keys(configs.language).length) {
-      configs.language = await shopifyCompatibility().getLocaleConfig(
+    if (!Object.keys(configs.translations).length) {
+      configs.translations = await shopifyCompatibility().getLocaleConfig(
         this,
         localeCode,
       );
+      if (!Object.keys(configs.translations).length) {
+        this.shopifyCompatibility = null;
+      }
     }
 
     // Make sure compatibility instance and config setting are resolved
@@ -444,33 +460,31 @@ export class SwellTheme {
     const collection = resolveLookupCollection(setting);
 
     if (collection) {
-      const defaultHandler = () => {
-        if (setting.multiple) {
-          if (value instanceof Array) {
-            return value.map(
-              (id: string) =>
-                new SwellStorefrontRecord(this.swell, collection, id),
-            );
-          }
-        } else if (value !== '' && value !== null && value !== undefined) {
-          return new SwellStorefrontRecord(this.swell, collection, value);
+      if (setting.multiple) {
+        if (value instanceof Array) {
+          return value.map((id: string) =>
+            this.resolveLookupResource(collection, id),
+          );
         }
-        return null;
-      };
-
-      if (this.shopifyCompatibility) {
-        return this.shopifyCompatibility.getLookupData(
-          collection,
-          setting,
-          value,
-          defaultHandler,
-        );
+      } else if (value !== '' && value !== null && value !== undefined) {
+        return this.resolveLookupResource(collection, value);
       }
-
-      return defaultHandler();
     }
 
     return null;
+  }
+
+  resolveLookupResource(collection: string, id: string): StorefrontResource {
+    const LookupResource = this.resources?.records?.[collection];
+    const resource = LookupResource
+      ? new LookupResource(this.swell, id)
+      : new SwellStorefrontRecord(this.swell, collection, id);
+
+    if (this.shopifyCompatibility) {
+      this.shopifyCompatibility.adaptPageData({ resource });
+    }
+
+    return resource;
   }
 
   resolveMenuSetting(value: string): SwellMenu | null {
@@ -485,7 +499,7 @@ export class SwellTheme {
   }
 
   async lang(key: string, data?: any, fallback?: string): Promise<string> {
-    return await this.renderLanguage(key, data, fallback);
+    return await this.renderTranslation(key, data, fallback);
   }
 
   resolveFontSetting(value: string): ThemeFont | null {
@@ -701,9 +715,7 @@ export class SwellTheme {
     data?: SwellData,
   ): Promise<string> {
     try {
-      return await this.liquidSwell.engine.parseAndRender(templateString, {
-        ...data,
-      });
+      return await this.liquidSwell.engine.parseAndRender(templateString, data);
     } catch (err: any) {
       console.error(err);
       return ``;
@@ -739,7 +751,7 @@ export class SwellTheme {
         if (schema) {
           const result =
             this.shopifyCompatibility.getSectionConfigSchema(schema);
-          return this.shopifyCompatibility.renderSchemaLanguage(
+          return this.shopifyCompatibility.renderSchemaTranslations(
             this,
             result,
             this.globals?.localeCode,
@@ -1023,7 +1035,7 @@ export class SwellTheme {
           schema = this.shopifyCompatibility.getSectionConfigSchema(
             lastSchema as ShopifySectionSchema,
           );
-          schema = await this.shopifyCompatibility.renderSchemaLanguage(
+          schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             schema,
             this.globals?.localeCode,
@@ -1203,15 +1215,15 @@ export class SwellTheme {
       .join('\n');
   }
 
-  async renderLanguage(
+  async renderTranslation(
     key: string,
     data?: any,
     fallback?: string,
   ): Promise<string> {
-    const langObject = this.globals?.language;
+    const langObject = this.globals?.translations;
     const localeCode = this.globals?.localeCode;
 
-    return this.renderLanguageValue(
+    return this.renderTranslationValue(
       localeCode,
       langObject,
       key,
@@ -1220,7 +1232,7 @@ export class SwellTheme {
     );
   }
 
-  async renderLanguageValue(
+  async renderTranslationValue(
     localeCode: string,
     langConfig: any,
     key: string,
@@ -1241,7 +1253,7 @@ export class SwellTheme {
       get(langObject?.[localeCode.split('-')[0]], keyName) ||
       langObject?.[keyName];
 
-    // Plural vs singular language
+    // Plural vs singular
     if (data?.count !== undefined && localeValue?.one) {
       localeValue = data.count === 1 ? localeValue.one : localeValue.other;
     }

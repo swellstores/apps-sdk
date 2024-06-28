@@ -5,11 +5,7 @@ import {
   StorefrontResource,
 } from '../../api';
 import { ShopifyCompatibility } from '../shopify';
-import {
-  DeferredShopifyResource,
-  DeferredShopifyLinkResource,
-  ShopifyResource,
-} from './resource';
+import { DeferredShopifyResource, ShopifyResource } from './resource';
 import ShopifyArticle from './article';
 import ShopifyBlog from './blog';
 import ShopifyCart from './cart';
@@ -29,7 +25,6 @@ import ShopifyVariant from './variant';
 
 export {
   DeferredShopifyResource,
-  DeferredShopifyLinkResource,
   ShopifyResource,
   ShopifyArticle,
   ShopifyBlog,
@@ -64,29 +59,6 @@ export function adaptShopifyMenuData(
       ShopifyLink(instance, shopifyLinkList, item),
     ),
   };
-}
-
-export function adaptShopifyLookupData(
-  instance: ShopifyCompatibility,
-  collection: string,
-  setting: ThemeSettingFieldSchema,
-  value: any,
-  defaultHandler: () => SwellData | null,
-): SwellData | null {
-  if (!setting.multiple) {
-    if (collection === 'categories') {
-      if (value === 'all') {
-        // TODO: remove this once backend for "all" is done
-        const category = new AllCategoryResource(instance.swell);
-        category.setCompatibilityProps(
-          ShopifyCollection(instance, category as StorefrontResource),
-        );
-        return category;
-      }
-    }
-  }
-
-  return defaultHandler();
 }
 
 // TODO: remove this once backend is implemented for "all"

@@ -15,7 +15,7 @@ export default function ShopifyCart(
     attributes: defer(() => cart.metadata),
     cart_level_discount_applications: [], // TODO cart-level promotions
     checkout_charge_amount: defer(() => cart.grand_total),
-    currency: defer(() => cart.currency),
+    currency: deferWith(cart, (cart: any) => cart.currency),
     discount_applications: [], // TODO all promotions
     duties_included: defer(() => cart.item_tax_included),
     empty: defer(() => !cart.items?.length),

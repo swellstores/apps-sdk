@@ -113,22 +113,24 @@ export function getEasyblocksPagePropsWithConfigs(
   };
 
   const getEditorSchemaComponentProps = () => {
-    return themeGlobals?.configs?.editor?.settings?.reduce(
-      (acc: any, settingGroup: any) => {
-        for (const field of settingGroup.fields || []) {
-          if (field?.id) {
-            acc.push({
-              prop: field.id,
-              label: field.label,
-              optional: true,
-              group: settingGroup.label,
-              ...schemaToEasyblocksProps(field),
-            });
+    return (
+      themeGlobals?.configs?.editor?.settings?.reduce(
+        (acc: any, settingGroup: any) => {
+          for (const field of settingGroup.fields || []) {
+            if (field?.id) {
+              acc.push({
+                prop: field.id,
+                label: field.label,
+                optional: true,
+                group: settingGroup.label,
+                ...schemaToEasyblocksProps(field),
+              });
+            }
           }
-        }
-        return acc;
-      },
-      [],
+          return acc;
+        },
+        [],
+      ) || []
     );
   };
 

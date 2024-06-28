@@ -1,5 +1,5 @@
 import { ShopifyCompatibility } from '../shopify';
-import { ShopifyResource, defer } from './resource';
+import { ShopifyResource, defer, deferWith } from './resource';
 
 export default function ShopifyPage(
   _instance: ShopifyCompatibility,
@@ -9,15 +9,15 @@ export default function ShopifyPage(
     return page.clone();
   }
   return new ShopifyResource({
-    content: defer(() => page.content),
+    content: deferWith(page, (page: any) => page.content),
     handle: defer(() => page.slug),
     metafields: null,
     published_at: defer(
       async () => (await page.date_published) || page.date_created,
     ),
     template_suffix: null, // TODO
-    title: defer(async () => (await page.title) || page.name), // Due to deprecated name field
-    url: defer(async () => (await page.slug) && `/pages/${page.slug}`),
+    title: deferWith(page, (page: any) => page.title || page.name), // Due to deprecated name field
+    url: deferWith(page, (page: any) => `/pages/${page.slug}`),
 
     // Not supported
     author: null,

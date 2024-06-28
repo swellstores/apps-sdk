@@ -1,6 +1,11 @@
 import { ShopifyCompatibility } from '../shopify';
 import { StorefrontResource } from '../../resources';
-import { ShopifyResource, defer, deferWith } from './resource';
+import {
+  ShopifyResource,
+  defer,
+  deferWith,
+  deferSwellCollectionWithShopifyResults,
+} from './resource';
 import ShopifyAddress from './address';
 import ShopifyOrder from './order';
 
@@ -14,12 +19,16 @@ export default function ShopifyCustomer(
 
   return new ShopifyResource({
     accepts_marketing: defer(() => account.email_optin),
-    addresses: deferWith(account, async (account: any) => {
-      return await resolveAddresses(instance, account);
-    }),
-    addresses_count: deferWith(account, async (account: any) => {
-      return (await resolveAddresses(instance, account))?.length || 0;
-    }),
+    addresses: deferSwellCollectionWithShopifyResults(
+      instance,
+      account,
+      'addresses',
+      ShopifyAddress,
+    ),
+    addresses_count: deferWith(
+      account.addresses,
+      (addresses: any) => addresses.count || 0,
+    ),
     b2b: deferWith(account, () => account.type === 'business'),
     company_available_locations: [], // TODO
     current_company: null, // TODO
@@ -30,19 +39,19 @@ export default function ShopifyCustomer(
         (account.shipping || account.billing) &&
         ShopifyAddress(instance, account.shipping || account.billing),
     ),
-    email: defer(() => account.email),
-    first_name: defer(() => account.first_name),
+    email: deferWith(account, (account: any) => account.email),
+    first_name: deferWith(account, (account: any) => account.first_name),
     has_account: true, // TODO: return something from the swell api to indicate when password exists
     has_avatar: false, // N/A
-    id: defer(() => account.id),
-    last_name: defer(() => account.last_name),
-    last_order: deferWith(account, async (account: any) =>
-      resolveLastOrder(instance, account),
-    ),
-    name: defer(() => account.name),
-    orders: deferWith(
+    id: deferWith(account, (account: any) => account.id),
+    last_name: deferWith(account, (account: any) => account.last_name),
+    last_order: defer(() => resolveLastOrder(instance, account)),
+    name: deferWith(account, (account: any) => account.name),
+    orders: deferSwellCollectionWithShopifyResults(
+      instance,
       account,
-      async (account: any) => await resolveOrders(instance, account),
+      'orders',
+      ShopifyOrder,
     ),
     orders_count: defer(() => account.order_count),
     phone: deferWith(
@@ -50,39 +59,17 @@ export default function ShopifyCustomer(
       (account: any) =>
         account.phone || account.shipping?.phone || account.billing?.phone,
     ),
-    tags: defer(() => account.tags || [account.group]), // TODO: replace with segments in future
+    tags: deferWith(account, (account: any) => account.tags || [account.group]), // TODO: replace with segments in future
     tax_exempt: defer(() => account.tax_exempt),
     total_spent: defer(() => account.order_value),
   });
 }
 
-async function resolveAddresses(instance: ShopifyCompatibility, account: any) {
-  const addresses = await instance.swell.getCachedResource(
-    `addresses-${account.id}`,
-    () => {
-      return instance.swell.storefront.account.listAddresses();
-    },
-  );
-
-  return (addresses as any)?.results?.map((address: any) =>
-    ShopifyAddress(instance, address),
-  );
-}
-
-async function resolveOrders(instance: ShopifyCompatibility, account: any) {
-  const orders = await instance.swell.getCachedResource(
-    `orders-${account.id}`,
-    () => instance.swell.storefront.account.listOrders(),
-  );
-
-  return (orders as any)?.results?.map((order: any) =>
-    ShopifyOrder(instance, order, account),
-  );
-}
-
 async function resolveLastOrder(instance: ShopifyCompatibility, account: any) {
+  const accountId = await account.id;
+
   const lastOrder = await instance.swell.getCachedResource(
-    `last-order-${account.id}`,
+    `last-order-${accountId}`,
     async () => {
       return (
         await instance.swell.storefront.account.listOrders({

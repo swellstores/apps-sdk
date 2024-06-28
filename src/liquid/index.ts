@@ -16,7 +16,7 @@ export class LiquidSwell extends Liquid {
   public renderTemplate: RenderTemplate;
   public renderTemplateString: RenderTemplateString;
   public renderTemplateSections: RenderTemplateSections;
-  public renderLanguage: RenderLanguage;
+  public renderTranslation: RenderTranslation;
   public renderCurrency: RenderCurrency;
   public engine: Liquid;
 
@@ -40,7 +40,7 @@ export class LiquidSwell extends Liquid {
     renderTemplate,
     renderTemplateString,
     renderTemplateSections,
-    renderLanguage,
+    renderTranslation,
     renderCurrency,
     isEditor,
     locale,
@@ -57,7 +57,7 @@ export class LiquidSwell extends Liquid {
     renderTemplate: RenderTemplate;
     renderTemplateString: RenderTemplateString;
     renderTemplateSections: RenderTemplateSections;
-    renderLanguage: RenderLanguage;
+    renderTranslation: RenderTranslation;
     renderCurrency: RenderCurrency;
     isEditor: boolean;
     locale?: string;
@@ -80,7 +80,8 @@ export class LiquidSwell extends Liquid {
       renderTemplateString || theme.renderTemplateString.bind(theme);
     this.renderTemplateSections =
       renderTemplateSections || theme.renderTemplateSections.bind(theme);
-    this.renderLanguage = renderLanguage || theme.renderLanguage.bind(theme);
+    this.renderTranslation =
+      renderTranslation || theme.renderTranslation.bind(theme);
     this.renderCurrency = renderCurrency || theme.renderCurrency.bind(theme);
     this.isEditor = isEditor;
     this.locale = locale || 'en-US';

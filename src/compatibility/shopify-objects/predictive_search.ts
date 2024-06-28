@@ -12,7 +12,7 @@ export default function ShopifyPredictiveSearch(
   }
 
   return new ShopifyResource({
-    performed: defer(() => search.performed),
+    performed: deferWith(search, (search: any) => search.performed),
     resources: ShopifyPredictiveSearchResources(instance, search),
     terms: defer(() => search.query),
     types: ['product'],
