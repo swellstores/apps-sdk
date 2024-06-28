@@ -32,8 +32,12 @@ export default function ShopifySearch(
       (search: any) => search.sort_options?.[0].value,
     ),
     filters: defer(async () => {
+      const products = await productResults.resolve();
+      console.log({ products });
+      const filterOptions = await products?.filter_options;
+      console.log({ filterOptions });
       return (
-        (await productResults.resolve())?.filter_options?.map((filter: any) =>
+        (await products?.filter_options)?.map((filter: any) =>
           ShopifyFilter(instance, filter),
         ) || []
       );

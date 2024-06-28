@@ -84,13 +84,7 @@ export class StorefrontResource {
             });
         }
 
-        if (prop in instance._compatibilityProps) {
-          return instance._compatibilityProps[prop];
-        } else if (instance._result && prop in instance._result) {
-          return instance._result[prop];
-        }
-
-        return instance[prop];
+        return instance._getCollectionResultOrProp(instance, prop);
       },
 
       set(target: StorefrontResource, prop: any, value: any): boolean {
@@ -109,6 +103,12 @@ export class StorefrontResource {
       if (record) {
         return record;
       }
+    }
+
+    if (prop in instance._compatibilityProps) {
+      return instance._compatibilityProps[prop];
+    } else if (instance._result && prop in instance._result) {
+      return instance._result[prop];
     }
 
     return instance[prop];
