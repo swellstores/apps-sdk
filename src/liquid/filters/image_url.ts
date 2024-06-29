@@ -5,19 +5,21 @@ import { paramsToProps } from '../utils';
 
 export default {
   bind(_liquidSwell: LiquidSwell) {
-    return (imageField: any, params: any[]) => {
+    return async (imageField: any, params: any[]) => {
       const image =
         imageField?.images?.[0] ||
         imageField?.image ||
         imageField?.preview_image || // Shopify specific
         imageField;
 
-      const imageUrl = String(
-        image?.url ||
-          image?.file?.url ||
-          image?.src?.url || // Shopify specific
-          image,
-      );
+      const imageObj = await image;
+      const imageSrc =
+        imageObj?.url ||
+        imageObj?.file?.url ||
+        (await imageObj?.src)?.url || // Shopify specific
+        imageObj;
+
+      const imageUrl = String(imageSrc);
 
       if (typeof imageUrl !== 'string') {
         return '';
