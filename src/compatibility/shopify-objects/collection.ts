@@ -25,13 +25,17 @@ export default function ShopifyCollection(
     );
   });
 
+  async function productsResolved() {
+    return await (await productResults.resolve())._resolve();
+  }
+
   return new ShopifyResource({
     all_products_count: defer(
-      async () => (await productResults.resolve())?.count || 0,
+      async () => (await productsResolved())?.count || 0,
     ),
     all_tags: defer(
       async () =>
-        (await productResults.resolve()).results?.reduce(
+        (await productsResolved()).results?.reduce(
           (types: any[], product: SwellRecord) => {
             return types.concat(product.tags || []);
           },
@@ -40,7 +44,7 @@ export default function ShopifyCollection(
     ),
     all_types: defer(
       async () =>
-        (await productResults.resolve())?.results?.reduce(
+        (await productsResolved())?.results?.reduce(
           (types: any[], product: SwellRecord) => {
             return types.concat(product.type || []);
           },
@@ -62,7 +66,7 @@ export default function ShopifyCollection(
     ),
     filters: defer(
       async () =>
-        (await productResults.resolve())?.filter_options?.map((filter: any) =>
+        (await productsResolved())?.filter_options?.map((filter: any) =>
           ShopifyFilter(instance, filter),
         ) || [],
     ),
@@ -74,7 +78,7 @@ export default function ShopifyCollection(
     previous_product: null,
     products: productResults,
     products_count: defer(
-      async () => (await productResults.resolve())?.results?.length || 0,
+      async () => (await productsResolved())?.results?.length || 0,
     ),
     published_at: null,
     sort_by: defer(() => category.sort),
