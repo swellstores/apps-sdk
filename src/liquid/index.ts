@@ -30,8 +30,6 @@ export class LiquidSwell extends Liquid {
 
   public lastSchema: ThemeSectionSchema | undefined;
 
-  public globals: ThemeSettings = {};
-
   constructor({
     theme,
     getThemeConfig,
@@ -146,6 +144,10 @@ export class LiquidSwell extends Liquid {
         return;
       },
     };
+  }
+
+  async parseAndRender(template: string, data: any): Promise<string> {
+    return this.engine.parseAndRender(template, data);
   }
 
   resolveFilePath(fileName: string, extName?: string): string {

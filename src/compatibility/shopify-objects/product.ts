@@ -50,7 +50,7 @@ export default function ShopifyProduct(
           variant.stock_status === 'in_stock' || variant.stock_status === null,
       ),
     ),
-    gift_card: deferWith(
+    'gift_card?': deferWith(
       product,
       (product: any) => product.type === 'giftcard',
     ),
@@ -134,7 +134,7 @@ export default function ShopifyProduct(
       ),
     ),
     published_at: defer(() => product.date_created),
-    quantity_price_breaks_configured: deferWith(
+    'quantity_price_breaks_configured?': deferWith(
       product,
       (product: any) => product.prices?.length > 0,
     ),

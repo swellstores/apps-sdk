@@ -8,9 +8,23 @@ type SwellData = {
   [key: string]: any;
 };
 
+type SwellLocaleProp = {
+  [key: string]: {
+    [key: string]: string;
+  };
+};
+
+type SwellCurrencyProp = {
+  [key: string]: {
+    [key: string]: number;
+  };
+};
+
 type SwellRecord = {
   id: string;
   [key: string]: any;
+  $locale?: SwellLocaleProp;
+  $currency?: SwellCurrencyProp;
 };
 
 type SwellCollection = {
@@ -40,11 +54,7 @@ type SwellMenu = {
   id: string;
   name: string;
   items: SwellMenuItem[];
-  $locale: {
-    [key: string]: {
-      [key: string]: string;
-    };
-  };
+  $locale?: SwellLocaleProp;
 };
 
 enum SwellMenuItemType {
@@ -73,11 +83,7 @@ type SwellMenuItem = {
         [key: string]: any;
       };
   url?: string;
-  $locale: {
-    [key: string]: {
-      [key: string]: string;
-    };
-  };
+  $locale?: SwellLocaleProp;
   // Dynamic properties
   resource?:
     | SwellStorefrontRecord
@@ -129,8 +135,8 @@ type ShopifyObjectResourceMap = Array<{
 }>;
 
 type ShopifyFormResourceMap = Array<{
-  pageId?: string;
-  formType?: string;
+  type: string;
+  shopifyType?: string;
 
   clientParams?: (scope: SwellData, arg?: any) => SwellData;
 
@@ -170,11 +176,12 @@ type ThemePage = {
 };
 
 interface ThemeGlobals extends SwellData {
-  store?: ThemeSettings;
-  settings?: ThemeSettings;
+  store: SwellData;
+  request: SwellData;
+  settings: ThemeSettings;
+  page: ThemePage;
+  configs: ThemeConfigs;
   menus?: { [key: string]: SwellMenu };
-  page?: ThemePage;
-  configs?: ThemeConfigs;
   [key: string]: any;
 }
 
@@ -382,11 +389,13 @@ interface ThemePageSectionSchema extends ThemeSectionSchema {
   id: string;
 }
 
-type ThemeLayoutSectionGroupConfig = {
-  id: string;
-  type: string;
-  label: string;
-  sectionConfigs: ThemeSectionConfig[];
+interface ThemePageTemplateConfig extends ThemeSectionGroup {
+  page?: {
+    title?: string;
+    description?: string;
+    published?: boolean;
+    $locale?: SwellLocaleProp;
+  };
   sections: {
     [key: string]: {
       type: string;
@@ -395,8 +404,15 @@ type ThemeLayoutSectionGroupConfig = {
       block_order?: string[];
     };
   };
-  order: string[];
-};
+  order?: string[];
+}
+
+interface ThemeLayoutSectionGroupConfig extends ThemePageTemplateConfig {
+  id: string;
+  type: string;
+  label: string;
+  sectionConfigs: ThemeSectionConfig[];
+}
 
 type ThemeBlockSchema = {
   type: string;
@@ -470,6 +486,14 @@ type ThemeFontVariantSetting = {
   weight?: number;
   style?: 'normal' | 'italic' | 'oblique' | string;
   variant?: ThemeFontVariant;
+};
+
+type ThemeFormConfig = {
+  id: string;
+  url: string;
+  return_url?: string;
+  params?: string[];
+  handler?: Function;
 };
 
 type ThemeFormErrorMessage = {

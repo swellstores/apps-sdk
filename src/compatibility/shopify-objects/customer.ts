@@ -29,7 +29,7 @@ export default function ShopifyCustomer(
       account.addresses,
       (addresses: any) => addresses.count || 0,
     ),
-    b2b: deferWith(account, () => account.type === 'business'),
+    'b2b?': deferWith(account, () => account.type === 'business'),
     company_available_locations: [], // TODO
     current_company: null, // TODO
     current_location: null, // TODO
@@ -42,7 +42,7 @@ export default function ShopifyCustomer(
     email: deferWith(account, (account: any) => account.email),
     first_name: deferWith(account, (account: any) => account.first_name),
     has_account: true, // TODO: return something from the swell api to indicate when password exists
-    has_avatar: false, // N/A
+    'has_avatar?': false, // N/A
     id: deferWith(account, (account: any) => account.id),
     last_name: deferWith(account, (account: any) => account.last_name),
     last_order: defer(() => resolveLastOrder(instance, account)),

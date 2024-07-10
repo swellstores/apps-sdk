@@ -31,14 +31,8 @@ export class ThemeFormErrors {
     this.errors = errors;
   }
 
-  [Symbol.iterator]() {
-    return this.iterator();
-  }
-
-  *iterator() {
-    for (const error of this.errors || []) {
-      yield error;
-    }
+  *[Symbol.iterator]() {
+    yield* this.errors as any[];
   }
 
   // Used by {% form.errors contains 'code' %}

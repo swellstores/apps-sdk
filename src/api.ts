@@ -24,14 +24,30 @@ export class Swell {
   public headers: SwellData;
   public swellHeaders: SwellData;
   public queryParams: SwellData;
+
+  // Represents the Swell Backend API
   public backend?: SwellBackendAPI;
+
+  // Represends the Swell Storefront API
   public storefront: typeof SwellJS;
+
+  // A unique identifier for the current storefront app + environment being served
+  // Used to isolate cache between different storefronts
   public instanceId: string = '';
+
+  // Indicates the storefront is in a preview mode
   public isPreview: boolean = false;
+
+  // Indicates the storefront is being used in an editor UI
   public isEditor: boolean = false;
+
+  // Indicates the storefront is in a development mode (preview and/or editor)
   public isDevelopment: boolean = false;
+
+  // Indicates the server response was sent to avoid mutating cookies
   public sentResponse: boolean = false;
 
+  // Local cache for Swell storefront data
   static cache: Map<string, any> = new Map();
 
   constructor(params: {
@@ -305,49 +321,46 @@ export class Swell {
     Swell.cache.delete(this.instanceId);
   }
 
-  async getStorefrontSettings(): Promise<SwellRecord> {
-    return await this.getCached('storefront-settings', async () => {
-      // Load all settings including menus, payments, etc
-      try {
-        // Note: Logic pulled from swell.js because we need to pass storefront_id explicitly
-        const { settings, menus, payments, subscriptions, session } =
-          await this.storefront.request(
-            'get',
-            `/settings/all?storefront_id=${this.swellHeaders['storefront-id']}`,
-          );
+  async getStorefrontSettings(): Promise<SwellData> {
+    // Load all settings including menus, payments, etc
+    try {
+      // Note: Logic pulled from swell.js because we need to pass storefront_id explicitly
+      const { settings, menus, payments, subscriptions, session } =
+        await this.storefront.request(
+          'get',
+          `/settings/all?storefront_id=${this.swellHeaders['storefront-id']}`,
+        );
 
-        this.storefront.settings.localizedState = {};
+      this.storefront.settings.localizedState = {};
 
-        this.storefront.settings.set({
-          value: settings,
-        });
+      this.storefront.settings.set({
+        value: settings,
+      });
 
-        this.storefront.settings.set({
-          model: 'menus',
-          value: menus,
-        });
+      this.storefront.settings.set({
+        model: 'menus',
+        value: menus,
+      });
 
-        this.storefront.settings.set({
-          model: 'payments',
-          value: payments,
-        });
+      this.storefront.settings.set({
+        model: 'payments',
+        value: payments,
+      });
 
-        this.storefront.settings.set({
-          model: 'subscriptions',
-          value: subscriptions,
-        });
+      this.storefront.settings.set({
+        model: 'subscriptions',
+        value: subscriptions,
+      });
 
-        this.storefront.settings.set({
-          model: 'session',
-          value: session,
-        });
-      } catch (err) {
-        console.error(`Swell: unable to load settings (${err})`);
-      }
+      this.storefront.settings.set({
+        model: 'session',
+        value: session,
+      });
+    } catch (err) {
+      console.error(`Swell: unable to load settings (${err})`);
+    }
 
-      const settings = await this.storefront.settings.get();
-      return settings;
-    });
+    return this.storefront.settings.get();
   }
 
   getStorefrontMenus(): SwellMenu[] {

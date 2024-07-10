@@ -15,7 +15,7 @@ export default function ShopifyImage(
   return new ShopifyResource({
     alt: deferWith(image, (image: any) => image.alt || product?.name),
     aspect_ratio: 1,
-    attached_to_variant: true,
+    'attached_to_variant?': true,
     height: defer(() => image.height),
     id: deferWith(image, (image: any) => image.file?.id),
     media_type: 'image',

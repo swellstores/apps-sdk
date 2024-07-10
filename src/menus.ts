@@ -1,4 +1,5 @@
 import get from "lodash/get";
+import { SwellTheme } from './theme';
 import { SwellStorefrontRecord, SwellStorefrontCollection } from './api';
 import { arrayToObject } from './utils';
 
@@ -250,15 +251,17 @@ export function getMenuItemStorefrontUrl(
   slug?: string,
   collectionSlug?: string,
 ): string {
+  // TODO: replace substitution logic with pathToRegexp
+
   const { storefrontConfig } = theme;
   let url = storefrontConfig?.pages?.find((page) => page.id === pageId)?.url;
 
-  if (url?.includes('{collection}') && collectionSlug) {
-    url = url.replace('{collection}', collectionSlug);
+  if (url?.includes(':collection') && collectionSlug) {
+    url = url.replace(':collection', collectionSlug);
   }
 
-  if (url?.includes('{slug}')) {
-    url = url.replace('{slug}', slug || '');
+  if (url?.includes(':slug')) {
+    url = url.replace(':slug', slug || '');
   }
 
   return url || `/${slug || ''}`;

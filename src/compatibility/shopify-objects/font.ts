@@ -15,7 +15,7 @@ export default function ShopifyFont(
     fallback_families: font.fallback_families,
     family: font.family,
     style: font.style,
-    system: font.system,
+    'system?': font.system,
     variants: font.variants.map((variant) => ShopifyFont(_instance, variant)),
     weight: font.weight,
   });

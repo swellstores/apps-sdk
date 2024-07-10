@@ -20,6 +20,7 @@ import ShopifyPredictiveSearch from './predictive_search';
 import ShopifyProduct from './product';
 import ShopifyPage from './page';
 import ShopifyLink from './link';
+import ShopifyLocalization from './localization';
 import ShopifySearch from './search';
 import ShopifyVariant from './variant';
 
@@ -40,6 +41,7 @@ export {
   ShopifyProduct,
   ShopifyPage,
   ShopifyLink,
+  ShopifyLocalization,
   ShopifySearch,
   ShopifyVariant,
 };
