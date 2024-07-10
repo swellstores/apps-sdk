@@ -8,15 +8,18 @@ const DEFAULT_API_HOST = 'https://api.schema.io';
 const CACHE_TIMEOUT = 1000 * 60 * 15; // 15m
 const SWELL_CLIENT_HEADERS = [
   'swell-store-id',
+  'swell-environment-id',
+  'swell-app-id',
+  'swell-app-version',
+  'swell-theme-id',
+  'swell-theme-version',
+  'swell-theme-branch-id',
+  'swell-theme-config-version',
   'swell-public-key',
   'swell-admin-url',
   'swell-vault-url',
-  'swell-environment-id',
   'swell-deployment-mode',
   'swell-request-id',
-  'swell-theme-id',
-  'swell-theme-branch-id',
-  'swell-theme-config-version',
 ];
 
 export class Swell {
@@ -319,6 +322,17 @@ export class Swell {
 
   clearCache() {
     Swell.cache.delete(this.instanceId);
+  }
+
+  async getAppSettings(): Promise<SwellData> {
+    const settings = await this.get(
+      '/:storefronts/{id}/configs/settings/values',
+      {
+        id: this.swellHeaders['storefront-id'],
+      },
+    );
+
+    return settings || {};
   }
 
   async getStorefrontSettings(): Promise<SwellData> {
