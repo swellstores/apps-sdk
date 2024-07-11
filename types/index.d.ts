@@ -1,3 +1,26 @@
+type SwellAppConfig = {
+  id: string;
+  name: string;
+  type: 'storefront' | string;
+  version: string;
+  description?: string;
+  properties?: SwellAppStorefrontProps;
+};
+
+type SwellAppStorefrontThemeProps = {
+  type: 'theme';
+  pages: Array<{
+    id: string;
+    url: string;
+    label: string;
+    group?: string;
+    icon?: string;
+    templates?: boolean;
+    collection?: string;
+  }>;
+  shopify_compatibility?: boolean;
+};
+
 type SwellErrorOptions = {
   status?: number;
   method?: string;
@@ -94,28 +117,6 @@ type SwellMenuItem = {
   active?: boolean;
   child_current?: boolean;
   child_active?: boolean;
-};
-
-type SwellStorefrontConfig = {
-  editor?: boolean;
-  pages?: Array<{
-    id: string;
-    url: string;
-    label?: string;
-    group?: string;
-    icon?: string;
-    templates?: boolean;
-    expand_pages?: boolean;
-    collection?: string;
-    query?: SwellData;
-    ajax?: boolean;
-  }>;
-  forms?: Array<{
-    id: string;
-    url: string;
-    return_url?: string;
-    params?: string[];
-  }>;
 };
 
 type StorefrontResourceGetter = () => Promise<SwellData> | SwellData;

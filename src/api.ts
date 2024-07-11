@@ -28,6 +28,9 @@ export class Swell {
   public swellHeaders: SwellData;
   public queryParams: SwellData;
 
+  // Represents the swell.json app config
+  public config?: SwellAppConfig;
+
   // Represents the Swell Backend API
   public backend?: SwellBackendAPI;
 
@@ -55,6 +58,7 @@ export class Swell {
 
   constructor(params: {
     url: URL | string;
+    config?: SwellAppConfig;
     headers?: SwellData;
     swellHeaders?: SwellData;
     serverHeaders?: Headers | SwellData; // Required on the server
@@ -65,6 +69,7 @@ export class Swell {
   }) {
     const {
       url,
+      config,
       headers,
       swellHeaders,
       serverHeaders,
@@ -73,6 +78,9 @@ export class Swell {
     } = params;
 
     this.url = url instanceof URL ? url : new URL(url || '');
+
+    this.config = config;
+
     this.queryParams = Swell.formatQueryParams(
       queryParams || this.url.searchParams,
     );

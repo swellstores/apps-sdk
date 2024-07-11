@@ -23,6 +23,7 @@ import { shopifyFontToThemeFront } from './shopify-fonts';
  * This class is meant to be extended by a storefront app to provide compatibility with Shopify's Liquid
  */
 export class ShopifyCompatibility {
+  public theme: SwellTheme;
   public swell: Swell;
   public pageId?: string;
   public pageResourceMap: ShopifyPageResourceMap;
@@ -31,8 +32,9 @@ export class ShopifyCompatibility {
   public queryParamsMap: ShopifyQueryParamsMap;
   public editorLocaleConfig: { [key: string]: any } | undefined;
 
-  constructor(swell: Swell) {
-    this.swell = swell;
+  constructor(theme: SwellTheme) {
+    this.theme = theme;
+    this.swell = theme.swell;
     this.pageResourceMap = this.getPageResourceMap();
     this.objectResourceMap = this.getObjectResourceMap();
     this.formResourceMap = this.getFormResourceMap();

@@ -24,14 +24,14 @@ import {
 
 export class SwellTheme {
   public swell: Swell;
+  public props: SwellAppStorefrontThemeProps;
+  public globals: ThemeGlobals;
   public forms?: ThemeFormConfig[];
   public resources?: ThemeResources;
-  public storefrontConfig?: SwellStorefrontConfig;
   public liquidSwell: LiquidSwell;
 
   public page: any;
   public pageId: string | undefined;
-  public globals: ThemeGlobals | undefined;
   public shopifyCompatibility: ShopifyCompatibility | null = null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
     ShopifyCompatibility;
@@ -44,18 +44,17 @@ export class SwellTheme {
     options: {
       forms?: ThemeFormConfig[];
       resources?: ThemeResources;
-      storefrontConfig?: SwellStorefrontConfig;
+      globals?: ThemeGlobals;
       shopifyCompatibilityClass?: typeof ShopifyCompatibility;
     } = {},
   ) {
-    const { forms, resources, storefrontConfig, shopifyCompatibilityClass } =
-      options;
+    const { forms, resources, globals, shopifyCompatibilityClass } = options;
 
     this.swell = swell;
-
+    this.props = this.getSwellAppThemeProps(swell.config);
+    this.globals = globals || ({} as ThemeGlobals);
     this.forms = forms;
     this.resources = resources;
-    this.storefrontConfig = storefrontConfig;
     this.shopifyCompatibilityClass =
       shopifyCompatibilityClass || ShopifyCompatibility;
 
@@ -74,6 +73,13 @@ export class SwellTheme {
     });
   }
 
+  getSwellAppThemeProps(
+    swellConfig?: SwellAppConfig,
+  ): SwellAppStorefrontThemeProps {
+    const props = swellConfig?.properties;
+    return props?.type === 'theme' ? props : {};
+  }
+
   async initGlobals(pageId: string) {
     this.pageId = pageId;
 
@@ -85,7 +91,7 @@ export class SwellTheme {
 
     this.page = page;
 
-    this.setGlobals({
+    const globals = {
       ...this.globalData,
       store,
       settings,
@@ -98,12 +104,17 @@ export class SwellTheme {
       customer,
       geo,
       configs,
-      storefrontConfig: this.storefrontConfig,
       translations: configs?.translations,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
       // Flag to enable Shopify compatibility in sections and tags/filters
       shopify_compatibility: Boolean(settings.shopify_compatibility),
-    });
+    };
+
+    if (this.shopifyCompatibility) {
+      this.shopifyCompatibility.adaptGlobals(globals as ThemeGlobals);
+    }
+
+    this.setGlobals(globals);
 
     if (this.shopifyCompatibility) {
       this.shopifyCompatibility.adaptQueryParams();
@@ -111,11 +122,6 @@ export class SwellTheme {
   }
 
   setGlobals(globals: SwellData) {
-    // Note: All globals are set manually on the client side in the editor
-    if (this.shopifyCompatibility && !this.globals) {
-      this.shopifyCompatibility.adaptGlobals(globals as ThemeGlobals);
-    }
-
     (this.globals as any) = {
       ...this.globals,
       ...globals,
@@ -244,9 +250,7 @@ export class SwellTheme {
     };
 
     const page = {
-      ...this.storefrontConfig?.pages?.find(
-        (page: ThemeSettings) => page.id === pageId,
-      ),
+      ...this.props.pages?.find((page: ThemeSettings) => page.id === pageId),
       current: this.swell.queryParams.page || 1,
       url: this.swell.url.pathname,
     };
@@ -438,7 +442,7 @@ export class SwellTheme {
             const translationParts = translationKey.split('.');
             const translationEnd = translationParts.pop();
             const translationPath = translationParts.join('.');
-            const translationConfigGlobal = this.globals?.translations;
+            const translationConfigGlobal = this.globals.translations;
 
             acc[key] =
               get(
@@ -468,9 +472,7 @@ export class SwellTheme {
   async setCompatibilityConfigs(configs: ThemeConfigs, localeCode: string) {
     const shopifyCompatibility = () => {
       if (!this.shopifyCompatibility) {
-        this.shopifyCompatibility = new this.shopifyCompatibilityClass(
-          this.swell,
-        );
+        this.shopifyCompatibility = new this.shopifyCompatibilityClass(this);
       }
       return this.shopifyCompatibility;
     };
@@ -566,7 +568,7 @@ export class SwellTheme {
       return null;
     }
 
-    const allMenus = this.globals?.menus || {};
+    const allMenus = this.globals.menus || {};
     const menu = allMenus[value] || allMenus[value.replace(/-/g, '_')];
 
     return menu || null;
@@ -828,7 +830,7 @@ export class SwellTheme {
           return this.shopifyCompatibility.renderSchemaTranslations(
             this,
             result,
-            this.globals?.request?.locale,
+            this.globals.request?.locale,
           );
         }
       }
@@ -960,7 +962,7 @@ export class SwellTheme {
 
       pageConfig.page = this.resolveTranslationLocale(
         pageConfig.page as ThemeSettings,
-        this.globals?.request?.locale,
+        this.globals.request?.locale,
       );
     }
 
@@ -1071,8 +1073,8 @@ export class SwellTheme {
   }
 
   renderFontHeaderLinks() {
-    const themeSettings = this.globals?.settings;
-    const editorSettings = this.globals?.configs?.editor?.settings || [];
+    const themeSettings = this.globals.settings;
+    const editorSettings = this.globals.configs?.editor?.settings || [];
 
     if (themeSettings && editorSettings) {
       const fontSettings = findThemeSettingsByType(
@@ -1126,7 +1128,7 @@ export class SwellTheme {
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             schema,
-            this.globals?.request?.locale,
+            this.globals.request?.locale,
           );
         }
       }
@@ -1308,8 +1310,8 @@ export class SwellTheme {
     data?: any,
     fallback?: string,
   ): Promise<string> {
-    const langObject = this.globals?.translations;
-    const localeCode = this.globals?.request?.locale;
+    const langObject = this.globals.translations;
+    const localeCode = this.globals.request?.locale;
 
     return this.renderTranslationValue(
       localeCode,

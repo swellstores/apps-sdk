@@ -138,7 +138,7 @@ export default function bind(liquidSwell: LiquidSwell) {
           : [];
 
       const returnTo =
-        hash.return_to || liquidSwell.theme.globals?.request?.path;
+        hash.return_to || liquidSwell.theme.globals.request?.path;
 
       return `
         <form action="${
