@@ -6,25 +6,35 @@ export default function ShopifyFilter(
   instance: ShopifyCompatibility,
   filter: SwellRecord,
 ) {
-  const rangeOptionMin = filter.type === 'range' ? filter.options[0] : null;
+  const isRange = filter.type === 'range';
+  const isBoolean = false; // TODO: support boolean filters
 
-  const rangeOptionMax =
-    filter.type === 'range' ? filter.options[filter.options.length - 1] : null;
+  const rangeOptionMin = isRange ? filter.options[0] : null;
+
+  const rangeOptionMax = isRange
+    ? filter.options[filter.options.length - 1]
+    : null;
 
   return new ShopifyResource({
-    active_values: filter.active_options?.map((option: SwellData) =>
-      ShopifyFilterValue(instance, option, filter),
-    ),
-    false_value: ShopifyFilterValue(instance, { value: '' }, filter),
-    inactive_values: filter.inactive_options?.map((option: SwellData) =>
-      ShopifyFilterValue(instance, option, filter),
-    ),
+    active_values:
+      !isRange &&
+      filter.active_options?.map((option: SwellData) =>
+        ShopifyFilterValue(instance, option, filter),
+      ),
+    false_value: isBoolean
+      ? ShopifyFilterValue(instance, { value: '' }, filter)
+      : undefined,
+    inactive_values:
+      !isRange &&
+      filter.inactive_options?.map((option: SwellData) =>
+        ShopifyFilterValue(instance, option, filter),
+      ),
     label: filter.label,
     max_value:
       rangeOptionMax &&
       filter.active_options?.includes(rangeOptionMax) &&
       ShopifyFilterValue(instance, rangeOptionMax, filter, 'lte'),
-    rangeOptionMin:
+    min_value:
       rangeOptionMin &&
       filter.active_options?.includes(rangeOptionMin) &&
       ShopifyFilterValue(instance, rangeOptionMin, filter, 'gte'),
@@ -32,7 +42,9 @@ export default function ShopifyFilter(
     param_name: filter.param_name,
     presentation: 'text', // TODO: image, swatch
     range_max: rangeOptionMax?.value || null,
-    true_value: ShopifyFilterValue(instance, { value: true }, filter),
+    true_value: isBoolean
+      ? ShopifyFilterValue(instance, { value: true }, filter)
+      : undefined,
     type: filter.id === 'price' ? 'price_range' : 'list', // TODO: boolean support
     url_to_remove: removeFilterFromUrl(instance, `filter_${filter.id}`, true),
     values:
