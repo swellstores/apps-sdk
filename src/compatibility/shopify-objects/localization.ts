@@ -18,8 +18,9 @@ export default function ShopifyLocalization(
   return new ShopifyResource({
     available_countries: getAvailableCountries(store),
     available_languages: getAvailableLanguages(store),
-    country: getShopifyCountryFromCurrency(requestCurrency, store),
-    language: getShopifyLocaleFromLocale(requestLocale, store),
+    country:
+      requestCurrency && getShopifyCountryFromCurrency(requestCurrency, store),
+    language: requestLocale && getShopifyLocaleFromLocale(requestLocale, store),
     market: null, // N/A
   });
 }
