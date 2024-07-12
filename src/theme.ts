@@ -636,11 +636,12 @@ export class SwellTheme {
 
   async getAllThemeConfigs(): Promise<SwellCollection> {
     const themeId = this.swell.swellHeaders['theme-id'];
+    const requestId = this.swell.swellHeaders['request-id'];
     const configVersion = this.swell.swellHeaders['theme-config-version'];
 
     return this.swell.getCached(
       'theme-configs-all',
-      [themeId, configVersion || Date.now()], // Use timestamp as a fallback if version is undefined
+      [themeId, configVersion || requestId], // Use request id as a fallback if version is undefined
       async () => {
         console.log(
           `Retrieving theme configurations - version: ${configVersion}`,
