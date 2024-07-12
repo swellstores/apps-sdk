@@ -640,7 +640,7 @@ export class SwellTheme {
 
     return this.swell.getCached(
       'theme-configs-all',
-      [themeId, configVersion],
+      [themeId, configVersion || Date.now()], // Use timestamp as a fallback if version is undefined
       async () => {
         console.log(
           `Retrieving theme configurations - version: ${configVersion}`,
