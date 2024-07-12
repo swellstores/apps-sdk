@@ -253,8 +253,8 @@ export function getMenuItemStorefrontUrl(
 ): string {
   // TODO: replace substitution logic with pathToRegexp
 
-  const { config } = theme;
-  let url = config?.pages?.find((page) => page.id === pageId)?.url;
+  const { props } = theme;
+  let url = props?.pages?.find((page) => page.id === pageId)?.url;
 
   if (url?.includes(':collection') && collectionSlug) {
     url = url.replace(':collection', collectionSlug);
@@ -273,9 +273,9 @@ export async function deferMenuItemUrlAndResource(
   id: string,
   collectionSlugOrHandler?: string | Function,
 ): Promise<{ url: string; resource?: any }> {
-  const { config } = theme;
+  const { props } = theme;
 
-  const collection = config?.pages?.find(
+  const collection = props?.pages?.find(
     (page) => page.id === pageId,
   )?.collection;
 
