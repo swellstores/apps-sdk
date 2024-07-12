@@ -644,7 +644,7 @@ export class SwellTheme {
       [themeId, configVersion || requestId], // Use request id as a fallback if version is undefined
       async () => {
         console.log(
-          `Retrieving theme configurations - version: ${configVersion}`,
+          `Retrieving theme configurations - version: ${configVersion} - request: ${requestId}`,
         );
 
         const configs = await this.swell.get('/:themes:configs', {
