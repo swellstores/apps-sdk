@@ -366,6 +366,7 @@ export function getEasyblocksPagePropsWithConfigs(
                   const blockDef = section.blocks?.find(
                     ({ type }) => type === block.type,
                   );
+
                   return blockDef
                     ? [
                         ...acc,
@@ -454,25 +455,30 @@ export function getEasyblocksPagePropsWithConfigs(
                 : acc,
             {},
           ),
-          ...(settings?.section.blocks
+          ...(section?.blocks
             ? {
-                Blocks: settings.section.blocks.map((block: any) => ({
-                  _id: `Block__${section.type}__${block.type}_${Math.random()}`,
-                  _component: `Block__${section.type}__${block.type}`,
-                  ...reduce(
-                    block.settings,
-                    (acc, value, key) => ({
-                      ...acc,
-                      [key]: schemaToEasyblocksValue(
-                        schema?.blocks?.find(({ type }) => type === block.type)
-                          ?.fields,
-                        key,
-                        value,
-                      ),
-                    }),
-                    {},
-                  ),
-                })),
+                Blocks: Object.keys(section.blocks).map((key: any) => {
+                  if (!section.blocks) return;
+                  const block = section.blocks[key];
+                  return {
+                    _id: `Block__${key}__${block.type}_${Math.random()}`,
+                    _component: `Block__${section.type}__${block.type}`,
+                    ...reduce(
+                      block.settings,
+                      (acc, value, key) => ({
+                        ...acc,
+                        [key]: schemaToEasyblocksValue(
+                          schema?.blocks?.find(
+                            ({ type }) => type === block.type,
+                          )?.fields,
+                          key,
+                          value,
+                        ),
+                      }),
+                      {},
+                    ),
+                  };
+                }),
               }
             : {}),
         })),
@@ -680,7 +686,7 @@ export function getEasyblocksBackend() {
     },
     templates: {
       get: async (payload) => {
-        console.log('Easyblocks backend templates.get()', payload)
+        console.log('Easyblocks backend templates.get()', payload);
         return {} as UserDefinedTemplate;
       },
       getAll: async () => {
