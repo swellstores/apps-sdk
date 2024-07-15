@@ -430,15 +430,12 @@ export async function resolveAsyncResources(
 }
 
 export function stringifyQueryParams(queryParams: SwellData) {
-  return (
-    qs
-      .stringify({
-        ...queryParams,
-        sections: undefined,
-        section_id: undefined,
-      })
-      // Use actual brackets
-      .replace(/%5B/g, '[')
-      .replace(/%5D/g, ']')
+  return qs.stringify(
+    {
+      ...queryParams,
+      sections: undefined,
+      section_id: undefined,
+    },
+    { encodeValuesOnly: true, arrayFormat: 'repeat' },
   );
 }

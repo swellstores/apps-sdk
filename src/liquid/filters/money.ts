@@ -4,6 +4,6 @@ import { LiquidSwell } from "..";
 
 export default function bind(liquidSwell: LiquidSwell) {
   return (value: number) => {
-    return liquidSwell.renderCurrency(value);
+    return liquidSwell.renderCurrency(Number(value || 0));
   };
 }
