@@ -8,15 +8,18 @@ const DEFAULT_API_HOST = 'https://api.schema.io';
 const CACHE_TIMEOUT = 1000 * 60 * 15; // 15m
 const SWELL_CLIENT_HEADERS = [
   'swell-store-id',
+  'swell-environment-id',
+  'swell-app-id',
+  'swell-app-version',
+  'swell-theme-id',
+  'swell-theme-version',
+  'swell-theme-branch-id',
+  'swell-theme-config-version',
   'swell-public-key',
   'swell-admin-url',
   'swell-vault-url',
-  'swell-environment-id',
   'swell-deployment-mode',
   'swell-request-id',
-  'swell-theme-id',
-  'swell-theme-branch-id',
-  'swell-theme-config-version',
 ];
 
 export class Swell {
@@ -24,18 +27,38 @@ export class Swell {
   public headers: SwellData;
   public swellHeaders: SwellData;
   public queryParams: SwellData;
+
+  // Represents the swell.json app config
+  public config?: SwellAppConfig;
+
+  // Represents the Swell Backend API
   public backend?: SwellBackendAPI;
+
+  // Represends the Swell Storefront API
   public storefront: typeof SwellJS;
+
+  // A unique identifier for the current storefront app + environment being served
+  // Used to isolate cache between different storefronts
   public instanceId: string = '';
+
+  // Indicates the storefront is in a preview mode
   public isPreview: boolean = false;
+
+  // Indicates the storefront is being used in an editor UI
   public isEditor: boolean = false;
+
+  // Indicates the storefront is in a development mode (preview and/or editor)
   public isDevelopment: boolean = false;
+
+  // Indicates the server response was sent to avoid mutating cookies
   public sentResponse: boolean = false;
 
+  // Local cache for Swell storefront data
   static cache: Map<string, any> = new Map();
 
   constructor(params: {
     url: URL | string;
+    config?: SwellAppConfig;
     headers?: SwellData;
     swellHeaders?: SwellData;
     serverHeaders?: Headers | SwellData; // Required on the server
@@ -46,6 +69,7 @@ export class Swell {
   }) {
     const {
       url,
+      config,
       headers,
       swellHeaders,
       serverHeaders,
@@ -54,6 +78,9 @@ export class Swell {
     } = params;
 
     this.url = url instanceof URL ? url : new URL(url || '');
+
+    this.config = config;
+
     this.queryParams = Swell.formatQueryParams(
       queryParams || this.url.searchParams,
     );
@@ -305,49 +332,57 @@ export class Swell {
     Swell.cache.delete(this.instanceId);
   }
 
-  async getStorefrontSettings(): Promise<SwellRecord> {
-    return await this.getCached('storefront-settings', async () => {
-      // Load all settings including menus, payments, etc
-      try {
-        // Note: Logic pulled from swell.js because we need to pass storefront_id explicitly
-        const { settings, menus, payments, subscriptions, session } =
-          await this.storefront.request(
-            'get',
-            `/settings/all?storefront_id=${this.swellHeaders['storefront-id']}`,
-          );
+  async getAppSettings(): Promise<SwellData> {
+    const settings = await this.get(
+      '/:storefronts/{id}/configs/settings/values',
+      {
+        id: this.swellHeaders['storefront-id'],
+      },
+    );
 
-        this.storefront.settings.localizedState = {};
+    return settings || {};
+  }
 
-        this.storefront.settings.set({
-          value: settings,
-        });
+  async getStorefrontSettings(): Promise<SwellData> {
+    // Load all settings including menus, payments, etc
+    try {
+      // Note: Logic pulled from swell.js because we need to pass storefront_id explicitly
+      const { settings, menus, payments, subscriptions, session } =
+        await this.storefront.request(
+          'get',
+          `/settings/all?storefront_id=${this.swellHeaders['storefront-id']}`,
+        );
 
-        this.storefront.settings.set({
-          model: 'menus',
-          value: menus,
-        });
+      this.storefront.settings.localizedState = {};
 
-        this.storefront.settings.set({
-          model: 'payments',
-          value: payments,
-        });
+      this.storefront.settings.set({
+        value: settings,
+      });
 
-        this.storefront.settings.set({
-          model: 'subscriptions',
-          value: subscriptions,
-        });
+      this.storefront.settings.set({
+        model: 'menus',
+        value: menus,
+      });
 
-        this.storefront.settings.set({
-          model: 'session',
-          value: session,
-        });
-      } catch (err) {
-        console.error(`Swell: unable to load settings (${err})`);
-      }
+      this.storefront.settings.set({
+        model: 'payments',
+        value: payments,
+      });
 
-      const settings = await this.storefront.settings.get();
-      return settings;
-    });
+      this.storefront.settings.set({
+        model: 'subscriptions',
+        value: subscriptions,
+      });
+
+      this.storefront.settings.set({
+        model: 'session',
+        value: session,
+      });
+    } catch (err) {
+      console.error(`Swell: unable to load settings (${err})`);
+    }
+
+    return this.storefront.settings.get();
   }
 
   getStorefrontMenus(): SwellMenu[] {

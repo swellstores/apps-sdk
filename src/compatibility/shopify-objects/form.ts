@@ -3,7 +3,7 @@ import { ThemeForm } from '../../liquid/form';
 import { ShopifyResource } from './resource';
 
 const SHOPIFY_FORMS = {
-  customer_login: {
+  account_login: {
     params: () => ({
       password_needed: true,
     }),
@@ -23,6 +23,7 @@ export default function ShopifyForm(
   return new ShopifyResource({
     ...(shopifyForm?.params?.(form) || undefined),
     errors: form.errors && new ShopifyFormErrors(form.errors),
+    'posted_successfully?': form.success,
   });
 }
 

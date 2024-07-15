@@ -62,7 +62,7 @@ export default function ShopifyVariant(
       return ShopifyProduct(instance, product, depth + 1);
     }),
     quantity_price_breaks: null,
-    quantity_price_breaks_configured: deferWith(
+    'quantity_price_breaks_configured?': deferWith(
       variant,
       () => variant.prices?.length > 0,
     ),

@@ -17,7 +17,7 @@ import { QuotedToken } from 'liquidjs/dist/tokens';
 // {% form 'form_type', param %}
 // {% form 'form_type', return_to: 'url %}
 
-const IGNORED_SHOPIFY_FORMS = ['new_comment'];
+const IGNORED_SHOPIFY_FORMS = ['new_comment', 'guest_login'];
 
 export default function bind(liquidSwell: LiquidSwell) {
   return class FormTag extends Tag {
@@ -32,17 +32,14 @@ export default function bind(liquidSwell: LiquidSwell) {
       liquid: Liquid,
     ) {
       super(token, remainTokens, liquid);
+
       const { tokenizer } = token;
       const formType = (tokenizer.readValue() as QuotedToken)?.content;
 
-      this.formConfig = liquidSwell.globals.storefrontConfig?.forms?.find(
-        (form: any) => form.id === formType,
-      );
+      this.formConfig = liquidSwell.theme.getFormConfig(formType);
 
       if (!this.formConfig && !IGNORED_SHOPIFY_FORMS.includes(formType)) {
-        throw new Error(
-          `form '${formType}' not found in global 'storefrontConfig.forms'`,
-        );
+        throw new Error(`form '${formType}' not found in theme configuration.`);
       }
 
       tokenizer.advance();
@@ -122,14 +119,36 @@ export default function bind(liquidSwell: LiquidSwell) {
 
       const html = yield r.renderTemplates(this.templates, ctx);
 
+      // TODO: params and return_to
+      // return_to should be used by default by the server if the middleware doesn't explicitly redirect
+
+      const paramInputs =
+        this.formConfig.params instanceof Array
+          ? yield Promise.all(
+              this.formConfig.params.map(async (param: any) => {
+                const value = await liquidSwell.renderTemplateString(
+                  param.value,
+                  {
+                    value: arg,
+                  },
+                );
+                return `<input type="hidden" name="${param.name}" value="${value}" />`;
+              }),
+            )
+          : [];
+
+      const returnTo =
+        hash.return_to || liquidSwell.theme.globals.request?.path;
+
       return `
         <form action="${
           this.formConfig.url
         }" method="post" accept-charset="UTF-8" enctype="multipart/form-data"${attrs}>
           <input type="hidden" name="form_type" value="${this.formConfig.id}" />
+          ${paramInputs.join('')}
           ${
-            hash.return_to
-              ? `<input type="hidden" name="return_to" value="${hash.return_to}" />`
+            returnTo
+              ? `<input type="hidden" name="return_to" value="${returnTo}" />`
               : ''
           }
           ${compatibilityHtml}

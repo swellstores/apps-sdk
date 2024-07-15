@@ -5,6 +5,7 @@ import { SwellTheme } from '../theme';
 import { ThemeFont } from '../liquid/font';
 import { ThemeForm } from '../liquid/form';
 import ShopifyShop from './shopify-objects/shop';
+import ShopifyLocalization from './shopify-objects/localization';
 import {
   adaptShopifyMenuData,
   adaptShopifyFontData,
@@ -22,6 +23,7 @@ import { shopifyFontToThemeFront } from './shopify-fonts';
  * This class is meant to be extended by a storefront app to provide compatibility with Shopify's Liquid
  */
 export class ShopifyCompatibility {
+  public theme: SwellTheme;
   public swell: Swell;
   public pageId?: string;
   public pageResourceMap: ShopifyPageResourceMap;
@@ -30,8 +32,9 @@ export class ShopifyCompatibility {
   public queryParamsMap: ShopifyQueryParamsMap;
   public editorLocaleConfig: { [key: string]: any } | undefined;
 
-  constructor(swell: Swell) {
-    this.swell = swell;
+  constructor(theme: SwellTheme) {
+    this.theme = theme;
+    this.swell = theme.swell;
     this.pageResourceMap = this.getPageResourceMap();
     this.objectResourceMap = this.getObjectResourceMap();
     this.formResourceMap = this.getFormResourceMap();
@@ -39,7 +42,7 @@ export class ShopifyCompatibility {
   }
 
   adaptGlobals(globals: ThemeGlobals) {
-    const { store, page, menus } = globals;
+    const { store, request, page, menus } = globals;
 
     this.pageId = this.getPageType(page?.id);
 
@@ -51,16 +54,10 @@ export class ShopifyCompatibility {
      */
     globals.page = {
       ...(page || undefined),
-      id: this.pageId,
-      url: this.swell.url.pathname,
     };
 
     globals.request = {
-      host: this.swell.url.host,
-      origin: this.swell.url.origin,
-      path: this.swell.url.pathname,
-      query: this.swell.queryParams,
-      locale: store?.locale,
+      ...(request || undefined),
       design_mode: this.swell.isEditor,
       visual_section_preview: false, // TODO: Add support for visual section preview
       page_type: page?.id,
@@ -68,9 +65,11 @@ export class ShopifyCompatibility {
 
     globals.linklists = menus;
 
-    globals.current_page = 1; // TODO: pagination page
+    globals.current_page = this.swell.queryParams.page || 1;
 
     globals.routes = this.getPageRoutes();
+
+    globals.localization = this.getLocalizationObject(store, request);
 
     globals.all_country_option_tags = this.getAllCountryOptionTags(globals.geo);
   }
@@ -131,14 +130,19 @@ export class ShopifyCompatibility {
     this.swell.queryParams = adaptedParams;
   }
 
+  getAdaptedFormType(shopifyType: string) {
+    const formMap = this.formResourceMap.find(
+      (form) => form.shopifyType === shopifyType,
+    );
+    return formMap?.type;
+  }
+
   async getAdaptedFormClientParams(
     formType: string,
     scope: SwellData,
     arg?: any,
   ) {
-    const formMap = this.formResourceMap.find(
-      (form) => form.formType === formType,
-    );
+    const formMap = this.formResourceMap.find((form) => form.type === formType);
     if (formMap?.clientParams) {
       return await formMap.clientParams(scope, arg);
     }
@@ -149,38 +153,24 @@ export class ShopifyCompatibility {
     scope: SwellData,
     arg?: any,
   ) {
-    const formMap = this.formResourceMap.find(
-      (form) => form.formType === formType,
-    );
+    const formMap = this.formResourceMap.find((form) => form.type === formType);
     if (formMap?.clientHtml) {
       return await formMap.clientHtml(scope, arg);
     }
   }
 
-  async getAdaptedFormServerParams(
-    pageId: string,
-    formType: string | undefined,
-    context: SwellData,
-  ) {
+  async getAdaptedFormServerParams(formType: string, context: SwellData) {
     const formMap = this.formResourceMap.find(
-      (form) =>
-        (pageId && form.pageId === pageId) ||
-        (formType && form.formType === formType),
+      (form) => form.type === formType || form.shopifyType === formType,
     );
     if (formMap?.serverParams) {
       return formMap.serverParams(context);
     }
   }
 
-  async getAdaptedFormServerResponse(
-    pageId: string,
-    formType: string | undefined,
-    context: SwellData,
-  ) {
+  async getAdaptedFormServerResponse(formType: string, context: SwellData) {
     const formMap = this.formResourceMap.find(
-      (form) =>
-        (pageId && form.pageId === pageId) ||
-        (formType && form.formType === formType),
+      (form) => form.type === formType || form.shopifyType === formType,
     );
     if (formMap?.serverResponse) {
       return await formMap.serverResponse(context);
@@ -397,6 +387,10 @@ export class ShopifyCompatibility {
     };
   }
 
+  getLocalizationObject(store: SwellData, request: SwellData) {
+    return ShopifyLocalization(this, store, request);
+  }
+
   getAdaptedPageUrl(url: string) {
     let pageId;
     const urlParams: SwellData = {};
@@ -445,7 +439,7 @@ export class ShopifyCompatibility {
       case 'gift_card':
         if (segment2) {
           pageId = 'gift-card';
-          urlParams.id = segment2;
+          urlParams.code = segment2;
         }
         break;
     }
@@ -453,7 +447,8 @@ export class ShopifyCompatibility {
     if (pageId) {
       const pageUrl = this.getPageRouteUrl(pageId);
       if (pageUrl) {
-        return pageUrl.replace(/{(\w+)}/g, (_match, key) => urlParams[key]);
+        // TODO: replace with pathToRegexp
+        return pageUrl.replace(/:(\w+)/g, (_match, key) => urlParams[key]);
       }
     }
   }

@@ -1,4 +1,5 @@
 import get from "lodash/get";
+import { SwellTheme } from './theme';
 import { SwellStorefrontRecord, SwellStorefrontCollection } from './api';
 import { arrayToObject } from './utils';
 
@@ -250,15 +251,17 @@ export function getMenuItemStorefrontUrl(
   slug?: string,
   collectionSlug?: string,
 ): string {
-  const { storefrontConfig } = theme;
-  let url = storefrontConfig?.pages?.find((page) => page.id === pageId)?.url;
+  // TODO: replace substitution logic with pathToRegexp
 
-  if (url?.includes('{collection}') && collectionSlug) {
-    url = url.replace('{collection}', collectionSlug);
+  const { props } = theme;
+  let url = props?.pages?.find((page) => page.id === pageId)?.url;
+
+  if (url?.includes(':collection') && collectionSlug) {
+    url = url.replace(':collection', collectionSlug);
   }
 
-  if (url?.includes('{slug}')) {
-    url = url.replace('{slug}', slug || '');
+  if (url?.includes(':slug')) {
+    url = url.replace(':slug', slug || '');
   }
 
   return url || `/${slug || ''}`;
@@ -270,9 +273,9 @@ export async function deferMenuItemUrlAndResource(
   id: string,
   collectionSlugOrHandler?: string | Function,
 ): Promise<{ url: string; resource?: any }> {
-  const { storefrontConfig } = theme;
+  const { props } = theme;
 
-  const collection = storefrontConfig?.pages?.find(
+  const collection = props?.pages?.find(
     (page) => page.id === pageId,
   )?.collection;
 

@@ -53,7 +53,7 @@ export default function ShopifyBlog(
     ),
 
     // Not supported
-    comments_enabled: false,
+    'comments_enabled?': false,
     moderated: false,
   });
 }

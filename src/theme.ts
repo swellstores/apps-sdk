@@ -21,18 +21,17 @@ import {
   getLayoutSectionGroups,
   isObject,
 } from './utils';
-import { Theme } from 'node_modules/@easyblocks/core/dist/types/compiler/types';
 
 export class SwellTheme {
   public swell: Swell;
+  public props: SwellAppStorefrontThemeProps;
+  public globals: ThemeGlobals;
+  public forms?: ThemeFormConfig[];
   public resources?: ThemeResources;
-  public storefrontConfig?: SwellStorefrontConfig;
   public liquidSwell: LiquidSwell;
 
   public page: any;
   public pageId: string | undefined;
-  public globals: ThemeGlobals | undefined;
-  public request: ThemeSettings | null = null;
   public shopifyCompatibility: ShopifyCompatibility | null = null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
     ShopifyCompatibility;
@@ -43,17 +42,19 @@ export class SwellTheme {
   constructor(
     swell: Swell,
     options: {
+      forms?: ThemeFormConfig[];
       resources?: ThemeResources;
-      storefrontConfig?: SwellStorefrontConfig;
+      globals?: ThemeGlobals;
       shopifyCompatibilityClass?: typeof ShopifyCompatibility;
     } = {},
   ) {
-    const { resources, storefrontConfig, shopifyCompatibilityClass } = options;
+    const { forms, resources, globals, shopifyCompatibilityClass } = options;
 
     this.swell = swell;
-
+    this.props = this.getSwellAppThemeProps(swell.config);
+    this.globals = globals || ({} as ThemeGlobals);
+    this.forms = forms;
     this.resources = resources;
-    this.storefrontConfig = storefrontConfig;
     this.shopifyCompatibilityClass =
       shopifyCompatibilityClass || ShopifyCompatibility;
 
@@ -72,20 +73,30 @@ export class SwellTheme {
     });
   }
 
+  getSwellAppThemeProps(
+    swellConfig?: SwellAppConfig,
+  ): SwellAppStorefrontThemeProps {
+    const props = swellConfig?.properties;
+    return props?.type === 'theme' ? props : {};
+  }
+
   async initGlobals(pageId: string) {
     this.pageId = pageId;
 
-    const { store, menus, geo, configs, localeCode } =
+    const { store, session, menus, geo, configs } =
       await this.getSettingsAndConfigs();
-    const { settings, page, cart, account, customer } =
-      await this.resolvePageData(configs, pageId);
+
+    const { settings, request, page, cart, account, customer } =
+      await this.resolvePageData(store, configs, session, pageId);
 
     this.page = page;
 
-    this.setGlobals({
+    const globals = {
       ...this.globalData,
       store,
       settings,
+      session,
+      request,
       menus,
       page,
       cart,
@@ -93,13 +104,17 @@ export class SwellTheme {
       customer,
       geo,
       configs,
-      localeCode,
-      storefrontConfig: this.storefrontConfig,
       translations: configs?.translations,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
       // Flag to enable Shopify compatibility in sections and tags/filters
       shopify_compatibility: Boolean(settings.shopify_compatibility),
-    });
+    };
+
+    if (this.shopifyCompatibility) {
+      this.shopifyCompatibility.adaptGlobals(globals as ThemeGlobals);
+    }
+
+    this.setGlobals(globals);
 
     if (this.shopifyCompatibility) {
       this.shopifyCompatibility.adaptQueryParams();
@@ -107,30 +122,25 @@ export class SwellTheme {
   }
 
   setGlobals(globals: SwellData) {
-    // Note: All globals are set manually on the client side in the editor
-    if (this.shopifyCompatibility && !this.globals) {
-      this.shopifyCompatibility.adaptGlobals(globals);
-    }
-
-    this.globals = {
+    (this.globals as any) = {
       ...this.globals,
       ...globals,
     };
-    this.liquidSwell.globals = this.globals;
-    this.liquidSwell.engine.options.globals = this.globals;
+
+    this.liquidSwell.engine.options.globals = {
+      ...this.globals,
+    };
   }
 
   async getSettingsAndConfigs(): Promise<{
     store: SwellData;
+    session: SwellData;
     menus: { [key: string]: SwellMenu };
     geo: SwellRecord;
     configs: ThemeConfigs;
-    localeCode: string;
   }> {
     const [storefrontSettings, themeConfigs, geo] = await Promise.all([
-      this.swell.getCached('store-settings', async () => {
-        return await this.swell.getStorefrontSettings();
-      }),
+      this.swell.getStorefrontSettings(),
       this.getAllThemeConfigs(),
       this.getGeoSettings(),
     ]);
@@ -176,7 +186,9 @@ export class SwellTheme {
       ),
     };
 
-    const localeCode = storefrontSettings?.store?.locale || 'en-US';
+    const session = await this.swell.storefront.settings.session();
+
+    const localeCode = session.locale || storefrontSettings?.store?.locale;
 
     this.resolveTranslationLocale(configs.translations, localeCode);
 
@@ -193,40 +205,55 @@ export class SwellTheme {
 
     return {
       store: storefrontSettings?.store,
+      session,
       menus,
       geo,
       configs,
-      localeCode,
     };
   }
 
   async resolvePageData(
+    store: SwellData,
     configs: SwellData,
+    session?: SwellData,
     pageId?: string,
   ): Promise<{
     settings: ThemeSettings;
+    request: ThemeSettings;
     page: ThemeSettings;
     cart: SwellStorefrontSingleton | object;
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
-    const { settings, page } = this.swell.getCachedSync(
+    const settings = this.swell.getCachedSync(
       'theme-settings-resolved',
-      [this.swell.url.pathname, pageId],
+      [configs.theme],
       () => {
-        const settings = resolveThemeSettings(
+        return resolveThemeSettings(
           this,
           configs.theme,
           configs.editor?.settings,
         );
-        return {
-          settings,
-          page: this.storefrontConfig?.pages?.find(
-            (page: ThemeSettings) => page.id === pageId,
-          ),
-        };
       },
     );
+
+    const request = {
+      host: this.swell.url.host,
+      origin: this.swell.url.origin,
+      path: this.swell.url.pathname,
+      query: this.swell.queryParams,
+      locale: session?.locale || store.locale,
+      currency: session?.currency || store.currency,
+      is_editor: this.swell.isEditor,
+      is_preview: this.swell.isPreview,
+      is_development: this.swell.isDevelopment,
+    };
+
+    const page = {
+      ...this.props.pages?.find((page: ThemeSettings) => page.id === pageId),
+      current: this.swell.queryParams.page || 1,
+      url: this.swell.url.pathname,
+    };
 
     const [cart, account] = await Promise.all([
       this.fetchSingletonResourceCached('cart', () => this.fetchCart(), {}),
@@ -245,6 +272,7 @@ export class SwellTheme {
 
     return {
       settings,
+      request,
       page,
       cart,
       account,
@@ -304,11 +332,27 @@ export class SwellTheme {
     return account;
   }
 
+  getFormConfig(formType: string): ThemeFormConfig | undefined {
+    let formId = formType;
+
+    if (this.shopifyCompatibility) {
+      const shopifyType = this.shopifyCompatibility.getAdaptedFormType(
+        formType,
+      ) as string;
+      if (shopifyType) {
+        formId = shopifyType;
+      }
+    }
+
+    return this.forms?.find((form) => form.id === formId);
+  }
+
   setFormData(
     formId: string,
     options: {
       params?: any;
       success?: boolean;
+      withoutErrors?: boolean;
       errors?: ThemeFormErrorMessages;
     },
   ) {
@@ -322,8 +366,12 @@ export class SwellTheme {
         form.setSuccess(false);
         form.setErrors(options.errors);
       } else if (options?.success) {
-        form.setSuccess(true);
-        form.clearErrors();
+        if (options.withoutErrors && !form.errors) {
+          form.setSuccess(true);
+        } else if (!options.withoutErrors) {
+          form.setSuccess(true);
+          form.clearErrors();
+        }
       }
 
       if (this.shopifyCompatibility) {
@@ -336,13 +384,18 @@ export class SwellTheme {
     this.setGlobals({ forms: this.formData });
   }
 
+  setFormSuccessWithoutErrors(formId: string) {
+    this.setFormData(formId, { success: true, withoutErrors: true });
+  }
+
   serializeFormData(): SwellData | null {
     const serializedFormData: SwellData = {};
 
     for (const formId in this.formData) {
+      const form = this.formData[formId];
       serializedFormData[formId] = {
-        success: this.formData[formId].success,
-        errors: this.formData[formId].errors,
+        success: form.success,
+        errors: form.errors && Array.from(form.errors as any),
       };
     }
 
@@ -371,6 +424,9 @@ export class SwellTheme {
     if (!translationsConfig) {
       return {};
     }
+    if (!localeCode) {
+      return translationsConfig;
+    }
 
     const localeShortCode = localeCode.split('-')[0];
 
@@ -380,10 +436,32 @@ export class SwellTheme {
         if (isObject(value)) {
           acc[key] = this.resolveTranslationLocale(value, localeCode);
         } else {
-          acc[key] =
-            get(translationsConfig, `$locale.${localeCode}.${key}`) ||
-            get(translationsConfig, `$locale.${localeShortCode}.${key}`) ||
-            value;
+          if (typeof value === 'string' && value.startsWith('t:')) {
+            // Translate from global config
+            const translationKey = value.slice(2);
+            const translationParts = translationKey.split('.');
+            const translationEnd = translationParts.pop();
+            const translationPath = translationParts.join('.');
+            const translationConfigGlobal = this.globals.translations;
+
+            acc[key] =
+              get(
+                translationConfigGlobal,
+                `${translationPath}.$locale.${localeCode}.${translationEnd}`,
+              ) ||
+              get(
+                translationConfigGlobal,
+                `${translationPath}.$locale.${localeShortCode}.${translationEnd}`,
+              ) ||
+              get(translationConfigGlobal, translationKey) ||
+              value;
+          } else {
+            // Translate from local config
+            acc[key] =
+              get(translationsConfig, `$locale.${localeCode}.${key}`) ||
+              get(translationsConfig, `$locale.${localeShortCode}.${key}`) ||
+              value;
+          }
         }
         return acc;
       },
@@ -394,9 +472,7 @@ export class SwellTheme {
   async setCompatibilityConfigs(configs: ThemeConfigs, localeCode: string) {
     const shopifyCompatibility = () => {
       if (!this.shopifyCompatibility) {
-        this.shopifyCompatibility = new this.shopifyCompatibilityClass(
-          this.swell,
-        );
+        this.shopifyCompatibility = new this.shopifyCompatibilityClass(this);
       }
       return this.shopifyCompatibility;
     };
@@ -492,7 +568,7 @@ export class SwellTheme {
       return null;
     }
 
-    const allMenus = this.globals?.menus || {};
+    const allMenus = this.globals.menus || {};
     const menu = allMenus[value] || allMenus[value.replace(/-/g, '_')];
 
     return menu || null;
@@ -560,14 +636,15 @@ export class SwellTheme {
 
   async getAllThemeConfigs(): Promise<SwellCollection> {
     const themeId = this.swell.swellHeaders['theme-id'];
+    const requestId = this.swell.swellHeaders['request-id'];
     const configVersion = this.swell.swellHeaders['theme-config-version'];
 
     return this.swell.getCached(
       'theme-configs-all',
-      [themeId, configVersion],
+      [themeId, configVersion || requestId], // Use request id as a fallback if version is undefined
       async () => {
         console.log(
-          `Retrieving theme configurations - version: ${configVersion}`,
+          `Retrieving theme configurations - version: ${configVersion} - request: ${requestId}`,
         );
 
         const configs = await this.swell.get('/:themes:configs', {
@@ -703,7 +780,7 @@ export class SwellTheme {
     }
 
     try {
-      return await this.liquidSwell.engine.parseAndRender(template, data);
+      return await this.liquidSwell.parseAndRender(template, data);
     } catch (err: any) {
       console.error(err);
       return `<!-- template render error: ${err.message} -->`;
@@ -715,7 +792,7 @@ export class SwellTheme {
     data?: SwellData,
   ): Promise<string> {
     try {
-      return await this.liquidSwell.engine.parseAndRender(templateString, data);
+      return await this.liquidSwell.parseAndRender(templateString, data);
     } catch (err: any) {
       console.error(err);
       return ``;
@@ -754,7 +831,7 @@ export class SwellTheme {
           return this.shopifyCompatibility.renderSchemaTranslations(
             this,
             result,
-            this.globals?.localeCode,
+            this.globals.request?.locale,
           );
         }
       }
@@ -784,7 +861,7 @@ export class SwellTheme {
   async renderThemeTemplate(
     filePath: string,
     data?: SwellData,
-  ): Promise<string | ThemeSectionGroup> {
+  ): Promise<string | ThemePageTemplateConfig> {
     const config = await this.getThemeTemplateConfig(filePath);
     const content = await this.renderTemplate(config, {
       ...data,
@@ -830,7 +907,7 @@ export class SwellTheme {
     name: string,
     data?: SwellData,
     altTemplateId?: string,
-  ): Promise<string | ThemeSectionGroup> {
+  ): Promise<string | ThemePageTemplateConfig> {
     let templateConfig;
     if (altTemplateId) {
       templateConfig = await this.getThemeTemplateConfigByType(
@@ -862,21 +939,35 @@ export class SwellTheme {
   async renderPage(
     pageData?: SwellData,
     altTemplateId?: string,
-  ): Promise<string | ThemeSectionGroup> {
+  ): Promise<string | ThemePageTemplateConfig> {
     // Set page data as globals
     if (pageData) {
       this.setGlobals(pageData);
     }
 
+    let pageConfig;
     if (this.page?.id) {
-      return await this.renderPageTemplate(
+      pageConfig = await this.renderPageTemplate(
         this.page.id,
         pageData,
         altTemplateId,
       );
     } else {
-      return await this.renderPageTemplate('404', pageData);
+      pageConfig = await this.renderPageTemplate('404', pageData);
     }
+
+    if (typeof pageConfig !== 'string' && pageConfig?.page) {
+      if (pageConfig.page.published === false) {
+        throw new PageNotFound();
+      }
+
+      pageConfig.page = this.resolveTranslationLocale(
+        pageConfig.page as ThemeSettings,
+        this.globals.request?.locale,
+      );
+    }
+
+    return pageConfig;
   }
 
   async renderAllSections(
@@ -913,7 +1004,7 @@ export class SwellTheme {
   async renderSection(
     sectionId: string,
     pageData?: SwellData,
-  ): Promise<string | ThemeSectionGroup> {
+  ): Promise<string | ThemePageTemplateConfig> {
     // Set page data as globals
     if (pageData) {
       this.setGlobals(pageData);
@@ -983,8 +1074,8 @@ export class SwellTheme {
   }
 
   renderFontHeaderLinks() {
-    const themeSettings = this.globals?.settings;
-    const editorSettings = this.globals?.configs?.editor?.settings || [];
+    const themeSettings = this.globals.settings;
+    const editorSettings = this.globals.configs?.editor?.settings || [];
 
     if (themeSettings && editorSettings) {
       const fontSettings = findThemeSettingsByType(
@@ -1038,7 +1129,7 @@ export class SwellTheme {
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             schema,
-            this.globals?.localeCode,
+            this.globals.request?.locale,
           );
         }
       }
@@ -1220,8 +1311,8 @@ export class SwellTheme {
     data?: any,
     fallback?: string,
   ): Promise<string> {
-    const langObject = this.globals?.translations;
-    const localeCode = this.globals?.localeCode;
+    const langObject = this.globals.translations;
+    const localeCode = this.globals.request?.locale;
 
     return this.renderTranslationValue(
       localeCode,
@@ -1268,17 +1359,19 @@ export class SwellTheme {
   }
 
   renderCurrency(amount: number, params: any): string {
+    const swellSettings = this.swell.storefront.settings as any;
+    const swellCurrency = this.swell.storefront.currency as any;
+
     // FIXME: Total hack because on the client side the currency is getting set to `[object Promise]` for some reason
-    const settingState = this.swell.storefront.settings.state;
-    const code = (this.swell.storefront.currency.code =
-      settingState?.store?.currency || 'USD');
-    this.swell.storefront.currency.locale =
-      settingState?.store?.locale || 'en-US';
-    this.swell.storefront.currency.state = settingState?.store?.locales?.find(
+    const settingState = swellSettings.state;
+    const code = (swellCurrency.code = settingState?.store?.currency || 'USD');
+
+    swellCurrency.locale = settingState?.store?.locale || 'en-US';
+    swellCurrency.state = settingState?.store?.locales?.find(
       (locale: any) => locale.code === code,
     ) || { code };
 
-    return this.swell.storefront.currency.format(amount, params);
+    return swellCurrency.format(amount, params);
   }
 }
 

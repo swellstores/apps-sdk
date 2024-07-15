@@ -1,4 +1,5 @@
 import { LiquidSwell } from '..';
+import { ThemeFormErrors } from '../form';
 
 // {{ form.errors | default_errors }}
 
@@ -7,8 +8,6 @@ export default function bind(_liquidSwell: LiquidSwell) {
     const errorMessages = await Promise.all(
       Array.from(errors).map((error: any) => error?.message || 'Unkown error'),
     );
-
-    // console.log('default_errors', errors, errorMessages);
 
     if (errorMessages.length === 0) {
       return '';

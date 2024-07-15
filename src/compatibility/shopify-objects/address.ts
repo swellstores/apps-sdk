@@ -66,7 +66,7 @@ export function ShopifyCountry(
       iso_code: countryCode,
       market: null, // TODO
       name: countryCode, // TODO
-      popular: true, // TODO
+      'popular?': true, // TODO
       unit_system: 'metric', // TODO
     },
     'iso_code',

@@ -96,7 +96,7 @@ export default function ShopifyOrder(
     // cart_level_discount_applications
     // discount_applications
     // order_status_url
-    // pickup_in_store
+    // 'pickup_in_store?'
     // tax_lines
     // total_duties
     // transactions

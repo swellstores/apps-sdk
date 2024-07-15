@@ -18,7 +18,7 @@ export default function ShopifyCart(
     currency: deferWith(cart, (cart: any) => cart.currency),
     discount_applications: [], // TODO all promotions
     duties_included: defer(() => cart.item_tax_included),
-    empty: defer(() => !cart.items?.length),
+    'empty?': defer(() => !cart.items?.length),
     item_count: deferWith(cart, (cart: any) => countItemQuantity(cart.items)),
     items: deferWith(cart, (cart: any) =>
       cart.items?.map((item: any) => ShopifyLineItem(instance, item, cart)),

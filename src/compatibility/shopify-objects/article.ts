@@ -54,7 +54,7 @@ export default function ShopifyArticle(
     comment_post_url: null,
     comments: null,
     comments_count: null,
-    comments_enabled: false,
+    'comments_enabled?': false,
     moderated: false,
   });
 }
