@@ -392,6 +392,8 @@ export class ShopifyCompatibility {
   }
 
   getAdaptedPageUrl(url: string) {
+    if (!url) return;
+
     let pageId;
     const urlParams: SwellData = {};
 

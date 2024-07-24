@@ -33,9 +33,9 @@
     "watch": "node scripts/build.mjs watch"
   },
   "devDependencies": {
-    "@easyblocks/core": "file:../easyblocks/packages/core",
-    "@easyblocks/editor": "file:../easyblocks/packages/editor",
     "@kruining/waterlogged": "^1.1.45",
+    "@swell/easyblocks-core": "^1.0.10",
+    "@swell/easyblocks-editor": "^1.0.10",
     "@types/color": "^3.0.6",
     "@types/lodash": "^4.17.5",
     "@types/qs": "^6.9.15",

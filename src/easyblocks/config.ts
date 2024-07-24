@@ -1,6 +1,6 @@
 import reduce from 'lodash/reduce';
 import { SwellTheme } from '../theme';
-import { Backend, Document, UserDefinedTemplate } from '@easyblocks/core';
+import { Backend, Document, UserDefinedTemplate } from '@swell/easyblocks-core';
 import {
   getPageTemplate,
   getAllSections,
