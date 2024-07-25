@@ -29,7 +29,7 @@ export default function ShopifyFilter(
       ? ShopifyFilterValue(instance, { value: filter.range_max }, filter, 'lte')
       : undefined,
     min_value: isRange
-      ? ShopifyFilterValue(instance, { value: 0 }, filter, 'gte')
+      ? ShopifyFilterValue(instance, { value: filter.range_min }, filter, 'gte')
       : undefined,
     operator: isRange ? 'AND' : 'OR',
     param_name: filter.param_name,
