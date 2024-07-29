@@ -1,8 +1,8 @@
 {
-  "name": "@swell/storefrontjs",
+  "name": "@swell/storefront-sdk",
   "type": "module",
-  "version": "1.0.0",
-  "description": "Swell JavaScript SDK for building isomorphic storefront apps.",
+  "version": "1.0.1",
+  "description": "Swell Storefront SDK for building isomorphic storefront apps.",
   "author": "Swell",
   "license": "MIT",
   "engines": {
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/swellstores/swell-storefrontjs"
+    "url": "https://github.com/swellstores/swell-storefront-sdk"
   },
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
