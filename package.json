@@ -1,7 +1,7 @@
 {
   "name": "@swell/storefront-sdk",
   "type": "module",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Swell Storefront SDK for building isomorphic storefront apps.",
   "author": "Swell",
   "license": "MIT",
@@ -41,7 +41,6 @@
     "@types/qs": "^6.9.15",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
-    "color": "^4.2.3",
     "esbuild": "0.20.2",
     "flatted": "^3.3.1",
     "html-to-react": "^1.7.0",
@@ -50,9 +49,12 @@
     "qs": "^6.12.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "strftime": "^0.10.2",
-    "swell-js": "^4.0.3",
     "textdiff-patch": "^1.1.8",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "color": "^4.2.3",
+    "strftime": "^0.10.3",
+    "swell-js": "^4.2.0"
   }
 }
