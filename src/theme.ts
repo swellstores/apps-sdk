@@ -76,8 +76,7 @@ export class SwellTheme {
   getSwellAppThemeProps(
     swellConfig?: SwellAppConfig,
   ): SwellAppStorefrontThemeProps {
-    const props = swellConfig?.properties;
-    return props?.type === 'theme' ? props : {};
+    return swellConfig?.properties?.theme || {};
   }
 
   async initGlobals(pageId: string) {
