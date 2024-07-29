@@ -1,5 +1,5 @@
 import { ShopifyCompatibility } from '../shopify';
-import snakeCase from 'lodash/snakeCase';
+import { snakeCase } from 'lodash-es';
 import { ShopifyResource } from './resource';
 
 export default function ShopifyLink(

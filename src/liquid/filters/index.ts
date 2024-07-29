@@ -1,4 +1,4 @@
-import each from 'lodash/each';
+import { each } from 'lodash-es';
 import { LiquidSwell } from '..';
 
 import asset_url from './asset_url';

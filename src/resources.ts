@@ -1,7 +1,7 @@
 import { Swell } from './api';
 import { ShopifyCompatibility } from './compatibility/shopify';
 import { md5, resolveAsyncResources, stringifyQueryParams } from './utils';
-import cloneDeep from 'lodash/cloneDeep';
+import { cloneDeep } from 'lodash-es';
 
 export const MAX_QUERY_PAGE_LIMIT = 100;
 export const DEFAULT_QUERY_PAGE_LIMIT = 15;

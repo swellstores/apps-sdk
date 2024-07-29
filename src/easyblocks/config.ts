@@ -1,4 +1,4 @@
-import reduce from 'lodash/reduce';
+import { reduce } from 'lodash-es';
 import { SwellTheme } from '../theme';
 import { Backend, Document, UserDefinedTemplate } from '@swell/easyblocks-core';
 import {

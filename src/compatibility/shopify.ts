@@ -1,5 +1,5 @@
-import get from 'lodash/get';
-import isObject from 'lodash/isObject';
+import { get, isObject } from 'lodash-es';
+
 import { Swell, StorefrontResource } from '../api';
 import { SwellTheme } from '../theme';
 import { ThemeFont } from '../liquid/font';

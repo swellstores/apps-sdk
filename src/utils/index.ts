@@ -1,4 +1,4 @@
-import reduce from 'lodash/reduce';
+import { reduce } from 'lodash-es';
 import { StorefrontResource } from '../resources';
 import { ShopifyResource } from '../compatibility/shopify-objects/resource';
 import { LANG_TO_COUNTRY_CODES } from '../constants';

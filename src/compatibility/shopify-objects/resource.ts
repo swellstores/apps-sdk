@@ -1,4 +1,4 @@
-import cloneDeep from 'lodash/cloneDeep';
+import { cloneDeep } from 'lodash-es';
 import { ShopifyCompatibility } from '../shopify';
 
 export class ShopifyResource {
@@ -154,4 +154,4 @@ export function deferSwellCollectionWithShopifyResults(
       }) || []
     );
   });
-};
+}

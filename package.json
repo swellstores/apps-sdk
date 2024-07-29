@@ -1,7 +1,7 @@
 {
   "name": "@swell/storefront-sdk",
   "type": "module",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Swell Storefront SDK for building isomorphic storefront apps.",
   "author": "Swell",
   "license": "MIT",
@@ -34,26 +34,22 @@
   },
   "devDependencies": {
     "@kruining/waterlogged": "^1.1.45",
-    "@swell/easyblocks-core": "^1.0.10",
-    "@swell/easyblocks-editor": "^1.0.10",
     "@types/color": "^3.0.6",
-    "@types/lodash": "^4.17.5",
+    "@types/lodash-es": "^4.17.12",
     "@types/qs": "^6.9.15",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
     "esbuild": "0.20.2",
-    "flatted": "^3.3.1",
-    "html-to-react": "^1.7.0",
-    "liquidjs": "^10.10.1",
-    "lodash": "^4.17.21",
-    "qs": "^6.12.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "textdiff-patch": "^1.1.8",
     "typescript": "^5.3.3"
   },
   "dependencies": {
+    "@swell/easyblocks-core": "^1.0.10",
+    "@types/lodash": "^4.17.5",
     "color": "^4.2.3",
+    "liquidjs": "^10.16.1",
+    "lodash": "^4.17.21",
+    "lodash-es": "^4.17.21",
+    "qs": "^6.12.3",
     "strftime": "^0.10.3",
     "swell-js": "^4.2.0"
   }

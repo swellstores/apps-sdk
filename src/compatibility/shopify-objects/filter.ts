@@ -1,7 +1,8 @@
 import { ShopifyCompatibility } from '../shopify';
 import { ShopifyResource } from './resource';
 import { stringifyQueryParams } from '../../utils';
-import isObject from 'lodash/isObject';
+
+import { isObject } from 'lodash-es';
 
 export default function ShopifyFilter(
   instance: ShopifyCompatibility,
