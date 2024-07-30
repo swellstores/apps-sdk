@@ -1,4 +1,4 @@
-import { LiquidSwell } from "..";
+import { LiquidSwell } from '..';
 import { ThemeForm } from '../form';
 import {
   Liquid,
@@ -39,7 +39,8 @@ export default function bind(liquidSwell: LiquidSwell) {
       this.formConfig = liquidSwell.theme.getFormConfig(formType);
 
       if (!this.formConfig && !IGNORED_SHOPIFY_FORMS.includes(formType)) {
-        throw new Error(`form '${formType}' not found in theme configuration.`);
+        // throw new Error(`form '${formType}' not found in theme configuration.`);
+        console.error(`form '${formType}' not found in theme configuration.`);
       }
 
       tokenizer.advance();
@@ -59,7 +60,7 @@ export default function bind(liquidSwell: LiquidSwell) {
 
     *render(ctx: Context): any {
       if (!this.formConfig) {
-        return;
+        return '';
       }
 
       const r = this.liquid.renderer;
