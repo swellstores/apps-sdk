@@ -1,7 +1,7 @@
 {
   "name": "@swell/storefront-sdk",
   "type": "module",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Swell Storefront SDK for building isomorphic storefront apps.",
   "author": "Swell",
   "license": "MIT",
