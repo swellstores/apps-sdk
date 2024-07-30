@@ -259,7 +259,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
   public page?: number;
   public pages?: SwellCollectionPages;
   public page_count?: number;
-  public page_limit: number = DEFAULT_QUERY_PAGE_LIMIT;
+  public limit: number = DEFAULT_QUERY_PAGE_LIMIT;
 
   constructor(
     swell: Swell,
@@ -294,7 +294,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
       properQuery.limit = DEFAULT_QUERY_PAGE_LIMIT;
     }
 
-    this.page_limit = properQuery.limit;
+    this.limit = properQuery.limit;
 
     return properQuery;
   }
@@ -547,7 +547,7 @@ export class SwellStorefrontPagination {
   public count = 0;
   public page = 0;
   public page_count = 0;
-  public page_limit = 0;
+  public limit = 0;
   public pages: {
     [key: string]: { start: number; end: number; url: string };
   } = {};
@@ -568,7 +568,7 @@ export class SwellStorefrontPagination {
     this.count = _resource.count || 0;
     this.page = _resource.page || 0;
     this.page_count = _resource.page_count || 0;
-    this.page_limit = _resource.page_limit || 0;
+    this.limit = _resource.limit || 0;
 
     this.pages = {};
     if (_resource.pages) {

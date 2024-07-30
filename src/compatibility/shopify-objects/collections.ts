@@ -20,7 +20,7 @@ export default function ShopifyCollections(
         count: categories.count,
         results,
         page_count: categories.page_count,
-        page_limit: categories.page_limit,
+        limit: categories.limit,
         pages: categories.pages,
       };
     },

@@ -7,8 +7,7 @@ export default function ShopifyPaginate(
   instance: ShopifyCompatibility,
   pagination: SwellStorefrontPagination,
 ) {
-  const { page, count, pages, page_count, page_limit, next, previous } =
-    pagination;
+  const { page, count, pages, page_count, limit, next, previous } = pagination;
   const currentPage = pages[page] || {};
 
   return new ShopifyResource({
@@ -17,7 +16,7 @@ export default function ShopifyPaginate(
     items: count || 0,
     next: next ? getPartObject(page + 1, next?.url) : null,
     page_param: 'page',
-    page_size: page_limit,
+    page_size: limit,
     pages: page_count,
     parts: Object.keys(pages).map(([page]: any) =>
       getPartObject(

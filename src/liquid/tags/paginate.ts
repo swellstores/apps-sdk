@@ -73,7 +73,7 @@ export default function bind(liquidSwell: LiquidSwell) {
       if (
         !isNaN(pageSize) &&
         collection instanceof SwellStorefrontCollection &&
-        collection.page_limit != pageSize
+        collection.limit != pageSize
       ) {
         yield collection._get({
           limit: pageSize,

@@ -55,7 +55,7 @@ type SwellCollection = {
   count: number;
   results: SwellRecord[];
   page_count: number;
-  page_limit: number;
+  limit: number;
   pages: SwellCollectionPages;
 };
 
