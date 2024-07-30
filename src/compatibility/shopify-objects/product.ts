@@ -86,6 +86,7 @@ export default function ShopifyProduct(
               selected_value: null,
               values: option.values?.map((value: any) =>
                 ShopifyProductOption({
+                  available: true,
                   id: value.id,
                   name: value.name,
                   product_url: null,
@@ -105,6 +106,7 @@ export default function ShopifyProduct(
         selected_value: null,
         values: option.values?.map((value: any) =>
           ShopifyProductOption({
+            available: true,
             id: value.id,
             name: value.name,
             product_url: null,
