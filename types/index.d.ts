@@ -440,7 +440,7 @@ type GetThemeTemplateConfigByType = (
   name: string,
 ) => Promise<SwellThemeConfig | null | undefined>;
 
-type GetAssetUrl = (assetPath: string) => string | null;
+type GetAssetUrl = (assetPath: string) => Promise<string | null>;
 
 type RenderTemplate = (
   config: SwellThemeConfig | null,
@@ -505,3 +505,13 @@ type ThemeFormErrorMessage = {
 };
 
 type ThemeFormErrorMessages = Array<ThemeFormErrorMessage>;
+
+type CFWorkerKV = {
+  get: (key: string) => Promise<any>;
+  put: (key: string, value: any, options?: any) => Promise<void>;
+  delete: (key: string) => Promise<void>;
+};
+
+type CFThemeEnv = {
+  THEME?: CFWorkerKV;
+};

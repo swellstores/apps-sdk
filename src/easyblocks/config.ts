@@ -12,7 +12,7 @@ import {
 
 export async function getEasyblocksPropsFromThemeConfigs(
   theme: SwellTheme,
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
   pageId: string,
 ) {
   const pageTemplate = await getPageTemplate(theme, pageId);

@@ -313,7 +313,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
     };
 
     this._result = this._swell
-      .getCached(
+      .getCachedResource(
         'storefront-list',
         [this._collection, this._query, this._getterHash],
         async () => {
@@ -324,7 +324,6 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
           );
           return (this._getter as StorefrontResourceGetter).call(this);
         },
-        CACHE_TIMEOUT_RESOURCES,
       )
       .then((result: SwellCollection) => {
         this._result = result;
@@ -468,13 +467,12 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
     };
 
     this._result = this._swell
-      .getCached(
+      .getCachedResource(
         'storefront-record',
         [this._collection, this._id, this._query, this._getterHash],
         async () => {
           return (this._getter as StorefrontResourceGetter).call(this);
         },
-        CACHE_TIMEOUT_RESOURCES,
       )
       .then((result: SwellRecord) => {
         this._result = result;

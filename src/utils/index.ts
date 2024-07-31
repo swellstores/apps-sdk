@@ -22,18 +22,16 @@ export function themeConfigQuery(swellHeaders: { [key: string]: any }): {
 }
 
 export async function getAllSections(
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
   renderTemplateSchema: (config: any) => Promise<any>,
 ): Promise<ThemePageSectionSchema[]> {
-  if (!themeConfigs?.results) return [];
-
-  const sectionConfigs = themeConfigs.results.filter((config: SwellRecord) => {
+  const sectionConfigs = themeConfigs.filter((config: SwellRecord) => {
     if (!config.file_path?.startsWith('theme/sections/')) return false;
     const isLiquidFile = config.file_path.endsWith('.liquid');
     const isJsonFile = config.file_path.endsWith('.json');
 
     if (isLiquidFile) {
-      const hasJsonFile = themeConfigs.results.find(
+      const hasJsonFile = themeConfigs.find(
         (c: any) =>
           c.file_path === config.file_path.replace(/\.liquid$/, '.json'),
       );
@@ -98,17 +96,15 @@ export function resolveSectionPresets(schema: ThemeSectionSchema) {
 }
 
 export async function getLayoutSectionGroups(
-  allSections: SwellCollection,
+  allSections: SwellThemeConfig[],
   renderTemplateSchema: (config: any) => Promise<any>,
 ): Promise<ThemeLayoutSectionGroupConfig[]> {
-  if (!allSections?.results) return [];
-
-  const sectionGroupConfigs = allSections.results.filter(
+  const sectionGroupConfigs = allSections.filter(
     (config: SwellRecord) =>
       config.file_path?.startsWith('theme/sections/') &&
       config.file_path?.endsWith('.json') &&
       // Section groups must not have a liquid file
-      !allSections.results.find(
+      !allSections.find(
         (c: SwellRecord) =>
           c.file_path === config.file_path.replace(/\.json$/, '.liquid'),
       ),
@@ -117,7 +113,7 @@ export async function getLayoutSectionGroups(
   const getSectionSchema = async (
     type: string,
   ): Promise<ThemeSectionSchema | undefined> => {
-    const config = allSections.results.find((config: SwellRecord) => {
+    const config = allSections.find((config: SwellRecord) => {
       if (
         !config.file_path?.endsWith(`/${type}.json`) &&
         !config.file_path?.endsWith(`/${type}.liquid`)
@@ -129,7 +125,7 @@ export async function getLayoutSectionGroups(
       const isJsonFile = config.file_path.endsWith('.json');
 
       if (isLiquidFile) {
-        const hasJsonFile = allSections.results.find(
+        const hasJsonFile = allSections.find(
           (c: any) =>
             c.file_path === config.file_path.replace(/\.liquid$/, '.json'),
         );

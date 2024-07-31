@@ -21,6 +21,7 @@ const IGNORED_SHOPIFY_FORMS = ['new_comment', 'guest_login'];
 
 export default function bind(liquidSwell: LiquidSwell) {
   return class FormTag extends Tag {
+    private formType: string;
     private formConfig: any;
     private templates: Template[] = [];
     private hash: Hash;
@@ -34,13 +35,8 @@ export default function bind(liquidSwell: LiquidSwell) {
       super(token, remainTokens, liquid);
 
       const { tokenizer } = token;
-      const formType = (tokenizer.readValue() as QuotedToken)?.content;
-
-      this.formConfig = liquidSwell.theme.getFormConfig(formType);
-
-      if (!this.formConfig && !IGNORED_SHOPIFY_FORMS.includes(formType)) {
-        throw new Error(`form '${formType}' not found in theme configuration.`);
-      }
+      this.formType = (tokenizer.readValue() as QuotedToken)?.content;
+      this.formConfig = liquidSwell.theme.getFormConfig(this.formType);
 
       tokenizer.advance();
 
@@ -54,12 +50,16 @@ export default function bind(liquidSwell: LiquidSwell) {
         this.templates.push(liquid.parser.parseToken(token, remainTokens));
       }
 
+      if (!this.formConfig && !IGNORED_SHOPIFY_FORMS.includes(this.formType)) {
+        return;
+      }
+
       throw new Error(`tag ${token.getText()} not closed`);
     }
 
     *render(ctx: Context): any {
       if (!this.formConfig) {
-        return;
+        return `<!-- form '${this.formType}' not found in theme configuration -->`;
       }
 
       const r = this.liquid.renderer;

@@ -29,6 +29,7 @@ export class SwellTheme {
   public forms?: ThemeFormConfig[];
   public resources?: ThemeResources;
   public liquidSwell: LiquidSwell;
+  public themeConfigs: SwellThemeConfig[] | null = null;
 
   public page: any;
   public pageId: string | undefined;
@@ -145,7 +146,7 @@ export class SwellTheme {
     ]);
 
     const settingConfigs = await Promise.all(
-      (themeConfigs?.results || [])
+      themeConfigs
         .filter((config: SwellRecord) =>
           config?.file_path?.startsWith('theme/config/'),
         )
@@ -224,9 +225,11 @@ export class SwellTheme {
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
+    const configVersion = this.swell.swellHeaders['theme-config-version'];
+
     const settings = this.swell.getCachedSync(
       'theme-settings-resolved',
-      [configs.theme],
+      [configVersion],
       () => {
         return resolveThemeSettings(
           this,
@@ -633,17 +636,20 @@ export class SwellTheme {
     );
   }
 
-  async getAllThemeConfigs(): Promise<SwellCollection> {
+  async getAllThemeConfigs(): Promise<SwellThemeConfig[]> {
+    if (this.themeConfigs) {
+      return this.themeConfigs;
+    }
+
     const themeId = this.swell.swellHeaders['theme-id'];
-    const requestId = this.swell.swellHeaders['request-id'];
     const configVersion = this.swell.swellHeaders['theme-config-version'];
 
-    return this.swell.getCached(
+    const configs = await this.swell.getCached(
       'theme-configs-all',
-      [themeId, configVersion || requestId], // Use request id as a fallback if version is undefined
+      [themeId, configVersion],
       async () => {
         console.log(
-          `Retrieving theme configurations - version: ${configVersion} - request: ${requestId}`,
+          `Retrieving theme configurations - version: ${configVersion}`,
         );
 
         const configs = await this.swell.get('/:themes:configs', {
@@ -677,41 +683,18 @@ export class SwellTheme {
         return configs;
       },
     );
+
+    this.themeConfigs = configs.results as SwellThemeConfig[];
+
+    return this.themeConfigs;
   }
 
-  getAllThemeConfigsCachedSync(): SwellCollection {
-    const themeId = this.swell.swellHeaders['theme-id'];
-    const configVersion = this.swell.swellHeaders['theme-config-version'];
-
-    return this.swell.getCachedSync('theme-configs-all', [
-      themeId,
-      configVersion,
-    ]);
-  }
-
-  async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
-    if (!this.swell.swellHeaders['theme-id']) {
-      return null;
-    }
-
-    const allConfigs = await this.getAllThemeConfigs();
-    const config = allConfigs?.results?.find(
-      (config: any) => config.file_path === filePath,
-    );
-
-    if (config && config.file_data === undefined) {
-      config.file_data = await this.swell.getCached(
-        'theme-config-filedata',
-        [filePath, config.file?.md5],
-        async () => {
-          return await this.swell.get(
-            `/:themes:configs/${config.id}/file/data`,
-          );
-        },
-      );
-    }
-
-    return config as SwellThemeConfig;
+  async getThemeConfig(
+    filePath: string,
+  ): Promise<SwellThemeConfig | null> {
+    return (await this.getAllThemeConfigs()).find(
+        (config: SwellThemeConfig) => config.file_path === filePath,
+      ) || null;
   }
 
   async getThemeTemplateConfig(
@@ -752,16 +735,11 @@ export class SwellTheme {
     }
   }
 
-  getAssetUrl(filePath: string): string | null {
-    const configs = this.getAllThemeConfigsCachedSync();
-
+  async getAssetUrl(filePath: string): Promise<string | null> {
+    // Asset support both inside and outside theme folder
     const assetConfig =
-      configs?.results?.find(
-        (config: SwellRecord) =>
-          // Asset support both inside and outside theme folder
-          config.file_path === `theme/assets/${filePath}` ||
-          config.file_path === `assets/${filePath}`,
-      ) || null;
+      (await this.getThemeConfig(`theme/assets/${filePath}`)) ||
+      (await this.getThemeConfig(`assets/${filePath}`));
 
     return assetConfig?.file?.url || null;
   }

@@ -6,11 +6,9 @@ export async function getPageTemplate(theme: SwellTheme, pageId: string) {
 
 export async function getAllSections(
   theme: SwellTheme,
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
 ): Promise<ThemeSectionSchema[]> {
-  if (!themeConfigs?.results) return [];
-
-  const sectionConfigs = themeConfigs.results.filter((config) =>
+  const sectionConfigs = themeConfigs.filter((config) =>
     filterSectionConfig(config, themeConfigs),
   );
 
@@ -82,11 +80,9 @@ export async function getPageSections(
 
 export async function getLayoutSectionGroups(
   theme: SwellTheme,
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
 ): Promise<ThemeLayoutSectionGroupConfig[]> {
-  if (!themeConfigs?.results) return [];
-
-  const layoutSectionGroupConfigs = themeConfigs.results.filter((config) =>
+  const layoutSectionGroupConfigs = themeConfigs.filter((config) =>
     filterAllLayoutSectionGroupConfigs(config, themeConfigs),
   );
 
@@ -94,7 +90,7 @@ export async function getLayoutSectionGroups(
     theme: SwellTheme,
     type: string,
   ): Promise<ThemeSectionSchema | undefined> => {
-    const config = themeConfigs.results.find((config) =>
+    const config = themeConfigs.find((config) =>
       filterLayoutSectionGroupConfig(config, themeConfigs, type),
     );
 
@@ -187,7 +183,7 @@ export async function renderTemplateSchema(
 
 export function filterSectionConfig(
   config: SwellRecord,
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
 ) {
   if (!config.file_path?.startsWith('theme/sections/')) return false;
 
@@ -196,13 +192,13 @@ export function filterSectionConfig(
 
 export function filterAllLayoutSectionGroupConfigs(
   config: SwellRecord,
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
 ) {
   return (
     config.file_path?.startsWith('theme/sections/') &&
     config.file_path?.endsWith('.json') &&
     // Section groups must not have a liquid file
-    !themeConfigs.results.find(
+    !themeConfigs.find(
       (c: SwellRecord) =>
         c.file_path === config.file_path.replace(/\.json$/, '.liquid'),
     )
@@ -211,7 +207,7 @@ export function filterAllLayoutSectionGroupConfigs(
 
 export function filterLayoutSectionGroupConfig(
   config: SwellRecord,
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
   type: string,
 ) {
   if (
@@ -226,13 +222,13 @@ export function filterLayoutSectionGroupConfig(
 
 export function isJsonOrLiquidConfig(
   config: SwellRecord,
-  themeConfigs: SwellCollection,
+  themeConfigs: SwellThemeConfig[],
 ) {
   const isLiquidFile = config.file_path.endsWith('.liquid');
   const isJsonFile = config.file_path.endsWith('.json');
 
   if (isLiquidFile) {
-    const hasJsonFile = themeConfigs.results.find(
+    const hasJsonFile = themeConfigs.find(
       (c: any) =>
         c.file_path === config.file_path.replace(/\.liquid$/, '.json'),
     );

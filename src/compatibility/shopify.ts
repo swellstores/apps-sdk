@@ -229,7 +229,7 @@ export class ShopifyCompatibility {
   ) {
     const settingConfigs = await theme.getAllThemeConfigs();
 
-    const shopifyLocaleConfigs = settingConfigs?.results?.filter(
+    const shopifyLocaleConfigs = settingConfigs.filter(
       (config: SwellRecord) =>
         config?.file_path?.startsWith('theme/locales/') &&
         config?.file_path?.endsWith(suffix),
@@ -505,28 +505,23 @@ export class ShopifyCompatibility {
   }
 
   getAllCountryOptionTags(geoSettings: SwellRecord) {
-    return this.swell.getCachedSync(
-      'shopify-country-option-tags',
-      [geoSettings?.countries, geoSettings?.states],
-      () =>
-        geoSettings?.countries
-          ?.map((country: any) => {
-            if (!country) return;
+    return geoSettings?.countries
+      ?.map((country: any) => {
+        if (!country) return;
 
-            const provinces = [
-              ...(geoSettings?.states || [])
-                .filter((state: any) => state.country === country.id)
-                .map((state: any) => [state.id, state.name]),
-            ];
-            const provincesEncoded = JSON.stringify(provinces).replace(
-              /"/g,
-              '&quot;',
-            );
+        const provinces = [
+          ...(geoSettings?.states || [])
+            .filter((state: any) => state.country === country.id)
+            .map((state: any) => [state.id, state.name]),
+        ];
+        const provincesEncoded = JSON.stringify(provinces).replace(
+          /"/g,
+          '&quot;',
+        );
 
-            return `<option value="${country.id}" data-provinces="${provincesEncoded}">${country.name}</option>`;
-          })
-          .filter(Boolean)
-          .join('\n'),
-    );
+        return `<option value="${country.id}" data-provinces="${provincesEncoded}">${country.name}</option>`;
+      })
+      .filter(Boolean)
+      .join('\n');
   }
 }
