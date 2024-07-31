@@ -1,20 +1,20 @@
-import each from "lodash/each";
-import { LiquidSwell } from "..";
+import { each } from 'lodash-es';
+import { LiquidSwell } from '..';
 
-import { default as caseTag } from "./case";
-import { default as forTag } from "./for";
-import form from "./form";
-import javascript from "./javascript";
-import layout from "./layout";
-import paginate from "./paginate";
-import render from "./render";
-import section from "./section";
-import sections from "./sections";
-import style from "./style";
+import { default as caseTag } from './case';
+import { default as forTag } from './for';
+import form from './form';
+import javascript from './javascript';
+import layout from './layout';
+import paginate from './paginate';
+import render from './render';
+import section from './section';
+import sections from './sections';
+import style from './style';
 
 // Shopify compatibility only
-import include from "./shopify/include";
-import schema from "./shopify/schema";
+import include from './shopify/include';
+import schema from './shopify/schema';
 
 export const tags = {
   case: caseTag,

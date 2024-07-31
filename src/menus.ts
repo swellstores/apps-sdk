@@ -1,4 +1,4 @@
-import get from "lodash/get";
+import { get } from 'lodash-es';
 import { SwellTheme } from './theme';
 import { SwellStorefrontRecord, SwellStorefrontCollection } from './api';
 import { arrayToObject } from './utils';

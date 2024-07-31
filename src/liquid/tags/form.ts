@@ -1,4 +1,4 @@
-import { LiquidSwell } from "..";
+import { LiquidSwell } from '..';
 import { ThemeForm } from '../form';
 import {
   Liquid,

@@ -1,4 +1,4 @@
-import reduce from 'lodash/reduce';
+import { reduce } from 'lodash-es';
 import { SwellTheme } from '../theme';
 import { Backend, Document, UserDefinedTemplate } from '@swell/easyblocks-core';
 import {
@@ -253,6 +253,21 @@ export function getEasyblocksPagePropsWithConfigs(
         },
         ...getLayoutSectionGroupComponentProps(),
         ...getEditorSchemaComponentProps(),
+      ],
+      // Collapse all global page settings
+      groups: [
+        ...(themeGlobals?.configs?.editor?.settings?.reduce(
+          (acc: any, settingGroup: any) => {
+            acc.push({
+              key: settingGroup.label,
+              label: settingGroup.label,
+              collapsable: true,
+              collapsed: true,
+            });
+            return acc;
+          },
+          [],
+        ) || []),
       ],
       allowSave: true,
       styles: () => {

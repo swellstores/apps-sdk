@@ -1,7 +1,5 @@
-import get from 'lodash/get';
-import each from 'lodash/each';
-import reduce from 'lodash/reduce';
-import cloneDeep from 'lodash/cloneDeep';
+import { get, each, reduce, cloneDeep } from 'lodash-es';
+
 import {
   Swell,
   StorefrontResource,
