@@ -254,6 +254,21 @@ export function getEasyblocksPagePropsWithConfigs(
         ...getLayoutSectionGroupComponentProps(),
         ...getEditorSchemaComponentProps(),
       ],
+      // Collapse all global page settings
+      groups: [
+        ...(themeGlobals?.configs?.editor?.settings?.reduce(
+          (acc: any, settingGroup: any) => {
+            acc.push({
+              key: settingGroup.label,
+              label: settingGroup.label,
+              collapsable: true,
+              collapsed: true,
+            });
+            return acc;
+          },
+          [],
+        ) || []),
+      ],
       allowSave: true,
       styles: () => {
         return {
