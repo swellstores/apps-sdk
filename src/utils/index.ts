@@ -17,7 +17,10 @@ export function themeConfigQuery(swellHeaders: { [key: string]: any }): {
     parent_id: swellHeaders['theme-id'],
     branch_id: swellHeaders['theme-branch-id'] || null,
     preview:
-      swellHeaders['deployment-mode'] === 'preview' ? true : { $ne: true },
+      swellHeaders['deployment-mode'] === 'editor' ||
+      swellHeaders['deployment-mode'] === 'preview'
+        ? true
+        : { $ne: true },
   };
 }
 

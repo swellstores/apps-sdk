@@ -49,9 +49,6 @@ export class Swell {
   // Indicates the storefront is being used in an editor UI
   public isEditor: boolean = false;
 
-  // Indicates the storefront is in a development mode (preview and/or editor)
-  public isDevelopment: boolean = false;
-
   // Indicates the server response was sent to avoid mutating cookies
   public sentResponse: boolean = false;
 
@@ -119,10 +116,10 @@ export class Swell {
         .map((key) => swellHeaders[key])
         .join('|');
 
-      this.isPreview =
-        clientProps.isEditor || swellHeaders['deployment-mode'] === 'preview';
       this.isEditor =
         clientProps.isEditor ?? swellHeaders['deployment-mode'] === 'editor';
+      this.isPreview =
+        this.isEditor || swellHeaders['deployment-mode'] === 'preview';
 
       // Clear cache if header changed
       if (swellHeaders['cache-modified']) {
@@ -153,8 +150,6 @@ export class Swell {
         'Swell client requires `serverHeaders` when initialized on the server-side, or `headers` and `swellHeaders` when initialized on the client-side.',
       );
     }
-
-    this.isDevelopment = this.isPreview || this.isEditor;
   }
 
   static formatHeaders(serverHeaders?: Headers | SwellData): {

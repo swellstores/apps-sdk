@@ -246,7 +246,6 @@ export class SwellTheme {
       currency: session?.currency || store.currency,
       is_editor: this.swell.isEditor,
       is_preview: this.swell.isPreview,
-      is_development: this.swell.isDevelopment,
     };
 
     const page = {
