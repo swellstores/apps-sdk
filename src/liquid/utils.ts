@@ -61,43 +61,47 @@ export function toValue(value: any) {
     : value;
 }
 
-export function isString(value: any) {
+export function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
 
-export function isNumber(value: any) {
+export function isNumber(value: unknown): value is number {
   return typeof value === 'number';
 }
 
-export function isFunction(value: any) {
+export function isFunction(value: unknown): value is Function {
   return typeof value === 'function';
 }
 
-export function toLiquid(value: any) {
-  if (value && isFunction(value.toLiquid)) return toLiquid(value.toLiquid());
+export function toLiquid(value: unknown) {
+  if (isObject(value) && isFunction(value.toLiquid)) return toLiquid(value.toLiquid());
   return value;
 }
 
-export function isNil(value: any) {
+export function isNil(value: unknown): value is (undefined | null) {
   return value == null;
 }
 
-export function isUndefined(value: any) {
+export function isUndefined(value: unknown): value is undefined {
   return value === undefined;
 }
 
-export function isArray(value: any) {
+export function isArray<T>(value: unknown): value is Array<T> {
   // be compatible with IE 8
   return toString.call(value) === '[object Array]';
 }
 
-export function isObject(value: any) {
+export function isObject(value: unknown): value is Record<string, unknown> {
   const type = typeof value;
   return value !== null && (type === 'object' || type === 'function');
 }
 
-export function isIterable(value: any) {
+export function isIterable<T>(value: unknown): value is Iterable<T> {
   return isObject(value) && Symbol.iterator in value;
+}
+
+export function isLikePromise(value: unknown): value is PromiseLike<unknown> {
+  return isObject(value) && typeof value.then === 'function';
 }
 
 export function isTruthy(val: any, ctx: Context): boolean {
@@ -113,49 +117,52 @@ export function isFalsy(val: any, ctx: Context): boolean {
 }
 
 export interface Comparable {
-  equals: (rhs: any) => boolean;
-  gt: (rhs: any) => boolean;
-  geq: (rhs: any) => boolean;
-  lt: (rhs: any) => boolean;
-  leq: (rhs: any) => boolean;
+  equals(rhs: unknown): boolean;
+  gt(rhs: unknown): boolean;
+  geq(rhs: unknown): boolean;
+  lt(rhs: unknown): boolean;
+  leq(rhs: unknown): boolean;
 }
 
-export function isComparable(arg: any): arg is Comparable {
-  return arg && isFunction(arg.equals);
+export function isComparable(arg: unknown): arg is Comparable {
+  return isObject(arg) && isFunction(arg.equals);
 }
 
-export function toArray(val: any) {
+export function toArray<T>(val: unknown): T[] {
   if (isNil(val)) return [];
-  if (isArray(val)) return val;
-  return [val];
+  if (isArray<T>(val)) return val;
+  return [val as T];
 }
 
-export function toEnumerable(val: any) {
+export function toEnumerable<T>(val: unknown): T[] {
   val = toValue(val);
-  if (isArray(val)) return val;
-  if (isString(val) && val.length > 0) return [val];
-  if (isIterable(val)) return Array.from(val);
+  if (isArray<T>(val)) return val;
+  if (isString(val) && val.length > 0) return [val as T];
+  if (isIterable<T>(val)) return Array.from(val);
   if (isObject(val))
     // Converting keyed objects to an array with id is required for Shopify compatibility
-    return Object.keys(val).reduce(
-      (acc: any, key) => [...acc, { id: key, ...val[key] }],
+    return Object.entries(val).reduce<T[]>(
+      (acc, [key, value]) => {
+        acc.push({ id: key, ...(value as T) });
+        return acc;
+      },
       [],
     ); //map((key) => [key, val[key]]);
   return [];
 }
 
-export function stringify(value: any): string {
+export function stringify(value: unknown): string {
   value = toValue(value);
   if (isString(value)) return value;
   if (isNil(value)) return '';
-  if (isArray(value)) return value.map((x: any) => stringify(x)).join('');
+  if (isArray(value)) return value.map((x) => stringify(x)).join('');
   return String(value);
 }
 
-export function paramsToProps(params: any[]) {
+export function paramsToProps(params: string[] | Record<string, string>): Record<string, unknown> {
   // Convert array formatted params to props object
   if (Array.isArray(params)) {
-    return params?.reduce((acc: any, param: any, index: number) => {
+    return params.reduce((acc: Record<string, unknown>, param, index) => {
       if (index % 2 === 0) {
         acc[param] = params[index + 1];
       }
@@ -163,18 +170,17 @@ export function paramsToProps(params: any[]) {
     }, {});
   } else if (isObject(params)) {
     // Convert object formatted params with number indexes to props object
-    const props: any = {};
+    const props: Record<string, unknown> = {};
     const values = Object.values(params);
-    for (let i = 0; i < values.length; i++) {
+    for (let i = 0; i < values.length; i += 2) {
       props[values[i]] = values[i + 1];
-      i++;
     }
     return props;
   }
   return {};
 }
 
-export async function jsonStringifyAsync(input: any, space = 0): any {
+export async function jsonStringifyAsync(input: unknown, space = 0): Promise<string> {
   let value = input;
 
   if (value instanceof StorefrontResource) {
@@ -202,24 +208,28 @@ export async function jsonStringifyAsync(input: any, space = 0): any {
   );
 }
 
-async function resolveAllKeys(value: any, references: any[] = []) {
-  await forEachKeyDeep(value, async (key, value) => {
-    if (value[key] instanceof Promise) {
-      value[key] = await value[key];
+async function resolveAllKeys(value: unknown, references: WeakSet<object> = new WeakSet()) {
+  await forEachKeyDeep(value as Record<string, unknown>, async (key, value) => {
+    if (!isObject(value)) {
+      return;
+    }
+    const val = value[key];
+    if (isLikePromise(val)) {
+      value[key] = await val;
       await resolveAllKeys(value[key], references);
-    } else if (typeof value[key] === 'object' && value[key] !== null) {
-      if (references.includes(value[key])) {
+    } else if (typeof val === 'object' && val !== null) {
+      if (references.has(val)) {
         // Ignore circular reference
         return false;
       }
-      references.push(value[key]);
+      references.add(val);
     }
   });
 }
 
 async function forEachKeyDeep(
-  obj: any,
-  fn: (key: string, value: any) => Promise<boolean | void>,
+  obj: Record<string, unknown>,
+  fn: (key: string, value: Record<string, unknown>) => Promise<unknown>,
 ) {
   if (typeof obj !== 'object' || obj === null) {
     return;
@@ -230,7 +240,7 @@ async function forEachKeyDeep(
       if (result !== false) {
         const value = obj[key];
         if (typeof value === 'object' && value !== null) {
-          await forEachKeyDeep(value, fn);
+          await forEachKeyDeep(value as Record<string, unknown>, fn);
         }
       }
     }

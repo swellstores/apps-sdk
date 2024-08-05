@@ -5,6 +5,14 @@ import { Cache } from './cache';
 import { CACHE_TIMEOUT_RESOURCES } from './resources';
 export * from './resources';
 
+import type {
+  SwellAppConfig,
+  SwellErrorOptions,
+  SwellMenu,
+  SwellData,
+  CFThemeEnv,
+} from '../types/swell';
+
 const DEFAULT_API_HOST = 'https://api.schema.io';
 const CACHE_TIMEOUT = 1000 * 60; // 1m
 const SWELL_CLIENT_HEADERS = [

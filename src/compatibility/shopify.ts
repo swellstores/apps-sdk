@@ -19,6 +19,28 @@ import {
 } from './shopify-configs';
 import { shopifyFontToThemeFront } from './shopify-fonts';
 
+import type {
+  ThemeGlobals,
+  ThemeSettings,
+  ThemePresetSchema,
+  ThemeEditorSchema,
+  ThemeSectionSchema,
+  SwellData,
+  SwellMenu,
+  SwellRecord,
+  SwellThemeConfig,
+} from '../../types/swell';
+
+import type {
+  ShopifySettingsData,
+  ShopifySettingsSchema,
+  ShopifySectionSchema,
+  ShopifyPageResourceMap,
+  ShopifyObjectResourceMap,
+  ShopifyFormResourceMap,
+  ShopifyQueryParamsMap,
+} from '../../types/shopify';
+
 /*
  * This class is meant to be extended by a storefront app to provide compatibility with Shopify's Liquid
  */
@@ -235,10 +257,10 @@ export class ShopifyCompatibility {
         config?.file_path?.endsWith(suffix),
     );
 
-    let localeConfig = shopifyLocaleConfigs?.find(
-      (config: SwellRecord) =>
-        config?.file_path === `theme/locales/${localeCode}${suffix}`,
-    ) as SwellThemeConfig;
+    let localeConfig: SwellThemeConfig | undefined | null =
+      shopifyLocaleConfigs?.find((config: SwellRecord) =>
+          config?.file_path === `theme/locales/${localeCode}${suffix}`,
+      );
 
     if (!localeConfig) {
       // Fall back to short code locale
@@ -246,22 +268,22 @@ export class ShopifyCompatibility {
       localeConfig = shopifyLocaleConfigs?.find(
         (config: SwellRecord) =>
           config?.file_path === `theme/locales/${localeShortCode}${suffix}`,
-      ) as SwellThemeConfig;
+      );
 
       if (!localeConfig) {
         // Fall back to default locale
         localeConfig = shopifyLocaleConfigs?.find((config: SwellRecord) =>
           config?.file_path?.endsWith(`.default${suffix}`),
-        ) as SwellThemeConfig;
+        );
       }
     }
 
     if (localeConfig) {
       localeConfig = (await theme.getThemeConfig(
         localeConfig.file_path,
-      )) as SwellThemeConfig;
+      ));
       try {
-        return JSON.parse(localeConfig?.file_data);
+        return JSON.parse(localeConfig?.file_data || '');
       } catch {
         // noop
       }

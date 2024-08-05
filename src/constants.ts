@@ -1,4 +1,4 @@
-export const LANG_TO_COUNTRY_CODES: { [key: string]: string } = {
+export const LANG_TO_COUNTRY_CODES: Record<string, string | undefined> = {
   aa: "ET",
   ab: "GE",
   abr: "GH",

@@ -1,5 +1,20 @@
 import { SwellTheme } from '../theme';
 
+import type { ShopifySectionSchema } from 'types/shopify';
+
+import type {
+  SwellRecord,
+  SwellThemeConfig,
+  ThemeLayoutSectionGroupConfig,
+  ThemeSection,
+  ThemeSectionConfig,
+  ThemeSectionGroup,
+  ThemeSectionSchema,
+  ThemeSectionSettings,
+  ThemeSettingFieldSchema,
+  ThemeSettingsBlock,
+} from 'types/swell';
+
 export async function getPageTemplate(theme: SwellTheme, pageId: string) {
   return await theme.renderPageTemplate(pageId);
 }
@@ -57,7 +72,7 @@ export async function getPageSections(
       .map((key: string) => section.blocks?.[key])
       .filter(Boolean) as ThemeSettingsBlock[];
 
-    const settings = {
+    const settings: ThemeSectionSettings = {
       section: {
         id,
         ...section,
@@ -67,7 +82,7 @@ export async function getPageSections(
 
     pageSections.push({
       id: id as string,
-      settings: settings as ThemeSectionSettings,
+      settings: settings,
       section: { id, ...section },
       tag: schema.tag || 'div',
       class: schema.class,
@@ -162,11 +177,11 @@ export async function renderTemplateSchema(
 
       await theme.renderTemplate(config);
 
-      const lastSchema = theme.liquidSwell.lastSchema || {};
+      const lastSchema = (theme.liquidSwell.lastSchema || {}) as ShopifySectionSchema;
 
       if (lastSchema) {
         schema = theme.shopifyCompatibility.getSectionConfigSchema(
-          lastSchema as ShopifySectionSchema,
+          lastSchema,
         );
       }
     }

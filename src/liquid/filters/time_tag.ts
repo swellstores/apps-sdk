@@ -16,7 +16,7 @@ export default function bind(_liquidSwell: LiquidSwell) {
     const { datetime } = getDateFilterParams(maybeParams, params);
 
     let formattedDatetime = date.toISOString?.();
-    if (datetime) {
+    if (typeof datetime === 'string' && datetime) {
       formattedDatetime = applyStrftimeFormat(datetime, date);
     }
 

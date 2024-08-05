@@ -1,5 +1,7 @@
-import { ShopifyCompatibility } from '../shopify';
 import { StorefrontResource } from '../../resources';
+
+import { ShopifyCompatibility } from '../shopify';
+
 import {
   ShopifyResource,
   defer,
@@ -8,6 +10,8 @@ import {
 } from './resource';
 import ShopifyAddress from './address';
 import ShopifyOrder from './order';
+
+import type { SwellRecord } from 'types/swell';
 
 export default function ShopifyCustomer(
   instance: ShopifyCompatibility,
@@ -25,9 +29,9 @@ export default function ShopifyCustomer(
       'addresses',
       ShopifyAddress,
     ),
-    addresses_count: deferWith(
+    addresses_count: deferWith<any, any>(
       account.addresses,
-      (addresses: any) => addresses.count || 0,
+      (addresses) => addresses.count || 0,
     ),
     'b2b?': deferWith(account, () => account.type === 'business'),
     company_available_locations: [], // TODO

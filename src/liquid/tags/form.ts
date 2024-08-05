@@ -1,17 +1,20 @@
-import { LiquidSwell } from '..';
-import { ThemeForm } from '../form';
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
   Hash,
-  TopLevelToken,
-  Template,
   TypeGuards,
   evalToken,
 } from 'liquidjs';
+
 import { QuotedToken } from 'liquidjs/dist/tokens';
+
+import { LiquidSwell } from '..';
+import { ThemeForm } from '../form';
+
+import type { Template, TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 // {% form 'form_type' %}
 // {% form 'form_type', param %}
@@ -19,7 +22,7 @@ import { QuotedToken } from 'liquidjs/dist/tokens';
 
 const IGNORED_SHOPIFY_FORMS = ['new_comment', 'guest_login'];
 
-export default function bind(liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class FormTag extends Tag {
     private formType: string;
     private formConfig: any;

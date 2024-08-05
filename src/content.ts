@@ -1,5 +1,7 @@
 import { Swell, SwellStorefrontCollection, SwellStorefrontRecord } from './api';
 
+import type { SwellData } from 'types/swell';
+
 export async function getContentModel(
   swell: Swell,
   name: string,

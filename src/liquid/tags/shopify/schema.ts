@@ -1,18 +1,20 @@
-import { LiquidSwell } from "../..";
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
-  TopLevelToken,
-  Template,
 } from 'liquidjs';
+
+import { LiquidSwell } from '../..';
+
+import type { Template, TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 // Swell prefers separate JSON files, but this is supported for backward compatibility
 
 // {% schema %}
 
-export default function bind(liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class SchemaTag extends Tag {
     private templates: Template[] = [];
 

@@ -1,7 +1,16 @@
+import { cloneDeep } from 'lodash-es';
+
 import { Swell } from './api';
 import { ShopifyCompatibility } from './compatibility/shopify';
 import { md5, resolveAsyncResources, stringifyQueryParams } from './utils';
-import { cloneDeep } from 'lodash-es';
+
+import type {
+  SwellData,
+  SwellRecord,
+  SwellCollection,
+  SwellCollectionPages,
+  StorefrontResourceGetter,
+} from '../types/swell';
 
 export const MAX_QUERY_PAGE_LIMIT = 100;
 export const DEFAULT_QUERY_PAGE_LIMIT = 15;
@@ -356,7 +365,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
 
   _clone(newProps?: SwellData) {
     const cloned = new SwellStorefrontCollection(
-      this._swell as Swell,
+      this._swell,
       this._collection,
       this._query,
       this._getter,
@@ -574,7 +583,7 @@ export class SwellStorefrontPagination {
         this.pages[page] = {
           start: props.start,
           end: props.end,
-          url: this.getPageUrl(page),
+          url: this.getPageUrl(Number(page)),
         };
       }
     }
@@ -599,7 +608,7 @@ export class SwellStorefrontPagination {
   }
 
   getPageUrl(page: number) {
-    const { url, queryParams } = this._resource._swell as Swell;
+    const { url, queryParams } = this._resource._swell;
     return `${url.pathname}?${stringifyQueryParams({
       ...queryParams,
       page,

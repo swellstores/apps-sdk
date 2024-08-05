@@ -1,9 +1,13 @@
-import { ShopifyCompatibility } from '../shopify';
 import { StorefrontResource } from '../../resources';
+
+import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource, deferWith } from './resource';
 import ShopifyImage from './image';
 import ShopifyProduct from './product';
 import ShopifyVariant from './variant';
+
+import type { SwellData, SwellRecord } from 'types/swell';
 
 export default function ShopifyLineItem(
   instance: ShopifyCompatibility,
@@ -146,7 +150,7 @@ async function resolveFulfillment(
       return (
         // Note: this does not work with the current Swell API
         (
-          await instance.swell.storefront.account.getOrder(order.id, {
+          await (instance.swell.storefront.account as any).getOrder(order.id, {
             include: {
               url: '/shipments',
               data: {

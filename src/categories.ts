@@ -1,6 +1,8 @@
 import { Swell, SwellStorefrontCollection, SwellStorefrontRecord } from './api';
 import { getProducts } from './products';
 
+import type { SwellData } from '../types/swell';
+
 export function getCategories(swell: Swell, query?: SwellData) {
   return new SwellStorefrontCollection(swell, 'categories', query);
 }

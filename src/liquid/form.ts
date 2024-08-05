@@ -1,7 +1,9 @@
+import type { SwellData, ThemeFormErrorMessages } from 'types/swell';
+
 export class ThemeForm {
   public id: string;
   public success: boolean = false;
-  public errors?: ThemeFormErrors;
+  public errors: ThemeFormErrors | null = null;
 
   constructor(id: string) {
     this.id = id;
@@ -20,23 +22,23 @@ export class ThemeForm {
   }
 
   clearErrors() {
-    this.errors = undefined;
+    this.errors = null;
   }
 }
 
 export class ThemeFormErrors {
-  private errors?: ThemeFormErrorMessages;
+  private errors: ThemeFormErrorMessages;
 
   constructor(errors?: ThemeFormErrorMessages) {
-    this.errors = errors;
+    this.errors = errors || [];
   }
 
   *[Symbol.iterator]() {
-    yield* this.errors as any[];
+    yield* this.errors;
   }
 
   // Used by {% form.errors contains 'code' %}
-  some(callbackFn: any, thisArg?: any) {
-    return this.errors?.some((error: any) => callbackFn(error?.code), thisArg);
+  some(callbackFn: (code?: string) => boolean, thisArg?: unknown) {
+    return this.errors.some((error) => callbackFn(error?.code), thisArg);
   }
 }

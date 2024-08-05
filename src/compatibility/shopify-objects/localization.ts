@@ -1,5 +1,8 @@
 import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource } from './resource';
+
+import type { SwellData } from 'types/swell';
 
 export default function ShopifyLocalization(
   _instance: ShopifyCompatibility,
@@ -70,15 +73,15 @@ function getShopifyCountryFromCurrency(currency: SwellData, store: SwellData) {
   };
 }
 
-function getCountryNameByCurrency(currencyCode: string) {
+function getCountryNameByCurrency(currencyCode: keyof typeof CURRENCY_COUNTRIES) {
   if (currencyCode in CURRENCY_COUNTRIES) {
-    return (CURRENCY_COUNTRIES as any)[currencyCode];
+    return CURRENCY_COUNTRIES[currencyCode];
   }
 
   return null;
 }
 
-const CURRENCY_COUNTRIES = {
+const CURRENCY_COUNTRIES = Object.freeze({
   USD: 'United States',
   EUR: 'Europe',
   GBP: 'United Kingdom',
@@ -227,4 +230,4 @@ const CURRENCY_COUNTRIES = {
   YER: 'Yemen',
   ZMW: 'Zambia',
   ZWL: 'Zimbabwe',
-};
+});

@@ -2,8 +2,8 @@ import {
   Swell,
   SwellStorefrontRecord,
   SwellStorefrontCollection,
-  StorefrontResource,
 } from '../../api';
+
 import { ShopifyCompatibility } from '../shopify';
 import { DeferredShopifyResource, ShopifyResource } from './resource';
 import ShopifyArticle from './article';
@@ -23,6 +23,10 @@ import ShopifyLink from './link';
 import ShopifyLocalization from './localization';
 import ShopifySearch from './search';
 import ShopifyVariant from './variant';
+
+import type { ThemeFont } from '../../liquid/font';
+import type { ThemeForm } from '../../liquid/form';
+import type { SwellMenu, SwellData } from '../../../types/swell';
 
 export {
   DeferredShopifyResource,
@@ -72,9 +76,7 @@ class AllCategoryResource extends SwellStorefrontRecord {
         slug: 'all',
         name: 'Products',
         products: new SwellStorefrontCollection(swell, 'products'),
-      } as any;
-
-      category.products = new SwellStorefrontCollection(swell, 'products');
+      };
 
       return category;
     });

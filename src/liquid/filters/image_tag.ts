@@ -23,10 +23,10 @@ export default function bind(_liquidSwell: LiquidSwell) {
     if (height === undefined) {
       height = getSizeFromUrlQuery(imageUrl, 'height');
     }
-    if (widths === undefined) {
+    if (widths === undefined && typeof width === 'number') {
       widths = generateSmartWidths(width);
     }
-    if (srcset === undefined) {
+    if (srcset === undefined && Array.isArray(widths)) {
       srcset = generateSmartSrcset(imageUrl, widths);
     }
     if (loading === null) {

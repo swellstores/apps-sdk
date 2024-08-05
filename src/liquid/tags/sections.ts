@@ -1,10 +1,15 @@
-import { LiquidSwell } from "..";
-import { Liquid, Tag, TagToken, Context, TopLevelToken } from "liquidjs";
-import { QuotedToken } from "liquidjs/dist/tokens";
+import { Liquid, Tag, TagToken, Context } from 'liquidjs';
+
+import { LiquidSwell } from '..';
+
+import { QuotedToken } from 'liquidjs/dist/tokens';
+
+import type { TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 // {% sections 'section-group' %}
 
-export default function bind(liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class SectionsTag extends Tag {
     private fileName: string;
 

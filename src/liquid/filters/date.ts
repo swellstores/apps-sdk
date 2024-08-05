@@ -1,22 +1,22 @@
+import strftime from 'strftime';
+
 import { LiquidSwell } from '..';
 import { paramsToProps } from '../utils';
-import strftime from 'strftime';
 
 // {{ blog.date_published | date: '%B %d, %Y' }}
 
 export default function bind(_liquidSwell: LiquidSwell) {
-  return (dateValue: string, maybeParams: any, params?: any[]) => {
+  return (dateValue: string, maybeParams: any, params?: any[]): string => {
     const date = ensureDate(dateValue);
     const { format, strFormat } = getDateFilterParams(maybeParams, params);
 
-    let formattedDate = date;
     if (strFormat) {
-      formattedDate = strftime(strFormat, date);
-    } else if (format) {
-      formattedDate = applyDateFormat(format, date);
+      return strftime(strFormat, date);
+    } else if (typeof format === 'string' && format) {
+      return applyDateFormat(format, date);
     }
 
-    return formattedDate;
+    return date.toLocaleString();
   };
 }
 
@@ -42,7 +42,7 @@ export function getDateFilterParams(maybeParams: any, params?: any[]) {
   return { format, datetime, strFormat };
 }
 
-export function applyDateFormat(type: string, date: Date) {
+export function applyDateFormat(type: string, date: Date): string {
   switch (type) {
     case 'abbreviated_date':
       // Apr 3, 2024
@@ -70,7 +70,7 @@ export function applyDateFormat(type: string, date: Date) {
       return strftime('%B %d, %Y %H:%M', date);
     default:
       // TODO: support custom date formats from theme locale settings
-      return date;
+      return date.toLocaleString();
   }
 }
 

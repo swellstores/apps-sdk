@@ -1,8 +1,21 @@
 import { Liquid } from 'liquidjs';
+
 import { SwellTheme } from '../theme';
 import { bindTags } from './tags';
 import { bindFilters } from './filters';
 import { swellOperators } from './operators';
+
+import type {
+  GetAssetUrl,
+  GetThemeConfig,
+  GetThemeTemplateConfigByType,
+  RenderCurrency,
+  RenderTemplate,
+  RenderTemplateSections,
+  RenderTemplateString,
+  RenderTranslation,
+  ThemeSectionSchema,
+} from 'types/swell';
 
 export * from './color';
 export * from './form';
