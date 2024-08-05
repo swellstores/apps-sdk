@@ -1,31 +1,29 @@
 export function shopifyFontToThemeFront(
   shopifyFontSetting: string,
 ): string | null {
-  const parts = shopifyFontSetting.split('_');
-  const familyId = parts.slice(0, -1).join('_');
-  const variantId = parts[1];
+  const pos = shopifyFontSetting.lastIndexOf('_');
+  const familyId = shopifyFontSetting.substring(0, pos);
+  const variantId = shopifyFontSetting.substring(pos + 1);
   const shopifyFont = shopifyFontMap[familyId];
 
   if (shopifyFont) {
-    const variant = shopifyFont?.variants[variantId];
+    const variant = shopifyFont.variants[variantId];
     return `${shopifyFont.family}:${variant}`;
   }
 
   return null;
 }
 
+interface ShopifyFont {
+  family: string;
+  variants: Record<string, string | undefined>;
+}
+
 /**
  * Map of all available shopify fonts to their equivalent theme font.
- * https://shopify.dev/docs/themes/architecture/settings/fonts#available-fonts
+ * @see https://shopify.dev/docs/themes/architecture/settings/fonts#available-fonts
  */
-export const shopifyFontMap: {
-  [key: string]: {
-    family: string;
-    variants: {
-      [key: string]: string;
-    };
-  };
-} = {
+const shopifyFontMap: Record<string, ShopifyFont | undefined> = {
   abel: { family: 'Abel', variants: { n4: 'wght@400' } },
   abril_fatface: { family: 'Abril Fatface', variants: { n4: 'wght@400' } },
   alegreya: {

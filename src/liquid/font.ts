@@ -76,7 +76,7 @@ export class ThemeFont {
 
     const axes = axisId?.split(',') || [];
     const values = valueId?.split(',') || [];
-    const weight = parseInt(values[axes.indexOf('wght')], 10);
+    const weight = Number.parseInt(values[axes.indexOf('wght')], 10);
 
     return {
       family,
@@ -89,16 +89,16 @@ export class ThemeFont {
       variant: {
         wght: weight,
         wdth: axes.includes('wdth')
-          ? parseInt(values[axes.indexOf('wdth')], 10)
+          ? Number.parseInt(values[axes.indexOf('wdth')], 10)
           : undefined,
         slnt: axes.includes('slnt')
-          ? parseInt(values[axes.indexOf('slnt')], 10)
+          ? Number.parseInt(values[axes.indexOf('slnt')], 10)
           : undefined,
         opsz: axes.includes('opsz')
-          ? parseInt(values[axes.indexOf('opsz')], 10)
+          ? Number.parseInt(values[axes.indexOf('opsz')], 10)
           : undefined,
         ital: axes.includes('ital')
-          ? parseInt(values[axes.indexOf('ital')], 10)
+          ? Number.parseInt(values[axes.indexOf('ital')], 10)
           : undefined,
       },
     };
@@ -111,21 +111,31 @@ export class ThemeFont {
 
   static variantToString(variant: ThemeFontVariant) {
     // Note: axes must be listed in alphabetical order
-    const axes = [
-      ...(variant.ital !== undefined ? ['ital'] : []),
-      ...(variant.opsz !== undefined ? ['opsz'] : []),
-      ...(variant.slnt !== undefined ? ['slnt'] : []),
-      ...(variant.wdth !== undefined ? ['wdth'] : []),
-      'wght',
-    ];
+    const axes = [];
+    const values = [];
 
-    const values = [
-      ...(variant.ital !== undefined ? [variant.ital || 0] : []),
-      ...(variant.opsz !== undefined ? [variant.opsz || 0] : []),
-      ...(variant.slnt !== undefined ? [variant.slnt || 0] : []),
-      ...(variant.wdth !== undefined ? [variant.wdth || 0] : []),
-      variant.wght,
-    ];
+    if (variant.ital !== undefined) {
+      axes.push('ital');
+      values.push(variant.ital || 0);
+    }
+
+    if (variant.opsz !== undefined) {
+      axes.push('opsz');
+      values.push(variant.opsz || 0);
+    }
+
+    if (variant.slnt !== undefined) {
+      axes.push('slnt');
+      values.push(variant.slnt || 0);
+    }
+
+    if (variant.wdth !== undefined) {
+      axes.push('wdth');
+      values.push(variant.wdth || 0);
+    }
+
+    axes.push('wght');
+    values.push(variant.wght);
 
     const axisId = axes.join(',');
     const valueId = values.join(',');
@@ -279,11 +289,11 @@ export class ThemeFont {
             break;
           default:
             if (value[0] === '+') {
-              targetWeight = this.weight + parseInt(value.slice(1), 10);
+              targetWeight = this.weight + Number.parseInt(value.slice(1), 10);
             } else if (value[0] === '-') {
-              targetWeight = this.weight - parseInt(value.slice(1), 10);
+              targetWeight = this.weight - Number.parseInt(value.slice(1), 10);
             } else {
-              targetWeight = parseInt(value, 10);
+              targetWeight = Number.parseInt(value, 10);
             }
             const validWeight = this.resolveValidProperty(
               prop,
@@ -340,7 +350,10 @@ export class ThemeFont {
       }
     }
 
-    const targetValue = typeof value === 'string' ? parseInt(value, 10) : value;
+    const targetValue = typeof value === 'string'
+      ? Number.parseInt(value, 10)
+      : value;
+
     switch (prop) {
       case 'wght':
       case 'weight':
