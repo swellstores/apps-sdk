@@ -1,9 +1,9 @@
 import { Liquid, Tag, TagToken, Context } from 'liquidjs';
-import { QuotedToken } from 'liquidjs/dist/tokens';
 
 import { LiquidSwell } from '..';
 
 import type { TopLevelToken } from 'liquidjs';
+import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass } from 'liquidjs/dist/template';
 
 // {% section 'name' %}

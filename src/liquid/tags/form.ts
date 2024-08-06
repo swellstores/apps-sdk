@@ -8,12 +8,11 @@ import {
   evalToken,
 } from 'liquidjs';
 
-import { QuotedToken } from 'liquidjs/dist/tokens';
-
 import { LiquidSwell } from '..';
 import { ThemeForm } from '../form';
 
 import type { Template, TopLevelToken } from 'liquidjs';
+import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass } from 'liquidjs/dist/template';
 
 // {% form 'form_type' %}

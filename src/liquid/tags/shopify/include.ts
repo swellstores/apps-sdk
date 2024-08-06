@@ -6,11 +6,10 @@ import {
   Hash,
 } from 'liquidjs';
 
-import { QuotedToken } from 'liquidjs/dist/tokens';
-
 import { LiquidSwell } from '../..';
 
 import type { Scope, TopLevelToken } from 'liquidjs';
+import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass } from 'liquidjs/dist/template';
 
 // Deprecated in Shopify, supported for backward compatibility

@@ -9,12 +9,11 @@ import {
   evalToken,
 } from 'liquidjs';
 
-import { QuotedToken, IdentifierToken } from 'liquidjs/dist/tokens';
-
 import { LiquidSwell } from '..';
 import { ForloopDrop, toEnumerable } from '../utils';
 
 import type { ValueToken, TopLevelToken } from 'liquidjs';
+import type { QuotedToken, IdentifierToken } from 'liquidjs/dist/tokens';
 import type { TagClass } from 'liquidjs/dist/template';
 
 // {% render 'component', variable: value %}
