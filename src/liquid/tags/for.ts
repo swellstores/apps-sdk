@@ -1,25 +1,25 @@
-import { LiquidSwell } from "..";
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
-  TopLevelToken,
-  ValueToken,
   Hash,
-  Template,
   ParseStream,
   evalToken,
-  Emitter,
-} from "liquidjs";
+} from 'liquidjs';
+
+import { LiquidSwell } from '..';
 import { ForloopDrop, toEnumerable, isObject } from '../utils';
+
+import type { Emitter, Template, ValueToken, TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 const MODIFIERS = ['offset', 'limit', 'reversed'];
 
 // Adapted from liquidjs/src/tags/for.ts
 // 1) to use our own toEnumerable implementation for compatibility
 
-export default function bind(_liquidSwell: LiquidSwell) {
+export default function bind(_liquidSwell: LiquidSwell): TagClass {
   return class ForTag extends Tag {
     variable: string;
     collection: ValueToken;

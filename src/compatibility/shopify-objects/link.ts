@@ -1,6 +1,10 @@
-import { ShopifyCompatibility } from '../shopify';
 import { snakeCase } from 'lodash-es';
+
+import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource } from './resource';
+
+import type { SwellMenu, SwellMenuItem } from 'types/swell';
 
 export default function ShopifyLink(
   instance: ShopifyCompatibility,

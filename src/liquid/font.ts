@@ -1,5 +1,11 @@
 import { fontMap } from '../fonts';
 
+import type {
+  ThemeFontConfig,
+  ThemeFontVariant,
+  ThemeFontVariantSetting,
+} from '../../types/swell';
+
 export class ThemeFont {
   public id: string = '';
   public family: string = 'sans-serif';

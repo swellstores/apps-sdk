@@ -1,17 +1,18 @@
-import { LiquidSwell } from "..";
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
-  TopLevelToken,
-  Template,
   Value,
-  ValueToken,
   ParseStream,
   evalToken,
   toValue,
 } from 'liquidjs';
+
+import { LiquidSwell } from '..';
+
+import type { Template, ValueToken, TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 /*
 {% case variable %}
@@ -26,7 +27,7 @@ import {
 
 // Note: Re-implemented to support wrapping blocks in container elements for theme editor functionality
 
-export default function bind(liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class CaseTag extends Tag {
     value: Value
     branches: { values: ValueToken[], templates: Template[] }[] = []

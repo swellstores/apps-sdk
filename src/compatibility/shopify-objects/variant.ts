@@ -1,8 +1,12 @@
-import { ShopifyCompatibility } from '../shopify';
 import { StorefrontResource } from '../../resources';
+
+import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 import ShopifyMedia from './media';
+
+import type { SwellRecord } from 'types/swell';
 
 export default function ShopifyVariant(
   instance: ShopifyCompatibility,
@@ -17,23 +21,23 @@ export default function ShopifyVariant(
   const product = productIn || variant.product || {};
 
   return new ShopifyResource({
-    available: deferWith(
+    available: deferWith<any, any>(
       variant,
-      (variant: any) =>
+      (variant) =>
         variant.stock_status === 'in_stock' || !variant.stock_status,
     ),
     barcode: null,
     compare_at_price: defer(() => variant.compare_price),
-    featured_image: deferWith(
+    featured_image: deferWith<any, any>(
       [product, variant],
-      (product: any, variant: any) => {
+      (product, variant) => {
         const image = variant.images?.[0] || product.images?.[0];
         return image && ShopifyMedia(instance, image);
       },
     ),
-    featured_media: deferWith(
+    featured_media: deferWith<any, any>(
       [product, variant],
-      (product: any, variant: any) => {
+      (product, variant) => {
         const image = variant.images?.[0] || product.images?.[0];
         return image && ShopifyMedia(instance, image);
       },

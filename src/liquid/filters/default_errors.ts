@@ -1,5 +1,4 @@
 import { LiquidSwell } from '..';
-import { ThemeFormErrors } from '../form';
 
 // {{ form.errors | default_errors }}
 

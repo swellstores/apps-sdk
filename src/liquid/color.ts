@@ -5,7 +5,7 @@ export type ColorParam =
   | string
   | ArrayLike<number>
   | number
-  | { [key: string]: any };
+  | Record<string, unknown>;
 
 export class ThemeColor {
   public color: Color;
@@ -18,16 +18,16 @@ export class ThemeColor {
     try {
       this.color = Color(value);
       this.colorValues = this.color.object();
-      this.red = this.colorValues.r;
-      this.green = this.colorValues.g;
-      this.blue = this.colorValues.b;
+      this.red = Number(this.colorValues.r);
+      this.green = Number(this.colorValues.g);
+      this.blue = Number(this.colorValues.b);
     } catch (err) {
       // Just default to black in case of parse error
       this.color = Color("#000000");
       this.colorValues = this.color.object();
-      this.red = this.colorValues.r;
-      this.green = this.colorValues.g;
-      this.blue = this.colorValues.b;
+      this.red = Number(this.colorValues.r);
+      this.green = Number(this.colorValues.g);
+      this.blue = Number(this.colorValues.b);
     }
   }
 
@@ -126,15 +126,15 @@ export class ThemeColor {
   }
 }
 
-export function mix (a: number, b: number, r: number) {
-  return (a * r + b * (100 - r)) / 100
+export function mix(a: number, b: number, r: number): number {
+  return (a * r + b * (100 - r)) / 100;
 }
 
-export function diff (v1: number, v2: number) {
-  return Math.max(v1, v2) - Math.min(v1, v2)
+export function diff(v1: number, v2: number): number {
+  return Math.max(v1, v2) - Math.min(v1, v2);
 }
 
-export function brightness (colorStr: string) {
-  const [r, g, b] = Color(colorStr).rgb().array()
-  return (r * 299 + g * 587 + b * 114) / 1000
+export function brightness(colorStr: string): number {
+  const [r, g, b] = Color(colorStr).rgb().array();
+  return (r * 299 + g * 587 + b * 114) / 1000;
 }

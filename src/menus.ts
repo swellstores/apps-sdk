@@ -1,7 +1,10 @@
 import { get } from 'lodash-es';
+
 import { SwellTheme } from './theme';
 import { SwellStorefrontRecord, SwellStorefrontCollection } from './api';
 import { arrayToObject } from './utils';
+
+import type { SwellMenu, SwellMenuItem } from '../types/swell';
 
 export async function resolveMenuSettings(
   theme: SwellTheme,
@@ -30,10 +33,10 @@ export async function resolveMenuSettings(
     ...(theme.shopifyCompatibility
       ? compatibleMenus
           .map((menu) => {
-            if ((menu as any).handle) {
+            if (menu.handle) {
               return {
                 ...menu,
-                id: (menu as any).handle,
+                id: menu.handle,
               };
             }
           })
@@ -133,7 +136,7 @@ function isChildItemActive(items: SwellMenuItem[]): boolean {
   );
 }
 
-export function getMenuItemValueId(value: any): string {
+export function getMenuItemValueId(value: unknown): string {
   // Get slug from linked object slug or id, fall back to value itself
   const fallback = typeof value === 'string' ? value : '';
   const slug = get(value, 'id', get(value, 'slug', fallback)) || '';
@@ -196,7 +199,7 @@ export async function getMenuItemUrlAndResource(
         theme,
         'blogs/blog',
         id,
-        async (blog: any) => {
+        async (blog) => {
           const blogCategory = new SwellStorefrontRecord(
             theme.swell,
             'content/blog-categories',
@@ -271,8 +274,8 @@ export async function deferMenuItemUrlAndResource(
   theme: SwellTheme,
   pageId: string,
   id: string,
-  collectionSlugOrHandler?: string | Function,
-): Promise<{ url: string; resource?: any }> {
+  collectionSlugOrHandler?: string | ((resource: SwellStorefrontRecord) => Promise<string>),
+): Promise<{ url: string; resource?: SwellStorefrontRecord }> {
   const { props } = theme;
 
   const collection = props?.pages?.find(
@@ -280,11 +283,16 @@ export async function deferMenuItemUrlAndResource(
   )?.collection;
 
   const resource =
-    collection && new SwellStorefrontRecord(theme.swell, collection, id);
-  const slug = (await (resource as any)?.slug) || id;
+    collection ? new SwellStorefrontRecord(theme.swell, collection, id) : undefined;
 
-  let collectionSlug = collectionSlugOrHandler;
-  if ((resource as any)?.id && typeof collectionSlugOrHandler === 'function') {
+  const slug = (await resource?.slug) || id;
+
+  let collectionSlug: string | undefined =
+    typeof collectionSlugOrHandler === 'string'
+      ? collectionSlugOrHandler
+      : undefined;
+
+  if (resource?.id && typeof collectionSlugOrHandler === 'function') {
     collectionSlug = await collectionSlugOrHandler(resource);
   }
 
@@ -293,7 +301,7 @@ export async function deferMenuItemUrlAndResource(
       theme,
       pageId,
       slug,
-      collectionSlug as string,
+      typeof collectionSlug === 'string' ? collectionSlug : undefined,
     ),
     resource,
   };

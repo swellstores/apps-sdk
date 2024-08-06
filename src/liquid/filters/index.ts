@@ -104,16 +104,16 @@ export function bindFilters(liquidSwell: LiquidSwell) {
 function bindWithResolvedProps(
   liquidSwell: LiquidSwell,
   bind: (liquidSwell: LiquidSwell) => any,
-  resolve: Array<Array<string>> = [],
+  resolve: Array<Array<string> | boolean> = [],
 ) {
   const handler = bind(liquidSwell);
   if (!Array.isArray(resolve)) {
     return handler;
   }
 
-  return async (...props: any) => {
+  return async (...props: any[]) => {
     const resolvedProps = await Promise.all(
-      props.map((prop: any, index: number) => {
+      props.map((prop, index) => {
         if (Array.isArray(resolve[index]) || resolve[index] === true) {
           return resolveAsyncProps(prop, resolve[index]);
         }

@@ -1,24 +1,28 @@
 import { assign } from 'lodash-es';
-import { LiquidSwell } from '..';
+
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
-  TopLevelToken,
   Hash,
-  ValueToken,
   evalToken,
 } from 'liquidjs';
+
 import { QuotedToken, IdentifierToken } from 'liquidjs/dist/tokens';
+
+import { LiquidSwell } from '..';
 import { ForloopDrop, toEnumerable } from '../utils';
+
+import type { ValueToken, TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 // {% render 'component', variable: value %}
 // {% render 'component' for array as item %}
 // {% render 'component' with object as name %}
 // Preferred over { % include % } for rendering components
 
-export default function bind(liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class RenderTag extends Tag {
     private fileName: string;
     private hash: Hash;

@@ -1,8 +1,23 @@
+import qs from 'qs';
 import { reduce } from 'lodash-es';
+
 import { StorefrontResource } from '../resources';
 import { ShopifyResource } from '../compatibility/shopify-objects/resource';
 import { LANG_TO_COUNTRY_CODES } from '../constants';
-import qs from 'qs';
+
+import type {
+  SwellData,
+  SwellRecord,
+  SwellThemeConfig,
+  ThemeLayoutSectionGroupConfig,
+  ThemePageSectionSchema,
+  ThemePresetSchema,
+  ThemeSection,
+  ThemeSectionConfig,
+  ThemeSectionGroup,
+  ThemeSectionSchema,
+  ThemeSettingsBlock,
+} from 'types/swell';
 
 export * from './md5';
 
@@ -10,9 +25,7 @@ export * from './md5';
   console.log(util.inspect(value, { depth, colors: true }));
 } */
 
-export function themeConfigQuery(swellHeaders: { [key: string]: any }): {
-  [key: string]: any;
-} {
+export function themeConfigQuery(swellHeaders: Record<string, unknown>): Record<string, unknown> {
   return {
     parent_id: swellHeaders['theme-id'],
     branch_id: swellHeaders['theme-branch-id'] || null,
@@ -26,7 +39,7 @@ export function themeConfigQuery(swellHeaders: { [key: string]: any }): {
 
 export async function getAllSections(
   themeConfigs: SwellThemeConfig[],
-  renderTemplateSchema: (config: any) => Promise<any>,
+  renderTemplateSchema: (config: SwellThemeConfig) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemePageSectionSchema[]> {
   const sectionConfigs = themeConfigs.filter((config: SwellRecord) => {
     if (!config.file_path?.startsWith('theme/sections/')) return false;
@@ -46,30 +59,30 @@ export async function getAllSections(
     }
   });
 
-  const allSections = [];
+  const allSections: ThemePageSectionSchema[] = [];
+
   for (const sectionConfig of sectionConfigs) {
     const schema = await renderTemplateSchema(sectionConfig);
+
     allSections.push({
       id: sectionConfig.name.split('.').pop(),
       ...schema,
-      presets: resolveSectionPresets(schema),
+      ...(schema && { presets: resolveSectionPresets(schema) }),
     });
   }
 
   return allSections;
 }
 
-export function resolveSectionPresets(schema: ThemeSectionSchema) {
-  if (!Array.isArray(schema.presets)) return [];
+function resolveSectionPresets(schema?: ThemeSectionSchema): ThemePresetSchema[] {
+  if (!Array.isArray(schema?.presets)) return [];
 
   return schema.presets.map((preset) => ({
+    label: preset.label,
     settings: {
-      ...schema.fields.reduce((acc: any, field) => {
+      ...schema.fields?.reduce((acc: any, field) => {
         if (field.id && field.default !== undefined) {
-          return {
-            ...acc,
-            [field.id]: field.default,
-          };
+          acc[field.id] = field.default;
         }
         return acc;
       }, {}),
@@ -100,7 +113,7 @@ export function resolveSectionPresets(schema: ThemeSectionSchema) {
 
 export async function getLayoutSectionGroups(
   allSections: SwellThemeConfig[],
-  renderTemplateSchema: (config: any) => Promise<any>,
+  renderTemplateSchema: (config: SwellThemeConfig) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemeLayoutSectionGroupConfig[]> {
   const sectionGroupConfigs = allSections.filter(
     (config: SwellRecord) =>
@@ -115,7 +128,7 @@ export async function getLayoutSectionGroups(
 
   const getSectionSchema = async (
     type: string,
-  ): Promise<ThemeSectionSchema | undefined> => {
+  ): Promise<Partial<ThemeSectionSchema> | undefined> => {
     const config = allSections.find((config: SwellRecord) => {
       if (
         !config.file_path?.endsWith(`/${type}.json`) &&
@@ -139,6 +152,10 @@ export async function getLayoutSectionGroups(
         return true;
       }
     });
+
+    if (!config) {
+      return undefined;
+    }
 
     const schema = await renderTemplateSchema(config);
     return {
@@ -180,7 +197,7 @@ export async function getLayoutSectionGroups(
 
 export async function getPageSections(
   sectionGroup: ThemeSectionGroup | SwellRecord,
-  getSchema: (type: string) => Promise<ThemeSectionSchema | undefined>,
+  getSchema: (type: string) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemeSectionConfig[]> {
   const order =
     sectionGroup.order instanceof Array

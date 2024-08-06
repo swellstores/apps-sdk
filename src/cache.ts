@@ -7,6 +7,8 @@
 
 import { StorefrontResource } from './api';
 
+import type { CFWorkerKV } from 'types/swell';
+
 export class Cache {
   private map: Map<string, any> = new Map();
   private kvStore?: CFWorkerKV;

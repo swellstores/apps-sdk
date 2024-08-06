@@ -1,8 +1,12 @@
-import { ShopifyCompatibility } from '../shopify';
-import { ShopifyResource } from './resource';
+import { isObject } from 'lodash-es';
+
 import { stringifyQueryParams } from '../../utils';
 
-import { isObject } from 'lodash-es';
+import { ShopifyCompatibility } from '../shopify';
+
+import { ShopifyResource } from './resource';
+
+import type { SwellData, SwellRecord } from 'types/swell';
 
 export default function ShopifyFilter(
   instance: ShopifyCompatibility,

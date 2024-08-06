@@ -1,5 +1,8 @@
 import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource } from './resource';
+
+import type { SwellData } from 'types/swell';
 
 export default function ShopifyMedia(
   _instance: ShopifyCompatibility,

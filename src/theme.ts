@@ -20,6 +20,33 @@ import {
   isObject,
 } from './utils';
 
+import type {
+  ThemeGlobals,
+  ThemeConfigs,
+  ThemeSettings,
+  ThemeResources,
+  ThemeFormConfig,
+  ThemeFormErrorMessages,
+  ThemePresetSchema,
+  ThemeSectionGroup,
+  ThemeSectionSchema,
+  ThemeSectionConfig,
+  ThemeSectionSettings,
+  ThemeSettingFieldSchema,
+  ThemeSettingSectionSchema,
+  ThemePageSectionSchema,
+  ThemePageTemplateConfig,
+  ThemeLayoutSectionGroupConfig,
+  SwellData,
+  SwellMenu,
+  SwellRecord,
+  SwellAppConfig,
+  SwellThemeConfig,
+  SwellAppStorefrontThemeProps,
+} from '../types/swell';
+
+import type { ShopifySectionSchema } from 'types/shopify';
+
 export class SwellTheme {
   public swell: Swell;
   public props: SwellAppStorefrontThemeProps;
@@ -35,7 +62,7 @@ export class SwellTheme {
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
     ShopifyCompatibility;
 
-  public formData: { [key: string]: ThemeForm } = {};
+  public formData: Record<string, ThemeForm> = {};
   public globalData: SwellData = {};
 
   constructor(
@@ -75,7 +102,7 @@ export class SwellTheme {
   getSwellAppThemeProps(
     swellConfig?: SwellAppConfig,
   ): SwellAppStorefrontThemeProps {
-    return swellConfig?.properties?.theme || {};
+    return swellConfig?.properties?.theme || {} as SwellAppStorefrontThemeProps;
   }
 
   async initGlobals(pageId: string) {
@@ -173,10 +200,7 @@ export class SwellTheme {
                 configValue = null;
               }
             }
-            return {
-              ...acc,
-              [configName]: configValue,
-            };
+            acc[configName] = configValue;
           }
           return acc;
         },
@@ -337,7 +361,7 @@ export class SwellTheme {
     if (this.shopifyCompatibility) {
       const shopifyType = this.shopifyCompatibility.getAdaptedFormType(
         formType,
-      ) as string;
+      );
       if (shopifyType) {
         formId = shopifyType;
       }
@@ -394,7 +418,7 @@ export class SwellTheme {
       const form = this.formData[formId];
       serializedFormData[formId] = {
         success: form.success,
-        errors: form.errors && Array.from(form.errors as any),
+        errors: form.errors && Array.from(form.errors),
       };
     }
 
@@ -477,7 +501,7 @@ export class SwellTheme {
     };
 
     if (!Object.keys(configs.editor).length && configs.settings_schema) {
-      configs.editor = await shopifyCompatibility().getEditorConfig(
+      configs.editor = shopifyCompatibility().getEditorConfig(
         configs.settings_schema,
       );
       configs.editor = await shopifyCompatibility().renderSchemaTranslations(
@@ -775,7 +799,7 @@ export class SwellTheme {
 
   async getSectionSchema(
     sectionName: string,
-  ): Promise<ThemeSectionSchema | undefined> {
+  ): Promise<Partial<ThemeSectionSchema> | undefined> {
     const config = await this.getThemeTemplateConfigByType(
       'sections',
       sectionName,
@@ -1084,8 +1108,8 @@ export class SwellTheme {
 
   async getTemplateSchema(
     config: SwellThemeConfig,
-  ): Promise<ThemeSectionSchema | {}> {
-    let schema = {};
+  ): Promise<Partial<ThemeSectionSchema> | undefined> {
+    let schema: Partial<ThemeSectionSchema> | undefined;
 
     const resolvedConfig = await this.getThemeConfig(config.file_path);
 
@@ -1095,10 +1119,10 @@ export class SwellTheme {
         this.liquidSwell.lastSchema = undefined;
         await this.renderTemplate(resolvedConfig);
 
-        const lastSchema = this.liquidSwell.lastSchema || {};
+        const lastSchema = (this.liquidSwell.lastSchema || {}) as ShopifySectionSchema;
         if (lastSchema) {
           schema = this.shopifyCompatibility.getSectionConfigSchema(
-            lastSchema as ShopifySectionSchema,
+            lastSchema,
           );
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
@@ -1124,7 +1148,8 @@ export class SwellTheme {
   ): Promise<SwellData> {
     const defaults: SwellData = {};
 
-    const defaultSchema = presetSchema || sectionSchema.default || {};
+    const defaultSchema: ThemePresetSchema
+      = presetSchema || sectionSchema.default || {} as ThemePresetSchema;
 
     if (sectionSchema?.fields) {
       sectionSchema.fields.forEach((field: ThemeSettingFieldSchema) => {
@@ -1241,7 +1266,7 @@ export class SwellTheme {
           settings = resolveSectionSettings(this, sectionConfig);
         }
 
-        return new Promise(async (resolve) => {
+        return new Promise<ThemeSectionConfig>(async (resolve) => {
           const templateConfig = await this.getThemeTemplateConfigByType(
             'sections',
             `${section.type}.liquid`,
@@ -1259,20 +1284,20 @@ export class SwellTheme {
             ...sectionConfig,
             output,
           });
-        }) as Promise<ThemeSectionConfig>;
+        });
       }),
     );
   }
 
   async renderTemplateSections(
     sectionGroup: ThemeSectionGroup,
-    data: SwellData,
+    data?: SwellData,
   ) {
     const sectionConfigs = await this.renderPageSections(sectionGroup, data);
 
     return sectionConfigs
       .map(
-        (section: any) =>
+        (section) =>
           `<${section.tag} ${section.class ? `class="${section.class}"` : ''}>${
             section.output
           }</${section.tag}>`,

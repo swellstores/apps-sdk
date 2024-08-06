@@ -1,3 +1,23 @@
+import type {
+  ShopifySectionBlockSchema,
+  ShopifySectionPresetSchema,
+  ShopifySectionSchema,
+  ShopifySettingSchema,
+  ShopifySettingsData,
+  ShopifySettingSection,
+  ShopifySettingsSchema,
+} from 'types/shopify';
+
+import type {
+  ThemeBlockSchema,
+  ThemeEditorSchema,
+  ThemePresetSchema,
+  ThemeSectionSchema,
+  ThemeSettingFieldSchema,
+  ThemeSettings,
+  ThemeSettingSectionSchema,
+} from 'types/swell';
+
 export function convertShopifySettingsSchema(
   settingsSchema: ShopifySettingsSchema,
 ): ThemeEditorSchema {
@@ -34,7 +54,7 @@ export function convertShopifySettingsPresets(
   settingsData: ShopifySettingsData,
 ): ThemePresetSchema[] {
   return Object.entries(settingsData.presets || {}).map(
-    ([name, preset]: [string, any]) => ({
+    ([name, preset]) => ({
       label: name,
       settings: preset,
     }),
@@ -44,7 +64,7 @@ export function convertShopifySettingsPresets(
 export function convertShopifySectionSchema(
   sectionSchema: ShopifySectionSchema,
 ): ThemeSectionSchema {
-  const schema = {
+  const schema: ThemeSectionSchema = {
     label: sectionSchema.name,
     type: sectionSchema.type,
     tag: sectionSchema.tag,

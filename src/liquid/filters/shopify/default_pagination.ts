@@ -42,8 +42,8 @@ export default function bind(liquidSwell: LiquidSwell) {
         </span>`
       }
       ${Object.entries(paginate.pages).map(
-        ([page, props]: any) =>
-          `<span class="page ${page == paginate.page ? 'current' : ''}">
+        ([page, props]) =>
+          `<span class="page ${Number(page) === paginate.page ? 'current' : ''}">
             <a href="${props.url}" title="">${page}</a>
           </span>`,
       )}

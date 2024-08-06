@@ -28,8 +28,8 @@ export default {
       const props = paramsToProps(params);
 
       const query = [
-        props?.width && `width=${props.width * 2}`,
-        props?.height && `height=${props.height * 2}`,
+        props.width  && `width=${Number(props.width) * 2}`,
+        props.height && `height=${Number(props.height) * 2}`,
       ]
         .filter(Boolean)
         .join('&');
