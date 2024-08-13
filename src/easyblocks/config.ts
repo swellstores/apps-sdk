@@ -248,8 +248,9 @@ export function getEasyblocksPagePropsWithConfigs(
 
   const components = [
     {
-      id: `swell_page`,
-      label: 'Page: ' + pageId,
+      id: 'swell_page',
+      // label: 'Page: ' + pageId,
+      label: 'Theme settings',
       schema: [
         {
           prop: 'ContentSections',
