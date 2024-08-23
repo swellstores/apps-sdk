@@ -1,6 +1,6 @@
 import { reduce } from 'lodash-es';
+
 import { SwellTheme } from '../theme';
-import { Backend, Document, UserDefinedTemplate } from '@swell/easyblocks-core';
 import {
   getPageTemplate,
   getAllSections,
@@ -9,6 +9,17 @@ import {
   schemaToEasyblocksProps,
   schemaToEasyblocksValue,
 } from './utils';
+
+import type { Backend, Document, UserDefinedTemplate } from '@swell/easyblocks-core';
+
+import type {
+  SwellThemeConfig,
+  ThemeGlobals,
+  ThemeLayoutSectionGroupConfig,
+  ThemePageSectionSchema,
+  ThemeSectionConfig,
+  ThemeSectionGroup,
+} from 'types/swell';
 
 export async function getEasyblocksPropsFromThemeConfigs(
   theme: SwellTheme,
@@ -237,8 +248,9 @@ export function getEasyblocksPagePropsWithConfigs(
 
   const components = [
     {
-      id: `swell_page`,
-      label: 'Page: ' + pageId,
+      id: 'swell_page',
+      // label: 'Page: ' + pageId,
+      label: 'Theme settings',
       schema: [
         {
           prop: 'ContentSections',

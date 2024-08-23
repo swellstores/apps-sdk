@@ -1,17 +1,19 @@
-import { LiquidSwell } from "..";
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
-  TopLevelToken,
-  Template,
   TypeGuards,
-} from "liquidjs";
+} from 'liquidjs';
+
+import { LiquidSwell } from '..';
+
+import type { Template, TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 // {% style %} div: { color: {{ settings.color }}; } {% endstyle %}
 
-export default function bind(_liquidSwell: LiquidSwell) {
+export default function bind(_liquidSwell: LiquidSwell): TagClass {
   return class StyleTag extends Tag {
     private templates: Template[] = [];
 

@@ -1,9 +1,13 @@
-import { ShopifyCompatibility } from '../shopify';
 import { StorefrontResource } from '../../resources';
+
+import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource, defer, deferWith } from './resource';
+import ShopifyLineItem, { countItemQuantity } from './line_item';
 import ShopifyAddress from './address';
 import ShopifyCustomer from './customer';
-import ShopifyLineItem, { countItemQuantity } from './line_item';
+
+import type { SwellData, SwellRecord } from 'types/swell';
 
 export default function ShopifyOrder(
   instance: ShopifyCompatibility,

@@ -1,22 +1,23 @@
-import { LiquidSwell } from '..';
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
-  TopLevelToken,
-  Template,
-  ValueToken,
   Hash,
   ParseStream,
-  Emitter,
   evalToken,
 } from 'liquidjs';
+
 import {
   SwellStorefrontCollection,
   SwellStorefrontPagination,
 } from '../../resources';
+
 import { ShopifyPaginate } from '../../compatibility/shopify-objects';
+import { LiquidSwell } from '..';
+
+import type { Emitter, Template, ValueToken, TopLevelToken } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
 
 /*
   {% paginate array by page_size %}
@@ -26,7 +27,7 @@ import { ShopifyPaginate } from '../../compatibility/shopify-objects';
   {% endpaginate %}
 */
 
-export default function bind(liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class PaginateTag extends Tag {
     private collection: ValueToken;
     private pageSize: ValueToken | undefined;

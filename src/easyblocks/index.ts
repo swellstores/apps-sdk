@@ -1,2 +1,6 @@
 export * from './config';
-export * from './utils';
+
+export {
+  getThemeSettingsFromProps,
+  getSectionSettingsFromProps,
+} from './utils';

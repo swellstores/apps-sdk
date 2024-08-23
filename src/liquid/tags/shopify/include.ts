@@ -1,21 +1,23 @@
-import { LiquidSwell } from "../..";
 import {
   Liquid,
   Tag,
   TagToken,
   Context,
-  TopLevelToken,
   Hash,
-  Scope,
-} from "liquidjs";
-import { QuotedToken } from "liquidjs/dist/tokens";
+} from 'liquidjs';
+
+import { LiquidSwell } from '../..';
+
+import type { Scope, TopLevelToken } from 'liquidjs';
+import type { QuotedToken } from 'liquidjs/dist/tokens';
+import type { TagClass } from 'liquidjs/dist/template';
 
 // Deprecated in Shopify, supported for backward compatibility
 // Replaced by {% render %}
 
 // {% include 'component' %}
 
-export default function bind(liquidSwell: LiquidSwell) {
+export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class IncludeTag extends Tag {
     private fileName: string;
     private hash: Hash;

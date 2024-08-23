@@ -1,6 +1,10 @@
-import { ShopifyCompatibility } from '../shopify';
 import { StorefrontResource } from '../../resources';
+
+import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource, defer, deferWith } from './resource';
+
+import type { SwellRecord } from 'types/swell';
 
 export default function ShopifyAddress(
   instance: ShopifyCompatibility,

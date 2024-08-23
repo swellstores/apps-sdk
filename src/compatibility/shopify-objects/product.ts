@@ -1,9 +1,13 @@
-import { ShopifyCompatibility } from '../shopify';
 import { StorefrontResource } from '../../resources';
+
+import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyVariant from './variant';
 import ShopifyImage from './image';
 import ShopifyMedia from './media';
+
+import type { SwellData, SwellRecord } from 'types/swell';
 
 export default function ShopifyProduct(
   instance: ShopifyCompatibility,

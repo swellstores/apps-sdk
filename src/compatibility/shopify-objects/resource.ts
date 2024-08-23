@@ -1,5 +1,10 @@
 import { cloneDeep } from 'lodash-es';
+
 import { ShopifyCompatibility } from '../shopify';
+
+import { isObject } from '@/liquid/utils';
+
+import type { StorefrontResource } from '@/resources';
 
 export class ShopifyResource {
   props: { [key: string]: any };
@@ -67,17 +72,17 @@ export class ShopifyResource {
   }
 }
 
-export class DeferredShopifyResource {
-  private handler: Function;
-  private result: any;
+export class DeferredShopifyResource<T> {
+  private handler: () => Promise<T> | T;
+  private result: Promise<T> | T | undefined | null;
 
-  constructor(handler: Function) {
+  constructor(handler: () => Promise<T> | T) {
     this.handler = handler;
   }
 
   async resolve() {
     if (this.result === undefined) {
-      this.result = Promise.resolve(this.handler()).then((value: any) => {
+      this.result = Promise.resolve(this.handler()).then((value) => {
         this.result = value !== undefined ? value : null;
         return value;
       });
@@ -87,47 +92,53 @@ export class DeferredShopifyResource {
   }
 }
 
-export function defer(handler: Function) {
+export function defer<T>(handler: () => Promise<T> | T) {
   return new DeferredShopifyResource(handler);
 }
 
-export function isResolvable(asyncProp: any) {
-  return (
-    asyncProp instanceof Promise || typeof asyncProp?._resolve === 'function'
+export function isResolvable(asyncProp: unknown): boolean {
+  return isObject(asyncProp) && (
+    asyncProp instanceof Promise || typeof asyncProp._resolve === 'function'
   );
 }
 
-export async function resolveAsyncProp(asyncProp: any) {
-  return asyncProp instanceof Array
-    ? Promise.all(
-        asyncProp.map((prop: any) =>
-          typeof prop?._resolve === 'function' ? prop._resolve() : prop,
-        ),
-      )
-    : typeof asyncProp?._resolve === 'function'
-    ? asyncProp._resolve()
-    : asyncProp;
+function isStorefrontResource(resource: unknown): resource is StorefrontResource {
+  return isObject(resource) && typeof resource._resolve === 'function'
 }
 
-export async function handleDeferredProp(asyncProp: any, handler: Function) {
-  return resolveAsyncProp(asyncProp)
-    .then((value: any): any => {
+export async function resolveAsyncProp<R>(asyncProp: unknown): Promise<R> {
+  return Array.isArray(asyncProp)
+    ? Promise.all(
+        asyncProp.map((prop) =>
+          isStorefrontResource(prop) ? prop._resolve() : prop,
+        ),
+      )
+    : isStorefrontResource(asyncProp)
+    ? asyncProp._resolve()
+    : asyncProp as R;
+}
+
+export async function handleDeferredProp<T, R>(asyncProp: unknown, handler: (...value: R[]) => T): Promise<T | null> {
+  return resolveAsyncProp<R>(asyncProp)
+    .then((value) => {
+      if (Array.isArray(asyncProp) && Array.isArray(value)) {
+        return handler(...value.map((prop) => prop || {}));
+      }
+
       if (isResolvable(value)) {
-        return handleDeferredProp(value, handler);
+        return handleDeferredProp<T, R>(value, handler);
       }
-      if (asyncProp instanceof Array) {
-        return handler(...value.map((prop: any) => prop || {}));
-      }
-      return handler(value || {});
+
+      return handler(value || ({} as R));
     })
-    .catch((err: any) => {
+    .catch((err) => {
       console.log(err);
       return null;
     });
 }
 
-export function deferWith(asyncProp: any, handler: Function) {
-  return new DeferredShopifyResource(() =>
+export function deferWith<T, R>(asyncProp: unknown, handler: (...value: R[]) => T) {
+  return new DeferredShopifyResource<T | null>(() =>
     handleDeferredProp(asyncProp, handler),
   );
 }

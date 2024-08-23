@@ -1,5 +1,8 @@
 import { ShopifyCompatibility } from '../shopify';
+
 import { ShopifyResource, defer, deferWith } from './resource';
+
+import type { SwellData } from 'types/swell';
 
 export default function ShopifyPage(
   _instance: ShopifyCompatibility,

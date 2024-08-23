@@ -1,21 +1,23 @@
 import { Swell, SwellStorefrontCollection, SwellStorefrontRecord } from './api';
 
-export async function getProducts(
+import type { SwellData } from '../types/swell';
+
+export function getProducts(
   swell: Swell,
   query?: SwellData,
-): Promise<any> {
+): SwellStorefrontCollection {
   return new SwellStorefrontCollection(swell, 'products', query);
 }
 
-export async function getProduct(
+export function getProduct(
   swell: Swell,
   id: string,
   query?: SwellData,
-): Promise<any> {
+): SwellStorefrontRecord {
   return new SwellStorefrontRecord(swell, 'products', id, query);
 }
 
-export async function getProductsFiltered(
+export function getProductsFiltered(
   swell: Swell,
   {
     search,
@@ -26,7 +28,7 @@ export async function getProductsFiltered(
     filter?: any;
     sort?: string | null;
   },
-): Promise<any> {
+): SwellStorefrontCollection {
   return new SwellStorefrontCollection(swell, 'products', {
     search,
     filter,

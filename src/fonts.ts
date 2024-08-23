@@ -1,20 +1,9 @@
+import type { ThemeFontConfig } from '../types/swell';
+
 /**
  * Map of all fonts supported by Swell.
  */
-export const fontMap: Array<{
-  family: string;
-  label?: string;
-  fallback?: string;
-  axes: Array<'wght' | 'wdth' | 'slnt' | 'opsz' | 'ital'>;
-  variants: Array<{
-    wght: number;
-    wdth?: number;
-    slnt?: number;
-    opsz?: number;
-    ital?: number;
-  }>;
-  system?: boolean;
-}> = [
+export const fontMap: Array<ThemeFontConfig> = [
   // System fonts
   {
     family: 'monospace',
