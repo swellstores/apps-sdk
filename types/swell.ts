@@ -17,7 +17,7 @@ export interface SwellAppConfig {
   type: 'storefront' | string;
   version: string;
   description?: string;
-  properties?: { theme: SwellAppStorefrontThemeProps };
+  storefront?: { theme: SwellAppStorefrontThemeProps };
 };
 
 export interface SwellAppStorefrontThemePage {

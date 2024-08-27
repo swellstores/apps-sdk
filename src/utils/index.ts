@@ -388,13 +388,6 @@ export async function resolveAsyncResources(
       );
     }
 
-    if (result instanceof ShopifyResource) {
-      //nextResolveStorefrontResources = false;
-      if (!resolveStorefrontResources) {
-        //console.log('shopify resource stop here', result);
-      }
-    }
-
     if (result instanceof Array) {
       result = await Promise.all(
         result.map((item) =>
@@ -403,7 +396,7 @@ export async function resolveAsyncResources(
       );
 
       if (result.filter((item: any) => item !== undefined).length === 0) {
-        return undefined;
+        return resolveStorefrontResources ? [] : undefined;
       }
     } else if (
       typeof result === 'object' &&
@@ -439,7 +432,7 @@ export async function resolveAsyncResources(
     }
   } catch (err: any) {
     console.error(err);
-    return {};
+    return response;
   }
 
   return result;

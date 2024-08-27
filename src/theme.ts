@@ -102,7 +102,9 @@ export class SwellTheme {
   getSwellAppThemeProps(
     swellConfig?: SwellAppConfig,
   ): SwellAppStorefrontThemeProps {
-    return swellConfig?.properties?.theme || {} as SwellAppStorefrontThemeProps;
+    return (
+      swellConfig?.storefront?.theme || ({} as SwellAppStorefrontThemeProps)
+    );
   }
 
   async initGlobals(pageId: string) {
@@ -1148,8 +1150,8 @@ export class SwellTheme {
   ): Promise<SwellData> {
     const defaults: SwellData = {};
 
-    const defaultSchema: ThemePresetSchema
-      = presetSchema || sectionSchema.default || {} as ThemePresetSchema;
+    const defaultSchema: ThemePresetSchema =
+      presetSchema || sectionSchema?.default || ({} as ThemePresetSchema);
 
     if (sectionSchema?.fields) {
       sectionSchema.fields.forEach((field: ThemeSettingFieldSchema) => {
