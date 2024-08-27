@@ -17,8 +17,8 @@ export interface SwellAppConfig {
   type: 'storefront' | string;
   version: string;
   description?: string;
-  properties?: { theme: SwellAppStorefrontThemeProps };
-};
+  storefront?: { theme: SwellAppStorefrontThemeProps };
+}
 
 export interface SwellAppStorefrontThemePage {
   id: string;
@@ -34,13 +34,13 @@ export interface SwellAppStorefrontThemeProps {
   type: 'theme';
   pages: Array<SwellAppStorefrontThemePage>;
   shopify_compatibility?: boolean;
-};
+}
 
 export interface SwellErrorOptions {
   status?: number;
   method?: string;
   endpointUrl?: string;
-};
+}
 
 export type SwellData = Record<string, any>;
 export type SwellLocaleProp = Record<string, Record<string, string>>;
@@ -51,7 +51,7 @@ export interface SwellRecord {
   [key: string]: any;
   $locale?: SwellLocaleProp;
   $currency?: SwellCurrencyProp;
-};
+}
 
 export interface SwellCollection {
   page: number;
@@ -60,7 +60,7 @@ export interface SwellCollection {
   page_count: number;
   limit: number;
   pages: SwellCollectionPages;
-};
+}
 
 export interface SwellCollectionPage {
   start: number;
@@ -82,7 +82,7 @@ export interface SwellMenu {
   handle?: string;
   items: SwellMenuItem[];
   $locale?: SwellLocaleProp;
-};
+}
 
 export enum SwellMenuItemType {
   Home = 'home',
@@ -117,18 +117,18 @@ export interface SwellMenuItem {
   active?: boolean;
   child_current?: boolean;
   child_active?: boolean;
-};
+}
 
 export type StorefrontResourceGetter = () => Promise<SwellData> | SwellData;
 
 export interface ThemeSettings {
   [key: string]: any;
-};
+}
 
 export interface ThemeSettingsBlock {
   type: string;
   settings: ThemeSettings;
-};
+}
 
 export interface ThemeSectionBase {
   id: string;
@@ -165,14 +165,14 @@ export interface ThemeConfigs {
   // Shopify compatibility
   settings_schema?: any;
   settings_data?: any;
-};
+}
 
 export interface ThemeResourceFactory {
-  new (swell: Swell): StorefrontResource
+  new (swell: Swell): StorefrontResource;
 }
 
 export interface ThemeLookupResourceFactory {
-  new (swell: Swell, id: string): StorefrontResource
+  new (swell: Swell, id: string): StorefrontResource;
 }
 
 export interface ThemeResources {
@@ -181,12 +181,12 @@ export interface ThemeResources {
     cart?: ThemeResourceFactory;
   };
   records?: Record<string, ThemeLookupResourceFactory>;
-};
+}
 
 export interface ThemeEditorSchema {
   settings?: ThemeSettingSectionSchema[];
   menus?: any; // TODO menu schema?
-};
+}
 
 export interface ThemeSection {
   id?: string;
@@ -195,7 +195,7 @@ export interface ThemeSection {
   settings: ThemeSettings;
   blocks?: Record<string, ThemeSettingsBlock>;
   block_order?: string[];
-};
+}
 
 interface ThemeSectionGroupBase {
   id?: string;
@@ -205,7 +205,7 @@ interface ThemeSectionGroupBase {
 
 export interface ThemeSectionGroup extends ThemeSectionGroupBase {
   sections: Record<string, ThemeSection>;
-};
+}
 
 export interface ThemeSectionConfig {
   id: string;
@@ -216,7 +216,7 @@ export interface ThemeSectionConfig {
   settings?: ThemeSectionSettings;
   blocks?: ThemeSettingsBlock[];
   class?: string;
-};
+}
 
 export interface ThemeSectionSchema {
   id?: string;
@@ -230,7 +230,7 @@ export interface ThemeSectionSchema {
   blocks?: ThemeBlockSchema[];
   presets?: ThemePresetSchema[];
   default?: ShopifySettingSchema;
-};
+}
 
 export type ThemeSettingBasicInputType =
   | 'short_text'
@@ -350,13 +350,13 @@ export interface ThemeSettingFieldSchema {
   query?: SwellData;
   params?: SwellData;
   limit?: number;
-};
+}
 
 export interface ThemeSettingSectionSchema {
   id?: string;
   label: string;
   fields: ThemeSettingFieldSchema[];
-};
+}
 
 export interface ThemePageSectionSchema extends ThemeSectionSchema {
   id: string;
@@ -405,7 +405,9 @@ export interface ThemeSectionEnabledDisabled {
   groups?: string[];
 }
 
-export type GetThemeConfig = (fileName: string) => Promise<SwellThemeConfig | null>;
+export type GetThemeConfig = (
+  fileName: string,
+) => Promise<SwellThemeConfig | null>;
 
 export type GetThemeTemplateConfigByType = (
   type: string,
@@ -429,7 +431,11 @@ export type RenderTemplateSections = (
   data?: SwellData,
 ) => Promise<string>;
 
-export type RenderTranslation = (key: string, data?: unknown, locale?: string) => Promise<string>;
+export type RenderTranslation = (
+  key: string,
+  data?: unknown,
+  locale?: string,
+) => Promise<string>;
 
 interface RenderCurrencyParams {
   code?: string;
@@ -452,7 +458,7 @@ export interface ThemeFontConfig {
   axes: Array<'wght' | 'wdth' | 'slnt' | 'opsz' | 'ital'>;
   variants: ThemeFontVariant[];
   system?: boolean;
-};
+}
 
 export interface ThemeFontVariant {
   wght?: number;

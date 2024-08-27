@@ -102,7 +102,9 @@ export class SwellTheme {
   getSwellAppThemeProps(
     swellConfig?: SwellAppConfig,
   ): SwellAppStorefrontThemeProps {
-    return swellConfig?.properties?.theme || {} as SwellAppStorefrontThemeProps;
+    return (
+      swellConfig?.storefront?.theme || ({} as SwellAppStorefrontThemeProps)
+    );
   }
 
   async initGlobals(pageId: string) {
@@ -359,9 +361,8 @@ export class SwellTheme {
     let formId = formType;
 
     if (this.shopifyCompatibility) {
-      const shopifyType = this.shopifyCompatibility.getAdaptedFormType(
-        formType,
-      );
+      const shopifyType =
+        this.shopifyCompatibility.getAdaptedFormType(formType);
       if (shopifyType) {
         formId = shopifyType;
       }
@@ -710,12 +711,12 @@ export class SwellTheme {
     return this.themeConfigs;
   }
 
-  async getThemeConfig(
-    filePath: string,
-  ): Promise<SwellThemeConfig | null> {
-    return (await this.getAllThemeConfigs()).find(
+  async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
+    return (
+      (await this.getAllThemeConfigs()).find(
         (config: SwellThemeConfig) => config.file_path === filePath,
-      ) || null;
+      ) || null
+    );
   }
 
   async getThemeTemplateConfig(
@@ -1119,11 +1120,10 @@ export class SwellTheme {
         this.liquidSwell.lastSchema = undefined;
         await this.renderTemplate(resolvedConfig);
 
-        const lastSchema = (this.liquidSwell.lastSchema || {}) as ShopifySectionSchema;
+        const lastSchema = (this.liquidSwell.lastSchema ||
+          {}) as ShopifySectionSchema;
         if (lastSchema) {
-          schema = this.shopifyCompatibility.getSectionConfigSchema(
-            lastSchema,
-          );
+          schema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             schema,
@@ -1148,8 +1148,8 @@ export class SwellTheme {
   ): Promise<SwellData> {
     const defaults: SwellData = {};
 
-    const defaultSchema: ThemePresetSchema
-      = presetSchema || sectionSchema.default || {} as ThemePresetSchema;
+    const defaultSchema: ThemePresetSchema =
+      presetSchema || sectionSchema.default || ({} as ThemePresetSchema);
 
     if (sectionSchema?.fields) {
       sectionSchema.fields.forEach((field: ThemeSettingFieldSchema) => {
