@@ -401,7 +401,7 @@ export interface ThemePresetSchema {
 }
 
 export interface ThemeSectionEnabledDisabled {
-  templates?: string[];
+  templates?: string[] | '*';
   groups?: string[];
 }
 

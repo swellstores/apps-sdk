@@ -23,20 +23,20 @@ export async function getAllSections(
   theme: SwellTheme,
   themeConfigs: SwellThemeConfig[],
 ): Promise<ThemeSectionSchema[]> {
-  const sectionConfigs = themeConfigs.filter((config) =>
-    filterSectionConfig(config, themeConfigs),
-  );
-
   const allSections = [];
-  for (const config of sectionConfigs) {
-    const schema = await renderTemplateSchema(
-      theme,
-      config as SwellThemeConfig,
-    );
-    allSections.push({
-      id: config.name.split('.').pop(),
-      ...schema,
-    });
+
+  for (const config of themeConfigs) {
+    if (filterSectionConfig(config, themeConfigs)) {
+      const schema = await renderTemplateSchema(
+        theme,
+        config as SwellThemeConfig,
+      );
+
+      allSections.push({
+        id: config.name.split('.').pop(),
+        ...schema,
+      });
+    }
   }
 
   return allSections;
@@ -197,37 +197,40 @@ export async function renderTemplateSchema(
 }
 
 export function filterSectionConfig(
-  config: SwellRecord,
+  config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
 ) {
-  if (!config.file_path?.startsWith('theme/sections/')) return false;
+  if (!config.file_path.startsWith('theme/sections/')) {
+    return false;
+  }
 
   return isJsonOrLiquidConfig(config, themeConfigs);
 }
 
 export function filterAllLayoutSectionGroupConfigs(
-  config: SwellRecord,
+  config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
 ) {
-  return (
-    config.file_path?.startsWith('theme/sections/') &&
-    config.file_path?.endsWith('.json') &&
-    // Section groups must not have a liquid file
-    !themeConfigs.find(
-      (c: SwellRecord) =>
-        c.file_path === config.file_path.replace(/\.json$/, '.liquid'),
-    )
-  );
+  if (
+    !config.file_path.startsWith('theme/sections/') ||
+    !config.file_path.endsWith('.json')
+  ) {
+    return false;
+  }
+
+  const targetFilePath = config.file_path.replace(/\.json$/, '.liquid');
+
+  return !themeConfigs.find((c) => c.file_path === targetFilePath);
 }
 
 export function filterLayoutSectionGroupConfig(
-  config: SwellRecord,
+  config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
   type: string,
 ) {
   if (
-    !config.file_path?.endsWith(`/${type}.json`) &&
-    !config.file_path?.endsWith(`/${type}.liquid`)
+    !config.file_path.endsWith(`/${type}.json`) &&
+    !config.file_path.endsWith(`/${type}.liquid`)
   ) {
     return false;
   }
@@ -236,21 +239,20 @@ export function filterLayoutSectionGroupConfig(
 }
 
 export function isJsonOrLiquidConfig(
-  config: SwellRecord,
+  config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
 ) {
-  const isLiquidFile = config.file_path.endsWith('.liquid');
-  const isJsonFile = config.file_path.endsWith('.json');
+  if (config.file_path.endsWith('.liquid')) {
+    const targetFilePath = config.file_path.replace(/\.liquid$/, '.json');
 
-  if (isLiquidFile) {
     const hasJsonFile = themeConfigs.find(
-      (c: any) =>
-        c.file_path === config.file_path.replace(/\.liquid$/, '.json'),
+      (c) => c.file_path === targetFilePath,
     );
+
     if (!hasJsonFile) {
       return true;
     }
-  } else if (isJsonFile) {
+  } else if (config.file_path.endsWith('.json')) {
     return true;
   }
 
@@ -441,13 +443,14 @@ export function schemaToEasyblocksValue(
   }
 }
 
-export function getThemeSettingsFromProps(props: any, editorSchema: any) {
+export function getThemeSettingsFromProps(props: any, editorSchema: any[]) {
   return editorSchema?.reduce((acc: any, settingGroup: any) => {
     for (const field of settingGroup.fields || []) {
       if (field?.id) {
         acc[field.id] = props[field.id];
       }
     }
+
     return acc;
   }, {});
 }

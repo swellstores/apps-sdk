@@ -54,7 +54,7 @@ export class SwellTheme {
   public forms?: ThemeFormConfig[];
   public resources?: ThemeResources;
   public liquidSwell: LiquidSwell;
-  public themeConfigs: SwellThemeConfig[] | null = null;
+  public themeConfigs: Map<string, SwellThemeConfig> | null = null;
 
   public page: any;
   public pageId: string | undefined;
@@ -173,14 +173,15 @@ export class SwellTheme {
     ]);
 
     const settingConfigs = await Promise.all(
-      themeConfigs
-        .filter((config: SwellRecord) =>
-          config?.file_path?.startsWith('theme/config/'),
+      Array.from(themeConfigs.values())
+        .filter((config) =>
+          config.file_path.startsWith('theme/config/'),
         )
-        .map(async (config: SwellRecord) => {
-          if (config?.file_path?.endsWith('.json')) {
-            return await this.getThemeConfig(config.file_path);
+        .map(async (config) => {
+          if (config.file_path.endsWith('.json')) {
+            return this.getThemeConfig(config.file_path);
           }
+
           return config;
         }),
     );
@@ -191,7 +192,7 @@ export class SwellTheme {
       translations: {},
       presets: [],
       ...settingConfigs.reduce(
-        (acc: any, config: SwellRecord | null): { [key: string]: any } => {
+        (acc: any, config) => {
           const configName = config?.name.split('.')[0];
           if (configName) {
             let configValue;
@@ -658,7 +659,7 @@ export class SwellTheme {
     );
   }
 
-  async getAllThemeConfigs(): Promise<SwellThemeConfig[]> {
+  async getAllThemeConfigs(): Promise<Map<string, SwellThemeConfig>> {
     if (this.themeConfigs) {
       return this.themeConfigs;
     }
@@ -706,17 +707,18 @@ export class SwellTheme {
       },
     );
 
-    this.themeConfigs = configs.results as SwellThemeConfig[];
+    this.themeConfigs = new Map();
+
+    for (const config of configs.results as SwellThemeConfig[]) {
+      this.themeConfigs.set(config.file_path, config);
+    }
 
     return this.themeConfigs;
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
-    return (
-      (await this.getAllThemeConfigs()).find(
-        (config: SwellThemeConfig) => config.file_path === filePath,
-      ) || null
-    );
+    const configMap = await this.getAllThemeConfigs();
+    return configMap.get(filePath) ?? null;
   }
 
   async getThemeTemplateConfig(
@@ -724,37 +726,42 @@ export class SwellTheme {
   ): Promise<SwellThemeConfig | null> {
     // Explicit extension
     if (filePath.endsWith('.json') || filePath.endsWith('.liquid')) {
-      return await this.getThemeConfig(filePath);
+      return this.getThemeConfig(filePath);
     }
 
     // Try to find a JSON template first
     const jsonTemplate = await this.getThemeConfig(`${filePath}.json`);
+
     if (jsonTemplate) {
       return jsonTemplate;
     }
 
-    return await this.getThemeConfig(`${filePath}.liquid`);
+    return this.getThemeConfig(`${filePath}.liquid`);
   }
 
   async getThemeTemplateConfigByType(
     type: string,
     name: string,
-  ): Promise<SwellThemeConfig | null | undefined> {
-    const templatesByPriority = [
-      `${type}/${name}`,
-      ...(this.shopifyCompatibility
-        ? [this.shopifyCompatibility.getThemeFilePath(type, name)]
-        : []),
-    ];
+  ): Promise<SwellThemeConfig | null> {
+    const templatesByPriority = [`${type}/${name}`];
+
+    if (this.shopifyCompatibility) {
+      templatesByPriority.push(
+        this.shopifyCompatibility.getThemeFilePath(type, name),
+      );
+    }
 
     for (const filePath of templatesByPriority) {
       const templateConfig = await this.getThemeTemplateConfig(
         `theme/${filePath}`,
       );
+
       if (templateConfig) {
         return templateConfig;
       }
     }
+
+    return null;
   }
 
   async getAssetUrl(filePath: string): Promise<string | null> {
@@ -1114,7 +1121,11 @@ export class SwellTheme {
 
     const resolvedConfig = await this.getThemeConfig(config.file_path);
 
-    if (resolvedConfig?.file_path?.endsWith('.liquid')) {
+    if (!resolvedConfig) {
+      return;
+    }
+
+    if (resolvedConfig.file_path.endsWith('.liquid')) {
       if (this.shopifyCompatibility) {
         // Extract {% schema %} from liquid files for Shopify compatibility
         this.liquidSwell.lastSchema = undefined;
@@ -1122,6 +1133,7 @@ export class SwellTheme {
 
         const lastSchema = (this.liquidSwell.lastSchema ||
           {}) as ShopifySectionSchema;
+
         if (lastSchema) {
           schema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
@@ -1131,7 +1143,7 @@ export class SwellTheme {
           );
         }
       }
-    } else if (resolvedConfig?.file_data) {
+    } else if (resolvedConfig.file_data) {
       try {
         schema = JSON.parse(resolvedConfig?.file_data) || undefined;
       } catch {
@@ -1193,7 +1205,7 @@ export class SwellTheme {
 
   async getAllSections(): Promise<ThemePageSectionSchema[]> {
     const configs = await this.getAllThemeConfigs();
-    return await getAllSections(configs, this.getTemplateSchema.bind(this));
+    return getAllSections(configs, this.getTemplateSchema.bind(this));
   }
 
   async getPageSections(
@@ -1222,7 +1234,7 @@ export class SwellTheme {
   ): Promise<ThemeLayoutSectionGroupConfig[]> {
     const configs = await this.getAllThemeConfigs();
     // TODO: de-dupe with getAllSections
-    let layoutSectionGroups = await getLayoutSectionGroups(
+    const layoutSectionGroups = await getLayoutSectionGroups(
       configs,
       this.getTemplateSchema.bind(this),
     );
@@ -1458,15 +1470,18 @@ export function resolveThemeSettings(
     if (isObject(value) && !(value instanceof StorefrontResource)) {
       // Object-based setting types
       switch (setting?.type) {
-        case 'color_scheme_group':
+        case 'color_scheme_group': {
           each(value, (_, schemeId) => {
             each(value[schemeId].settings, (colorValue, colorId) => {
-              if (colorValue) {
+              if (colorValue && colorId !== 'background_gradient') {
                 value[schemeId].settings[colorId] = new ThemeColor(colorValue);
               }
             });
           });
+
           return;
+        }
+
         default:
           break;
       }
