@@ -46,8 +46,17 @@ export function convertShopifySettingsSchema(
 export function convertShopifySettingsData(
   settingsData: ShopifySettingsData,
 ): ThemeSettings {
-  // Shopify's current settings in the first object
-  return settingsData.current || {};
+  // Current may refer to a preset
+  if (
+    typeof settingsData.current === 'string' &&
+    settingsData.presets?.[settingsData.current]
+  ) {
+    return settingsData.presets[settingsData.current];
+  } else if (typeof settingsData.current === 'object') {
+    // Shopify's current settings in the first object
+    return settingsData.current || {};
+  }
+  return {};
 }
 
 export function convertShopifySettingsPresets(
