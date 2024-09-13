@@ -1471,12 +1471,12 @@ export function resolveThemeSettings(
       // Object-based setting types
       switch (setting?.type) {
         case 'color_scheme_group': {
-          const gradientFieldId = (setting as any).role?.background?.gradient;
-
           each(value, (_, schemeId) => {
             each(value[schemeId].settings, (colorValue, colorId) => {
+              const fieldDef = find(setting.fields, { id: colorId });
+
               // Skip empty values and gradient field
-              if (colorValue && colorId !== gradientFieldId) {
+              if (fieldDef?.type === 'color' && colorValue) {
                 value[schemeId].settings[colorId] = new ThemeColor(colorValue);
               }
             });
