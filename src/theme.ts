@@ -1,4 +1,4 @@
-import { get, each, reduce, cloneDeep } from 'lodash-es';
+import { get, each, find, reduce, cloneDeep } from 'lodash-es';
 
 import {
   Swell,
@@ -1471,9 +1471,12 @@ export function resolveThemeSettings(
       // Object-based setting types
       switch (setting?.type) {
         case 'color_scheme_group': {
+          const gradientFieldId = (setting as any).role?.background?.gradient;
+
           each(value, (_, schemeId) => {
             each(value[schemeId].settings, (colorValue, colorId) => {
-              if (colorValue && colorId !== 'background_gradient') {
+              // Skip empty values and gradient field
+              if (colorValue && colorId !== gradientFieldId) {
                 value[schemeId].settings[colorId] = new ThemeColor(colorValue);
               }
             });
