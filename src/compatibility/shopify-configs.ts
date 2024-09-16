@@ -225,7 +225,7 @@ export function shopifySchemaSettingToSwellSettingField(
 
     case 'color_background':
       swellProps = {
-        type: 'color',
+        type: 'color_background',
       };
       break;
 

@@ -246,35 +246,43 @@ export class ShopifyCompatibility {
 
   async getLocaleConfig(
     theme: SwellTheme,
-    localeCode: string = 'en',
+    localeCode = 'en',
     suffix = '.json',
   ) {
     const settingConfigs = await theme.getAllThemeConfigs();
 
-    const shopifyLocaleConfigs = settingConfigs.filter(
-      (config: SwellRecord) =>
-        config?.file_path?.startsWith('theme/locales/') &&
-        config?.file_path?.endsWith(suffix),
-    );
+    const shopifyLocaleConfigs = new Map<string, SwellThemeConfig>();
+    
+    for (const config of settingConfigs.values()) {
+      if (
+        config.file_path.startsWith('theme/locales/') &&
+        config.file_path.endsWith(suffix)
+      ) {
+        shopifyLocaleConfigs.set(config.file_path, config);
+      }
+    }
 
-    let localeConfig: SwellThemeConfig | undefined | null =
-      shopifyLocaleConfigs?.find((config: SwellRecord) =>
-          config?.file_path === `theme/locales/${localeCode}${suffix}`,
-      );
+    let localeConfig: SwellThemeConfig | null =
+      shopifyLocaleConfigs.get(`theme/locales/${localeCode}${suffix}`) ?? null;
 
     if (!localeConfig) {
       // Fall back to short code locale
       const localeShortCode = localeCode.split('-')[0];
-      localeConfig = shopifyLocaleConfigs?.find(
-        (config: SwellRecord) =>
-          config?.file_path === `theme/locales/${localeShortCode}${suffix}`,
-      );
+
+      localeConfig = shopifyLocaleConfigs.get(
+        `theme/locales/${localeShortCode}${suffix}`,
+      ) ?? null;
 
       if (!localeConfig) {
         // Fall back to default locale
-        localeConfig = shopifyLocaleConfigs?.find((config: SwellRecord) =>
-          config?.file_path?.endsWith(`.default${suffix}`),
-        );
+        const defaultLocale = `.default${suffix}`;
+
+        for (const config of shopifyLocaleConfigs.values()) {
+          if (config.file_path.endsWith(defaultLocale)) {
+            localeConfig = config;
+            break;
+          }
+        }
       }
     }
 
@@ -282,6 +290,7 @@ export class ShopifyCompatibility {
       localeConfig = (await theme.getThemeConfig(
         localeConfig.file_path,
       ));
+
       try {
         return JSON.parse(localeConfig?.file_data || '');
       } catch {

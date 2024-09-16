@@ -6,6 +6,7 @@
     "declaration": true,
     "emitDeclarationOnly": true,
     "esModuleInterop": true,
+    "target": "esnext",
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,

@@ -1,4 +1,5 @@
 import { reduce } from 'lodash-es';
+import type { Backend, Document, UserDefinedTemplate } from '@swell/easyblocks-core';
 
 import { SwellTheme } from '../theme';
 import {
@@ -10,14 +11,13 @@ import {
   schemaToEasyblocksValue,
 } from './utils';
 
-import type { Backend, Document, UserDefinedTemplate } from '@swell/easyblocks-core';
-
 import type {
   SwellThemeConfig,
   ThemeGlobals,
   ThemeLayoutSectionGroupConfig,
   ThemePageSectionSchema,
   ThemeSectionConfig,
+  ThemeSectionEnabledDisabled,
   ThemeSectionGroup,
 } from 'types/swell';
 
@@ -42,246 +42,176 @@ export async function getEasyblocksPropsFromThemeConfigs(
   };
 }
 
-export function getEasyblocksPagePropsWithConfigs(
-  themeGlobals: ThemeGlobals,
+function getAcceptedLayoutSections(
   allSections: ThemePageSectionSchema[],
-  pageSections: ThemeSectionConfig[],
+  groupType: string,
+) {
+  return allSections.reduce((acc: string[], section) => {
+    if (section.enabled_on) {
+      if (checkEnabledDisabledOn(section.enabled_on, 'groups', groupType)) {
+        acc.push(String(section.id));
+      }
+    } else if (section.disabled_on) {
+      if (
+        !checkEnabledDisabledOn(section.disabled_on, 'groups', groupType)
+      ) {
+        acc.push(String(section.id));
+      }
+    } else {
+      // Default to section of the same type name
+      // Note: limit is also supposed to be 1 for sections named after group types
+      if (section.id === groupType) {
+        acc.push(String(section.id));
+      }
+    }
+    return acc;
+  }, []);
+}
+
+function getLayoutSectionGroupComponentProps(
+  allSections: ThemePageSectionSchema[],
+  layoutSectionGroups: ThemeLayoutSectionGroupConfig[]
+) {
+  return layoutSectionGroups.map((sectionGroup) => ({
+    prop: `SectionGroup_${sectionGroup.id}`,
+    type: 'component-collection',
+    required: true,
+    accepts: getAcceptedLayoutSections(allSections, sectionGroup.type),
+  }));
+}
+
+function checkEnabledDisabledOn(
+  config: ThemeSectionEnabledDisabled,
+  key: 'groups' | 'templates',
+  targetId: string,
+): boolean {
+  if (config.templates === '*') {
+    return true;
+  }
+
+  if (config[key]?.includes(targetId)) {
+    return true;
+  }
+
+  return false;
+}
+
+function getAcceptedSections(
+  allSections: ThemePageSectionSchema[],
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
   pageId: string,
 ) {
-  const getLayoutSectionGroupComponentProps = () => {
-    return layoutSectionGroups.map((sectionGroup) => ({
-      prop: `SectionGroup_${sectionGroup.id}`,
-      type: 'component-collection',
-      required: true,
-      accepts: getAcceptedLayoutSections(sectionGroup.type),
-    }));
-  };
-
-  const checkEnabledDisabledOn = (
-    config: any,
-    key: string,
-    targetId: string,
-  ) => {
-    if (config.templates === '*') {
-      return true;
+  return allSections.reduce((acc: string[], section) => {
+    if (section.enabled_on) {
+      if (checkEnabledDisabledOn(section.enabled_on, 'templates', pageId)) {
+        acc.push(String(section.id));
+      }
+    } else if (section.disabled_on) {
+      if (
+        !checkEnabledDisabledOn(section.disabled_on, 'templates', pageId)
+      ) {
+        acc.push(String(section.id));
+      }
+    } else {
+      // Default hide sections named after layout section group types
+      if (
+        !layoutSectionGroups.some(({ type }) => type === section.id)
+      ) {
+        acc.push(String(section.id));
+      }
     }
-    if (config[key]?.includes(targetId)) {
-      return true;
-    }
-    return false;
-  };
+    return acc;
+  }, []);
+}
 
-  const getAcceptedSections = () => {
-    return allSections
-      .reduce((acc: string[], section) => {
-        if (section.enabled_on) {
-          if (checkEnabledDisabledOn(section.enabled_on, 'templates', pageId)) {
-            acc.push(section.id);
-          }
-        } else if (section.disabled_on) {
-          if (
-            !checkEnabledDisabledOn(section.disabled_on, 'templates', pageId)
-          ) {
-            acc.push(section.id);
-          }
-        } else {
-          // Default hide sections named after layout section group types
-          if (
-            !layoutSectionGroups.map(({ type }) => type).includes(section.id)
-          ) {
-            acc.push(section.id);
-          }
+function getEditorSchemaComponentProps(themeGlobals: ThemeGlobals) {
+  return (themeGlobals?.configs?.editor?.settings ?? []).reduce(
+    (acc: any[], settingGroup) => {
+      for (const field of settingGroup.fields || []) {
+        if (field?.id) {
+          acc.push({
+            prop: field.id,
+            label: field.label,
+            optional: true,
+            group: settingGroup.label,
+            ...schemaToEasyblocksProps(field),
+          });
         }
-        return acc;
-      }, [])
-      .map((sectionId: string) => `${sectionId}`);
-  };
+      }
 
-  const getAcceptedLayoutSections = (groupType: string) => {
-    return allSections
-      .reduce((acc: string[], section) => {
-        if (section.enabled_on) {
-          if (checkEnabledDisabledOn(section.enabled_on, 'groups', groupType)) {
-            acc.push(section.id);
-          }
-        } else if (section.disabled_on) {
-          if (
-            !checkEnabledDisabledOn(section.disabled_on, 'groups', groupType)
-          ) {
-            acc.push(section.id);
-          }
-        } else {
-          // Default to section of the same type name
-          // Note: limit is also supposed to be 1 for sections named after group types
-          if (section.id === groupType) {
-            acc.push(section.id);
-          }
-        }
-        return acc;
-      }, [])
-      .map((sectionId: string) => `${sectionId}`);
-  };
+      return acc;
+    },
+    [],
+  );
+}
 
-  const getEditorSchemaComponentProps = () => {
-    return (
-      themeGlobals?.configs?.editor?.settings?.reduce(
-        (acc: any, settingGroup: any) => {
-          for (const field of settingGroup.fields || []) {
-            if (field?.id) {
+function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
+  const list: unknown[] = [];
+
+  for (const section of allSections) {
+    list.push({
+      id: `${section.id}`,
+      label: section.label,
+      schema: [
+        ...(section.fields || []).reduce((acc: any[], field) => {
+            if (field.id && field.type) {
               acc.push({
                 prop: field.id,
                 label: field.label,
                 optional: true,
-                group: settingGroup.label,
                 ...schemaToEasyblocksProps(field),
               });
             }
-          }
-          return acc;
-        },
-        [],
-      ) || []
-    );
-  };
 
-  const getAllSectionComponents = () => {
-    return [
-      ...allSections.map((section) => {
-        return {
-          id: `${section.id}`,
-          label: section.label,
-          schema: [
-            ...(section.fields || [])
-              .map((field) => {
-                if (!field.id || !field.type) return;
-                return {
-                  prop: field.id,
-                  label: field.label,
-                  optional: true,
-                  ...schemaToEasyblocksProps(field),
-                };
-              })
-              .filter(Boolean),
-            ...(section?.blocks
-              ? [
-                  {
-                    prop: 'Blocks',
-                    type: 'component-collection',
-                    required: true,
-                    accepts: section.blocks.map(
-                      (block) => `Block__${section.id}__${block.type}`,
-                    ),
-                    // TODO: figure out how to make this work, doesn't work for collections normally
-                    defaultValue: section.presets?.[0]?.blocks?.map((block) => {
-                      const blockDef = section.blocks?.find(
-                        ({ type }) => type === block.type,
-                      );
-                      if (!blockDef) return;
-                      return {
-                        _component: `Block__${section.id}__${block.type}`,
-                        ...reduce(
-                          blockDef.fields.filter((field) => field.id),
-                          (acc, blockField: any) => ({
-                            ...acc,
-                            [blockField.id]: schemaToEasyblocksValue(
+            return acc;
+          }, []),
+        ...(section.blocks
+          ? [
+              {
+                prop: 'Blocks',
+                type: 'component-collection',
+                required: true,
+                accepts: section.blocks.map(
+                  (block) => `Block__${section.id}__${block.type}`,
+                ),
+                // TODO: figure out how to make this work, doesn't work for collections normally
+                defaultValue: section.presets?.[0]?.blocks?.reduce((acc: any[], block) => {
+                  const blockDef = section.blocks?.find(
+                    ({ type }) => type === block.type,
+                  );
+
+                  if (blockDef) {
+                    acc.push({
+                      _component: `Block__${section.id}__${block.type}`,
+                      ...reduce(
+                        blockDef.fields,
+                        (acc: any, blockField) => {
+                          if (blockField.id) {
+                            acc[blockField.id] = schemaToEasyblocksValue(
                               blockDef.fields,
                               blockField.id,
                               blockField.default,
-                            ),
-                          }),
-                          {},
-                        ),
-                      };
-                    }),
-                    placeholderAppearance: {
-                      height: 50,
-                      label: 'Add block',
-                      aspectRatio: 1,
-                    },
-                  },
-                ]
-              : []),
-          ],
-          styles: () => {
-            return {
-              styled: {
-                Root: {},
-              },
-            };
-          },
-        };
-      }),
-      ...allSections.reduce((acc: any[], section) => {
-        if (section.blocks) {
-          acc.push(
-            ...section.blocks.map((block) => ({
-              id: `Block__${section.id}__${block.type}`,
-              label: block.label,
-              schema: [
-                ...(block.fields || [])
-                  .map((field) => {
-                    if (!field.id || !field.type) return;
-                    return {
-                      prop: field.id,
-                      label: field.label,
-                      optional: true,
-                      ...schemaToEasyblocksProps(field),
-                    };
-                  })
-                  .filter(Boolean),
-              ],
-              styles: () => {
-                return {
-                  styled: {
-                    Root: {},
-                  },
-                };
-              },
-            })),
-          );
-        }
-        return acc;
-      }, []),
-    ];
-  };
+                            );
+                          }
 
-  const components = [
-    {
-      id: 'swell_page',
-      // label: 'Page: ' + pageId,
-      label: 'Theme settings',
-      schema: [
-        {
-          prop: 'ContentSections',
-          type: 'component-collection',
-          required: true,
-          accepts: getAcceptedSections(),
-          placeholderAppearance: {
-            height: 250,
-            label: 'Add section',
-            aspectRatio: 1,
-          },
-        },
-        ...getLayoutSectionGroupComponentProps(),
-        ...getEditorSchemaComponentProps(),
+                          return acc;
+                        },
+                        {},
+                      ),
+                    });
+                  }
+
+                  return acc;
+                }, []),
+                placeholderAppearance: {
+                  height: 50,
+                  label: 'Add block',
+                  aspectRatio: 1,
+                },
+              },
+            ]
+          : []),
       ],
-      // Collapse all global page settings
-      groups: [
-        ...(themeGlobals?.configs?.editor?.settings?.reduce(
-          (acc: any, settingGroup: any) => {
-            acc.push({
-              key: settingGroup.label,
-              label: settingGroup.label,
-              collapsable: true,
-              collapsed: true,
-            });
-            return acc;
-          },
-          [],
-        ) || []),
-      ],
-      allowSave: true,
       styles: () => {
         return {
           styled: {
@@ -289,231 +219,342 @@ export function getEasyblocksPagePropsWithConfigs(
           },
         };
       },
-    },
-    ...getAllSectionComponents(),
-  ];
+    });
 
-  const getLayoutSectionGroupTemplateValues = () => {
-    return layoutSectionGroups.reduce(
-      (acc: any, sectionGroup: ThemeLayoutSectionGroupConfig) => ({
-        ...acc,
-        [`SectionGroup_${sectionGroup.id}`]: sectionGroup.sectionConfigs.map(
-          ({ section, settings, schema }) => ({
-            _id: `SectionGroup__${section.type}_${Math.random()}`,
-            _component: `${section.type}`,
+    if (section.blocks) {
+      list.push(
+        ...section.blocks.map((block) => ({
+          id: `Block__${section.id}__${block.type}`,
+          label: block.label,
+          schema: (block.fields || []).reduce((acc: any[], field) => {
+            if (field.id && field.type) {
+              acc.push({
+                prop: field.id,
+                label: field.label,
+                optional: true,
+                ...schemaToEasyblocksProps(field),
+              });
+            }
+
+            return acc;
+          }, []),
+          styles: () => {
+            return {
+              styled: {
+                Root: {},
+              },
+            };
+          },
+        })),
+      );
+    }
+  }
+
+  return list;
+}
+
+function getEditorSchemaTemplateValues(themeGlobals: ThemeGlobals) {
+  return themeGlobals?.configs?.editor?.settings?.reduce(
+    (acc: any, settingGroup) => {
+      for (const field of settingGroup.fields || []) {
+        if (field?.id) {
+          acc[field.id] = schemaToEasyblocksValue(
+            settingGroup.fields,
+            field.id,
+            themeGlobals?.configs?.theme?.[field.id],
+          );
+        }
+      }
+      return acc;
+    },
+    {},
+  );
+}
+
+function getLayoutSectionGroupTemplateValues(
+  layoutSectionGroups: ThemeLayoutSectionGroupConfig[]
+) {
+  return layoutSectionGroups.reduce(
+    (acc: any, sectionGroup) => {
+      acc[`SectionGroup_${sectionGroup.id}`] = sectionGroup.sectionConfigs.map(
+        ({ section, settings, schema }) => ({
+          _id: `SectionGroup__${section.type}_${getRandomId()}`,
+          _component: `${section.type}`,
+          ...reduce(
+            settings?.section.settings,
+            (acc: any, value, key) => {
+              acc[key] = schemaToEasyblocksValue(schema?.fields, key, value);
+              return acc;
+            },
+            {},
+          ),
+          ...(settings?.section.blocks
+            ? {
+                Blocks: settings.section.blocks.map((block) => ({
+                  _id: `Block__${section.type}__${
+                    block.type
+                  }_${getRandomId()}`,
+                  _component: `Block__${section.type}__${block.type}`,
+                  ...reduce(
+                    block.settings,
+                    (acc: any, value, key) => {
+                      acc[key] = schemaToEasyblocksValue(
+                        schema?.blocks?.find(
+                          ({ type }) => type === block.type,
+                        )?.fields,
+                        key,
+                        value,
+                      );
+
+                      return acc;
+                    },
+                    {},
+                  ),
+                })),
+              }
+            : undefined),
+        }),
+      );
+
+      return acc;
+    },
+    {},
+  );
+}
+
+function getAllSectionComponentTemplates(
+  allSections: ThemePageSectionSchema[]
+) {
+  const list: unknown[] = [];
+
+  for (const section of allSections) {
+    if (section.presets) {
+      list.push(
+        ...section.presets.map((preset, index) => ({
+          id: `${section.id}__preset_${index}`,
+          entry: {
+            _id: `${section.id}__preset_${index}`,
+            _component: section.id,
             ...reduce(
-              settings?.section.settings,
-              (acc, value, key) => ({
-                ...acc,
-                [key]: schemaToEasyblocksValue(schema?.fields, key, value),
-              }),
+              section.fields,
+              (acc: any, field: any) => {
+                acc[field.id] = schemaToEasyblocksValue(
+                  section.fields,
+                  field.id,
+                  preset.settings?.[field.id],
+                );
+
+                return acc;
+              },
               {},
             ),
-            ...(settings?.section.blocks
-              ? {
-                  Blocks: settings.section.blocks.map((block: any) => ({
-                    _id: `Block__${section.type}__${
-                      block.type
-                    }_${Math.random()}`,
-                    _component: `Block__${section.type}__${block.type}`,
-                    ...reduce(
-                      block.settings,
-                      (acc, value, key) => ({
-                        ...acc,
-                        [key]: schemaToEasyblocksValue(
-                          schema?.blocks?.find(
-                            ({ type }) => type === block.type,
-                          )?.fields,
-                          key,
-                          value,
-                        ),
-                      }),
-                      {},
-                    ),
-                  })),
-                }
-              : {}),
-          }),
-        ),
-      }),
-      {},
-    );
-  };
+            Blocks: preset.blocks?.reduce((acc: any[], block) => {
+              const blockDef = section.blocks?.find(
+                ({ type }) => type === block.type,
+              );
 
-  const getEditorSchemaTemplateValues = () => {
-    return themeGlobals?.configs?.editor?.settings?.reduce(
-      (acc: any, settingGroup: any) => {
-        for (const field of settingGroup.fields || []) {
-          if (field?.id) {
-            acc[field.id] = schemaToEasyblocksValue(
-              settingGroup.fields,
-              field.id,
-              themeGlobals?.configs?.theme?.[field.id],
-            );
-          }
-        }
-        return acc;
-      },
-      {},
-    );
-  };
+              if (blockDef) {
+                acc.push({
+                  _id: `Block__${section.id}__${block.type}__preset_${index}`,
+                  _component: `Block__${section.id}__${block.type}`,
+                  ...reduce(
+                    blockDef.fields,
+                    (acc: any, blockField) => {
+                      if (blockField.id) {
+                        acc[blockField.id] = schemaToEasyblocksValue(
+                          blockDef.fields,
+                          blockField.id,
+                          block.settings?.[blockField.id],
+                        );
+                      }
 
-  const getAllSectionComponentTemplates = () => {
-    // Filter templates with settings because
-    // easyblocks creates a default template for each component otherwise
-    const filterTemplateWithSettings = (template: any) => {
-      return Object.keys(template.entry).some(
-        (key) => key !== '_id' && key !== '_component',
+                      return acc;
+                    },
+                    {},
+                  ),
+                });
+              }
+
+              return acc;
+            }, []),
+          },
+        }))
       );
-    };
+    }
 
-    return [
-      ...allSections
-        .reduce(
-          (acc: any[], section) => [
-            ...acc,
-            ...(section.presets?.map((preset, index) => ({
-              id: `${section.id}__preset_${index}`,
-              entry: {
-                _id: `${section.id}__preset_${index}`,
-                _component: section.id,
-                ...reduce(
-                  section.fields,
-                  (acc, field: any) => ({
-                    ...acc,
-                    [field.id]: schemaToEasyblocksValue(
-                      section.fields,
-                      field.id,
-                      preset.settings?.[field.id],
-                    ),
-                  }),
-                  {},
-                ),
-                Blocks: preset.blocks?.reduce((acc: any, block) => {
-                  const blockDef = section.blocks?.find(
-                    ({ type }) => type === block.type,
+    if (section.blocks) {
+      list.push(
+        ...section.blocks.map((block) => ({
+          id: `Block__${section.id}__${block.type}`,
+          entry: {
+            _id: `Block__${section.id}__${block.type}`,
+            _component: `Block__${section.id}__${block.type}`,
+            ...reduce(
+              block.fields,
+              (acc: any, field) => {
+                if (field.id && field.default !== undefined) {
+                  acc[field.id] = schemaToEasyblocksValue(
+                    block.fields,
+                    field.id,
+                    field.default,
                   );
+                }
 
-                  return blockDef
-                    ? [
-                        ...acc,
-                        {
-                          _id: `Block__${section.id}__${block.type}__preset_${index}`,
-                          _component: `Block__${section.id}__${block.type}`,
-                          ...reduce(
-                            blockDef.fields.filter((field) => field.id),
-                            (acc, blockField: any) => ({
-                              ...acc,
-                              [blockField.id]: schemaToEasyblocksValue(
-                                blockDef.fields,
-                                blockField.id,
-                                block.settings?.[blockField.id],
-                              ),
-                            }),
-                            {},
-                          ),
-                        },
-                      ]
-                    : acc;
-                }, []),
+                return acc;
               },
-            })) || []),
-          ],
-          [],
-        )
-        .filter(filterTemplateWithSettings),
-      ...allSections
-        .reduce(
-          (acc: any[], section) => [
-            ...acc,
-            ...(section.blocks?.map((block) => ({
-              id: `Block__${section.id}__${block.type}`,
-              entry: {
-                _id: `Block__${section.id}__${block.type}`,
-                _component: `Block__${section.id}__${block.type}`,
-                ...reduce(
-                  block.fields,
-                  (acc, field: any) => {
-                    if (field.id && field.default !== undefined) {
-                      return {
-                        ...acc,
-                        [field.id]: schemaToEasyblocksValue(
-                          block.fields,
-                          field.id,
-                          field.default,
-                        ),
-                      };
-                    }
-                    return acc;
-                  },
-                  {},
-                ),
-              },
-            })) || []),
-          ],
-          [],
-        )
-        .filter(filterTemplateWithSettings),
-    ];
+              {},
+            ),
+          },
+        })),
+      );
+    }
+  }
+
+  // Filter templates with settings because
+  // easyblocks creates a default template for each component otherwise
+  return list.filter((template: any) => {
+    return Object.keys(template.entry).some(
+      (key) => key !== '_id' && key !== '_component',
+    );
+  });
+}
+
+export function getEasyblocksPagePropsWithConfigs(
+  themeGlobals: ThemeGlobals,
+  allSections: ThemePageSectionSchema[],
+  pageSections: ThemeSectionConfig[],
+  layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
+  pageId: string,
+) {
+  const rootComponent = {
+    id: 'swell_page',
+    // label: 'Page: ' + pageId,
+    label: 'Theme settings',
+    schema: [
+      {
+        prop: 'ContentSections',
+        type: 'component-collection',
+        required: true,
+        accepts: getAcceptedSections(allSections, layoutSectionGroups, pageId),
+        placeholderAppearance: {
+          height: 250,
+          label: 'Add section',
+          aspectRatio: 1,
+        },
+      },
+      ...getLayoutSectionGroupComponentProps(allSections, layoutSectionGroups),
+      ...getEditorSchemaComponentProps(themeGlobals),
+    ],
+    // Collapse all global page settings
+    groups: (themeGlobals?.configs?.editor?.settings ?? []).map(
+      (settingGroup) => {
+        return {
+          key: settingGroup.label,
+          label: settingGroup.label,
+          collapsable: true,
+          collapsed: true,
+        };
+      },
+    ),
+    allowSave: true,
+    styles: () => {
+      return {
+        styled: {
+          Root: {},
+        },
+      };
+    },
   };
+
+  const components = [
+    rootComponent,
+    ...getAllSectionComponents(allSections),
+  ];
+
+  const colorSchemeGroup = rootComponent.schema.find(
+    (field) => field.prop === 'color_schemes',
+  );
+
+  if (colorSchemeGroup) {
+    const { params } = colorSchemeGroup;
+
+    components.push({
+      id: 'swell_color_scheme_group',
+      label: 'Swell color scheme',
+      schema: params.fields.map((field: any) => ({
+        prop: field.id,
+        type: field.id === 'background_gradient' ? 'text' : field.type,
+        label: field.label,
+        description: field.description,
+        defaultValue: { value: field.default },
+        required: true,
+      })),
+      styles() {
+        return {
+          styled: {
+            Root: {},
+          },
+        };
+      },
+    });
+  }
 
   const templates = [
     // TODO: add templates for all other components (sections) with preset setting defaults
     {
-      id: `swell_page`,
+      id: 'swell_page',
       entry: {
-        _id: `swell_page`,
-        _component: `swell_page`,
+        _id: 'swell_page',
+        _component: 'swell_page',
         ContentSections: pageSections.map(({ section, settings, schema }) => ({
-          _id: `${section.type}_${Math.random()}`,
+          _id: `${section.type}_${getRandomId()}`,
           _component: `${section.type}`,
           ...reduce(
             schema?.fields,
-            (acc, field) =>
-              field?.id
-                ? {
-                    ...acc,
-                    [field.id]: schemaToEasyblocksValue(
-                      schema?.fields,
-                      field.id,
-                      settings?.section?.settings?.[field.id],
-                    ),
-                  }
-                : acc,
+            (acc: any, field) => {
+              if (field?.id) {
+                acc[field.id] = schemaToEasyblocksValue(
+                  schema?.fields,
+                  field.id,
+                  settings?.section?.settings?.[field.id],
+                );
+              }
+
+              return acc;
+            },
             {},
           ),
           ...(section?.blocks
             ? {
-                Blocks: Object.keys(section.blocks).map((key: any) => {
-                  if (!section.blocks) return;
-                  const block = section.blocks[key];
+                Blocks: Object.entries(section.blocks).map(([key, block]) => {
                   return {
-                    _id: `Block__${key}__${block.type}_${Math.random()}`,
+                    _id: `Block__${key}__${block.type}_${getRandomId()}`,
                     _component: `Block__${section.type}__${block.type}`,
                     ...reduce(
                       block.settings,
-                      (acc, value, key) => ({
-                        ...acc,
-                        [key]: schemaToEasyblocksValue(
+                      (acc: any, value, key) => {
+                        acc[key] = schemaToEasyblocksValue(
                           schema?.blocks?.find(
                             ({ type }) => type === block.type,
                           )?.fields,
                           key,
                           value,
-                        ),
-                      }),
+                        );
+
+                        return acc;
+                      },
                       {},
                     ),
                   };
                 }),
               }
-            : {}),
+            : undefined),
         })),
-        ...getLayoutSectionGroupTemplateValues(),
-        ...getEditorSchemaTemplateValues(),
+        ...getLayoutSectionGroupTemplateValues(layoutSectionGroups),
+        ...getEditorSchemaTemplateValues(themeGlobals),
       },
     },
-    ...getAllSectionComponentTemplates(),
+    ...getAllSectionComponentTemplates(allSections),
   ];
 
   return {
@@ -643,14 +684,10 @@ export function getEasyblocksPagePropsWithConfigs(
 }
 
 export function getEasyblocksComponentDefinitions(
-  props: {
-    allSections: ThemePageSectionSchema[];
-    layoutSectionGroups: ThemeLayoutSectionGroupConfig[];
-  },
+  allSections: ThemePageSectionSchema[],
+  layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
   getComponent: (type: string, data?: any) => any,
 ) {
-  const { allSections, layoutSectionGroups } = props;
-
   const pageSectionComponents = allSections.reduce((acc: any, section) => {
     acc[`${section.id}`] = getComponent('pageSection', section);
     return acc;
@@ -670,7 +707,7 @@ export function getEasyblocksComponentDefinitions(
   const blockComponents = allSections.reduce((acc: any, section) => {
     if (section.blocks) {
       for (const block of section.blocks) {
-        const blockId = `Block__${section.id}__${block.type}` as any;
+        const blockId = `Block__${section.id}__${block.type}`;
         acc[blockId] = getComponent('block', { section, block });
       }
     }
@@ -682,7 +719,7 @@ export function getEasyblocksComponentDefinitions(
     ...layoutSectionGroupComponents,
     ...blockComponents,
     // Root component
-    [`swell_page`]: getComponent('root'),
+    swell_page: getComponent('root'),
   };
 }
 
@@ -697,7 +734,7 @@ export function getEasyblocksBackend() {
           version: 1,
           entry: {
             _id: 'page',
-            _component: `swell_page`,
+            _component: 'swell_page',
           },
         } as Document;
         return document;
@@ -736,4 +773,8 @@ export function getEasyblocksBackend() {
   };
 
   return easyblocksBackend;
+}
+
+function getRandomId() {
+  return (Math.random() + 1).toString(36).substring(7);
 }
