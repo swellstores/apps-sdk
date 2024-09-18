@@ -42,6 +42,10 @@ import payment_button from './shopify/payment_button';
 import payment_terms from './shopify/payment_terms';
 import placeholder_svg_tag from './shopify/placeholder_svg_tag';
 
+// Swell only
+
+import inline_editable from './inline_editable';
+
 export const filters = {
   asset_url,
   brightness_difference,
@@ -84,6 +88,9 @@ export const filters = {
   payment_button,
   payment_terms,
   placeholder_svg_tag,
+
+  // Swell only
+  inline_editable,
 };
 
 export function bindFilters(liquidSwell: LiquidSwell) {
