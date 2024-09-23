@@ -16,6 +16,9 @@ import style from './style';
 import include from './shopify/include';
 import schema from './shopify/schema';
 
+// Swell only
+import inline_editable from './inline_editable';
+
 export const tags = {
   case: caseTag,
   for: forTag,
@@ -31,6 +34,9 @@ export const tags = {
   // Shopify compatibility only
   include,
   schema,
+
+  // Swell only
+  inline_editable,
 };
 
 export function bindTags(liquidSwell: LiquidSwell) {
