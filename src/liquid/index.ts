@@ -1,4 +1,4 @@
-import { Liquid } from 'liquidjs';
+import { Liquid, type FS } from 'liquidjs';
 
 import { SwellTheme } from '../theme';
 import { bindTags } from './tags';
@@ -20,6 +20,25 @@ import type {
 export * from './color';
 export * from './form';
 export * from './font';
+
+ interface LiquidSwellOptions {
+  theme: SwellTheme;
+  getThemeConfig: GetThemeConfig;
+  getThemeTemplateConfigByType?: GetThemeTemplateConfigByType;
+  getAssetUrl: GetAssetUrl;
+  renderTemplate: RenderTemplate;
+  renderTemplateString: RenderTemplateString;
+  renderTemplateSections: RenderTemplateSections;
+  renderTranslation: RenderTranslation;
+  renderCurrency: RenderCurrency;
+  isEditor: boolean;
+  locale?: string;
+  currency?: string;
+  layoutName?: string;
+  extName?: string;
+  componentsDir?: string;
+  sectionsDir?: string;
+}
 
 export class LiquidSwell extends Liquid {
   public theme: SwellTheme;
@@ -60,24 +79,7 @@ export class LiquidSwell extends Liquid {
     extName,
     componentsDir,
     sectionsDir,
-  }: {
-    theme: SwellTheme;
-    getThemeConfig: GetThemeConfig;
-    getThemeTemplateConfigByType?: GetThemeTemplateConfigByType;
-    getAssetUrl: GetAssetUrl;
-    renderTemplate: RenderTemplate;
-    renderTemplateString: RenderTemplateString;
-    renderTemplateSections: RenderTemplateSections;
-    renderTranslation: RenderTranslation;
-    renderCurrency: RenderCurrency;
-    isEditor: boolean;
-    locale?: string;
-    currency?: string;
-    layoutName?: string;
-    extName?: string;
-    componentsDir?: string;
-    sectionsDir?: string;
-  }) {
+  }: LiquidSwellOptions) {
     super();
 
     this.theme = theme;
@@ -120,13 +122,13 @@ export class LiquidSwell extends Liquid {
     return this.engine;
   }
 
-  getLiquidFS() {
+  getLiquidFS(): FS {
     const { getThemeConfig, resolveFilePath } = this;
     return {
       /** read a file asynchronously */
       async readFile(filePath: string): Promise<string> {
         const resolvedPath = resolveFilePath(filePath);
-        return await getThemeConfig(resolvedPath).then(
+        return getThemeConfig(resolvedPath).then(
           (template) =>
             template?.file_data ||
             `<!-- theme template not found: ${resolvedPath} -->`,

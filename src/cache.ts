@@ -9,8 +9,8 @@ import { StorefrontResource } from './api';
 
 import type { CFWorkerKV } from 'types/swell';
 
-export class Cache {
-  private map: Map<string, any> = new Map();
+export class Cache<T = any> {
+  private map: Map<string, T> = new Map();
   private kvStore?: CFWorkerKV;
   private timeoutDefault: number;
 
@@ -28,7 +28,7 @@ export class Cache {
     this.timeoutDefault = timeoutDefault;
   }
 
-  setValues(values: Array<any>) {
+  setValues(values: Array<[string, T]>): void {
     this.map = new Map(values);
   }
 
@@ -36,7 +36,7 @@ export class Cache {
     return Array.from(this.map);
   }
 
-  async get(key: string) {
+  async get(key: string): Promise<T | undefined> {
     if (this.map.has(key)) {
       return this.map.get(key);
     }
@@ -70,11 +70,11 @@ export class Cache {
     }
   }
 
-  getSync(key: string) {
+  getSync(key: string): T | undefined {
     return this.map.get(key);
   }
 
-  async set(key: string, value: any, timeout: number = this.timeoutDefault) {
+  async set(key: string, value: any, timeout: number = this.timeoutDefault): Promise<void> {
     this.setSync(key, value, timeout);
 
     if (this.kvStore) {
@@ -105,7 +105,7 @@ export class Cache {
     }
   }
 
-  setSync(key: string, value: any, timeout: number = this.timeoutDefault) {
+  setSync(key: string, value: any, timeout: number = this.timeoutDefault): void {
     this.map.set(key, value);
 
     // Only timeout from map, since KV has its own expiration
@@ -114,7 +114,7 @@ export class Cache {
     }, timeout);
   }
 
-  async delete(key: string) {
+  async delete(key: string): Promise<void> {
     this.map.delete(key);
 
     if (this.kvStore) {
@@ -122,15 +122,15 @@ export class Cache {
     }
   }
 
-  deleteSync(key: string) {
+  deleteSync(key: string): void {
     this.map.delete(key);
   }
 
-  async has(key: string) {
+  async has(key: string): Promise<T | undefined> {
     return this.get(key);
   }
 
-  hasSync(key: string) {
+  hasSync(key: string): boolean {
     return this.map.has(key);
   }
 }

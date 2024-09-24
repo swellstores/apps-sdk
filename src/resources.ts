@@ -8,6 +8,7 @@ import type {
   SwellData,
   SwellRecord,
   SwellCollection,
+  InferSwellCollection,
   SwellCollectionPages,
   StorefrontResourceGetter,
 } from '../types/swell';
@@ -16,15 +17,15 @@ export const MAX_QUERY_PAGE_LIMIT = 100;
 export const DEFAULT_QUERY_PAGE_LIMIT = 15;
 export const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
 
-export class StorefrontResource {
-  public _getter?: StorefrontResourceGetter;
+export class StorefrontResource<T extends SwellData = SwellData> {
+  public _getter?: StorefrontResourceGetter<T>;
   public _getterHash?: string;
-  public _result?: SwellData | null;
+  public _result?: T | null;
   public _compatibilityProps: SwellData = {};
 
   [key: string]: any;
 
-  constructor(getter?: StorefrontResourceGetter) {
+  constructor(getter?: StorefrontResourceGetter<T>) {
     if (getter) {
       this._setGetter(getter);
     }
@@ -32,23 +33,27 @@ export class StorefrontResource {
     return this._getProxy();
   }
 
-  _getProxy() {
+  _getProxy(): StorefrontResource<T> {
     return new Proxy(this, {
-      get(target: StorefrontResource, prop: any): any {
-        const instance = target as any;
+      get(target, prop: any): any {
+        const instance = target;
 
-        // Ignore liquid prop checks
-        if (prop === 'toLiquid' || prop === 'next') {
-          return;
-        }
+        switch (prop) {
+          // Ignore liquid prop checks
+          case 'toLiquid':
+          case 'next':
+            return;
 
-        // Indicate props are thenable
-        if (prop === 'then') {
-          return false;
-        }
+          // Indicate props are thenable
+          case 'then':
+            return false;
 
-        if (prop === 'toJSON' || prop === 'toObject') {
-          return () => instance.toObject();
+          case 'toJSON':
+          case 'toObject':
+            return () => instance.toObject();
+
+          default:
+            break;
         }
 
         // Return functions and props starting with _ directly
@@ -78,7 +83,7 @@ export class StorefrontResource {
           instance._result = instance._get().catch((err: any) => {
             console.log(err);
             return instance._getCollectionResultOrProp(instance, prop);
-          });
+          }) as unknown as T;
         }
 
         // Return prop then if result is a promise
@@ -96,19 +101,20 @@ export class StorefrontResource {
         return instance._getCollectionResultOrProp(instance, prop);
       },
 
-      set(target: StorefrontResource, prop: any, value: any): boolean {
+      set(target, prop: any, value: any): boolean {
         target[prop] = value;
         return true;
       },
     });
   }
 
-  _getCollectionResultOrProp(instance: any, prop: string) {
-    if (Array.isArray(instance._result?.results)) {
+  _getCollectionResultOrProp(instance: StorefrontResource<T>, prop: string | number) {
+    if (instance._result && Array.isArray(instance._result.results)) {
       const record =
         instance._result.results.find(
           (result: SwellRecord) => result.slug === prop || result.id === prop,
-        ) || instance._result.results[prop];
+        ) || (typeof prop === 'number' ? instance._result.results[prop] : undefined);
+
       if (record) {
         return record;
       }
@@ -123,9 +129,12 @@ export class StorefrontResource {
     return instance[prop];
   }
 
-  async _get(..._args: any): Promise<any> {
+  async _get(..._args: any[]): Promise<T | null | undefined> {
     if (this._getter) {
-      this._result = Promise.resolve(this._getter())
+      const getter = this._getter;
+
+      this._result = Promise.resolve()
+        .then(() => getter())
         .then((result: any) => {
           this._result = result;
 
@@ -138,24 +147,26 @@ export class StorefrontResource {
         .catch((err: any) => {
           console.log(err);
           return null;
-        });
+        }) as unknown as T;
     }
+
     return this._result;
   }
 
-  _setGetter(getter: StorefrontResourceGetter) {
+  _setGetter(getter: StorefrontResourceGetter<T>): void {
     this._getter = getter;
     this._getterHash = md5(getter.toString());
   }
 
   async _resolve() {
     if (this._result === undefined) {
-      return await this._get();
+      return this._get();
     }
+
     return this._result;
   }
 
-  _isResultResolved() {
+  _isResultResolved(): boolean {
     return this._result !== undefined && !(this._result instanceof Promise);
   }
 
@@ -170,7 +181,7 @@ export class StorefrontResource {
     Object.assign(combined, result);
     Object.assign(combined, this._compatibilityProps);
 
-    return await resolveAsyncResources(combined);
+    return resolveAsyncResources(combined);
   }
 
   toObject() {
@@ -194,16 +205,16 @@ export class StorefrontResource {
     return this.resolve();
   }
 
-  setCompatibilityProps(props: SwellData) {
+  setCompatibilityProps(props: SwellData): void {
     this._compatibilityProps = props;
   }
 
-  getCompatibilityProp(prop: string) {
+  getCompatibilityProp<T extends keyof StorefrontResource['_compatibilityProps']>(prop: T): StorefrontResource['_compatibilityProps'][T] {
     return this._compatibilityProps[prop];
   }
 }
 
-export class SwellStorefrontResource extends StorefrontResource {
+export class SwellStorefrontResource<T extends SwellData = SwellData> extends StorefrontResource<T> {
   public _swell: Swell;
   public _resource: any;
 
@@ -215,28 +226,26 @@ export class SwellStorefrontResource extends StorefrontResource {
   constructor(
     swell: Swell,
     collection: string,
-    getter?: StorefrontResourceGetter,
+    getter?: StorefrontResourceGetter<T>,
   ) {
-    super(getter);
-
-    if (swell instanceof Swell) {
-      this._swell = swell;
-    } else {
+    if (!(swell instanceof Swell)) {
       throw new Error('Storefront resource requires `swell` instance.');
     }
 
+    super(getter);
+    this._swell = swell;
     this._collection = collection;
 
     return this._getProxy();
   }
 
-  _getProxy() {
-    return super._getProxy() as SwellStorefrontResource;
+  _getProxy(): SwellStorefrontResource<T> {
+    return super._getProxy() as SwellStorefrontResource<T>;
   }
 
   getResourceObject(): {
-    get: (id?: string, query?: SwellData) => Promise<SwellData>;
-    list: (query?: SwellData) => Promise<SwellData>;
+    get: (id?: string, query?: SwellData) => Promise<InferSwellCollection<T> | null>;
+    list: (query?: SwellData) => Promise<T extends SwellCollection ? T : SwellCollection<T>>;
   } {
     const { _swell, _collection } = this;
 
@@ -251,7 +260,7 @@ export class SwellStorefrontResource extends StorefrontResource {
       };
     }
 
-    if (!this._resource || !this._resource.get) {
+    if (!this._resource?.get) {
       throw new Error(
         `Swell storefront resource for collection '${_collection}' does not exist.`,
       );
@@ -261,9 +270,11 @@ export class SwellStorefrontResource extends StorefrontResource {
   }
 }
 
-export class SwellStorefrontCollection extends SwellStorefrontResource {
+export class SwellStorefrontCollection<
+  T extends SwellCollection = SwellCollection,
+> extends SwellStorefrontResource<T> {
   public length: number = 0;
-  public results?: SwellRecord[];
+  public results?: InferSwellCollection<T>[];
   public count?: number;
   public page?: number;
   public pages?: SwellCollectionPages;
@@ -274,7 +285,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
     swell: Swell,
     collection: string,
     query: SwellData = {},
-    getter?: StorefrontResourceGetter,
+    getter?: StorefrontResourceGetter<T>,
   ) {
     super(swell, collection, getter);
 
@@ -287,11 +298,11 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
     return this._getProxy();
   }
 
-  _getProxy() {
-    return super._getProxy() as SwellStorefrontCollection;
+  _getProxy(): SwellStorefrontCollection<T> {
+    return super._getProxy() as SwellStorefrontCollection<T>;
   }
 
-  _initQuery(query: SwellData) {
+  _initQuery(query: SwellData): SwellData {
     const properQuery = query ? query : {};
 
     if (
@@ -308,47 +319,49 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
     return properQuery;
   }
 
-  _defaultGetter(): StorefrontResourceGetter {
+  _defaultGetter(): StorefrontResourceGetter<T> {
     const resource = this.getResourceObject();
-    return async function (this: SwellStorefrontCollection) {
+
+    async function defaultGetter(this: SwellStorefrontCollection<T>) {
       return resource.list(this._query);
     };
+
+    return defaultGetter as StorefrontResourceGetter<T>;
   }
 
-  async _get(query: SwellData = {}) {
+  async _get(query: SwellData = {}): Promise<T | null | undefined> {
     this._query = {
       ...this._query,
       ...query,
     };
 
-    this._result = this._swell
-      .getCachedResource(
-        'storefront-list',
-        [this._collection, this._query, this._getterHash],
-        async () => {
-          console.log(
-            'SwellStorefrontCollection._get',
-            this._collection,
-            this._query,
-          );
-          return (this._getter as StorefrontResourceGetter).call(this);
-        },
-      )
-      .then((result: SwellCollection) => {
-        this._result = result;
+    if (this._getter) {
+      const getter = this._getter;
 
-        if (result) {
-          Object.assign(this, result, {
-            length: result.results?.length || 0,
-          });
-        }
+      this._result = this._swell
+        .getCachedResource(
+          'storefront-list',
+          [this._collection, this._query, this._getterHash],
+          async () => {
+            return getter.call(this);
+          },
+        )
+        .then((result?: T | null) => {
+          this._result = result;
 
-        return result;
-      })
-      .catch((err: any) => {
-        console.log(err);
-        return null;
-      });
+          if (result) {
+            Object.assign(this, result, {
+              length: result.results?.length || 0,
+            });
+          }
+
+          return result;
+        })
+        .catch((err: any) => {
+          console.log(err);
+          return null;
+        }) as unknown as T;
+    }
 
     return this._result;
   }
@@ -363,8 +376,8 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
     }
   }
 
-  _clone(newProps?: SwellData) {
-    const cloned = new SwellStorefrontCollection(
+  _clone(newProps?: SwellData): SwellStorefrontCollection<T> {
+    const cloned = new SwellStorefrontCollection<T>(
       this._swell,
       this._collection,
       this._query,
@@ -391,8 +404,8 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
   }
 
   _cloneWithCompatibilityResult(
-    compatibilityGetter: (result: SwellCollection) => SwellData,
-  ) {
+    compatibilityGetter: (result: T) => SwellData,
+  ): SwellStorefrontCollection<T> {
     const originalGetter = this._getter;
 
     const cloned = this._clone({
@@ -401,7 +414,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
 
         if (result) {
           const compatibilityProps = compatibilityGetter(
-            result as SwellCollection,
+            result as T,
           );
           return {
             ...result,
@@ -418,7 +431,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
       const result = cloneDeep(this._result);
       if (result) {
         const compatibilityProps = compatibilityGetter(
-          result as SwellCollection,
+          result as T,
         );
 
         Object.assign(cloned, result);
@@ -433,7 +446,7 @@ export class SwellStorefrontCollection extends SwellStorefrontResource {
   }
 }
 
-export class SwellStorefrontRecord extends SwellStorefrontResource {
+export class SwellStorefrontRecord<T extends SwellData = SwellRecord> extends SwellStorefrontResource<T> {
   public _id: string;
   public id?: string;
 
@@ -442,7 +455,7 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
     collection: string,
     id: string,
     query: SwellData = {},
-    getter?: StorefrontResourceGetter,
+    getter?: StorefrontResourceGetter<T>,
   ) {
     super(swell, collection, getter);
 
@@ -456,18 +469,21 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
     return this._getProxy();
   }
 
-  _getProxy() {
-    return super._getProxy() as SwellStorefrontRecord;
+  _getProxy(): SwellStorefrontRecord<T> {
+    return super._getProxy() as SwellStorefrontRecord<T>;
   }
 
-  _defaultGetter(): StorefrontResourceGetter {
+  _defaultGetter(): StorefrontResourceGetter<T> {
     const resource = this.getResourceObject();
-    return async function (this: SwellStorefrontRecord) {
+
+    async function defaultGetter(this: SwellStorefrontRecord<T>) {
       return resource.get(this._id, this._query);
-    };
+    }
+
+    return defaultGetter as StorefrontResourceGetter<T>;
   }
 
-  async _get(id: string, query: SwellData = {}) {
+  async _get(id: string, query: SwellData = {}): Promise<T | null | undefined> {
     this._id = id || this._id;
 
     this._query = {
@@ -475,37 +491,41 @@ export class SwellStorefrontRecord extends SwellStorefrontResource {
       ...query,
     };
 
-    this._result = this._swell
-      .getCachedResource(
-        'storefront-record',
-        [this._collection, this._id, this._query, this._getterHash],
-        async () => {
-          return (this._getter as StorefrontResourceGetter).call(this);
-        },
-      )
-      .then((result: SwellRecord) => {
-        this._result = result;
+    if (this._getter) {
+      const getter = this._getter;
 
-        if (result) {
-          Object.assign(this, result);
-        }
+      this._result = this._swell
+        .getCachedResource(
+          'storefront-record',
+          [this._collection, this._id, this._query, this._getterHash],
+          async () => {
+            return getter.call(this);
+          },
+        )
+        .then((result?: T | null) => {
+          this._result = result;
 
-        return result;
-      })
-      .catch((err: any) => {
-        console.log(err);
-        return null;
-      });
+          if (result) {
+            Object.assign(this, result);
+          }
+
+          return result;
+        })
+        .catch((err: any) => {
+          console.log(err);
+          return null;
+        }) as unknown as T;
+    }
 
     return this._result;
   }
 }
 
-export class SwellStorefrontSingleton extends SwellStorefrontResource {
+export class SwellStorefrontSingleton<T extends SwellData = SwellData> extends SwellStorefrontResource<T> {
   constructor(
     swell: Swell,
     collection: string,
-    getter?: StorefrontResourceGetter,
+    getter?: StorefrontResourceGetter<T>,
   ) {
     super(swell, collection, getter);
 
@@ -516,52 +536,57 @@ export class SwellStorefrontSingleton extends SwellStorefrontResource {
     return this._getProxy();
   }
 
-  _getProxy() {
-    return super._getProxy() as SwellStorefrontSingleton;
+  _getProxy(): SwellStorefrontSingleton<T> {
+    return super._getProxy() as SwellStorefrontSingleton<T>;
   }
 
-  _defaultGetter(): StorefrontResourceGetter {
+  _defaultGetter(): StorefrontResourceGetter<T> {
     const resource = this.getResourceObject();
-    return async function (this: SwellStorefrontSingleton) {
+
+    async function defaultGetter(this: SwellStorefrontSingleton<T>) {
       return resource.get();
-    };
+    }
+
+    return defaultGetter as StorefrontResourceGetter<T>;
   }
 
   async _get() {
-    this._result = (this._getter as StorefrontResourceGetter)
-      .call(this)
-      .then((result: SwellRecord) => {
-        this._result = result;
+    if (this._getter) {
+      const getter = this._getter;
 
-        if (result) {
-          Object.assign(this, result);
-        }
+      this._result = Promise.resolve()
+        .then(() => getter.call(this))
+        .then((result?: T | null) => {
+          this._result = result;
 
-        return result;
-      })
-      .catch((err: any) => {
-        console.log(err);
-        return null;
-      });
+          if (result) {
+            Object.assign(this, result);
+          }
+
+          return result;
+        })
+        .catch((err: any) => {
+          console.log(err);
+          return null;
+        }) as unknown as T;
+    }
 
     return this._result;
   }
 }
 
-export class SwellStorefrontPagination {
-  public _resource: SwellStorefrontCollection;
+export class SwellStorefrontPagination<T extends SwellCollection = SwellCollection> {
+  public _resource: SwellStorefrontCollection<T>;
 
   public count = 0;
   public page = 0;
   public page_count = 0;
   public limit = 0;
-  public pages: {
-    [key: string]: { start: number; end: number; url: string };
-  } = {};
+  public pages: Record<string, { start: number; end: number; url: string }> = {};
   public next?: { start: number; end: number; url: string };
   public previous?: { start: number; end: number; url: string };
 
-  constructor(resource: SwellStorefrontCollection) {
+  constructor(resource: SwellStorefrontCollection<T>) {
     this._resource = resource;
 
     if (resource instanceof SwellStorefrontCollection) {
@@ -569,7 +594,7 @@ export class SwellStorefrontPagination {
     }
   }
 
-  setPaginationProps() {
+  setPaginationProps(): void {
     const { _resource } = this;
 
     this.count = _resource.count || 0;
@@ -607,7 +632,7 @@ export class SwellStorefrontPagination {
       : undefined;
   }
 
-  getPageUrl(page: number) {
+  getPageUrl(page: number): string {
     const { url, queryParams } = this._resource._swell;
     return `${url.pathname}?${stringifyQueryParams({
       ...queryParams,
@@ -615,7 +640,7 @@ export class SwellStorefrontPagination {
     })}`;
   }
 
-  setCompatibilityProps(props: SwellData) {
+  setCompatibilityProps(props: SwellData): void {
     Object.assign(this, props);
   }
 }

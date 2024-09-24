@@ -4,48 +4,60 @@ import { ShopifyCompatibility } from '../shopify';
 
 import { isObject } from '@/liquid/utils';
 
-import type { StorefrontResource } from '@/resources';
+import type { StorefrontResource, SwellStorefrontCollection } from '@/resources';
+import type { SwellData, SwellRecord } from 'types/swell';
 
 export class ShopifyResource {
-  props: { [key: string]: any };
+  props: Record<string, unknown>;
   stringProp?: string;
   linkProps?: string[];
 
-  constructor(props: any, stringProp?: string, linkProps?: string[]) {
+  constructor(props: Record<string, any>, stringProp?: string, linkProps?: string[]) {
     this.props = props;
     this.stringProp = stringProp;
     this.linkProps = linkProps;
 
     return new Proxy(props, {
-      get: (target, prop) => {
-        const instance = target as any;
+      get(target, prop: string) {
+        const instance = target;
 
-        if (prop === 'toJSON') {
-          return props;
-        }
+        switch (prop) {
+          case 'toJSON':
+            return props;
 
-        if (prop === 'clone') {
-          return () => {
-            return new ShopifyResource(cloneDeep(props));
-          };
-        }
+          case 'clone':
+            return () => {
+              return new ShopifyResource(
+                cloneDeep(props),
+                cloneDeep(stringProp),
+                cloneDeep(linkProps),
+              );
+            };
 
-        if (prop === 'toString' && stringProp) {
-          return () => {
-            return props[stringProp];
-          };
+          case 'toString': {
+            if (stringProp) {
+              return () => {
+                return props[stringProp];
+              };
+            }
+
+            break;
+          }
+
+          default:
+            break;
         }
 
         if (instance[prop] instanceof DeferredShopifyResource) {
           return instance[prop]
             .resolve()
-            .then((value: any) => {
+            .then((value: unknown) => {
               instance[prop] = value;
               return value;
             })
-            .catch((err: any) => {
+            .catch((err: unknown) => {
               console.log(err);
-              instance[prop] = null;
+              (instance[prop] as any) = null;
               return null;
             });
         }
@@ -56,7 +68,7 @@ export class ShopifyResource {
       getPrototypeOf() {
         return ShopifyResource.prototype;
       },
-    });
+    }) as ShopifyResource;
   }
 
   valueOf() {
@@ -82,7 +94,7 @@ export class DeferredShopifyResource<T> {
 
   async resolve() {
     if (this.result === undefined) {
-      this.result = Promise.resolve(this.handler()).then((value) => {
+      this.result = Promise.resolve().then(() => this.handler()).then((value) => {
         this.result = value !== undefined ? value : null;
         return value;
       });
@@ -102,23 +114,23 @@ export function isResolvable(asyncProp: unknown): boolean {
   );
 }
 
-function isStorefrontResource(resource: unknown): resource is StorefrontResource {
+function isStorefrontResource<T extends SwellData>(resource: unknown): resource is StorefrontResource<T> {
   return isObject(resource) && typeof resource._resolve === 'function'
 }
 
-export async function resolveAsyncProp<R>(asyncProp: unknown): Promise<R> {
+export async function resolveAsyncProp<R extends SwellData>(asyncProp: unknown): Promise<R | R[] | null | undefined> {
   return Array.isArray(asyncProp)
-    ? Promise.all(
+    ? Promise.all<R[]>(
         asyncProp.map((prop) =>
-          isStorefrontResource(prop) ? prop._resolve() : prop,
+          isStorefrontResource<R>(prop) ? prop._resolve() : prop,
         ),
       )
-    : isStorefrontResource(asyncProp)
+    : isStorefrontResource<R>(asyncProp)
     ? asyncProp._resolve()
     : asyncProp as R;
 }
 
-export async function handleDeferredProp<T, R>(asyncProp: unknown, handler: (...value: R[]) => T): Promise<T | null> {
+export async function handleDeferredProp<T, R extends SwellData>(asyncProp: unknown, handler: (...value: R[]) => T): Promise<T | null> {
   return resolveAsyncProp<R>(asyncProp)
     .then((value) => {
       if (Array.isArray(asyncProp) && Array.isArray(value)) {
@@ -129,7 +141,7 @@ export async function handleDeferredProp<T, R>(asyncProp: unknown, handler: (...
         return handleDeferredProp<T, R>(value, handler);
       }
 
-      return handler(value || ({} as R));
+      return handler((value || {}) as R);
     })
     .catch((err) => {
       console.log(err);
@@ -137,24 +149,29 @@ export async function handleDeferredProp<T, R>(asyncProp: unknown, handler: (...
     });
 }
 
-export function deferWith<T, R>(asyncProp: unknown, handler: (...value: R[]) => T) {
+export function deferWith<T, R extends SwellData = SwellData>(
+  asyncProp: unknown, handler: (...value: R[]) => T
+): DeferredShopifyResource<T | null> {
   return new DeferredShopifyResource<T | null>(() =>
     handleDeferredProp(asyncProp, handler),
   );
 }
 
-export function deferSwellCollectionWithShopifyResults(
+export function deferSwellCollectionWithShopifyResults<
+  T extends Record<string, SwellStorefrontCollection>,
+  R extends ShopifyResource,
+>(
   instance: ShopifyCompatibility,
-  asyncProp: any,
+  asyncProp: unknown,
   key: string,
-  ShopifyObject: any,
-  handler?: Function,
+  ShopifyObject: (instance: ShopifyCompatibility, result: SwellRecord) => R,
+  handler?: (shopifyResult: R, result: SwellRecord) => void,
 ) {
-  return deferWith(asyncProp, (value: any) => {
+  return deferWith<SwellStorefrontCollection, T>(asyncProp, (value) => {
     return (
-      value[key]?._cloneWithCompatibilityResult((valueResult: any) => {
+      (value[key])?._cloneWithCompatibilityResult((valueResult) => {
         return {
-          results: valueResult?.results?.map((result: any) => {
+          results: valueResult?.results?.map((result) => {
             const shopifyResult = ShopifyObject(instance, result);
             if (handler) {
               handler(shopifyResult, result);
