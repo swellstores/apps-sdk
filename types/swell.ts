@@ -53,14 +53,16 @@ export interface SwellRecord {
   $currency?: SwellCurrencyProp;
 }
 
-export interface SwellCollection {
+export interface SwellCollection<T = SwellRecord> {
   page: number;
   count: number;
-  results: SwellRecord[];
+  results: T[];
   page_count: number;
   limit: number;
   pages: SwellCollectionPages;
 }
+
+export type InferSwellCollection<T> = T extends SwellCollection<infer U> ? U : SwellData;
 
 export interface SwellCollectionPage {
   start: number;
@@ -119,7 +121,7 @@ export interface SwellMenuItem {
   child_active?: boolean;
 }
 
-export type StorefrontResourceGetter = () => Promise<SwellData> | SwellData;
+export type StorefrontResourceGetter<T = SwellData> = () => Promise<T | null> | T | null;
 
 export interface ThemeSettings {
   [key: string]: any;

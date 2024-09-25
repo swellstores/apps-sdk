@@ -118,7 +118,7 @@ export class ShopifyCompatibility {
     // Adapt individual resources to Shopify objects from page data
     for (const value of Object.values(objectData)) {
       const objectMap = this.objectResourceMap.find(
-        ({ from }: { from: any }) => value instanceof from,
+        ({ from }) => value instanceof from,
       );
       if (objectMap) {
         const objectProps = objectMap.object(this, value);

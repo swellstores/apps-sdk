@@ -69,7 +69,7 @@ export default function ShopifyCustomer(
   });
 }
 
-async function resolveLastOrder(instance: ShopifyCompatibility, account: any) {
+async function resolveLastOrder(instance: ShopifyCompatibility, account: StorefrontResource | SwellRecord) {
   const accountId = await account.id;
 
   const lastOrder = await instance.swell.getCachedResource(
@@ -83,5 +83,9 @@ async function resolveLastOrder(instance: ShopifyCompatibility, account: any) {
     },
   );
 
-  return lastOrder && ShopifyOrder(instance, lastOrder as any, account);
+  if (!lastOrder) {
+    return;
+  }
+
+  return ShopifyOrder(instance, lastOrder as SwellRecord, account);
 }

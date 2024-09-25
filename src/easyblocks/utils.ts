@@ -1,5 +1,3 @@
-import { SwellTheme } from '../theme';
-
 import type { ShopifySectionSchema } from 'types/shopify';
 
 import type {
@@ -15,8 +13,10 @@ import type {
   ThemeSettingsBlock,
 } from 'types/swell';
 
-export async function getPageTemplate(theme: SwellTheme, pageId: string) {
-  return await theme.renderPageTemplate(pageId);
+import type { SwellTheme } from '../theme';
+
+export function getPageTemplate(theme: SwellTheme, pageId: string) {
+  return theme.renderPageTemplate(pageId);
 }
 
 export async function getAllSections(

@@ -296,10 +296,11 @@ export class Swell {
     };
   }
 
-  getCacheInstance() {
+  getCacheInstance<T>(): Cache<T> {
     let cacheInstance = Swell.cache.get(this.instanceId);
+
     if (!cacheInstance) {
-      cacheInstance = new Cache(this.workerEnv?.THEME, CACHE_TIMEOUT);
+      cacheInstance = new Cache<T>(this.workerEnv?.THEME, CACHE_TIMEOUT);
       Swell.cache.set(this.instanceId, cacheInstance);
     }
 
@@ -316,8 +317,8 @@ export class Swell {
 
   setCachedSync(
     key: string,
-    args: Array<any>,
-    value: any,
+    args: Array<unknown>,
+    value: unknown,
     timeout?: number,
     isSync: boolean = true,
   ) {
@@ -331,17 +332,17 @@ export class Swell {
     return cacheInstance.set(cacheKey, value, timeout);
   }
 
-  getCachedSync(
+  getCachedSync<T>(
     key: string,
-    args?: Array<any> | Function,
-    handler?: Function,
+    args?: Array<any> | (() => Promise<T> | T),
+    handler?: () => Promise<T> | T,
     timeout?: number,
     isSync: boolean = true,
-  ): any {
+  ): Promise<T | undefined> | T | undefined {
     const cacheArgs = typeof args === 'function' ? undefined : args;
     const cacheHandler = typeof args === 'function' ? args : handler;
     const cacheKey = `${this.instanceId}:${key}_${JSON.stringify(cacheArgs)}`;
-    const cacheInstance = this.getCacheInstance();
+    const cacheInstance = this.getCacheInstance<T>();
 
     if (isSync) {
       if (cacheInstance.hasSync(cacheKey)) {
@@ -362,7 +363,7 @@ export class Swell {
           return cacheValue;
         }
         if (cacheHandler) {
-          return this.resolveCacheHandler(
+          return this.resolveCacheHandler<T>(
             cacheInstance,
             cacheKey,
             cacheHandler,
@@ -374,14 +375,15 @@ export class Swell {
     }
   }
 
-  resolveCacheHandler(
-    cacheInstance: Cache,
+  resolveCacheHandler<T>(
+    cacheInstance: Cache<T>,
     cacheKey: string,
-    cacheHandler: Function,
+    cacheHandler: () => Promise<T> | T,
     timeout?: number,
     isSync: boolean = true,
-  ) {
+  ): Promise<T> | T | undefined {
     let result;
+
     try {
       result = cacheHandler();
 
@@ -409,34 +411,34 @@ export class Swell {
 
   async setCached(
     key: string,
-    args: Array<any>,
-    value: any,
+    args: Array<unknown>,
+    value: unknown,
     timeout?: number,
   ): Promise<any> {
     return this.setCachedSync(key, args, value, timeout, false);
   }
 
-  async getCached(
+  async getCached<T>(
     key: string,
-    args: Array<any> | Function,
-    handler?: Function,
+    args: Array<unknown> | (() => Promise<T>),
+    handler?: () => Promise<T>,
     timeout?: number,
-  ): Promise<any> {
+  ): Promise<T | undefined> {
     return this.getCachedSync(key, args, handler, timeout, false);
   }
 
-  async getCachedResource(
+  async getCachedResource<T>(
     key: string,
-    args: Array<any> | Function,
-    handler?: Function,
+    args: Array<unknown> | (() => Promise<T>),
+    handler?: () => Promise<T>,
     timeout?: number,
-  ): Promise<any> {
+  ): Promise<T | undefined> {
     const requestId = this.swellHeaders['request-id'];
     const resourceArgs =
       typeof args === 'function' ? [requestId] : [requestId, args];
     const resourceHandler = typeof args === 'function' ? args : handler;
 
-    return await this.getCachedSync(
+    return this.getCachedSync<T>(
       key,
       resourceArgs,
       resourceHandler,
@@ -444,7 +446,7 @@ export class Swell {
     );
   }
 
-  clearCache() {
+  clearCache(): void {
     Swell.cache.delete(this.instanceId);
   }
 
@@ -514,27 +516,27 @@ export class Swell {
     return menus as SwellMenu[];
   }
 
-  get(
+  async get(
     ...args: Parameters<SwellBackendAPI['get']>
-  ): Promise<SwellData> | undefined {
+  ): Promise<SwellData | undefined> {
     return this.backend?.get(...args);
   }
 
-  put(
+  async put(
     ...args: Parameters<SwellBackendAPI['put']>
-  ): Promise<SwellData> | undefined {
+  ): Promise<SwellData | undefined> {
     return this.backend?.put(...args);
   }
 
-  post(
+  async post(
     ...args: Parameters<SwellBackendAPI['post']>
-  ): Promise<SwellData> | undefined {
+  ): Promise<SwellData | undefined> {
     return this.backend?.post(...args);
   }
 
-  delete(
+  async delete(
     ...args: Parameters<SwellBackendAPI['delete']>
-  ): Promise<SwellData> | undefined {
+  ): Promise<SwellData | undefined> {
     return this.backend?.delete(...args);
   }
 }
