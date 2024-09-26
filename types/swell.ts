@@ -34,6 +34,12 @@ export interface SwellAppStorefrontThemeProps {
   type: 'theme';
   pages: Array<SwellAppStorefrontThemePage>;
   shopify_compatibility?: boolean;
+  compatibility?: {
+    shopify?: boolean;
+    page_types?: {
+      [key: string]: string;
+    };
+  };
 }
 
 export interface SwellErrorOptions {
@@ -62,7 +68,9 @@ export interface SwellCollection<T = SwellRecord> {
   pages: SwellCollectionPages;
 }
 
-export type InferSwellCollection<T> = T extends SwellCollection<infer U> ? U : SwellData;
+export type InferSwellCollection<T> = T extends SwellCollection<infer U>
+  ? U
+  : SwellData;
 
 export interface SwellCollectionPage {
   start: number;
@@ -121,7 +129,10 @@ export interface SwellMenuItem {
   child_active?: boolean;
 }
 
-export type StorefrontResourceGetter<T = SwellData> = () => Promise<T | null> | T | null;
+export type StorefrontResourceGetter<T = SwellData> = () =>
+  | Promise<T | null>
+  | T
+  | null;
 
 export interface ThemeSettings {
   [key: string]: any;
