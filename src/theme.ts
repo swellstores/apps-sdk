@@ -42,7 +42,6 @@ import type {
   SwellRecord,
   SwellAppConfig,
   SwellThemeConfig,
-  SwellThemeConfigs,
   SwellAppStorefrontThemeProps,
 } from '../types/swell';
 
@@ -57,7 +56,7 @@ export class SwellTheme {
   public resources?: ThemeResources;
   public liquidSwell: LiquidSwell;
   public themeConfigs: Map<string, SwellThemeConfig> | null = null;
-  public customThemeConfigs?: SwellThemeConfigs;
+  public geoSettings: SwellData | undefined;
 
   public page: any;
   public pageId: string | undefined;
@@ -75,7 +74,6 @@ export class SwellTheme {
       resources?: ThemeResources;
       globals?: ThemeGlobals;
       shopifyCompatibilityClass?: typeof ShopifyCompatibility;
-      customThemeConfigs?: SwellThemeConfigs;
     } = {},
   ) {
     const { forms, resources, globals, shopifyCompatibilityClass } = options;
@@ -87,7 +85,6 @@ export class SwellTheme {
     this.resources = resources;
     this.shopifyCompatibilityClass =
       shopifyCompatibilityClass || ShopifyCompatibility;
-    this.customThemeConfigs = options.customThemeConfigs;
 
     this.liquidSwell = new LiquidSwell({
       theme: this,
@@ -659,9 +656,13 @@ export class SwellTheme {
   }
 
   async getGeoSettings(): Promise<SwellData | undefined> {
+    if (this.geoSettings) {
+      return this.geoSettings;
+    }
+
     const cacheKey = this.swell.swellHeaders['theme-config-version'];
 
-    return this.swell.getCached<SwellData | undefined>(
+    this.geoSettings = await this.swell.getCached<SwellData | undefined>(
       'geo-settings',
       [cacheKey],
       () => {
@@ -670,6 +671,8 @@ export class SwellTheme {
       // 1hr cache time
       1000 * 60 * 60,
     );
+
+    return this.geoSettings;
   }
 
   async getAllThemeConfigs(): Promise<Map<string, SwellThemeConfig>> {
@@ -680,47 +683,43 @@ export class SwellTheme {
     const themeId = this.swell.swellHeaders['theme-id'];
     const configVersion = this.swell.swellHeaders['theme-config-version'];
 
-    const configs =
-      this.customThemeConfigs ||
-      (await this.swell.getCached<SwellCollection<SwellThemeConfig>>(
-        'theme-configs-all',
-        [themeId, configVersion],
-        async () => {
-          console.log(
-            `Retrieving theme configurations - version: ${configVersion}`,
-          );
+    const configs = await this.swell.getCached<
+      SwellCollection<SwellThemeConfig>
+    >('theme-configs-all', [themeId, configVersion], async () => {
+      console.log(
+        `Retrieving theme configurations - version: ${configVersion}`,
+      );
 
-          const configs = await this.swell.get('/:themes:configs', {
-            ...this.themeConfigQuery(),
-            // TODO: paginate to support more than 1000 configs
-            limit: 1000,
-            fields: 'type, name, file, file_path',
-            include: {
-              file_data: {
-                url: '/:themes:configs/{id}/file/data',
-                conditions: {
-                  type: 'theme',
-                  // Only expand theme files
-                  // Do not expand non-text data
-                  file: {
-                    $and: [
-                      { content_type: { $regex: '^(?!image)' } },
-                      { content_type: { $regex: '^(?!video)' } },
-                    ],
-                  },
-                  // Do not return assets unless they end with .liquid.[ext]
-                  $or: [
-                    { file_path: { $regex: '^(?!theme/assets/)' } },
-                    { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
-                  ],
-                },
+      const configs = await this.swell.get('/:themes:configs', {
+        ...this.themeConfigQuery(),
+        // TODO: paginate to support more than 1000 configs
+        limit: 1000,
+        fields: 'type, name, file, file_path',
+        include: {
+          file_data: {
+            url: '/:themes:configs/{id}/file/data',
+            conditions: {
+              type: 'theme',
+              // Only expand theme files
+              // Do not expand non-text data
+              file: {
+                $and: [
+                  { content_type: { $regex: '^(?!image)' } },
+                  { content_type: { $regex: '^(?!video)' } },
+                ],
               },
+              // Do not return assets unless they end with .liquid.[ext]
+              $or: [
+                { file_path: { $regex: '^(?!theme/assets/)' } },
+                { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
+              ],
             },
-          });
-
-          return configs as SwellCollection<SwellThemeConfig>;
+          },
         },
-      ));
+      });
+
+      return configs as SwellCollection<SwellThemeConfig>;
+    });
 
     this.themeConfigs = new Map();
 

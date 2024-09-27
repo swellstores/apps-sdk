@@ -6,11 +6,10 @@ import forms from './forms';
 import resources from './resources';
 import { StorefrontShopifyCompatibility } from './shopify-compatibility';
 
-export function initTheme(swell: Swell, options: any) {
+export function initTheme(swell: Swell) {
   return new SwellTheme(swell, {
     forms,
     resources,
     shopifyCompatibilityClass: StorefrontShopifyCompatibility,
-    ...options,
   });
 }

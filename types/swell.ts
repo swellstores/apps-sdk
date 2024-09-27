@@ -80,8 +80,6 @@ export interface SwellThemeConfig extends SwellRecord {
   file_path: string;
 }
 
-export type SwellThemeConfigs = SwellCollection<SwellThemeConfig>;
-
 export interface SwellMenu {
   id: string;
   name: string;
