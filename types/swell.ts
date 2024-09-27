@@ -62,7 +62,9 @@ export interface SwellCollection<T = SwellRecord> {
   pages: SwellCollectionPages;
 }
 
-export type InferSwellCollection<T> = T extends SwellCollection<infer U> ? U : SwellData;
+export type InferSwellCollection<T> = T extends SwellCollection<infer U>
+  ? U
+  : SwellData;
 
 export interface SwellCollectionPage {
   start: number;
@@ -77,6 +79,8 @@ export interface SwellThemeConfig extends SwellRecord {
   file_data: string;
   file_path: string;
 }
+
+export type SwellThemeConfigs = SwellCollection<SwellThemeConfig>;
 
 export interface SwellMenu {
   id: string;
@@ -121,7 +125,10 @@ export interface SwellMenuItem {
   child_active?: boolean;
 }
 
-export type StorefrontResourceGetter<T = SwellData> = () => Promise<T | null> | T | null;
+export type StorefrontResourceGetter<T = SwellData> = () =>
+  | Promise<T | null>
+  | T
+  | null;
 
 export interface ThemeSettings {
   [key: string]: any;
