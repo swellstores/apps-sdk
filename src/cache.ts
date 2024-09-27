@@ -9,8 +9,8 @@ import { StorefrontResource } from './api';
 
 import type { CFWorkerKV } from 'types/swell';
 
-export class Cache<T = any> {
-  private map: Map<string, T> = new Map();
+export class Cache {
+  private map: Map<string, [timer: number, value: unknown]> = new Map();
   private kvStore?: CFWorkerKV;
   private timeoutDefault: number;
 
@@ -28,50 +28,52 @@ export class Cache<T = any> {
     this.timeoutDefault = timeoutDefault;
   }
 
-  setValues(values: Array<[string, T]>): void {
-    this.map = new Map(values);
+  setValues(values: Array<[string, unknown]>): void {
+    this.map = new Map(values.map(([key, value]) => [key, [0, value]]));
   }
 
   getValues() {
-    return Array.from(this.map);
+    return Array.from(this.map).map(([key, pair]) => [key, pair[1]]);
   }
 
-  async get(key: string): Promise<T | undefined> {
-    if (this.map.has(key)) {
-      return this.map.get(key);
+  async get<T>(key: string): Promise<T | undefined> {
+    const pair = this.map.get(key);
+
+    if (pair !== undefined) {
+      return pair[1] as T;
     }
 
     if (this.kvStore) {
       let cacheValue;
 
-      //const start = Date.now();
-
       const value = await this.kvStore.get(key);
 
-      try {
-        // Null means undefined in KV
-        if (value === null) {
-          cacheValue = undefined;
-        } else {
+      // Null means undefined in KV
+      if (value === null) {
+        cacheValue = undefined;
+      } else {
+        try {
           cacheValue = JSON.parse(value);
+
           if (cacheValue === 'KV_NULL') {
             cacheValue = null;
           }
+
+          this.setSync(key, cacheValue, this.timeoutDefault);
+        } catch (err: any) {
+          console.error('Cache.get JSON.parse error', key, err.message, value);
         }
-
-        this.setSync(key, cacheValue, this.timeoutDefault);
-      } catch (err: any) {
-        console.error('Cache.get JSON.parse error', key, err.message, value);
       }
-
-      //console.log('Cache.get kvStore TIMING', key, Date.now() - start);
 
       return cacheValue;
     }
+
+    return undefined;
   }
 
-  getSync(key: string): T | undefined {
-    return this.map.get(key);
+  getSync<T>(key: string): T | undefined {
+    const pair = this.map.get(key);
+    return pair ? pair[1] as T : undefined;
   }
 
   async set(key: string, value: any, timeout: number = this.timeoutDefault): Promise<void> {
@@ -95,7 +97,8 @@ export class Cache<T = any> {
 
       // CF timeout must be at least 60 seconds, and 10x longer than the map timeout
       const kvTimeout = timeout * 10;
-      const expirationTtl = kvTimeout >= 60000 ? kvTimeout / 1000 : 0;
+      // A value of 0 means that the cache will be stored forever
+      const expirationTtl = kvTimeout >= 60000 ? Math.trunc(kvTimeout / 1000) : 0;
 
       // Non-blocking
       this.kvStore.put(key, JSON.stringify(cacheValue), {
@@ -106,16 +109,22 @@ export class Cache<T = any> {
   }
 
   setSync(key: string, value: any, timeout: number = this.timeoutDefault): void {
-    this.map.set(key, value);
+    const pair = this.map.get(key);
+
+    if (pair !== undefined) {
+      clearTimeout(pair[0]);
+    }
 
     // Only timeout from map, since KV has its own expiration
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       this.map.delete(key);
     }, timeout);
+
+    this.map.set(key, [timer, value]);
   }
 
   async delete(key: string): Promise<void> {
-    this.map.delete(key);
+    this.deleteSync(key);
 
     if (this.kvStore) {
       await this.kvStore.delete(key);
@@ -123,14 +132,52 @@ export class Cache<T = any> {
   }
 
   deleteSync(key: string): void {
-    this.map.delete(key);
+    const pair = this.map.get(key);
+
+    if (pair !== undefined) {
+      clearTimeout(pair[0]);
+      this.map.delete(key);
+    }
   }
 
-  async has(key: string): Promise<T | undefined> {
+  async has<T>(key: string): Promise<T | undefined> {
     return this.get(key);
   }
 
   hasSync(key: string): boolean {
     return this.map.has(key);
+  }
+
+  async clear(prefix?: string): Promise<void> {
+    for (const pair of this.map.values()) {
+      clearTimeout(pair[0]);
+    }
+
+    this.map.clear();
+
+    const { kvStore } = this;
+
+    if (kvStore) {
+      let cursor = '';
+      let complete = false;
+
+      while (!complete) {
+        const response = await kvStore.list({
+          prefix,
+          cursor: cursor || undefined,
+        });
+
+        cursor = response.cursor ?? '';
+        complete = response.list_complete;
+
+        if (response.keys.length > 0) {
+          await Promise.all(
+            response.keys.map((key) => {
+              return kvStore.delete(key.name);
+            }),
+          );
+        }
+      }
+    }
   }
 }
