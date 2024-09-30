@@ -932,8 +932,6 @@ export class SwellTheme {
   ): Promise<string | ThemePageTemplateConfig> {
     let templateConfig: SwellThemeConfig | null = null;
 
-    console.log('renderPageTemplate', name, data, altTemplateId);
-
     if (altTemplateId) {
       templateConfig = await this.getThemeTemplateConfigByType(
         'templates',
