@@ -235,7 +235,6 @@ export class Swell {
     const { swellHeaders, getCookie, setCookie, storefrontSettingStates } =
       params;
 
-    // TODO: make a create method to separate instanced of swell.js
     const storefront = SwellJS.create(
       swellHeaders['store-id'],
       swellHeaders['public-key'],
@@ -247,6 +246,10 @@ export class Swell {
           setCookie &&
           ((name: string, value: string, options: any) =>
             setCookie(name, value, options, this)),
+        headers: {
+          'Swell-Store-id': swellHeaders['store-id'],
+          'Swell-Storefront-Id': swellHeaders['storefront-id'],
+        },
       },
     );
 
@@ -466,10 +469,7 @@ export class Swell {
     try {
       // Note: Logic pulled from swell.js because we need to pass storefront_id explicitly
       const { settings, menus, payments, subscriptions, session } =
-        (await this.storefront.request(
-          'get',
-          `/settings/all?storefront_id=${this.swellHeaders['storefront-id']}`,
-        )) as any;
+        (await this.storefront.request('get', `/settings/all`)) as any;
 
       const storefrontSettings = this.storefront.settings as any;
 
