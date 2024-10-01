@@ -16,7 +16,7 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "lib": ["es2017", "dom"],
+    "lib": ["es2022", "dom"],
     "verbatimModuleSyntax": true,
     "jsxImportSource": "react"
   },
