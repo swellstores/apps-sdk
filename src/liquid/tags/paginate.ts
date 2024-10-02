@@ -13,7 +13,7 @@ import {
   SwellStorefrontPagination,
 } from '../../resources';
 
-import { ShopifyPaginate } from '../../compatibility/shopify-objects';
+import ShopifyPaginate from '@/compatibility/shopify-objects/paginate';
 import { LiquidSwell } from '..';
 
 import type { Emitter, Template, ValueToken, TopLevelToken } from 'liquidjs';
