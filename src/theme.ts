@@ -43,6 +43,7 @@ import type {
   SwellAppConfig,
   SwellThemeConfig,
   SwellAppStorefrontThemeProps,
+  SwellAppShopifyCompatibilityConfig,
 } from '../types/swell';
 
 import type { ShopifySectionSchema } from 'types/shopify';
@@ -62,6 +63,8 @@ export class SwellTheme {
   public shopifyCompatibility: ShopifyCompatibility | null = null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
     ShopifyCompatibility;
+  public shopifyCompatibilityConfig: SwellAppShopifyCompatibilityConfig | null =
+    null;
 
   public formData: Record<string, ThemeForm> = {};
   public globalData: SwellData = {};
@@ -79,6 +82,8 @@ export class SwellTheme {
 
     this.swell = swell;
     this.props = this.getSwellAppThemeProps(swell.config);
+    this.shopifyCompatibilityConfig = swell.shopifyCompatibilityConfig || null;
+
     this.globals = globals || ({} as ThemeGlobals);
     this.forms = forms;
     this.resources = resources;
@@ -175,9 +180,7 @@ export class SwellTheme {
 
     const settingConfigs = await Promise.all(
       Array.from(themeConfigs.values())
-        .filter((config) =>
-          config.file_path.startsWith('theme/config/'),
-        )
+        .filter((config) => config.file_path.startsWith('theme/config/'))
         .map(async (config) => {
           if (config.file_path.endsWith('.json')) {
             return this.getThemeConfig(config.file_path);
@@ -192,24 +195,21 @@ export class SwellTheme {
       editor: {},
       translations: {},
       presets: [],
-      ...settingConfigs.reduce(
-        (acc: any, config) => {
-          const configName = config?.name.split('.')[0];
-          if (configName) {
-            let configValue;
-            if (config?.file_path?.endsWith('.json')) {
-              try {
-                configValue = JSON.parse(config.file_data);
-              } catch (err) {
-                configValue = null;
-              }
+      ...settingConfigs.reduce((acc: any, config) => {
+        const configName = config?.name.split('.')[0];
+        if (configName) {
+          let configValue;
+          if (config?.file_path?.endsWith('.json')) {
+            try {
+              configValue = JSON.parse(config.file_data);
+            } catch (err) {
+              configValue = null;
             }
-            acc[configName] = configValue;
           }
-          return acc;
-        },
-        {},
-      ),
+          acc[configName] = configValue;
+        }
+        return acc;
+      }, {}),
     };
 
     const session = await this.swell.storefront.settings.session();
@@ -681,45 +681,43 @@ export class SwellTheme {
     const themeId = this.swell.swellHeaders['theme-id'];
     const configVersion = this.swell.swellHeaders['theme-config-version'];
 
-    const configs = await this.swell.getCached<SwellCollection<SwellThemeConfig>>(
-      'theme-configs-all',
-      [themeId, configVersion],
-      async () => {
-        console.log(
-          `Retrieving theme configurations - version: ${configVersion}`,
-        );
+    const configs = await this.swell.getCached<
+      SwellCollection<SwellThemeConfig>
+    >('theme-configs-all', [themeId, configVersion], async () => {
+      console.log(
+        `Retrieving theme configurations - version: ${configVersion}`,
+      );
 
-        const configs = await this.swell.get('/:themes:configs', {
-          ...this.themeConfigQuery(),
-          // TODO: paginate to support more than 1000 configs
-          limit: 1000,
-          fields: 'type, name, file, file_path',
-          include: {
-            file_data: {
-              url: '/:themes:configs/{id}/file/data',
-              conditions: {
-                type: 'theme',
-                // Only expand theme files
-                // Do not expand non-text data
-                file: {
-                  $and: [
-                    { content_type: { $regex: '^(?!image)' } },
-                    { content_type: { $regex: '^(?!video)' } },
-                  ],
-                },
-                // Do not return assets unless they end with .liquid.[ext]
-                $or: [
-                  { file_path: { $regex: '^(?!theme/assets/)' } },
-                  { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
+      const configs = await this.swell.get('/:themes:configs', {
+        ...this.themeConfigQuery(),
+        // TODO: paginate to support more than 1000 configs
+        limit: 1000,
+        fields: 'type, name, file, file_path',
+        include: {
+          file_data: {
+            url: '/:themes:configs/{id}/file/data',
+            conditions: {
+              type: 'theme',
+              // Only expand theme files
+              // Do not expand non-text data
+              file: {
+                $and: [
+                  { content_type: { $regex: '^(?!image)' } },
+                  { content_type: { $regex: '^(?!video)' } },
                 ],
               },
+              // Do not return assets unless they end with .liquid.[ext]
+              $or: [
+                { file_path: { $regex: '^(?!theme/assets/)' } },
+                { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
+              ],
             },
           },
-        });
+        },
+      });
 
-        return configs as SwellCollection<SwellThemeConfig>;
-      },
-    );
+      return configs as SwellCollection<SwellThemeConfig>;
+    });
 
     this.themeConfigs = new Map();
 
@@ -858,7 +856,9 @@ export class SwellTheme {
     }
   }
 
-  getSectionConfigWithSchemaTagOnly(config: SwellThemeConfig): SwellThemeConfig | null {
+  getSectionConfigWithSchemaTagOnly(
+    config: SwellThemeConfig,
+  ): SwellThemeConfig | null {
     const schemaTag = '{% schema %}';
     const schemaEndTag = '{% endschema %}';
     const schemaStartIndex = config.file_data.indexOf(schemaTag);
@@ -938,8 +938,10 @@ export class SwellTheme {
     }
 
     if (!templateConfig) {
-      templateConfig =
-        await this.getThemeTemplateConfigByType('templates', name);
+      templateConfig = await this.getThemeTemplateConfigByType(
+        'templates',
+        name,
+      );
     }
 
     if (templateConfig) {
@@ -955,7 +957,9 @@ export class SwellTheme {
       return themeTemplate;
     }
 
-    console.error(new Error(`Page template not found: templates/${name}.liquid`));
+    console.error(
+      new Error(`Page template not found: templates/${name}.liquid`),
+    );
 
     throw new PageNotFound();
   }
@@ -1485,7 +1489,8 @@ export function resolveThemeSettings(
 
   each(settings, (value, key) => {
     const setting =
-      (editorSchemaSettings && findEditorSetting(editorSchemaSettings, key)) ?? null;
+      (editorSchemaSettings && findEditorSetting(editorSchemaSettings, key)) ??
+      null;
 
     if (isObject(value) && !(value instanceof StorefrontResource)) {
       // Object-based setting types
