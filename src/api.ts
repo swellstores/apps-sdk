@@ -71,7 +71,7 @@ export class Swell {
     serverHeaders?: Headers | SwellData; // Required on the server
     queryParams?: URLSearchParams | SwellData;
     workerEnv?: any;
-    getCookie?: (name: string) => string;
+    getCookie?: (name: string) => string | undefined;
     setCookie?: (name: string, value: string, options: any) => void;
     [key: string]: any;
   }) {
