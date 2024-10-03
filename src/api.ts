@@ -75,8 +75,8 @@ export class Swell {
     swellHeaders?: SwellData;
     serverHeaders?: Headers | SwellData; // Required on the server
     queryParams?: URLSearchParams | SwellData;
-    workerEnv?: any;
-    getCookie?: (name: string) => string;
+    workerEnv?: CFThemeEnv;
+    getCookie?: (name: string) => string | undefined;
     setCookie?: (name: string, value: string, options: any) => void;
     [key: string]: any;
   }) {
@@ -136,19 +136,6 @@ export class Swell {
         clientProps.isEditor ?? swellHeaders['deployment-mode'] === 'editor';
       this.isPreview =
         this.isEditor || swellHeaders['deployment-mode'] === 'preview';
-
-      // Clear cache if header changed
-      if (swellHeaders['cache-modified']) {
-        const cacheModified = this.getCachedSync('_cache-modified');
-        if (cacheModified !== swellHeaders['cache-modified']) {
-          this.clearCache();
-        }
-
-        this.getCacheInstance().set(
-          '_cache-modified',
-          swellHeaders['cache-modified'],
-        );
-      }
     } else if (headers && swellHeaders) {
       // Set props from cache, typically used when hydrating client-side
       Object.assign(this, clientProps);
@@ -294,7 +281,7 @@ export class Swell {
       opt: any = undefined,
     ) => {
       if (this.isStorefrontRequestCacheable(method, url)) {
-        return this.getCached(
+        return this.getCachedSync(
           'swell',
           [method, url, id, data, opt],
           () => {
@@ -308,11 +295,11 @@ export class Swell {
     };
   }
 
-  getCacheInstance<T>(): Cache<T> {
+  getCacheInstance(): Cache {
     let cacheInstance = Swell.cache.get(this.instanceId);
 
     if (!cacheInstance) {
-      cacheInstance = new Cache<T>(this.workerEnv?.THEME, CACHE_TIMEOUT);
+      cacheInstance = new Cache(this.workerEnv?.THEME, CACHE_TIMEOUT);
       Swell.cache.set(this.instanceId, cacheInstance);
     }
 
@@ -327,6 +314,10 @@ export class Swell {
     Swell.cache.set(this.instanceId, cacheInstance);
   }
 
+  getCacheKeyPrefix() {
+    return `${this.instanceId}:`;
+  }
+
   setCachedSync(
     key: string,
     args: Array<unknown>,
@@ -334,7 +325,7 @@ export class Swell {
     timeout?: number,
     isSync: boolean = true,
   ) {
-    const cacheKey = `${this.instanceId}:${key}_${JSON.stringify(args || [])}`;
+    const cacheKey = `${this.getCacheKeyPrefix()}${key}_${JSON.stringify(args || [])}`;
     const cacheInstance = this.getCacheInstance();
 
     if (isSync) {
@@ -354,7 +345,7 @@ export class Swell {
     const cacheArgs = typeof args === 'function' ? undefined : args;
     const cacheHandler = typeof args === 'function' ? args : handler;
     const cacheKey = `${this.instanceId}:${key}_${JSON.stringify(cacheArgs)}`;
-    const cacheInstance = this.getCacheInstance<T>();
+    const cacheInstance = this.getCacheInstance();
 
     if (isSync) {
       if (cacheInstance.hasSync(cacheKey)) {
@@ -370,7 +361,7 @@ export class Swell {
         );
       }
     } else {
-      return cacheInstance.has(cacheKey).then((cacheValue) => {
+      return cacheInstance.has<T>(cacheKey).then((cacheValue) => {
         if (cacheValue !== undefined) {
           return cacheValue;
         }
@@ -388,7 +379,7 @@ export class Swell {
   }
 
   resolveCacheHandler<T>(
-    cacheInstance: Cache<T>,
+    cacheInstance: Cache,
     cacheKey: string,
     cacheHandler: () => Promise<T> | T,
     timeout?: number,
@@ -458,8 +449,30 @@ export class Swell {
     );
   }
 
-  clearCache(): void {
-    Swell.cache.delete(this.instanceId);
+  async updateCacheModified(cacheModified: string): Promise<void> {
+    // Clear cache if header changed
+    if (cacheModified) {
+      const prevCacheModified = this.getCachedSync('_cache-modified');
+
+      if (prevCacheModified !== cacheModified) {
+        await this.clearCache();
+      }
+
+      this.getCacheInstance().set(
+        '_cache-modified',
+        cacheModified,
+      );
+    }
+  }
+
+  async clearCache(): Promise<void> {
+    const cacheInstance = Swell.cache.get(this.instanceId);
+
+    if (cacheInstance !== undefined) {
+      Swell.cache.delete(this.instanceId);
+
+      await cacheInstance.clear(this.getCacheKeyPrefix());
+    }
   }
 
   async getAppSettings(): Promise<SwellData> {
@@ -478,7 +491,7 @@ export class Swell {
     try {
       // Note: Logic pulled from swell.js because we need to pass storefront_id explicitly
       const { settings, menus, payments, subscriptions, session } =
-        (await this.storefront.request('get', `/settings/all`)) as any;
+        await this.storefront.request<any>('get', '/settings/all');
 
       const storefrontSettings = this.storefront.settings as any;
 
@@ -519,10 +532,12 @@ export class Swell {
       '/settings/menus',
       'menuState',
     );
+  
     if (!menus || menus instanceof Promise) {
       return [];
     }
-    return menus as SwellMenu[];
+  
+    return menus;
   }
 
   async get(

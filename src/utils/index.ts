@@ -304,11 +304,14 @@ export function forEachKeyDeep(
   if (typeof obj !== 'object' || obj === null) {
     return;
   }
-  for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+
+  for (const key of Object.keys(obj)) {
+    if (Object.hasOwn(obj, key)) {
       const result = fn(key, obj);
+
       if (result !== false) {
         const value = obj[key];
+
         if (typeof value === 'object' && value !== null) {
           forEachKeyDeep(value, fn);
         }
@@ -318,22 +321,22 @@ export function forEachKeyDeep(
 }
 
 export function findCircularReferences(value: any) {
-  let references: any[] = [];
+  const references = new Set();
 
   forEachKeyDeep(value, (_key, value) => {
     if (typeof value === 'object' && value !== null) {
-      if (references.includes(value)) {
+      if (references.has(value)) {
         return false;
       }
-      references.push(value);
+      references.add(value);
     }
   });
 
-  return references;
+  return Array.from(references);
 }
 
 export function removeCircularReferences(value: any) {
-  let references: any[] = [];
+  const references = new WeakSet();
 
   if (!value) {
     return value;
@@ -342,11 +345,11 @@ export function removeCircularReferences(value: any) {
   return JSON.parse(
     JSON.stringify(value, (_key, value) => {
       if (typeof value === 'object' && value !== null) {
-        if (references.includes(value)) {
+        if (references.has(value)) {
           // Clone circular reference
           return JSON.parse(JSON.stringify(value));
         }
-        references.push(value);
+        references.add(value);
       }
       return value;
     }),
