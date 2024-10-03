@@ -98,7 +98,7 @@ export class Cache {
       // CF timeout must be at least 60 seconds, and 10x longer than the map timeout
       const kvTimeout = timeout * 10;
       // A value of 0 means that the cache will be stored forever
-      const expirationTtl = kvTimeout >= 60000 ? Math.trunc(kvTimeout / 1000) : 0;
+      const expirationTtl = kvTimeout >= 60000 ? Math.ceil(kvTimeout / 1000) : 0;
 
       // Non-blocking
       this.kvStore.put(key, JSON.stringify(cacheValue), {
