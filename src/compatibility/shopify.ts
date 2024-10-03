@@ -426,9 +426,17 @@ export class ShopifyCompatibility {
     if (!url) return;
 
     let pageId;
+    let pageExt;
     const urlParams: SwellData = {};
 
-    const [_, segment1, segment2, segment3] = url.split('?')[0].split('/');
+    const [pathname, query] = url.split('?');
+    const pathExtParts = pathname.split('.');
+    const ext = pathExtParts[1] ? pathExtParts.pop() : null;
+    const [_, segment1, segment2, segment3] = pathExtParts.join('.').split('/');
+
+    if (ext === 'js') {
+      pageExt = 'json';
+    }
 
     switch (segment1) {
       case 'account':
@@ -481,8 +489,17 @@ export class ShopifyCompatibility {
       const pageUrl = this.getPageRouteUrl(pageId);
       if (pageUrl) {
         // TODO: replace with pathToRegexp
-        return pageUrl.replace(/:(\w+)/g, (_match, key) => urlParams[key]);
+        const adaptedUrl = pageUrl.replace(
+          /:(\w+)/g,
+          (_match, key) => urlParams[key],
+        );
+        return adaptedUrl + (ext ? `.${ext}` : '') + (query ? `?${query}` : '');
       }
+    } else if (pageExt) {
+      return (
+        pathname.replace(new RegExp(`.${ext}$`), `.${pageExt}`) +
+        (query ? `?${query}` : '')
+      );
     }
   }
 
