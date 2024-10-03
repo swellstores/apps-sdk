@@ -285,7 +285,7 @@ export class Swell {
       opt: any = undefined,
     ) => {
       if (this.isStorefrontRequestCacheable(method, url)) {
-        return this.getCached(
+        return this.getCachedSync(
           'swell',
           [method, url, id, data, opt],
           () => {
