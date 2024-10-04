@@ -10,6 +10,7 @@ import {
   adaptShopifyMenuData,
   adaptShopifyFontData,
   adaptShopifyFormData,
+  ShopifyResource,
 } from './shopify-objects';
 import {
   convertShopifySettingsSchema,
@@ -29,6 +30,7 @@ import type {
   SwellMenu,
   SwellRecord,
   SwellThemeConfig,
+  SwellAppShopifyCompatibilityConfig,
 } from '../../types/swell';
 
 import type {
@@ -40,6 +42,8 @@ import type {
   ShopifyFormResourceMap,
   ShopifyQueryParamsMap,
 } from '../../types/shopify';
+
+import * as ShopifyObjects from './shopify-objects';
 
 /*
  * This class is meant to be extended by a storefront app to provide compatibility with Shopify's Liquid
@@ -53,10 +57,14 @@ export class ShopifyCompatibility {
   public formResourceMap: ShopifyFormResourceMap;
   public queryParamsMap: ShopifyQueryParamsMap;
   public editorLocaleConfig: { [key: string]: any } | undefined;
+  public shopifyCompatibilityConfig?: SwellAppShopifyCompatibilityConfig;
 
   constructor(theme: SwellTheme) {
     this.theme = theme;
     this.swell = theme.swell;
+    this.shopifyCompatibilityConfig =
+      this.swell.shopifyCompatibilityConfig ?? undefined;
+
     this.pageResourceMap = this.getPageResourceMap();
     this.objectResourceMap = this.getObjectResourceMap();
     this.formResourceMap = this.getFormResourceMap();
@@ -118,8 +126,9 @@ export class ShopifyCompatibility {
     // Adapt individual resources to Shopify objects from page data
     for (const value of Object.values(objectData)) {
       const objectMap = this.objectResourceMap.find(
-        ({ from }) => value instanceof from,
+        ({ from }) => from === value.constructor.name,
       );
+
       if (objectMap) {
         const objectProps = objectMap.object(this, value);
         if (value instanceof StorefrontResource) {
@@ -176,8 +185,17 @@ export class ShopifyCompatibility {
     arg?: any,
   ) {
     const formMap = this.formResourceMap.find((form) => form.type === formType);
-    if (formMap?.clientHtml) {
-      return await formMap.clientHtml(scope, arg);
+    const formTypeConfig = this.shopifyCompatibilityConfig?.forms?.find(
+      (form) => form.id === formType,
+    );
+
+    if (formMap && formTypeConfig) {
+      return formTypeConfig.client_params.reduce((acc: any, param: any) => {
+        return (
+          `<input type="hidden" name="${param.name}" value="${param.value}" />` +
+          acc
+        );
+      }, ``);
     }
   }
 
@@ -252,7 +270,7 @@ export class ShopifyCompatibility {
     const settingConfigs = await theme.getAllThemeConfigs();
 
     const shopifyLocaleConfigs = new Map<string, SwellThemeConfig>();
-    
+
     for (const config of settingConfigs.values()) {
       if (
         config.file_path.startsWith('theme/locales/') &&
@@ -269,9 +287,9 @@ export class ShopifyCompatibility {
       // Fall back to short code locale
       const localeShortCode = localeCode.split('-')[0];
 
-      localeConfig = shopifyLocaleConfigs.get(
-        `theme/locales/${localeShortCode}${suffix}`,
-      ) ?? null;
+      localeConfig =
+        shopifyLocaleConfigs.get(`theme/locales/${localeShortCode}${suffix}`) ??
+        null;
 
       if (!localeConfig) {
         // Fall back to default locale
@@ -287,9 +305,7 @@ export class ShopifyCompatibility {
     }
 
     if (localeConfig) {
-      localeConfig = (await theme.getThemeConfig(
-        localeConfig.file_path,
-      ));
+      localeConfig = await theme.getThemeConfig(localeConfig.file_path);
 
       try {
         return JSON.parse(localeConfig?.file_data || '');
@@ -389,15 +405,18 @@ export class ShopifyCompatibility {
    */
 
   getPageType(pageId: string) {
-    return pageId;
+    return this.shopifyCompatibilityConfig?.page_types?.[pageId] || pageId;
   }
 
-  getPageRouteUrl(pageId: string) {
-    return pageId;
+  getPageRouteUrl(pageId: string): string {
+    return (
+      this.theme.props.pages?.find((page: any) => page.id === pageId)?.url ||
+      pageId
+    );
   }
 
   getPageRoutes() {
-    return {
+    const routes = {
       account_addresses_url: this.getPageRouteUrl('account/addresses'),
       account_login_url: this.getPageRouteUrl('account/login'),
       account_logout_url: this.getPageRouteUrl('account/logout'),
@@ -416,6 +435,20 @@ export class ShopifyCompatibility {
       root_url: this.getPageRouteUrl('index'),
       search_url: this.getPageRouteUrl('search'),
     };
+
+    if (this.shopifyCompatibilityConfig?.page_routes) {
+      for (const [key, value] of Object.entries(
+        this.shopifyCompatibilityConfig.page_routes,
+      )) {
+        if (value && typeof value === 'object' && value.page_id) {
+          (routes as any)[key] = this.getPageRouteUrl(value.page_id);
+        } else if (typeof value === 'string') {
+          (routes as any)[key] = value;
+        }
+      }
+    }
+
+    return routes;
   }
 
   getLocalizationObject(store: SwellData, request: SwellData) {
@@ -426,9 +459,17 @@ export class ShopifyCompatibility {
     if (!url) return;
 
     let pageId;
+    let pageExt;
     const urlParams: SwellData = {};
 
-    const [_, segment1, segment2, segment3] = url.split('?')[0].split('/');
+    const [pathname, query] = url.split('?');
+    const pathExtParts = pathname.split('.');
+    const ext = pathExtParts[1] ? pathExtParts.pop() : null;
+    const [_, segment1, segment2, segment3] = pathExtParts.join('.').split('/');
+
+    if (ext === 'js') {
+      pageExt = 'json';
+    }
 
     switch (segment1) {
       case 'account':
@@ -481,8 +522,17 @@ export class ShopifyCompatibility {
       const pageUrl = this.getPageRouteUrl(pageId);
       if (pageUrl) {
         // TODO: replace with pathToRegexp
-        return pageUrl.replace(/:(\w+)/g, (_match, key) => urlParams[key]);
+        const adaptedUrl = pageUrl.replace(
+          /:(\w+)/g,
+          (_match, key) => urlParams[key],
+        );
+        return adaptedUrl + (ext ? `.${ext}` : '') + (query ? `?${query}` : '');
       }
+    } else if (pageExt) {
+      return (
+        pathname.replace(new RegExp(`.${ext}$`), `.${pageExt}`) +
+        (query ? `?${query}` : '')
+      );
     }
   }
 
@@ -506,11 +556,53 @@ export class ShopifyCompatibility {
   }
 
   getPageResourceMap(): ShopifyPageResourceMap {
-    return [];
+    if (!this.shopifyCompatibilityConfig?.page_resources) {
+      return [];
+    }
+
+    return this.shopifyCompatibilityConfig.page_resources.map((item) => ({
+      page: item.page,
+      resources: item.resources.map(({ from, to, object }) => {
+        const shopifyObject =
+          ShopifyObjects[object as keyof typeof ShopifyObjects];
+
+        if (!shopifyObject) {
+          throw new Error(`ShopifyObject for '${object}' not found.`);
+        }
+
+        return {
+          from,
+          to,
+          object: shopifyObject as (
+            shopify: ShopifyCompatibility,
+            value: StorefrontResource<SwellData>,
+          ) => ShopifyResource,
+        };
+      }),
+    }));
   }
 
   getObjectResourceMap(): ShopifyObjectResourceMap {
-    return [];
+    if (!this.shopifyCompatibilityConfig?.object_resources) {
+      return [];
+    }
+
+    return this.shopifyCompatibilityConfig.object_resources.map((item) => {
+      const shopifyObject =
+        ShopifyObjects[item.object as keyof typeof ShopifyObjects];
+
+      if (!shopifyObject) {
+        throw new Error(`ShopifyObject for '${item.object}' not found.`);
+      }
+
+      return {
+        from: item.from,
+        object: shopifyObject as (
+          shopify: ShopifyCompatibility,
+          value: StorefrontResource<SwellData>,
+        ) => ShopifyResource,
+      };
+    });
   }
 
   getFormResourceMap(): ShopifyFormResourceMap {

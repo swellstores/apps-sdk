@@ -12,6 +12,7 @@ import type {
   SwellMenu,
   SwellData,
   CFThemeEnv,
+  SwellAppShopifyCompatibilityConfig,
 } from '../types/swell';
 
 const DEFAULT_API_HOST = 'https://api.schema.io';
@@ -44,6 +45,9 @@ export class Swell {
   // Represents the swell.json app config
   public config?: SwellAppConfig;
 
+  // Represents the shopify_compatibility.json app config
+  public shopifyCompatibilityConfig?: SwellAppShopifyCompatibilityConfig;
+
   // Represents the Swell Backend API
   public backend?: SwellBackendAPI;
 
@@ -69,6 +73,7 @@ export class Swell {
   constructor(params: {
     url: URL | string;
     config?: SwellAppConfig;
+    shopifyCompatibilityConfig?: SwellAppShopifyCompatibilityConfig;
     headers?: SwellData;
     swellHeaders?: SwellData;
     serverHeaders?: Headers | SwellData; // Required on the server
@@ -81,6 +86,7 @@ export class Swell {
     const {
       url,
       config,
+      shopifyCompatibilityConfig,
       headers,
       swellHeaders,
       serverHeaders,
@@ -92,6 +98,8 @@ export class Swell {
     this.url = url instanceof URL ? url : new URL(url || '');
 
     this.config = config;
+
+    this.shopifyCompatibilityConfig = shopifyCompatibilityConfig;
 
     this.queryParams = Swell.formatQueryParams(
       queryParams || this.url.searchParams,
@@ -236,6 +244,7 @@ export class Swell {
           setCookie &&
           ((name: string, value: string, options: any) =>
             setCookie(name, value, options, this)),
+        //@ts-ignore
         headers: {
           'Swell-Store-id': swellHeaders['store-id'],
           'Swell-Storefront-Id': swellHeaders['storefront-id'],
@@ -284,7 +293,7 @@ export class Swell {
       opt?: any,
     ) => {
       if (this.isStorefrontRequestCacheable(method, url)) {
-        return this.getCached(
+        return this.getCachedSync<T>(
           STOREFRONT_CACHE_PREFIX,
           [method, url, id, data, opt],
           () => {
