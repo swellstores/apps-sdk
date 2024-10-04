@@ -28,6 +28,7 @@ export interface SwellAppStorefrontThemePage {
   icon?: string;
   templates?: boolean;
   collection?: string;
+  json?: boolean;
 }
 
 export interface SwellAppStorefrontThemeProps {
