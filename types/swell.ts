@@ -20,6 +20,30 @@ export interface SwellAppConfig {
   storefront?: { theme: SwellAppStorefrontThemeProps };
 }
 
+export interface SwellAppShopifyCompatibilityConfig {
+  page_types: Record<string, string>;
+  page_routes: Record<string, { page_id?: string } | string>;
+  page_resources: Array<{
+    page: string;
+    resources: Array<{
+      from: string;
+      to: string;
+      object: string;
+    }>;
+  }>;
+  object_resources: Array<{
+    from: string;
+    object: string;
+  }>;
+  forms: Array<{
+    id: string;
+    client_params: Array<{
+      name: string;
+      value: string;
+    }>;
+  }>;
+}
+
 export interface SwellAppStorefrontThemePage {
   id: string;
   url: string;
@@ -34,13 +58,6 @@ export interface SwellAppStorefrontThemePage {
 export interface SwellAppStorefrontThemeProps {
   provider: 'app';
   pages: Array<SwellAppStorefrontThemePage>;
-  compatibility?: {
-    version?: string;
-    shopify?: boolean;
-    conflicts?: {
-      exclude_files?: string[];
-    };
-  };
 }
 
 export interface SwellErrorOptions {

@@ -1,6 +1,6 @@
 import { LiquidSwell } from '../..';
 import { SwellStorefrontPagination } from '../../../resources';
-import { ShopifyPaginate } from '../../../compatibility/shopify-objects';
+import ShopifyPaginate from '@/compatibility/shopify-objects/paginate';
 
 // {{ paginate | default_pagination }}
 
@@ -43,7 +43,9 @@ export default function bind(liquidSwell: LiquidSwell) {
       }
       ${Object.entries(paginate.pages).map(
         ([page, props]) =>
-          `<span class="page ${Number(page) === paginate.page ? 'current' : ''}">
+          `<span class="page ${
+            Number(page) === paginate.page ? 'current' : ''
+          }">
             <a href="${props.url}" title="">${page}</a>
           </span>`,
       )}
