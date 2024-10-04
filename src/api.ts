@@ -501,13 +501,13 @@ export class Swell {
 
       if (prevCacheModified !== cacheModified) {
         await this.clearCache(STOREFRONT_CACHE_PREFIX);
-      }
 
-      await this.getCacheInstance().set(
-        this.getCacheKey('_cache-modified'),
-        cacheModified,
-        0,
-      );
+        await this.getCacheInstance().set(
+          this.getCacheKey('_cache-modified'),
+          cacheModified,
+          0,
+        );
+      }
     }
   }
 
