@@ -1,4 +1,4 @@
-import SwellJS from 'swell-js';
+import * as SwellJS from 'swell-js';
 import qs from 'qs';
 
 import { md5, toBase64 } from './utils';
