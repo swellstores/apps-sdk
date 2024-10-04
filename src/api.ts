@@ -1,4 +1,4 @@
-import * as SwellJS from 'swell-js';
+import SwellJS from 'swell-js';
 import qs from 'qs';
 
 import { md5, toBase64 } from './utils';
@@ -497,13 +497,13 @@ export class Swell {
   async updateCacheModified(cacheModified: string): Promise<void> {
     // Clear cache if header changed
     if (cacheModified) {
-      const prevCacheModified = await this.getCached('_cache-modified');
+      const prevCacheModified = await this.getCached<string>('_cache-modified');
 
       if (prevCacheModified !== cacheModified) {
         await this.clearCache(STOREFRONT_CACHE_PREFIX);
       }
 
-      this.getCacheInstance().set(
+      await this.getCacheInstance().set(
         this.getCacheKey('_cache-modified'),
         cacheModified,
         0,
