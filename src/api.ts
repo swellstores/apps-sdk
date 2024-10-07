@@ -389,7 +389,7 @@ export class Swell {
         );
       }
     } else {
-      return cacheInstance.has<T>(cacheKey).then((cacheValue) => {
+      return cacheInstance.get<T>(cacheKey).then((cacheValue) => {
         if (cacheValue !== undefined) {
           return cacheValue;
         }

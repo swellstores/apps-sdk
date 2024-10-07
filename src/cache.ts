@@ -116,9 +116,11 @@ export class Cache {
     }
 
     // Only timeout from map, since KV has its own expiration
-    const timer = setTimeout(() => {
-      this.map.delete(key);
-    }, timeout);
+    const timer = timeout
+      ? setTimeout(() => {
+          this.map.delete(key);
+        }, timeout)
+      : 0;
 
     this.map.set(key, [timer, value]);
   }
@@ -140,8 +142,9 @@ export class Cache {
     }
   }
 
-  async has<T>(key: string): Promise<T | undefined> {
-    return this.get(key);
+  async has(key: string): Promise<boolean> {
+    const value = await this.get(key);
+    return value !== undefined;
   }
 
   hasSync(key: string): boolean {
