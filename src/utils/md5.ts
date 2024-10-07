@@ -2,7 +2,7 @@
 
 //  Formatted version of a popular md5 implementation
 //  Original copyright (c) Paul Johnston & Greg Holt.
-export function md5(inputString: string) {
+export function md5(inputString: string): string {
   var hc = '0123456789abcdef';
   function rh(n) {
     var j,
