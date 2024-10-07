@@ -108,12 +108,16 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     });
   }
 
-  _getCollectionResultOrProp(instance: StorefrontResource<T>, prop: string | number) {
+  _getCollectionResultOrProp(
+    instance: StorefrontResource<T>,
+    prop: string | number,
+  ) {
     if (instance._result && Array.isArray(instance._result.results)) {
       const record =
         instance._result.results.find(
           (result: SwellRecord) => result.slug === prop || result.id === prop,
-        ) || (typeof prop === 'number' ? instance._result.results[prop] : undefined);
+        ) ||
+        (typeof prop === 'number' ? instance._result.results[prop] : undefined);
 
       if (record) {
         return record;
@@ -184,6 +188,34 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     return resolveAsyncResources(combined);
   }
 
+  async resolveWithMetadata() {
+    const combined = {};
+
+    const result = await this._resolve();
+    if (result === null) {
+      return null;
+    }
+
+    Object.assign(combined, result);
+    Object.assign(combined, this._compatibilityProps);
+
+    return resolveAsyncResources(combined, false);
+  }
+
+  async resolveWithoutResources() {
+    const combined = {};
+
+    const result = await this._resolve();
+    if (result === null) {
+      return null;
+    }
+
+    Object.assign(combined, result);
+    Object.assign(combined, this._compatibilityProps);
+
+    return combined;
+  }
+
   toObject() {
     if (this._result === null) {
       return null;
@@ -209,12 +241,16 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     this._compatibilityProps = props;
   }
 
-  getCompatibilityProp<T extends keyof StorefrontResource['_compatibilityProps']>(prop: T): StorefrontResource['_compatibilityProps'][T] {
+  getCompatibilityProp<
+    T extends keyof StorefrontResource['_compatibilityProps'],
+  >(prop: T): StorefrontResource['_compatibilityProps'][T] {
     return this._compatibilityProps[prop];
   }
 }
 
-export class SwellStorefrontResource<T extends SwellData = SwellData> extends StorefrontResource<T> {
+export class SwellStorefrontResource<
+  T extends SwellData = SwellData,
+> extends StorefrontResource<T> {
   public _swell: Swell;
   public _resource: any;
 
@@ -244,8 +280,13 @@ export class SwellStorefrontResource<T extends SwellData = SwellData> extends St
   }
 
   getResourceObject(): {
-    get: (id?: string, query?: SwellData) => Promise<InferSwellCollection<T> | null>;
-    list: (query?: SwellData) => Promise<T extends SwellCollection ? T : SwellCollection<T>>;
+    get: (
+      id?: string,
+      query?: SwellData,
+    ) => Promise<InferSwellCollection<T> | null>;
+    list: (
+      query?: SwellData,
+    ) => Promise<T extends SwellCollection ? T : SwellCollection<T>>;
   } {
     const { _swell, _collection } = this;
 
@@ -280,6 +321,7 @@ export class SwellStorefrontCollection<
   public pages?: SwellCollectionPages;
   public page_count?: number;
   public limit: number = DEFAULT_QUERY_PAGE_LIMIT;
+  public name?: string;
 
   constructor(
     swell: Swell,
@@ -324,7 +366,7 @@ export class SwellStorefrontCollection<
 
     async function defaultGetter(this: SwellStorefrontCollection<T>) {
       return resource.list(this._query);
-    };
+    }
 
     return defaultGetter as StorefrontResourceGetter<T>;
   }
@@ -413,9 +455,7 @@ export class SwellStorefrontCollection<
         const result = await originalGetter?.call(cloned);
 
         if (result) {
-          const compatibilityProps = compatibilityGetter(
-            result as T,
-          );
+          const compatibilityProps = compatibilityGetter(result as T);
           return {
             ...result,
             ...(compatibilityProps || undefined),
@@ -430,9 +470,7 @@ export class SwellStorefrontCollection<
     if (this._isResultResolved()) {
       const result = cloneDeep(this._result);
       if (result) {
-        const compatibilityProps = compatibilityGetter(
-          result as T,
-        );
+        const compatibilityProps = compatibilityGetter(result as T);
 
         Object.assign(cloned, result);
 
@@ -446,7 +484,9 @@ export class SwellStorefrontCollection<
   }
 }
 
-export class SwellStorefrontRecord<T extends SwellData = SwellRecord> extends SwellStorefrontResource<T> {
+export class SwellStorefrontRecord<
+  T extends SwellData = SwellRecord,
+> extends SwellStorefrontResource<T> {
   public _id: string;
   public id?: string;
 
@@ -521,7 +561,9 @@ export class SwellStorefrontRecord<T extends SwellData = SwellRecord> extends Sw
   }
 }
 
-export class SwellStorefrontSingleton<T extends SwellData = SwellData> extends SwellStorefrontResource<T> {
+export class SwellStorefrontSingleton<
+  T extends SwellData = SwellData,
+> extends SwellStorefrontResource<T> {
   constructor(
     swell: Swell,
     collection: string,
@@ -575,14 +617,17 @@ export class SwellStorefrontSingleton<T extends SwellData = SwellData> extends S
   }
 }
 
-export class SwellStorefrontPagination<T extends SwellCollection = SwellCollection> {
+export class SwellStorefrontPagination<
+  T extends SwellCollection = SwellCollection,
+> {
   public _resource: SwellStorefrontCollection<T>;
 
   public count = 0;
   public page = 0;
   public page_count = 0;
   public limit = 0;
-  public pages: Record<string, { start: number; end: number; url: string }> = {};
+  public pages: Record<string, { start: number; end: number; url: string }> =
+    {};
   public next?: { start: number; end: number; url: string };
   public previous?: { start: number; end: number; url: string };
 
