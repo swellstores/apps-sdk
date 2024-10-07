@@ -149,11 +149,21 @@ export class Cache {
   }
 
   async clear(prefix?: string): Promise<void> {
-    for (const pair of this.map.values()) {
-      clearTimeout(pair[0]);
-    }
+    if (prefix) {
+      for (const [key, pair] of this.map.entries()) {
+        if (key.startsWith(prefix)) {
+          clearTimeout(pair[0]);
+          this.map.delete(key);
+        }
+      }
+    } else {
+      // Clear all cache
+      for (const pair of this.map.values()) {
+        clearTimeout(pair[0]);
+      }
 
-    this.map.clear();
+      this.map.clear();
+    }
 
     const { kvStore } = this;
 
