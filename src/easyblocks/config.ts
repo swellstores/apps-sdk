@@ -414,6 +414,87 @@ function getAllSectionComponentTemplates(
   });
 }
 
+function getPageSettingsProps(themeGlobals: ThemeGlobals, pageId: string) {
+  const pages = themeGlobals?.storefrontConfig?.pages;
+  const hasPages = Boolean(pages);
+
+  if (!hasPages) {
+    return [];
+  }
+
+  const page = pages.find((page: any) => page.id === pageId);
+  const isCustomPage = !page;
+
+  return [
+    {
+      prop: 'status',
+      type: 'swell_select',
+      label: 'Page status',
+      layout: 'column',
+      defaultValue: isCustomPage ? 'draft' : 'published',
+      isLabelHidden: true,
+      required: true,
+      params: {
+        disabled: !isCustomPage,
+        options: [
+          {
+            label: 'Draft',
+            value: 'draft',
+          },
+          {
+            label: 'Published',
+            value: 'published',
+          },
+        ],
+      },
+    },
+    {
+      prop: 'seo',
+      type: 'swell_header',
+      label: 'SEO',
+      layout: 'column',
+      isLabelHidden: true,
+    },
+    {
+      prop: 'title',
+      type: 'swell_short_text',
+      label: 'Page title',
+      description: 'This controls the title on the top of your browser',
+      layout: 'column',
+      isLabelHidden: true,
+      required: true,
+      defaultValue: isCustomPage ? '' : page.label,
+    },
+    {
+      prop: 'slug',
+      type: 'swell_short_text',
+      label: 'Slug',
+      description: 'This is the unique slug for the page',
+      layout: 'column',
+      isLabelHidden: true,
+      required: true,
+      defaultValue: isCustomPage ? '' : `/${page.id}`,
+      params: {
+        disabled: !isCustomPage,
+        slugify: true,
+        prefix: '/',
+      },
+    },
+    {
+      prop: 'description',
+      type: 'swell_long_text',
+      label: 'Description',
+      description: 'This controls your page description',
+      layout: 'column',
+      isLabelHidden: true,
+      params: {
+        rows: 5,
+        placeholder: 'Enter a description...',
+      },
+    },
+  ];
+}
+
 export function getEasyblocksPagePropsWithConfigs(
   themeGlobals: ThemeGlobals,
   allSections: ThemePageSectionSchema[],
@@ -472,6 +553,7 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       },
       ...getLayoutSectionGroupComponentProps(allSections, layoutSectionGroups),
+      ...getPageSettingsProps(themeGlobals, pageId),
     ],
 
     allowSave: true,
