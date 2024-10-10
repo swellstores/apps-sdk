@@ -2,11 +2,11 @@ import { Swell, SwellStorefrontCollection, SwellStorefrontRecord } from './api';
 
 import type { SwellData } from 'types/swell';
 
-export async function getContentModel(
+export function getContentModel(
   swell: Swell,
   name: string,
 ): Promise<any> {
-  return await swell.getCached('content-model', [name], () =>
+  return swell.getCachedResource(`content-model-${name}`, () =>
     swell.get('/:content/{name}', {
       name,
       public: true,
@@ -37,11 +37,11 @@ export async function getPage(
   id: string,
   query?: object,
 ): Promise<any> {
-  return await getContentEntry(swell, 'pages', id, query);
+  return getContentEntry(swell, 'pages', id, query);
 }
 
 export async function getBlogs(swell: Swell, query?: object): Promise<any> {
-  return await getContentList(swell, 'blogs', query);
+  return getContentList(swell, 'blogs', query);
 }
 
 export async function getBlog(
@@ -49,5 +49,5 @@ export async function getBlog(
   id: string,
   query?: object,
 ): Promise<any> {
-  return await getContentEntry(swell, 'blogs', id, query);
+  return getContentEntry(swell, 'blogs', id, query);
 }
