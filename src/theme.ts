@@ -251,7 +251,9 @@ export class SwellTheme {
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
-    const configVersion = String(this.swell.swellHeaders['theme-config-version']);
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
     const settings = await this.swell.getCachedVersion<ThemeSettings>(
       ['theme-settings-resolved'],
@@ -280,11 +282,39 @@ export class SwellTheme {
       is_preview: this.swell.isPreview,
     };
 
+    const swellPage = this.props.pages?.find(
+      (page: ThemeSettings) => page.id === pageId,
+    );
+    const isCustomPage = !Boolean(swellPage);
     const page = {
-      ...this.props.pages?.find((page: ThemeSettings) => page.id === pageId),
+      ...swellPage,
       current: this.swell.queryParams.page || 1,
       url: this.swell.url.pathname,
+      custom: isCustomPage,
+      seo: {},
     };
+
+    if (pageId) {
+      const templateConfig = await this.getThemeTemplateConfigByType(
+        'templates',
+        pageId,
+      );
+
+      let pageSchema;
+      try {
+        pageSchema = JSON.parse(templateConfig?.file_data || '');
+      } catch {
+        // noop
+      }
+
+      if (pageSchema?.seo) {
+        page.seo = { ...pageSchema.seo };
+      } else if (swellPage) {
+        page.seo = {
+          title: swellPage.label,
+        };
+      }
+    }
 
     const [cart, account] = await Promise.all([
       this.fetchSingletonResourceCached<StorefrontResource | {}>(
@@ -660,7 +690,9 @@ export class SwellTheme {
   }
 
   async getGeoSettings(): Promise<SwellData | undefined> {
-    const configVersion = String(this.swell.swellHeaders['theme-config-version']);
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
     return this.swell.getCachedVersion<SwellData | undefined>(
       ['geo-settings'],
@@ -679,7 +711,9 @@ export class SwellTheme {
     }
 
     const themeId = this.swell.swellHeaders['theme-id'];
-    const configVersion = String(this.swell.swellHeaders['theme-config-version']);
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
     const configs = await this.swell.getCachedVersion<
       SwellCollection<SwellThemeConfig>

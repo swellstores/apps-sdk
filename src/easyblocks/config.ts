@@ -17,6 +17,7 @@ import {
 
 import type {
   SwellThemeConfig,
+  ThemePage,
   ThemeGlobals,
   ThemeLayoutSectionGroupConfig,
   ThemePageSectionSchema,
@@ -414,47 +415,8 @@ function getAllSectionComponentTemplates(
   });
 }
 
-function getPageSettingsProps(themeGlobals: ThemeGlobals, pageId: string) {
-  const pages = themeGlobals?.storefrontConfig?.pages;
-  const hasPages = Boolean(pages);
-
-  if (!hasPages) {
-    return [];
-  }
-
-  const page = pages.find((page: any) => page.id === pageId);
-  const isCustomPage = !page;
-
+function getPageSettingsProps(page: ThemePage) {
   return [
-    {
-      prop: 'status',
-      type: 'swell_select',
-      label: 'Page status',
-      layout: 'column',
-      defaultValue: isCustomPage ? 'draft' : 'published',
-      isLabelHidden: true,
-      required: true,
-      params: {
-        disabled: !isCustomPage,
-        options: [
-          {
-            label: 'Draft',
-            value: 'draft',
-          },
-          {
-            label: 'Published',
-            value: 'published',
-          },
-        ],
-      },
-    },
-    {
-      prop: 'seo',
-      type: 'swell_header',
-      label: 'SEO',
-      layout: 'column',
-      isLabelHidden: true,
-    },
     {
       prop: 'title',
       type: 'swell_short_text',
@@ -463,23 +425,25 @@ function getPageSettingsProps(themeGlobals: ThemeGlobals, pageId: string) {
       layout: 'column',
       isLabelHidden: true,
       required: true,
-      defaultValue: isCustomPage ? '' : page.label,
+      defaultValue: page.seo.title,
     },
-    {
-      prop: 'slug',
-      type: 'swell_short_text',
-      label: 'Slug',
-      description: 'This is the unique slug for the page',
-      layout: 'column',
-      isLabelHidden: true,
-      required: true,
-      defaultValue: isCustomPage ? '' : `/${page.id}`,
-      params: {
-        disabled: !isCustomPage,
-        slugify: true,
-        prefix: '/',
-      },
-    },
+    ...(page.custom
+      ? [
+          {
+            prop: 'slug',
+            type: 'swell_short_text',
+            label: 'Slug',
+            description: 'This is the unique slug for the page',
+            layout: 'column',
+            isLabelHidden: true,
+            required: true,
+            defaultValue: page.seo.slug,
+            params: {
+              slugify: true,
+            },
+          },
+        ]
+      : []),
     {
       prop: 'description',
       type: 'swell_long_text',
@@ -487,6 +451,7 @@ function getPageSettingsProps(themeGlobals: ThemeGlobals, pageId: string) {
       description: 'This controls your page description',
       layout: 'column',
       isLabelHidden: true,
+      defaultValue: page.seo.description,
       params: {
         rows: 5,
         placeholder: 'Enter a description...',
@@ -553,7 +518,7 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       },
       ...getLayoutSectionGroupComponentProps(allSections, layoutSectionGroups),
-      ...getPageSettingsProps(themeGlobals, pageId),
+      ...getPageSettingsProps(themeGlobals.page),
     ],
 
     allowSave: true,
