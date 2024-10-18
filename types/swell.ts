@@ -37,6 +37,7 @@ export interface SwellAppShopifyCompatibilityConfig {
   }>;
   forms: Array<{
     id: string;
+    shopify_type: string;
     client_params: Array<{
       name: string;
       value: string;

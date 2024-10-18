@@ -190,7 +190,7 @@ export class ShopifyCompatibility {
     );
 
     if (formMap && formTypeConfig) {
-      return formTypeConfig.client_params.reduce((acc: any, param: any) => {
+      return formTypeConfig.client_params?.reduce((acc: any, param: any) => {
         return (
           `<input type="hidden" name="${param.name}" value="${param.value}" />` +
           acc
@@ -606,6 +606,16 @@ export class ShopifyCompatibility {
   }
 
   getFormResourceMap(): ShopifyFormResourceMap {
+    if (!this.shopifyCompatibilityConfig?.forms) {
+      return [];
+    } else {
+      return this.shopifyCompatibilityConfig.forms.map((form) => {
+        return {
+          shopifyType: form.shopify_type,
+          type: form.id,
+        };
+      });
+    }
     return [];
   }
 

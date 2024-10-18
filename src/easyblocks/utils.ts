@@ -177,12 +177,11 @@ export async function renderTemplateSchema(
 
       await theme.renderTemplate(config);
 
-      const lastSchema = (theme.liquidSwell.lastSchema || {}) as ShopifySectionSchema;
+      const lastSchema = (theme.liquidSwell.lastSchema ||
+        {}) as ShopifySectionSchema;
 
       if (lastSchema) {
-        schema = theme.shopifyCompatibility.getSectionConfigSchema(
-          lastSchema,
-        );
+        schema = theme.shopifyCompatibility.getSectionConfigSchema(lastSchema);
       }
     }
   } else if (config?.file_data) {
@@ -464,6 +463,7 @@ export function getSectionSettingsFromProps(props: any, sectionSchema: any) {
           }
           return acc;
         }, {}),
+        id: sectionSchema.id,
         blocks: props.Blocks?.filter(
           (propBlock: any) => propBlock.props.compiled?._component,
         ).map((propBlock: any) => {

@@ -67,6 +67,8 @@ export class Swell {
   // Local cache for Swell storefront data
   static cache: Map<string, Cache> = new Map();
 
+  public storefront_url?: string;
+
   constructor(params: {
     url: URL | string;
     config?: SwellAppConfig;
@@ -325,7 +327,9 @@ export class Swell {
     timeout?: number,
     isSync: boolean = true,
   ) {
-    const cacheKey = `${this.getCacheKeyPrefix()}${key}_${JSON.stringify(args || [])}`;
+    const cacheKey = `${this.getCacheKeyPrefix()}${key}_${JSON.stringify(
+      args || [],
+    )}`;
     const cacheInstance = this.getCacheInstance();
 
     if (isSync) {
@@ -458,10 +462,7 @@ export class Swell {
         await this.clearCache();
       }
 
-      this.getCacheInstance().set(
-        '_cache-modified',
-        cacheModified,
-      );
+      this.getCacheInstance().set('_cache-modified', cacheModified);
     }
   }
 
@@ -532,11 +533,11 @@ export class Swell {
       '/settings/menus',
       'menuState',
     );
-  
+
     if (!menus || menus instanceof Promise) {
       return [];
     }
-  
+
     return menus;
   }
 

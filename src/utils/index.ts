@@ -384,9 +384,26 @@ export function dehydrateSwellRefsInStorefrontResources(obj: any) {
   }
 }
 
+function getType(value: any) {
+  if (value === undefined) {
+    return undefined;
+  } else if (value instanceof SwellStorefrontCollection) {
+    return 'SwellStorefrontCollection';
+  } else if (value instanceof SwellStorefrontRecord) {
+    return 'SwellStorefrontRecord';
+  } else if (value instanceof ShopifyResource) {
+    return 'ShopifyResource';
+  } else if (value instanceof StorefrontResource) {
+    return 'StorefrontResource';
+  } else {
+    return 'promise';
+  }
+}
+
 export async function resolveAsyncResources(
   response: any,
   resolveStorefrontResources: boolean = true,
+  resolveWithResourceMetadata: boolean = false,
 ) {
   let result = response;
   let nextResolveStorefrontResources = resolveStorefrontResources;
@@ -402,13 +419,18 @@ export async function resolveAsyncResources(
       result = await resolveAsyncResources(
         response.resolve(),
         resolveStorefrontResources,
+        resolveWithResourceMetadata,
       );
     }
 
     if (result instanceof Array) {
       result = await Promise.all(
         result.map((item) =>
-          resolveAsyncResources(item, resolveStorefrontResources),
+          resolveAsyncResources(
+            item,
+            resolveStorefrontResources,
+            resolveWithResourceMetadata,
+          ),
         ),
       );
 
@@ -426,27 +448,33 @@ export async function resolveAsyncResources(
           if (
             result[key] instanceof Promise ||
             result[key] instanceof StorefrontResource ||
-            result instanceof ShopifyResource
+            result[key] instanceof ShopifyResource
           ) {
-            function getType(value) {
-              if (value === undefined) {
-                return undefined;
-              } else if (value instanceof SwellStorefrontCollection) {
-                return 'SwellStorefrontCollection';
-              } else if (value instanceof SwellStorefrontRecord) {
-                return 'SwellStorefrontRecord';
-              } else if (value instanceof ShopifyResource) {
-                return 'ShopifyResource';
-              } else if (value instanceof StorefrontResource) {
-                return 'StorefrontResource';
-              } else {
-                return 'promise';
-              }
-            }
-            debugger;
             objectResult[key] = {
-              type: getType(result[key]),
-              query: result[key].query,
+              _type: getType(result[key]),
+              ...(resolveWithResourceMetadata
+                ? {
+                    value: await resolveAsyncResources(
+                      result[key],
+                      nextResolveStorefrontResources,
+                      resolveWithResourceMetadata,
+                    ),
+                  }
+                : {}),
+            };
+            continue;
+          }
+        }
+
+        if (result[key] instanceof StorefrontResource) {
+          if (resolveWithResourceMetadata) {
+            objectResult[key] = {
+              _type: getType(result[key]),
+              value: await resolveAsyncResources(
+                result[key],
+                nextResolveStorefrontResources,
+                resolveWithResourceMetadata,
+              ),
             };
             continue;
           }
@@ -455,6 +483,7 @@ export async function resolveAsyncResources(
         objectResult[key] = await resolveAsyncResources(
           result[key],
           nextResolveStorefrontResources,
+          resolveWithResourceMetadata,
         );
       }
 

@@ -202,7 +202,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     return resolveAsyncResources(combined, false);
   }
 
-  async resolveWithoutResources() {
+  async resolveWithResourceMetadata() {
     const combined = {};
 
     const result = await this._resolve();
@@ -213,7 +213,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     Object.assign(combined, result);
     Object.assign(combined, this._compatibilityProps);
 
-    return combined;
+    return resolveAsyncResources(combined, false, true);
   }
 
   toObject() {
