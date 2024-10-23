@@ -1,11 +1,11 @@
 import { LiquidSwell } from '..';
 import { paramsToProps } from '../utils';
 
-// {{ product | image_url: width: 450 }}
+// {{ product | image_url: width: 450 }} or {{ product | image_url: width: 450, height: 300 }}
 
 export default {
   bind(_liquidSwell: LiquidSwell) {
-    return async (imageField: any, params: any[]) => {
+    return async (imageField: any, ...params: any[]) => {
       const image =
         imageField?.images?.[0] ||
         imageField?.image ||
@@ -28,7 +28,7 @@ export default {
       const props = paramsToProps(params);
 
       const query = [
-        props.width  && `width=${Number(props.width) * 2}`,
+        props.width && `width=${Number(props.width) * 2}`,
         props.height && `height=${Number(props.height) * 2}`,
       ]
         .filter(Boolean)
