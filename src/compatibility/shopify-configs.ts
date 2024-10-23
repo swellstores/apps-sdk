@@ -62,12 +62,10 @@ export function convertShopifySettingsData(
 export function convertShopifySettingsPresets(
   settingsData: ShopifySettingsData,
 ): ThemePresetSchema[] {
-  return Object.entries(settingsData.presets || {}).map(
-    ([name, preset]) => ({
-      label: name,
-      settings: preset,
-    }),
-  );
+  return Object.entries(settingsData.presets || {}).map(([name, preset]) => ({
+    label: name,
+    settings: preset,
+  }));
 }
 
 export function convertShopifySectionSchema(
@@ -150,6 +148,13 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'textarea':
       swellProps = {
         type: 'textarea',
+      };
+      break;
+
+    case 'paragraph':
+      swellProps = {
+        type: 'paragraph',
+        label: setting.content,
       };
       break;
 
@@ -342,7 +347,6 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'header':
       swellProps = {
         type: 'header',
-        id: setting.content,
         label: setting.content,
       };
       break;
