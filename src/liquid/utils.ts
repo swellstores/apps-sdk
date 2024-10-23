@@ -31,8 +31,8 @@ export class ForloopDrop extends Drop {
     super();
     this.length = length;
     this.name = `${variable}-${collection}`;
-    this.i = 1;
-    this.index = 0;
+    this.i = 0;
+    this.index = 1;
     this.index0 = 0;
     this.first = true;
     this.last = false;
@@ -44,8 +44,8 @@ export class ForloopDrop extends Drop {
     this.i++;
     this.index++;
     this.index0++;
-    this.first = this.index === 0;
-    this.last = this.i === this.length;
+    this.first = false;
+    this.last = this.i === this.length - 1;
     this.rindex--;
     this.rindex0--;
   }
@@ -74,11 +74,12 @@ export function isFunction(value: unknown): value is Function {
 }
 
 export function toLiquid(value: unknown) {
-  if (isObject(value) && isFunction(value.toLiquid)) return toLiquid(value.toLiquid());
+  if (isObject(value) && isFunction(value.toLiquid))
+    return toLiquid(value.toLiquid());
   return value;
 }
 
-export function isNil(value: unknown): value is (undefined | null) {
+export function isNil(value: unknown): value is undefined | null {
   return value == null;
 }
 
@@ -141,13 +142,10 @@ export function toEnumerable<T>(val: unknown): T[] {
   if (isIterable<T>(val)) return Array.from(val);
   if (isObject(val))
     // Converting keyed objects to an array with id is required for Shopify compatibility
-    return Object.entries(val).reduce<T[]>(
-      (acc, [key, value]) => {
-        acc.push({ id: key, ...(value as T) });
-        return acc;
-      },
-      [],
-    ); //map((key) => [key, val[key]]);
+    return Object.entries(val).reduce<T[]>((acc, [key, value]) => {
+      acc.push({ id: key, ...(value as T) });
+      return acc;
+    }, []); //map((key) => [key, val[key]]);
   return [];
 }
 
@@ -159,7 +157,9 @@ export function stringify(value: unknown): string {
   return String(value);
 }
 
-export function paramsToProps(params: string[] | Record<string, string>): Record<string, unknown> {
+export function paramsToProps(
+  params: string[] | Record<string, string>,
+): Record<string, unknown> {
   // Convert array formatted params to props object
   if (Array.isArray(params)) {
     return params.reduce((acc: Record<string, unknown>, param, index) => {
@@ -180,7 +180,10 @@ export function paramsToProps(params: string[] | Record<string, string>): Record
   return {};
 }
 
-export async function jsonStringifyAsync(input: unknown, space = 0): Promise<string> {
+export async function jsonStringifyAsync(
+  input: unknown,
+  space = 0,
+): Promise<string> {
   let value = input;
 
   if (value instanceof StorefrontResource) {
@@ -208,7 +211,10 @@ export async function jsonStringifyAsync(input: unknown, space = 0): Promise<str
   );
 }
 
-async function resolveAllKeys(value: unknown, references: WeakSet<object> = new WeakSet()) {
+async function resolveAllKeys(
+  value: unknown,
+  references: WeakSet<object> = new WeakSet(),
+) {
   await forEachKeyDeep(value as Record<string, unknown>, async (key, value) => {
     if (!isObject(value)) {
       return;
