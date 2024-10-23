@@ -4,9 +4,7 @@ import type {
   ThemeSectionEnabledDisabled,
 } from './swell';
 
-import type {
-  ShopifyResource
-} from '../src/compatibility/shopify-objects/resource';
+import type { ShopifyResource } from '../src/compatibility/shopify-objects/resource';
 
 import type { ShopifyCompatibility } from '../src/compatibility/shopify';
 
@@ -32,6 +30,7 @@ export type ShopifySpecializedInputType =
   | 'color_scheme_group'
   | 'font_picker'
   | 'header'
+  | 'paragraph'
   | 'html'
   | 'image_picker'
   | 'inline_richtext'
@@ -164,7 +163,10 @@ export interface ShopifySectionSchema {
 export interface ShopifyPageResource {
   from: string;
   to: string;
-  object(shopify: ShopifyCompatibility, value: StorefrontResource): ShopifyResource;
+  object(
+    shopify: ShopifyCompatibility,
+    value: StorefrontResource,
+  ): ShopifyResource;
 }
 
 export interface ShopifyPage {
