@@ -53,6 +53,7 @@ export interface SwellAppStorefrontThemePage {
   icon?: string;
   templates?: boolean;
   collection?: string;
+  json?: boolean;
 }
 
 export interface SwellAppStorefrontThemeProps {
@@ -272,6 +273,7 @@ export interface ThemeSectionSchema {
 export type ThemeSettingBasicInputType =
   | 'short_text'
   | 'long_text'
+  | 'paragraph'
   | 'boolean'
   | 'number'
   | 'date'

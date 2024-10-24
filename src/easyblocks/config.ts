@@ -147,6 +147,9 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
   const list: unknown[] = [];
 
   for (const section of allSections) {
+    const hasBlocks =
+      Array.isArray(section.blocks) && section.blocks.length > 0;
+
     list.push({
       id: `${section.id}`,
       label: section.label,
@@ -163,13 +166,13 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
 
           return acc;
         }, []),
-        ...(section.blocks
+        ...(hasBlocks
           ? [
               {
                 prop: 'Blocks',
                 type: 'component-collection',
                 required: true,
-                accepts: section.blocks.map(
+                accepts: (section.blocks || []).map(
                   (block) => `Block__${section.id}__${block.type}`,
                 ),
                 // TODO: figure out how to make this work, doesn't work for collections normally
@@ -222,9 +225,9 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
       },
     });
 
-    if (section.blocks) {
+    if (hasBlocks) {
       list.push(
-        ...section.blocks.map((block) => ({
+        ...(section.blocks || []).map((block) => ({
           id: `Block__${section.id}__${block.type}`,
           label: block.label,
           schema: (block.fields || []).reduce((acc: any[], field) => {
@@ -689,6 +692,12 @@ export function getEasyblocksPagePropsWithConfigs(
           type: 'inline',
           widget: {
             id: 'SwellTextarea',
+          },
+        },
+        swell_paragraph: {
+          type: 'inline',
+          widget: {
+            id: 'SwellParagraph',
           },
         },
         swell_editor: {

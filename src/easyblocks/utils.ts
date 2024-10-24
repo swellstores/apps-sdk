@@ -276,6 +276,12 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
       };
       break;
 
+    case 'paragraph':
+      typeProps = {
+        type: 'swell_paragraph',
+      };
+      break;
+
     case 'textarea':
     case 'long_text':
     case 'liquid':

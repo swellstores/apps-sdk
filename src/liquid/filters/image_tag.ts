@@ -5,7 +5,7 @@ import { paramsToProps } from '../utils';
 // TODO: focal point
 
 export default function bind(_liquidSwell: LiquidSwell) {
-  return (imageUrl: string, params: any[]) => {
+  return (imageUrl: string, ...params: any[]) => {
     let {
       width,
       height,

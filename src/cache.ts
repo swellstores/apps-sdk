@@ -98,7 +98,7 @@ export class Cache {
       // CF timeout must be at least 60 seconds, and 10x longer than the map timeout
       const kvTimeout = timeout * 10;
       // A value of 0 means that the cache will be stored forever
-      const expirationTtl = kvTimeout >= 60000 ? Math.trunc(kvTimeout / 1000) : 0;
+      const expirationTtl = kvTimeout >= 60000 ? Math.ceil(kvTimeout / 1000) : 0;
 
       // Non-blocking
       this.kvStore.put(key, JSON.stringify(cacheValue), {
@@ -116,9 +116,11 @@ export class Cache {
     }
 
     // Only timeout from map, since KV has its own expiration
-    const timer = setTimeout(() => {
-      this.map.delete(key);
-    }, timeout);
+    const timer = timeout
+      ? setTimeout(() => {
+          this.map.delete(key);
+        }, timeout)
+      : 0;
 
     this.map.set(key, [timer, value]);
   }
@@ -140,8 +142,9 @@ export class Cache {
     }
   }
 
-  async has<T>(key: string): Promise<T | undefined> {
-    return this.get(key);
+  async has(key: string): Promise<boolean> {
+    const value = await this.get(key);
+    return value !== undefined;
   }
 
   hasSync(key: string): boolean {
@@ -149,11 +152,21 @@ export class Cache {
   }
 
   async clear(prefix?: string): Promise<void> {
-    for (const pair of this.map.values()) {
-      clearTimeout(pair[0]);
-    }
+    if (prefix) {
+      for (const [key, pair] of this.map.entries()) {
+        if (key.startsWith(prefix)) {
+          clearTimeout(pair[0]);
+          this.map.delete(key);
+        }
+      }
+    } else {
+      // Clear all cache
+      for (const pair of this.map.values()) {
+        clearTimeout(pair[0]);
+      }
 
-    this.map.clear();
+      this.map.clear();
+    }
 
     const { kvStore } = this;
 

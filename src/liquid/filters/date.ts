@@ -1,22 +1,15 @@
 import strftime from 'strftime';
-
 import { LiquidSwell } from '..';
 import { paramsToProps } from '../utils';
 
-// {{ blog.date_published | date: '%B %d, %Y' }}
+// {{ blog.date_published | date: '%B %d, %Y' }} or {{ blog.date_published | date: format: 'abbreviated_date' }}
 
 export default function bind(_liquidSwell: LiquidSwell) {
-  return (dateValue: string, maybeParams: any, params?: any[]): string => {
+  return (dateValue: string, ...params: any[]): string => {
     const date = ensureDate(dateValue);
-    const { format, strFormat } = getDateFilterParams(maybeParams, params);
+    const { format } = getDateFilterParams(params);
 
-    if (strFormat) {
-      return strftime(strFormat, date);
-    } else if (typeof format === 'string' && format) {
-      return applyDateFormat(format, date);
-    }
-
-    return date.toLocaleString();
+    return applyDateFormat(format as string, date);
   };
 }
 
@@ -34,15 +27,21 @@ export function ensureDate(dateValue: string | Date) {
   return new Date();
 }
 
-export function getDateFilterParams(maybeParams: any, params?: any[]) {
-  const actualParams = Array.isArray(maybeParams) ? maybeParams : params;
-  const strFormat = typeof maybeParams === 'string' ? maybeParams : undefined;
-  const { format, datetime } = paramsToProps(actualParams as any[]);
+export function getDateFilterParams(params: any[]) {
+  // params = ['%B %d, %Y']
+  if (typeof params[0] === 'string') {
+    return { format: params[0] };
+  }
 
-  return { format, datetime, strFormat };
+  // params = [['format', '%B %d, %Y']]
+  return paramsToProps(params);
 }
 
 export function applyDateFormat(type: string, date: Date): string {
+  if (isCustomDateFormat(type)) {
+    return applyStrftimeFormat(type, date);
+  }
+
   switch (type) {
     case 'abbreviated_date':
       // Apr 3, 2024
@@ -72,6 +71,10 @@ export function applyDateFormat(type: string, date: Date): string {
       // TODO: support custom date formats from theme locale settings
       return date.toLocaleString();
   }
+}
+
+export function isCustomDateFormat(format: string): boolean {
+  return format.includes('%');
 }
 
 export function applyStrftimeFormat(format: string, date: Date) {

@@ -1,6 +1,7 @@
 import SwellJS from 'swell-js';
 import qs from 'qs';
-import { toBase64 } from './utils';
+
+import { md5, toBase64 } from './utils';
 import { Cache } from './cache';
 import { CACHE_TIMEOUT_RESOURCES } from './resources';
 export * from './resources';
@@ -16,7 +17,9 @@ import type {
 
 const DEFAULT_API_HOST = 'https://api.schema.io';
 const CACHE_TIMEOUT = 1000 * 60; // 1m
-const SWELL_CLIENT_HEADERS = [
+const STOREFRONT_CACHE_PREFIX = 'storefront_api';
+
+const SWELL_CLIENT_HEADERS = Object.freeze([
   'swell-store-id',
   'swell-environment-id',
   'swell-app-id',
@@ -30,7 +33,7 @@ const SWELL_CLIENT_HEADERS = [
   'swell-vault-url',
   'swell-deployment-mode',
   'swell-request-id',
-];
+]);
 
 export class Swell {
   public url: URL;
@@ -262,38 +265,47 @@ export class Swell {
     return storefront;
   }
 
-  isStorefrontRequestCacheable(method: string, url: string) {
+  isStorefrontRequestCacheable(method: string, url: string): boolean {
     if (method === 'get') {
       const urlModel = url.split('/')[1];
-      return ['products', 'categories', 'content', 'settings'].includes(
-        urlModel,
-      );
+  
+      switch (urlModel) {
+        case 'products':
+        case 'categories':
+        case 'content':
+        case 'settings':
+          return true;
+  
+        default:
+          return false;
+      }
     }
+  
     return false;
   }
 
-  getCacheableStorefrontRequestHandler(storefront: typeof SwellJS) {
+  getCacheableStorefrontRequestHandler<T>(storefront: typeof SwellJS) {
     const storefrontRequest = storefront.request;
 
     return (
       method: string,
       url: string,
-      id: any = undefined,
-      data: any = undefined,
-      opt: any = undefined,
+      id?: any,
+      data?: any,
+      opt?: any,
     ) => {
       if (this.isStorefrontRequestCacheable(method, url)) {
-        return this.getCachedSync(
-          'swell',
+        return this.getCachedSync<T>(
+          STOREFRONT_CACHE_PREFIX,
           [method, url, id, data, opt],
           () => {
-            return storefrontRequest(method, url, id, data, opt);
+            return storefrontRequest<T>(method, url, id, data, opt);
           },
           CACHE_TIMEOUT_RESOURCES,
         );
       }
 
-      return storefrontRequest(method, url, id, data, opt);
+      return storefrontRequest<T>(method, url, id, data, opt);
     };
   }
 
@@ -308,7 +320,7 @@ export class Swell {
     return cacheInstance;
   }
 
-  setCacheValues(values: Array<any>) {
+  setCacheValues(values: any[]): void {
     const cacheInstance = new Cache(this.workerEnv?.THEME, CACHE_TIMEOUT);
 
     cacheInstance.setValues(values);
@@ -316,20 +328,33 @@ export class Swell {
     Swell.cache.set(this.instanceId, cacheInstance);
   }
 
-  getCacheKeyPrefix() {
+  getCacheKeyPrefix(): string {
     return `${this.instanceId}:`;
+  }
+
+  getCacheKey(key: string, args?: unknown[]): string {
+    const cacheKey = Array.isArray(args) && args.length > 0
+      ? `${this.getCacheKeyPrefix()}${key}_${JSON.stringify(args)}`
+      : `${this.getCacheKeyPrefix()}${key}`;
+
+    // TODO: calculate the number of bytes
+    // 512 bytes, maximum key for KV storage
+    if (cacheKey.length <= 512) {
+      return cacheKey;
+    }
+
+    // TODO: slice the first 480 bytes instead of the length of the code units
+    return `${cacheKey.slice(0, 480)}${md5(cacheKey)}`;
   }
 
   setCachedSync(
     key: string,
-    args: Array<unknown>,
+    args: unknown[],
     value: unknown,
     timeout?: number,
     isSync: boolean = true,
   ) {
-    const cacheKey = `${this.getCacheKeyPrefix()}${key}_${JSON.stringify(
-      args || [],
-    )}`;
+    const cacheKey = this.getCacheKey(key, args);
     const cacheInstance = this.getCacheInstance();
 
     if (isSync) {
@@ -341,20 +366,21 @@ export class Swell {
 
   getCachedSync<T>(
     key: string,
-    args?: Array<any> | (() => Promise<T> | T),
+    args?: unknown[] | (() => Promise<T> | T),
     handler?: () => Promise<T> | T,
     timeout?: number,
     isSync: boolean = true,
   ): Promise<T | undefined> | T | undefined {
     const cacheArgs = typeof args === 'function' ? undefined : args;
     const cacheHandler = typeof args === 'function' ? args : handler;
-    const cacheKey = `${this.instanceId}:${key}_${JSON.stringify(cacheArgs)}`;
+    const cacheKey = this.getCacheKey(key, cacheArgs);
     const cacheInstance = this.getCacheInstance();
 
     if (isSync) {
       if (cacheInstance.hasSync(cacheKey)) {
         return cacheInstance.getSync(cacheKey);
       }
+
       if (cacheHandler) {
         return this.resolveCacheHandler(
           cacheInstance,
@@ -365,10 +391,11 @@ export class Swell {
         );
       }
     } else {
-      return cacheInstance.has<T>(cacheKey).then((cacheValue) => {
+      return cacheInstance.get<T>(cacheKey).then((cacheValue) => {
         if (cacheValue !== undefined) {
           return cacheValue;
         }
+
         if (cacheHandler) {
           return this.resolveCacheHandler<T>(
             cacheInstance,
@@ -418,7 +445,7 @@ export class Swell {
 
   async setCached(
     key: string,
-    args: Array<unknown>,
+    args: unknown[],
     value: unknown,
     timeout?: number,
   ): Promise<any> {
@@ -427,16 +454,32 @@ export class Swell {
 
   async getCached<T>(
     key: string,
-    args: Array<unknown> | (() => Promise<T>),
-    handler?: () => Promise<T>,
+    args?: unknown[] | (() => Promise<T> | T),
+    handler?: () => Promise<T> | T,
     timeout?: number,
   ): Promise<T | undefined> {
     return this.getCachedSync(key, args, handler, timeout, false);
   }
 
+  async getCachedVersion<T>(
+    key: string[],
+    version: string,
+    handler: () => Promise<T> | T,
+    timeout: number = 0,
+  ) {
+    const cacheKey = JSON.stringify(key);
+
+    const handlerWrapper = async () => {
+      await this.deleteCachedVersion(cacheKey);
+      return handler();
+    }
+
+    return this.getCachedSync(`${cacheKey}:v@${version}`, undefined, handlerWrapper, timeout, false);
+  }
+
   async getCachedResource<T>(
     key: string,
-    args: Array<unknown> | (() => Promise<T>),
+    args: unknown[] | (() => Promise<T>),
     handler?: () => Promise<T>,
     timeout?: number,
   ): Promise<T | undefined> {
@@ -456,24 +499,27 @@ export class Swell {
   async updateCacheModified(cacheModified: string): Promise<void> {
     // Clear cache if header changed
     if (cacheModified) {
-      const prevCacheModified = this.getCachedSync('_cache-modified');
+      const prevCacheModified = await this.getCached<string>('_cache-modified');
 
       if (prevCacheModified !== cacheModified) {
-        await this.clearCache();
-      }
+        await this.clearCache(STOREFRONT_CACHE_PREFIX);
 
-      this.getCacheInstance().set('_cache-modified', cacheModified);
+        await this.getCacheInstance().set(
+          this.getCacheKey('_cache-modified'),
+          cacheModified,
+          0,
+        );
+      }
     }
   }
 
-  async clearCache(): Promise<void> {
-    const cacheInstance = Swell.cache.get(this.instanceId);
+  async deleteCachedVersion(key: string): Promise<void> {
+    await this.clearCache(`${key}:v@`);
+  }
 
-    if (cacheInstance !== undefined) {
-      Swell.cache.delete(this.instanceId);
-
-      await cacheInstance.clear(this.getCacheKeyPrefix());
-    }
+  async clearCache(prefix: string): Promise<void> {
+    const cacheInstance = this.getCacheInstance();
+    await cacheInstance.clear(this.getCacheKey(prefix));
   }
 
   async getAppSettings(): Promise<SwellData> {
@@ -488,9 +534,8 @@ export class Swell {
   }
 
   async getStorefrontSettings(): Promise<SwellData> {
-    // Load all settings including menus, payments, etc
     try {
-      // Note: Logic pulled from swell.js because we need to pass storefront_id explicitly
+      // Load all settings including menus, payments, etc
       const { settings, menus, payments, subscriptions, session } =
         await this.storefront.request<any>('get', '/settings/all');
 
