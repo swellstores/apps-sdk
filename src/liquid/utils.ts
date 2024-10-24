@@ -31,8 +31,8 @@ export class ForloopDrop extends Drop {
     super();
     this.length = length;
     this.name = `${variable}-${collection}`;
-    this.i = 1;
-    this.index = 0;
+    this.i = 0;
+    this.index = 1;
     this.index0 = 0;
     this.first = true;
     this.last = false;
@@ -44,8 +44,8 @@ export class ForloopDrop extends Drop {
     this.i++;
     this.index++;
     this.index0++;
-    this.first = this.index === 0;
-    this.last = this.i === this.length;
+    this.first = false;
+    this.last = this.i === this.length - 1;
     this.rindex--;
     this.rindex0--;
   }

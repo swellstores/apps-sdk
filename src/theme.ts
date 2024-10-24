@@ -251,7 +251,9 @@ export class SwellTheme {
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
-    const configVersion = String(this.swell.swellHeaders['theme-config-version']);
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
     const settings = await this.swell.getCachedVersion<ThemeSettings>(
       ['theme-settings-resolved'],
@@ -660,7 +662,9 @@ export class SwellTheme {
   }
 
   async getGeoSettings(): Promise<SwellData | undefined> {
-    const configVersion = String(this.swell.swellHeaders['theme-config-version']);
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
     return this.swell.getCachedVersion<SwellData | undefined>(
       ['geo-settings'],
@@ -679,7 +683,9 @@ export class SwellTheme {
     }
 
     const themeId = this.swell.swellHeaders['theme-id'];
-    const configVersion = String(this.swell.swellHeaders['theme-config-version']);
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
     const configs = await this.swell.getCachedVersion<
       SwellCollection<SwellThemeConfig>
@@ -1502,6 +1508,7 @@ export function resolveThemeSettings(
 
               // Skip empty values and gradient field
               if (fieldDef?.type === 'color' && colorValue) {
+                value[schemeId].id = schemeId;
                 value[schemeId].settings[colorId] = new ThemeColor(colorValue);
               }
             });
