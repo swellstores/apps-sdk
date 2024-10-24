@@ -1452,13 +1452,13 @@ export function resolveSectionSettings(
 ): ThemeSectionSettings | undefined {
   const { settings, schema } = sectionConfig;
 
-  if (!settings?.section?.settings || !schema?.fields) {
+  if (!settings?.section?.settings || !schema?.fields || !schema?.id) {
     return settings;
   }
 
   const editorSettings: ThemeSettingSectionSchema[] = [
     {
-      label: sectionConfig.id,
+      label: schema.label || schema.id,
       fields: schema.fields,
     },
   ];
@@ -1467,6 +1467,7 @@ export function resolveSectionSettings(
     ...settings,
     section: {
       ...settings.section,
+      id: schema.id,
       settings: resolveThemeSettings(
         theme,
         settings.section.settings,
