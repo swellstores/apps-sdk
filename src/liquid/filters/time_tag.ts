@@ -1,24 +1,15 @@
 import { LiquidSwell } from '..';
-import {
-  default as bindDate,
-  ensureDate,
-  getDateFilterParams,
-  applyStrftimeFormat,
-} from './date';
+import { default as bindDate, ensureDate } from './date';
+import { paramsToProps } from '../utils';
 
-// {{ blog.date_published | time_tag: '%B %d, %Y' }}
+// {{ blog.date_published | time_tag: format: 'date_at_time' }}
 
 export default function bind(_liquidSwell: LiquidSwell) {
   const dateFilter = bindDate(_liquidSwell);
-  return (dateValue: string, maybeParams: any, params?: any[]) => {
+  return (dateValue: string, ...params: any[]) => {
     const date = ensureDate(dateValue);
-    const formattedDate = dateFilter(dateValue, maybeParams, params);
-    const { datetime } = getDateFilterParams(maybeParams, params);
-
-    let formattedDatetime = date.toISOString?.();
-    if (typeof datetime === 'string' && datetime) {
-      formattedDatetime = applyStrftimeFormat(datetime, date);
-    }
+    const formattedDate = dateFilter(dateValue, ...params);
+    const formattedDatetime = date.toISOString();
 
     return `<time datetime="${formattedDatetime}">${formattedDate}</time>`;
   };

@@ -611,9 +611,8 @@ export class ShopifyCompatibility {
         shopifyType: form.shopify_type,
         type: form.id,
       }));
-    } else {
-      return [];
     }
+    return [];
   }
 
   getQueryParamsMap(): ShopifyQueryParamsMap {

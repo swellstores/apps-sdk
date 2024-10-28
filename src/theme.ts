@@ -251,11 +251,13 @@ export class SwellTheme {
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
-    const configVersion = this.swell.swellHeaders['theme-config-version'];
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
-    const settings = await this.swell.getCachedSync<ThemeSettings>(
-      'theme-settings-resolved',
-      [configVersion],
+    const settings = await this.swell.getCachedVersion<ThemeSettings>(
+      ['theme-settings-resolved'],
+      configVersion,
       () => {
         return resolveThemeSettings(
           this,
@@ -660,11 +662,13 @@ export class SwellTheme {
   }
 
   async getGeoSettings(): Promise<SwellData | undefined> {
-    const cacheKey = this.swell.swellHeaders['theme-config-version'];
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
-    return this.swell.getCached<SwellData | undefined>(
-      'geo-settings',
-      [cacheKey],
+    return this.swell.getCachedVersion<SwellData | undefined>(
+      ['geo-settings'],
+      configVersion,
       () => {
         return this.swell.get('/settings/geo');
       },
@@ -679,11 +683,13 @@ export class SwellTheme {
     }
 
     const themeId = this.swell.swellHeaders['theme-id'];
-    const configVersion = this.swell.swellHeaders['theme-config-version'];
+    const configVersion = String(
+      this.swell.swellHeaders['theme-config-version'],
+    );
 
-    const configs = await this.swell.getCached<
+    const configs = await this.swell.getCachedVersion<
       SwellCollection<SwellThemeConfig>
-    >('theme-configs-all', [themeId, configVersion], async () => {
+    >(['theme-configs-all', themeId], configVersion, async () => {
       console.log(
         `Retrieving theme configurations - version: ${configVersion}`,
       );
@@ -1502,6 +1508,7 @@ export function resolveThemeSettings(
 
               // Skip empty values and gradient field
               if (fieldDef?.type === 'color' && colorValue) {
+                value[schemeId].id = schemeId;
                 value[schemeId].settings[colorId] = new ThemeColor(colorValue);
               }
             });

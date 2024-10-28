@@ -18,6 +18,7 @@ import color_to_hsl from './color_to_hsl';
 import color_to_rgb from './color_to_rgb';
 import date from './date';
 import default_errors from './default_errors';
+import divided_by from './divided_by';
 import font_face from './font_face';
 import font_modify from './font_modify';
 import font_url from './font_url';
@@ -64,6 +65,7 @@ export const filters = {
   color_to_rgb,
   date,
   default_errors,
+  divided_by,
   font_face,
   font_modify,
   font_url,

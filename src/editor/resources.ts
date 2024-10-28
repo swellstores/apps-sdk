@@ -30,7 +30,16 @@ export class MockRecordSingleton extends SwellStorefrontSingleton {
         slug,
         query,
       );
-      return compileData(this.constructor.name, data, swell, '', slug, query);
+      const compiled = compileData(
+        this.constructor.name,
+        data,
+        swell,
+        '',
+        slug,
+        query,
+      );
+
+      return compiled;
     });
   }
 }
@@ -116,7 +125,7 @@ function createStorefrontRecord(
   parent_slug: string,
   parent_query: SwellData,
 ): SwellStorefrontRecord {
-  return new SwellStorefrontRecord(swell, '', '', {}, async function (
+  return new SwellStorefrontRecord(swell, resource, path, {}, async function (
     this: SwellStorefrontRecord,
   ): Promise<any> {
     const data = await fetchResourceDataByPath(
@@ -137,7 +146,7 @@ function createCollection(
   parent_slug: string,
   parent_query: SwellData,
 ): SwellStorefrontCollection {
-  return new SwellStorefrontCollection(swell, '', {}, async function (
+  return new SwellStorefrontCollection(swell, resource, {}, async function (
     this: SwellStorefrontCollection,
   ): Promise<any> {
     const data = await fetchResourceDataByPath(
