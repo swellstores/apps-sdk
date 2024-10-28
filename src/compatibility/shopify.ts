@@ -606,17 +606,14 @@ export class ShopifyCompatibility {
   }
 
   getFormResourceMap(): ShopifyFormResourceMap {
-    if (!this.shopifyCompatibilityConfig?.forms) {
-      return [];
+    if (this.shopifyCompatibilityConfig?.forms) {
+      return this.shopifyCompatibilityConfig.forms.map((form) => ({
+        shopifyType: form.shopify_type,
+        type: form.id,
+      }));
     } else {
-      return this.shopifyCompatibilityConfig.forms.map((form) => {
-        return {
-          shopifyType: form.shopify_type,
-          type: form.id,
-        };
-      });
+      return [];
     }
-    return [];
   }
 
   getQueryParamsMap(): ShopifyQueryParamsMap {

@@ -174,7 +174,10 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     return this._result !== undefined && !(this._result instanceof Promise);
   }
 
-  async resolve() {
+  async resolve(
+    resolveStorefrontResources: boolean = true,
+    resourceMetadata: boolean = false,
+  ) {
     const combined = {};
 
     const result = await this._resolve();
@@ -185,35 +188,11 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     Object.assign(combined, result);
     Object.assign(combined, this._compatibilityProps);
 
-    return resolveAsyncResources(combined);
-  }
-
-  async resolveWithMetadata() {
-    const combined = {};
-
-    const result = await this._resolve();
-    if (result === null) {
-      return null;
-    }
-
-    Object.assign(combined, result);
-    Object.assign(combined, this._compatibilityProps);
-
-    return resolveAsyncResources(combined, false);
-  }
-
-  async resolveWithResourceMetadata() {
-    const combined = {};
-
-    const result = await this._resolve();
-    if (result === null) {
-      return null;
-    }
-
-    Object.assign(combined, result);
-    Object.assign(combined, this._compatibilityProps);
-
-    return resolveAsyncResources(combined, false, true);
+    return resolveAsyncResources(
+      combined,
+      resolveStorefrontResources,
+      resourceMetadata,
+    );
   }
 
   toObject() {

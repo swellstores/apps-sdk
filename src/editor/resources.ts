@@ -7,9 +7,6 @@ import {
 } from '@/resources';
 import type { SwellData } from 'types/swell';
 
-const STOREFRONT_URL =
-  'http://test--c7f23c2d-4486-4025-8d4a-e545ca6091f1--local.swell.test:4001';
-
 export class MockRecordResource extends SwellStorefrontRecord {
   constructor(swell: Swell, slug: string, query: SwellData = {}) {
     super(swell, '', slug, query, async function (this: any): Promise<any> {
@@ -41,8 +38,8 @@ export class MockRecordSingleton extends SwellStorefrontSingleton {
 async function fetchResourceData(
   swell: Swell,
   resource: string,
-  slug: string,
-  query: SwellData,
+  slug?: string,
+  query?: SwellData,
 ): Promise<any> {
   const params = new URLSearchParams({
     ...(slug && { slug }),
@@ -66,36 +63,26 @@ function compileData(
 
   for (const key in data) {
     const item = data[key];
-    if (item?._type === 'SwellStorefrontCollection') {
-      let updatedPath = path + `${path === '' ? '' : '/'}${key}`;
-      compiled[key] = createCollection(
-        resource,
-        swell,
-        updatedPath,
-        parent_slug,
-        parent_query,
-      );
-    } else if (item?._type === 'SwellStorefrontRecord') {
-      let updatedPath = path + `${path === '' ? '' : '/'}${key}`;
-      compiled[key] = createStorefrontRecord(
-        resource,
-        swell,
-        updatedPath,
-        parent_slug,
-        parent_query,
-      );
-    } else if (item?._type === 'StorefrontResource') {
-      let updatedPath = path + `${path === '' ? '' : '/'}${key}`;
-      compiled[key] = createStorefrontResource(
-        resource,
-        swell,
-        updatedPath,
-        parent_slug,
-        parent_query,
-      );
-    } else {
-      compiled[key] = item;
+    const updatedPath = path + `${path === '' ? '' : '/'}${key}`;
+    let handler;
+
+    switch (item?._type) {
+      case 'SwellStorefrontCollection':
+        handler = createCollection;
+        break;
+      case 'SwellStorefrontRecord':
+        handler = createStorefrontRecord;
+        break;
+      case 'createStorefrontResource':
+        handler = createStorefrontResource;
+        break;
+      default:
+        break;
     }
+
+    compiled[key] = handler
+      ? handler(resource, swell, updatedPath, parent_slug, parent_query)
+      : item;
   }
 
   return compiled;
@@ -172,7 +159,7 @@ async function fetchResourceDataByPath(
   query?: SwellData,
 ): Promise<any> {
   const params = new URLSearchParams({
-    ...(path && { path }),
+    path,
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });

@@ -384,7 +384,7 @@ export function dehydrateSwellRefsInStorefrontResources(obj: any) {
   }
 }
 
-function getType(value: any) {
+function getStorefrontResourceType(value: any) {
   if (value === undefined) {
     return undefined;
   } else if (value instanceof SwellStorefrontCollection) {
@@ -451,7 +451,7 @@ export async function resolveAsyncResources(
             result[key] instanceof ShopifyResource
           ) {
             objectResult[key] = {
-              _type: getType(result[key]),
+              _type: getStorefrontResourceType(result[key]),
               ...(resolveWithResourceMetadata
                 ? {
                     value: await resolveAsyncResources(
@@ -469,7 +469,7 @@ export async function resolveAsyncResources(
         if (result[key] instanceof StorefrontResource) {
           if (resolveWithResourceMetadata) {
             objectResult[key] = {
-              _type: getType(result[key]),
+              _type: getStorefrontResourceType(result[key]),
               value: await resolveAsyncResources(
                 result[key],
                 nextResolveStorefrontResources,
