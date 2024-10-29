@@ -1,4 +1,4 @@
-import Color from "color";
+import Color from 'color';
 
 export type ColorParam =
   | Color
@@ -23,7 +23,7 @@ export class ThemeColor {
       this.blue = Number(this.colorValues.b);
     } catch (err) {
       // Just default to black in case of parse error
-      this.color = Color("#000000");
+      this.color = Color('#000000');
       this.colorValues = this.color.object();
       this.red = Number(this.colorValues.r);
       this.green = Number(this.colorValues.g);
@@ -40,11 +40,17 @@ export class ThemeColor {
   }
 
   lighten(percent: number) {
-    return this.color.lighten(percent / 100).hex().toLowerCase();
+    return this.color
+      .lighten(percent / 100)
+      .hex()
+      .toLowerCase();
   }
 
   darken(percent: number) {
-    return this.color.darken(percent / 100).hex().toLowerCase();
+    return this.color
+      .darken(percent / 100)
+      .hex()
+      .toLowerCase();
   }
 
   rgb() {
@@ -64,45 +70,83 @@ export class ThemeColor {
   }
 
   saturate(value: number) {
-    return this.color.saturate(value / 100).hex().toLowerCase();
+    return this.color
+      .saturate(value / 100)
+      .hex()
+      .toLowerCase();
   }
 
   desaturate(value: number) {
-    return this.color.desaturate(value / 100).hex().toLowerCase();
+    return this.color
+      .desaturate(value / 100)
+      .hex()
+      .toLowerCase();
   }
 
-  modify(field: string, value: number){
-    if (!['red', 'green', 'blue', 'alpha', 'hue', 'lightness', 'saturation'].includes(field)) return this.toString();
+  modify(field: string, value: number) {
+    if (
+      ![
+        'red',
+        'green',
+        'blue',
+        'alpha',
+        'hue',
+        'lightness',
+        'saturation',
+      ].includes(field)
+    ) {
+      return this.toString();
+    }
+
     if (field === 'saturation') {
       return this.color.saturationl(value);
     }
-    return (this.color as any)[field](value).string();
+
+    const color = (this.color as any)[field](value);
+
+    return field === 'alpha' ? color.string() : color.hex();
   }
 
   extract(field: string) {
-    if (!['red', 'green', 'blue', 'alpha', 'hue', 'lightness', 'saturation'].includes(field)) return this.toString();
+    if (
+      ![
+        'red',
+        'green',
+        'blue',
+        'alpha',
+        'hue',
+        'lightness',
+        'saturation',
+      ].includes(field)
+    ) {
+      return this.toString();
+    }
+
     if (field === 'saturation') {
       return this.color.saturationl();
     }
-    return (this.color as any)[field]().string();
+
+    return (this.color as any)[field]().toString();
   }
 
   mix(color2: ThemeColor, ratio: number) {
     const c1 = this.color;
     const c2 = color2.color;
-    const [r1, g1, b1] = c1.rgb().array()
-    const [r2, g2, b2] = c2.rgb().array()
-    return Color
-      .rgb([mix(r1, r2, ratio), mix(g1, g2, ratio), mix(b1, b2, ratio)])
-      .alpha(mix(c1.alpha(), c2.alpha(), ratio))
-      .string()
+    const [r1, g1, b1] = c1.rgb().array();
+    const [r2, g2, b2] = c2.rgb().array();
+
+    const mixedColor = Color.rgb([
+      mix(r1, r2, ratio),
+      mix(g1, g2, ratio),
+      mix(b1, b2, ratio),
+    ]).alpha(mix(c1.alpha(), c2.alpha(), ratio));
+
+    return c1.alpha() !== 1 ? mixedColor.string() : mixedColor.hex();
   }
 
   contrast(color2: ThemeColor) {
     return this.color.contrast(color2.color).toFixed(1);
   }
-
-
 
   /**
    * Color perceived brightness/difference algorithms from https://www.w3.org/WAI/ER/WD-AERT/#color-contrast

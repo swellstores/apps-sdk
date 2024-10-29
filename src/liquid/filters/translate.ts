@@ -1,4 +1,4 @@
-import { LiquidSwell } from "..";
+import { LiquidSwell } from '..';
 import { paramsToProps } from '../utils';
 
 // {{ 'translation.key' | t: prop: value }}

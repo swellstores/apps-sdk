@@ -32,17 +32,21 @@
     "prebuild": "rimraf dist",
     "build": "node scripts/build.mjs",
     "postbuild": "tsc --project tsconfig.build.json",
-    "watch": "node scripts/build.mjs watch"
+    "watch": "node scripts/build.mjs watch",
+    "test": "jest --config=./jest.config.js"
   },
   "devDependencies": {
     "@kruining/waterlogged": "^1.1.45",
     "@types/color": "^3.0.6",
+    "@types/jest": "29.5.14",
     "@types/lodash-es": "^4.17.12",
     "@types/qs": "^6.9.15",
     "@types/react": "^18.2.64",
     "@types/react-dom": "^18.2.21",
     "@types/strftime": "^0.9.8",
     "esbuild": "0.20.2",
+    "esbuild-jest": "0.5.0",
+    "jest": "29.7.0",
     "rimraf": "^6.0.1",
     "typescript": "^5.3.3"
   },

@@ -301,18 +301,22 @@ export class ThemeFont {
             } else {
               targetWeight = Number.parseInt(value, 10);
             }
-            const validWeight = this.resolveValidProperty(
-              prop,
-              targetWeight,
-            ) as number;
-            if (validWeight) {
-              this.weight = targetWeight;
-              this.variant.wght = validWeight;
-              break;
-            }
-            return null;
+
+            break;
         }
-        break;
+
+        const validWeight = this.resolveValidProperty(
+          prop,
+          targetWeight,
+        ) as number;
+
+        if (validWeight) {
+          this.weight = targetWeight;
+          this.variant.wght = validWeight;
+          break;
+        }
+
+        return null;
 
       // Modify variant properties
       case 'wght':
@@ -356,9 +360,8 @@ export class ThemeFont {
       }
     }
 
-    const targetValue = typeof value === 'string'
-      ? Number.parseInt(value, 10)
-      : value;
+    const targetValue =
+      typeof value === 'string' ? Number.parseInt(value, 10) : value;
 
     switch (prop) {
       case 'wght':

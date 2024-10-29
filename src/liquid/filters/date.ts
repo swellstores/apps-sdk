@@ -2,7 +2,10 @@ import strftime from 'strftime';
 import { LiquidSwell } from '..';
 import { paramsToProps } from '../utils';
 
-// {{ blog.date_published | date: '%B %d, %Y' }} or {{ blog.date_published | date: format: 'abbreviated_date' }}
+// {{ '2024-10-01T12:00:00.000Z' | date: '%B %d, %Y' }} => October 01, 2024
+// {{ '2024-10-01T12:00:00.000Z' | date: format: '%B %d, %Y' }} => October 01, 2024
+// {{ '2024-10-01T12:00:00.000Z' | date: 'date_at_time' }} => Oct 01, 2024
+// {{ '2024-10-01T12:00:00.000Z' | date: format: 'date_at_time' }} => Oct 01, 2024
 
 export default function bind(_liquidSwell: LiquidSwell) {
   return (dateValue: string, ...params: any[]): string => {
