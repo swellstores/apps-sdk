@@ -5,7 +5,7 @@ import { LiquidSwell } from '..';
 export default function bind(_liquidSwell: LiquidSwell) {
   return async (errors: any) => {
     const errorMessages = await Promise.all(
-      Array.from(errors).map((error: any) => error?.message || 'Unkown error'),
+      Array.from(errors).map((error: any) => error?.message || 'Unknown error'),
     );
 
     if (errorMessages.length === 0) {

@@ -1,6 +1,6 @@
-import { LiquidSwell, ThemeColor } from "..";
+import { LiquidSwell, ThemeColor } from '..';
 
-// {{ '#EA5AB9' | color_saturate: 30 }} => #ff45c0
+// {{ '#EA5AB9' | color_saturate: 30 }} => #ff44c0
 
 export default function bind(_liquidSwell: LiquidSwell) {
   return (color: string | ThemeColor, value: number): string => {

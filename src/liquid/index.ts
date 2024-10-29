@@ -21,7 +21,7 @@ export * from './color';
 export * from './form';
 export * from './font';
 
- interface LiquidSwellOptions {
+interface LiquidSwellOptions {
   theme: SwellTheme;
   getThemeConfig: GetThemeConfig;
   getThemeTemplateConfigByType?: GetThemeTemplateConfigByType;
