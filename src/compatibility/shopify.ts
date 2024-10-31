@@ -126,7 +126,7 @@ export class ShopifyCompatibility {
     // Adapt individual resources to Shopify objects from page data
     for (const value of Object.values(objectData)) {
       const objectMap = this.objectResourceMap.find(
-        ({ from }) => from === value.constructor.name,
+        ({ from }) => from === value?.constructor.name,
       );
 
       if (objectMap) {
@@ -190,7 +190,7 @@ export class ShopifyCompatibility {
     );
 
     if (formMap && formTypeConfig) {
-      return formTypeConfig.client_params.reduce((acc: any, param: any) => {
+      return formTypeConfig.client_params?.reduce((acc: any, param: any) => {
         return (
           `<input type="hidden" name="${param.name}" value="${param.value}" />` +
           acc
@@ -606,6 +606,12 @@ export class ShopifyCompatibility {
   }
 
   getFormResourceMap(): ShopifyFormResourceMap {
+    if (this.shopifyCompatibilityConfig?.forms) {
+      return this.shopifyCompatibilityConfig.forms.map((form) => ({
+        shopifyType: form.shopify_type,
+        type: form.id,
+      }));
+    }
     return [];
   }
 

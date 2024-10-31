@@ -70,6 +70,8 @@ export class Swell {
   // Local cache for Swell storefront data
   static cache: Map<string, Cache> = new Map();
 
+  public storefront_url?: string;
+
   constructor(params: {
     url: URL | string;
     config?: SwellAppConfig;
@@ -266,32 +268,26 @@ export class Swell {
   isStorefrontRequestCacheable(method: string, url: string): boolean {
     if (method === 'get') {
       const urlModel = url.split('/')[1];
-  
+
       switch (urlModel) {
         case 'products':
         case 'categories':
         case 'content':
         case 'settings':
           return true;
-  
+
         default:
           return false;
       }
     }
-  
+
     return false;
   }
 
   getCacheableStorefrontRequestHandler<T>(storefront: typeof SwellJS) {
     const storefrontRequest = storefront.request;
 
-    return (
-      method: string,
-      url: string,
-      id?: any,
-      data?: any,
-      opt?: any,
-    ) => {
+    return (method: string, url: string, id?: any, data?: any, opt?: any) => {
       if (this.isStorefrontRequestCacheable(method, url)) {
         return this.getCachedSync<T>(
           STOREFRONT_CACHE_PREFIX,
@@ -331,9 +327,10 @@ export class Swell {
   }
 
   getCacheKey(key: string, args?: unknown[]): string {
-    const cacheKey = Array.isArray(args) && args.length > 0
-      ? `${this.getCacheKeyPrefix()}${key}_${JSON.stringify(args)}`
-      : `${this.getCacheKeyPrefix()}${key}`;
+    const cacheKey =
+      Array.isArray(args) && args.length > 0
+        ? `${this.getCacheKeyPrefix()}${key}_${JSON.stringify(args)}`
+        : `${this.getCacheKeyPrefix()}${key}`;
 
     // TODO: calculate the number of bytes
     // 512 bytes, maximum key for KV storage
@@ -470,9 +467,15 @@ export class Swell {
     const handlerWrapper = async () => {
       await this.deleteCachedVersion(cacheKey);
       return handler();
-    }
+    };
 
-    return this.getCachedSync(`${cacheKey}:v@${version}`, undefined, handlerWrapper, timeout, false);
+    return this.getCachedSync(
+      `${cacheKey}:v@${version}`,
+      undefined,
+      handlerWrapper,
+      timeout,
+      false,
+    );
   }
 
   async getCachedResource<T>(
@@ -576,11 +579,11 @@ export class Swell {
       '/settings/menus',
       'menuState',
     );
-  
+
     if (!menus || menus instanceof Promise) {
       return [];
     }
-  
+
     return menus;
   }
 

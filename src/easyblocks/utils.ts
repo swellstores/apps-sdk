@@ -469,6 +469,7 @@ export function getSectionSettingsFromProps(props: any, sectionSchema: any) {
           }
           return acc;
         }, {}),
+        id: sectionSchema.id,
         blocks: props.Blocks?.filter(
           (propBlock: any) => propBlock.props.compiled?._component,
         ).map((propBlock: any) => {

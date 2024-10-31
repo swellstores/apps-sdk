@@ -13,3 +13,4 @@ export * from './utils';
 export * from './liquid';
 export * from './compatibility/shopify';
 export * from './compatibility/shopify-objects';
+export * from './editor/resources';

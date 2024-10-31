@@ -37,6 +37,7 @@ export interface SwellAppShopifyCompatibilityConfig {
   }>;
   forms: Array<{
     id: string;
+    shopify_type: string;
     client_params: Array<{
       name: string;
       value: string;
@@ -58,6 +59,12 @@ export interface SwellAppStorefrontThemePage {
 export interface SwellAppStorefrontThemeProps {
   provider: 'app';
   pages: Array<SwellAppStorefrontThemePage>;
+  resources?: SwellAppStorefrontThemeResources;
+}
+
+export interface SwellAppStorefrontThemeResources {
+  singletons: Record<string, string>;
+  records: Record<string, string>;
 }
 
 export interface SwellErrorOptions {

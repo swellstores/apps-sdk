@@ -1,7 +1,11 @@
 import qs from 'qs';
 import { reduce } from 'lodash-es';
 
-import { StorefrontResource } from '../resources';
+import {
+  StorefrontResource,
+  SwellStorefrontCollection,
+  SwellStorefrontRecord,
+} from '../resources';
 import { ShopifyResource } from '../compatibility/shopify-objects/resource';
 import { LANG_TO_COUNTRY_CODES } from '../constants';
 
@@ -25,7 +29,9 @@ export * from './md5';
   console.log(util.inspect(value, { depth, colors: true }));
 } */
 
-export function themeConfigQuery(swellHeaders: Record<string, unknown>): Record<string, unknown> {
+export function themeConfigQuery(
+  swellHeaders: Record<string, unknown>,
+): Record<string, unknown> {
   return {
     parent_id: swellHeaders['theme-id'],
     branch_id: swellHeaders['theme-branch-id'] || null,
@@ -46,7 +52,9 @@ function isSectionConfig(
   }
 
   if (config.file_path.endsWith('.liquid')) {
-    const hasJsonFile = themeConfigs.get(config.file_path.replace(/\.liquid$/, '.json'));
+    const hasJsonFile = themeConfigs.get(
+      config.file_path.replace(/\.liquid$/, '.json'),
+    );
 
     if (!hasJsonFile) {
       return true;
@@ -60,7 +68,9 @@ function isSectionConfig(
 
 export async function getAllSections(
   themeConfigs: Map<string, SwellThemeConfig>,
-  renderTemplateSchema: (config: SwellThemeConfig) => Promise<Partial<ThemeSectionSchema> | undefined>,
+  renderTemplateSchema: (
+    config: SwellThemeConfig,
+  ) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemePageSectionSchema[]> {
   const allSections: ThemePageSectionSchema[] = [];
 
@@ -79,7 +89,9 @@ export async function getAllSections(
   return allSections;
 }
 
-function resolveSectionPresets(schema?: ThemeSectionSchema): ThemePresetSchema[] {
+function resolveSectionPresets(
+  schema?: ThemeSectionSchema,
+): ThemePresetSchema[] {
   if (!Array.isArray(schema?.presets)) return [];
 
   return schema.presets.map((preset) => ({
@@ -115,7 +127,9 @@ function resolveSectionPresets(schema?: ThemeSectionSchema): ThemePresetSchema[]
 
 export async function getLayoutSectionGroups(
   allSections: Map<string, SwellThemeConfig>,
-  renderTemplateSchema: (config: SwellThemeConfig) => Promise<Partial<ThemeSectionSchema> | undefined>,
+  renderTemplateSchema: (
+    config: SwellThemeConfig,
+  ) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemeLayoutSectionGroupConfig[]> {
   const allSectionsList = Array.from(allSections.values());
 
@@ -370,9 +384,26 @@ export function dehydrateSwellRefsInStorefrontResources(obj: any) {
   }
 }
 
+function getStorefrontResourceType(value: any) {
+  if (value === undefined) {
+    return undefined;
+  } else if (value instanceof SwellStorefrontCollection) {
+    return 'SwellStorefrontCollection';
+  } else if (value instanceof SwellStorefrontRecord) {
+    return 'SwellStorefrontRecord';
+  } else if (value instanceof ShopifyResource) {
+    return 'ShopifyResource';
+  } else if (value instanceof StorefrontResource) {
+    return 'StorefrontResource';
+  } else {
+    return 'promise';
+  }
+}
+
 export async function resolveAsyncResources(
   response: any,
   resolveStorefrontResources: boolean = true,
+  resolveWithResourceMetadata: boolean = false,
 ) {
   let result = response;
   let nextResolveStorefrontResources = resolveStorefrontResources;
@@ -388,13 +419,18 @@ export async function resolveAsyncResources(
       result = await resolveAsyncResources(
         response.resolve(),
         resolveStorefrontResources,
+        resolveWithResourceMetadata,
       );
     }
 
     if (result instanceof Array) {
       result = await Promise.all(
         result.map((item) =>
-          resolveAsyncResources(item, resolveStorefrontResources),
+          resolveAsyncResources(
+            item,
+            resolveStorefrontResources,
+            resolveWithResourceMetadata,
+          ),
         ),
       );
 
@@ -412,8 +448,34 @@ export async function resolveAsyncResources(
           if (
             result[key] instanceof Promise ||
             result[key] instanceof StorefrontResource ||
-            result instanceof ShopifyResource
+            result[key] instanceof ShopifyResource
           ) {
+            objectResult[key] = {
+              _type: getStorefrontResourceType(result[key]),
+              ...(resolveWithResourceMetadata
+                ? {
+                    value: await resolveAsyncResources(
+                      result[key],
+                      nextResolveStorefrontResources,
+                      resolveWithResourceMetadata,
+                    ),
+                  }
+                : {}),
+            };
+            continue;
+          }
+        }
+
+        if (result[key] instanceof StorefrontResource) {
+          if (resolveWithResourceMetadata) {
+            objectResult[key] = {
+              _type: getStorefrontResourceType(result[key]),
+              value: await resolveAsyncResources(
+                result[key],
+                nextResolveStorefrontResources,
+                resolveWithResourceMetadata,
+              ),
+            };
             continue;
           }
         }
@@ -421,6 +483,7 @@ export async function resolveAsyncResources(
         objectResult[key] = await resolveAsyncResources(
           result[key],
           nextResolveStorefrontResources,
+          resolveWithResourceMetadata,
         );
       }
 
