@@ -10,7 +10,8 @@ import { StorefrontResource } from './api';
 import type { CFWorkerKV } from 'types/swell';
 
 export class Cache {
-  private map: Map<string, [timer: number, value: unknown]> = new Map();
+  private map: Map<string, [timer: number | NodeJS.Timeout, value: unknown]> =
+    new Map();
   private kvStore?: CFWorkerKV;
   private timeoutDefault: number;
 
@@ -73,10 +74,14 @@ export class Cache {
 
   getSync<T>(key: string): T | undefined {
     const pair = this.map.get(key);
-    return pair ? pair[1] as T : undefined;
+    return pair ? (pair[1] as T) : undefined;
   }
 
-  async set(key: string, value: any, timeout: number = this.timeoutDefault): Promise<void> {
+  async set(
+    key: string,
+    value: any,
+    timeout: number = this.timeoutDefault,
+  ): Promise<void> {
     this.setSync(key, value, timeout);
 
     if (this.kvStore) {
@@ -98,7 +103,8 @@ export class Cache {
       // CF timeout must be at least 60 seconds, and 10x longer than the map timeout
       const kvTimeout = timeout * 10;
       // A value of 0 means that the cache will be stored forever
-      const expirationTtl = kvTimeout >= 60000 ? Math.ceil(kvTimeout / 1000) : 0;
+      const expirationTtl =
+        kvTimeout >= 60000 ? Math.ceil(kvTimeout / 1000) : 0;
 
       // Non-blocking
       this.kvStore.put(key, JSON.stringify(cacheValue), {
@@ -108,7 +114,11 @@ export class Cache {
     }
   }
 
-  setSync(key: string, value: any, timeout: number = this.timeoutDefault): void {
+  setSync(
+    key: string,
+    value: any,
+    timeout: number = this.timeoutDefault,
+  ): void {
     const pair = this.map.get(key);
 
     if (pair !== undefined) {
