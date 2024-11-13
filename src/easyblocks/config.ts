@@ -435,6 +435,7 @@ export function getEasyblocksPagePropsWithConfigs(
         required: true,
         accepts: ['swell_page'],
         isNonChangable: true,
+        noInline: true,
       },
       ...getEditorSchemaComponentProps(themeGlobals),
     ],
