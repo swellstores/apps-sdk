@@ -282,11 +282,39 @@ export class SwellTheme {
       is_preview: this.swell.isPreview,
     };
 
+    const swellPage = this.props.pages?.find(
+      (page: ThemeSettings) => page.id === pageId,
+    );
+    const isCustomPage = !Boolean(swellPage);
     const page = {
-      ...this.props.pages?.find((page: ThemeSettings) => page.id === pageId),
+      ...swellPage,
       current: this.swell.queryParams.page || 1,
       url: this.swell.url.pathname,
+      custom: isCustomPage,
+      seo: {},
     };
+
+    if (pageId) {
+      const templateConfig = await this.getThemeTemplateConfigByType(
+        'templates',
+        pageId,
+      );
+
+      let pageSchema;
+      try {
+        pageSchema = JSON.parse(templateConfig?.file_data || '');
+      } catch {
+        // noop
+      }
+
+      if (pageSchema?.seo) {
+        page.seo = { ...pageSchema.seo };
+      } else if (swellPage) {
+        page.seo = {
+          title: swellPage.label,
+        };
+      }
+    }
 
     const [cart, account] = await Promise.all([
       this.fetchSingletonResourceCached<StorefrontResource | {}>(

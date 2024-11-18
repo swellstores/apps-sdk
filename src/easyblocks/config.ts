@@ -17,6 +17,7 @@ import {
 
 import type {
   SwellThemeConfig,
+  ThemePage,
   ThemeGlobals,
   ThemeLayoutSectionGroupConfig,
   ThemePageSectionSchema,
@@ -417,6 +418,51 @@ function getAllSectionComponentTemplates(
   });
 }
 
+function getPageSettingsProps(page: ThemePage) {
+  return [
+    {
+      prop: 'title',
+      type: 'swell_short_text',
+      label: 'Page title',
+      description: 'This controls the title on the top of your browser',
+      layout: 'column',
+      isLabelHidden: true,
+      required: true,
+      defaultValue: page.seo.title,
+    },
+    ...(page.custom
+      ? [
+          {
+            prop: 'slug',
+            type: 'swell_short_text',
+            label: 'Slug',
+            description: 'This is the unique slug for the page',
+            layout: 'column',
+            isLabelHidden: true,
+            required: true,
+            defaultValue: page.seo.slug,
+            params: {
+              slugify: true,
+            },
+          },
+        ]
+      : []),
+    {
+      prop: 'description',
+      type: 'swell_long_text',
+      label: 'Description',
+      description: 'This controls your page description',
+      layout: 'column',
+      isLabelHidden: true,
+      defaultValue: page.seo.description,
+      params: {
+        rows: 5,
+        placeholder: 'Enter a description...',
+      },
+    },
+  ];
+}
+
 export function getEasyblocksPagePropsWithConfigs(
   themeGlobals: ThemeGlobals,
   allSections: ThemePageSectionSchema[],
@@ -476,6 +522,7 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       },
       ...getLayoutSectionGroupComponentProps(allSections, layoutSectionGroups),
+      ...getPageSettingsProps(themeGlobals.page),
     ],
 
     allowSave: true,
