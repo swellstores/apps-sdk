@@ -1,7 +1,7 @@
 {
   "name": "@swell/apps-sdk",
   "type": "module",
-  "version": "1.0.24",
+  "version": "1.0.25",
   "description": "Swell SDK for building isomorphic apps.",
   "author": "Swell",
   "license": "MIT",
@@ -32,6 +32,7 @@
     "prebuild": "rimraf dist",
     "build": "node scripts/build.mjs",
     "postbuild": "tsc --project tsconfig.build.json",
+    "prepublishOnly": "npm run build",
     "watch": "node scripts/build.mjs watch",
     "test": "jest --config=./jest.config.js"
   },
