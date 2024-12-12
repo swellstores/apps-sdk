@@ -70,7 +70,11 @@ export default function ShopifyVariant(
       variant,
       () => variant.prices?.length > 0,
     ),
-    quantity_rule: null,
+    quantity_rule: {
+      min: 1,
+      max: null,
+      increment: 1,
+    },
     requires_selling_plan: false,
     requires_shipping: deferWith(product, () =>
       product.delivery?.contains('shipment'),
