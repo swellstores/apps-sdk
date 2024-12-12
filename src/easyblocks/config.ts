@@ -7,7 +7,6 @@ import type {
 
 import { SwellTheme } from '../theme';
 import {
-  getPageTemplate,
   getAllSections,
   getPageSections,
   getLayoutSectionGroups,
@@ -31,7 +30,7 @@ export async function getEasyblocksPropsFromThemeConfigs(
   themeConfigs: SwellThemeConfig[],
   pageId: string,
 ) {
-  const pageTemplate = await getPageTemplate(theme, pageId);
+  const pageTemplate = await getEasyblocksPageTemplate(theme, pageId);
   const allSections = await getAllSections(theme, themeConfigs);
   const pageSections = await getPageSections(
     theme,
@@ -45,6 +44,22 @@ export async function getEasyblocksPropsFromThemeConfigs(
     pageSections,
     layoutSectionGroups,
   };
+}
+
+export async function getEasyblocksPageTemplate(
+  theme: SwellTheme,
+  pageId: string,
+) {
+  let templateConfig: SwellThemeConfig | null = null;
+
+  templateConfig = await theme.getThemeTemplateConfigByType(
+    'templates',
+    pageId,
+  );
+
+  if (templateConfig) {
+    return JSON.parse(templateConfig.file_data);
+  }
 }
 
 function getAcceptedLayoutSections(
