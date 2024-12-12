@@ -15,10 +15,6 @@ import type {
 
 import type { SwellTheme } from '../theme';
 
-export function getPageTemplate(theme: SwellTheme, pageId: string) {
-  return theme.renderPageTemplate(pageId);
-}
-
 export async function getAllSections(
   theme: SwellTheme,
   themeConfigs: SwellThemeConfig[],
