@@ -291,7 +291,8 @@ export class SwellTheme {
       current: this.swell.queryParams.page || 1,
       url: this.swell.url.pathname,
       custom: isCustomPage,
-      seo: {},
+      slug: null,
+      description: null,
     };
 
     if (pageId) {
@@ -307,12 +308,12 @@ export class SwellTheme {
         // noop
       }
 
-      if (pageSchema?.seo) {
-        page.seo = { ...pageSchema.seo };
-      } else if (swellPage) {
-        page.seo = {
-          title: swellPage.label,
-        };
+      if (pageSchema?.page) {
+        const { slug, label, description } = pageSchema.page;
+
+        page.slug = slug;
+        page.label = label;
+        page.description = description;
       }
     }
 

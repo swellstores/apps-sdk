@@ -203,7 +203,7 @@ export class ShopifyCompatibility {
     const formMap = this.formResourceMap.find(
       (form) => form.type === formType || form.shopifyType === formType,
     );
-    if (formMap?.serverParams) {
+    if (typeof formMap?.serverParams === 'function') {
       return formMap.serverParams(context);
     }
   }
@@ -212,7 +212,7 @@ export class ShopifyCompatibility {
     const formMap = this.formResourceMap.find(
       (form) => form.type === formType || form.shopifyType === formType,
     );
-    if (formMap?.serverResponse) {
+    if (typeof formMap?.serverResponse === 'function') {
       return await formMap.serverResponse(context);
     }
   }
