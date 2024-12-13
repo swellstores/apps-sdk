@@ -205,6 +205,7 @@ export function shopifySchemaSettingToSwellSettingField(
       swellProps = {
         type: 'lookup',
         collection: 'content/blogs',
+        titleField: 'title',
       };
       break;
 
@@ -292,6 +293,7 @@ export function shopifySchemaSettingToSwellSettingField(
       swellProps = {
         type: 'lookup',
         collection: 'content/pages',
+        titleField: 'title',
       };
       break;
 
