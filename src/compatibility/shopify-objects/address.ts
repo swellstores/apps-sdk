@@ -9,6 +9,7 @@ import type { SwellRecord } from 'types/swell';
 export default function ShopifyAddress(
   instance: ShopifyCompatibility,
   address: StorefrontResource | SwellRecord,
+  account?: StorefrontResource,
 ): ShopifyResource {
   if (address instanceof ShopifyResource) {
     return address.clone();
@@ -23,10 +24,16 @@ export default function ShopifyAddress(
       ShopifyCountry(instance, address.country),
     ),
     country_code: deferWith(address, (address: any) => address.country_code),
-    first_name: deferWith(address, (address: any) => address.first_name),
+    first_name: deferWith(
+      address,
+      (address: any) => address.first_name || account?.first_name,
+    ),
     id: deferWith(address, (address: any) => address.id),
-    last_name: deferWith(address, (address: any) => address.last_name),
-    name: deferWith(address, (address: any) => address.name),
+    last_name: deferWith(
+      address,
+      (address: any) => address.last_name || account?.last_name,
+    ),
+    name: deferWith(address, (address: any) => address.name || account?.name),
     phone: deferWith(address, (address: any) => address.phone),
     province: deferWith(address, (address: any) => address.state),
     province_code: deferWith(address, (address: any) =>
@@ -37,7 +44,7 @@ export default function ShopifyAddress(
     ),
     summary: deferWith(address, (address: any) =>
       joinAddressLines(
-        address.name,
+        address.name || account?.name,
         address.company,
         address.address1,
         address.address2,

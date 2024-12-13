@@ -40,8 +40,7 @@ export default function ShopifyCustomer(
     default_address: deferWith(
       account,
       (account: any) =>
-        (account.shipping || account.billing) &&
-        ShopifyAddress(instance, account.shipping || account.billing),
+        ShopifyAddress(instance, account.shipping || account.billing || {}, account),
     ),
     email: deferWith(account, (account: any) => account.email),
     first_name: deferWith(account, (account: any) => account.first_name),

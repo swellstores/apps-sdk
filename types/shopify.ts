@@ -187,8 +187,8 @@ export interface ShopifyForm {
   type: string;
   shopifyType?: string;
 
-  clientParams?(scope: SwellData, arg?: unknown): SwellData;
-  clientHtml?(scope: SwellData, arg?: unknown): string;
+  clientParams?(scope: SwellData, arg?: unknown): SwellData | undefined;
+  clientHtml?(scope: SwellData, arg?: unknown): string | undefined;
   serverParams?(context: SwellData): SwellData;
   serverResponse?(context: SwellData): SwellData;
 }

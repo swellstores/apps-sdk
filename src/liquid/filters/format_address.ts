@@ -11,7 +11,7 @@ export default {
           address.country_code ||
           (typeof address.country === 'string' ? address.country : null);
 
-        if (address.address1 || address.state || country) {
+        if (address.name || address.address1 || address.state || country) {
           const addressLines = [
             address.name,
             address.company,
