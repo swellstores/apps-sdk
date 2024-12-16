@@ -88,12 +88,20 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
         ? Object.keys(hash).filter((x) => MODIFIERS.includes(x))
         : MODIFIERS.filter((x) => (hash as any)[x] !== undefined);
 
-      collection = modifiers.reduce((collection, modifier: any) => {
-        if (modifier === 'offset')
-          return offset(collection, (hash as any)['offset']);
-        if (modifier === 'limit')
-          return limit(collection, (hash as any)['limit']);
-        return reversed(collection);
+      collection = modifiers.reduce((collection, modifier) => {
+        switch (modifier) {
+          case 'offset':
+            return offset(collection, (hash as any)['offset']);
+
+          case 'limit':
+            return limit(collection, (hash as any)['limit']);
+
+          case 'reversed':
+            return reversed(collection);
+
+          default:
+            return collection;
+        }
       }, collection);
 
       ctx.setRegister(

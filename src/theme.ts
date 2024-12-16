@@ -1594,7 +1594,8 @@ export function findThemeSettingsByType(
   const foundSettings: ThemeSettingFieldValue[] = [];
 
   each(themeSettings, (value, key) => {
-    if (isObject(value) && !(value instanceof ThemeFont)) {
+    // Ignore ThemeFont and StorefrontResource
+    if (isObject(value) && !(value instanceof ThemeFont) && !(value instanceof StorefrontResource)) {
       // Nested settings
       foundSettings.push(
         ...findThemeSettingsByType(type, value, editorSchemaSettings),
