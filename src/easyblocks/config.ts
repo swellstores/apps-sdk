@@ -230,6 +230,18 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
               },
             ]
           : []),
+        {
+          prop: 'custom_css',
+          type: 'swell_long_text',
+          label: 'Custom CSS',
+          description: 'Add custom CSS for this section',
+          layout: 'column',
+          isLabelHidden: true,
+          params: {
+            rows: 5,
+            placeholder: 'Enter custom CSS...',
+          },
+        },
       ],
       styles: () => {
         return {
@@ -348,6 +360,7 @@ function getAllSectionComponentTemplates(
           entry: {
             _id: `${section.id}__preset_${index}`,
             _component: section.id,
+            custom_css: preset.settings?.['custom_css'],
             ...reduce(
               section.fields,
               (acc: any, field: any) => {
@@ -553,6 +566,7 @@ export function getEasyblocksPagePropsWithConfigs(
               ({ section, settings, schema }) => ({
                 _id: `${section.type}_${Math.random()}`,
                 _component: `${section.type}`,
+                custom_css: settings?.section?.settings?.['custom_css'],
                 ...reduce(
                   schema?.fields,
                   (acc, field) =>

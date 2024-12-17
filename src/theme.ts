@@ -48,6 +48,7 @@ import type {
 
 import type { ShopifySectionSchema } from 'types/shopify';
 import type { SwellCollection } from 'types/swell';
+import { scopeCustomCSS } from './utils';
 
 export class SwellTheme {
   public swell: Swell;
@@ -1340,14 +1341,21 @@ export class SwellTheme {
             'sections',
             `${section.type}.liquid`,
           );
-          const output = templateConfig
-            ? await this.renderTemplate(templateConfig, {
-                ...data,
-                ...settings,
-                index,
-                template: templateConfig,
-              })
-            : '';
+          let output = '';
+          if (templateConfig) {
+            output = await this.renderTemplate(templateConfig, {
+              ...data,
+              ...settings,
+              index,
+              template: templateConfig,
+            });
+            if (settings?.section.settings.custom_css) {
+              output += `<style>${scopeCustomCSS(
+                settings?.section.settings.custom_css,
+                settings.section.id,
+              )}</style>`;
+            }
+          }
 
           resolve({
             ...sectionConfig,
