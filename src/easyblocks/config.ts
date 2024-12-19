@@ -232,7 +232,7 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
           : []),
         {
           prop: 'custom_css',
-          type: 'swell_long_text',
+          type: 'swell_css',
           label: 'Custom CSS',
           description: 'Add custom CSS for this section',
           layout: 'column',
@@ -640,6 +640,12 @@ export function getEasyblocksPagePropsWithConfigs(
         },
       ],
       types: {
+        swell_css: {
+          type: 'inline',
+          widget: {
+            id: 'SwellCSS',
+          },
+        },
         swell_boolean: {
           type: 'inline',
           widget: {
