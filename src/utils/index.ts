@@ -514,3 +514,21 @@ export function stringifyQueryParams(queryParams: SwellData) {
     { encodeValuesOnly: true, arrayFormat: 'repeat' },
   );
 }
+
+export function scopeCustomCSS(custom_css: string, sectionID: string) {
+  const cssRules = custom_css.split('}');
+  const scopedCSS = cssRules
+    .map((rule) => {
+      const [selectors, properties] = rule.split('{');
+      if (!selectors || !properties) return ''; // Skip invalid rules
+      const scopedSelectors = selectors
+        .split(',')
+        .map((selector) => `#${sectionID} ${selector.trim()}`)
+        .join(', ');
+
+      return `${scopedSelectors} {${properties}}`;
+    })
+    .join(' ');
+
+  return scopedCSS;
+}
