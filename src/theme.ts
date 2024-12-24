@@ -19,7 +19,7 @@ import {
   getLayoutSectionGroups,
   isObject,
 } from './utils';
-import { FILE_DATA_INCLUDE_QUERY } from './constants';
+import { FILE_DATA_INCLUDE_QUERY, GEO_DATA } from './constants';
 
 import type {
   ThemeGlobals,
@@ -171,13 +171,14 @@ export class SwellTheme {
     store: SwellData;
     session: SwellData;
     menus: Record<string, SwellMenu>;
-    geo?: SwellData;
+    geo: SwellData;
     configs: ThemeConfigs;
   }> {
-    const [storefrontSettings, themeConfigs, geo] = await Promise.all([
+    const geo = GEO_DATA;
+
+    const [storefrontSettings, themeConfigs] = await Promise.all([
       this.swell.getStorefrontSettings(),
       this.getAllThemeConfigs(),
-      this.getGeoSettings(),
     ]);
 
     const settingConfigs = await Promise.all(
@@ -690,22 +691,6 @@ export class SwellTheme {
   themeConfigQuery() {
     const { swellHeaders } = this.swell;
     return themeConfigQuery(swellHeaders);
-  }
-
-  async getGeoSettings(): Promise<SwellData | undefined> {
-    const configVersion = String(
-      this.swell.swellHeaders['theme-config-version'],
-    );
-
-    return this.swell.getCachedVersion<SwellData | undefined>(
-      ['geo-settings'],
-      configVersion,
-      () => {
-        return this.swell.get('/settings/geo');
-      },
-      // 1hr cache time
-      1000 * 60 * 60,
-    );
   }
 
   async getAllThemeConfigs(): Promise<Map<string, SwellThemeConfig>> {
