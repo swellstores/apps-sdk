@@ -25,6 +25,7 @@ import font_url from './font_url';
 import format_address from './format_address';
 import image_tag from './image_tag';
 import image_url from './image_url';
+import inline_asset_content from './inline_asset_content';
 import json from './json';
 import json_pretty from './json_pretty';
 import money from './money';
@@ -44,7 +45,6 @@ import payment_terms from './shopify/payment_terms';
 import placeholder_svg_tag from './shopify/placeholder_svg_tag';
 
 // Swell only
-
 import inline_editable from './inline_editable';
 
 export const filters = {
@@ -72,6 +72,7 @@ export const filters = {
   format_address,
   image_tag,
   image_url,
+  inline_asset_content,
   json,
   json_pretty,
   money,

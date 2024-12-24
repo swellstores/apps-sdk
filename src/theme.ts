@@ -737,15 +737,21 @@ export class SwellTheme {
               // Only expand theme files
               // Do not expand non-text data
               file: {
-                $and: [
-                  { content_type: { $regex: '^(?!image)' } },
-                  { content_type: { $regex: '^(?!video)' } },
+                $or: [
+                  {
+                    $and: [
+                      { content_type: { $regex: '^(?!image)' } },
+                      { content_type: { $regex: '^(?!video)' } },
+                    ],
+                  },
+                  { content_type: { $regex: '^image/svg' } },
                 ],
               },
-              // Do not return assets unless they end with .liquid.[ext]
+              // Do not return assets unless they end with .liquid.[ext] or css/js/svg
               $or: [
                 { file_path: { $regex: '^(?!theme/assets/)' } },
                 { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
+                { file_path: { $regex: '.(css|js|svg)$' } },
               ],
             },
           },
