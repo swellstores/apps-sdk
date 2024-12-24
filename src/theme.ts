@@ -19,6 +19,7 @@ import {
   getLayoutSectionGroups,
   isObject,
 } from './utils';
+import { FILE_DATA_INCLUDE_QUERY } from './constants';
 
 import type {
   ThemeGlobals,
@@ -730,31 +731,7 @@ export class SwellTheme {
         limit: 1000,
         fields: 'type, name, file, file_path',
         include: {
-          file_data: {
-            url: '/:themes:configs/{id}/file/data',
-            conditions: {
-              type: 'theme',
-              // Only expand theme files
-              // Do not expand non-text data
-              file: {
-                $or: [
-                  {
-                    $and: [
-                      { content_type: { $regex: '^(?!image)' } },
-                      { content_type: { $regex: '^(?!video)' } },
-                    ],
-                  },
-                  { content_type: { $regex: '^image/svg' } },
-                ],
-              },
-              // Do not return assets unless they end with .liquid.[ext] or css/js/svg
-              $or: [
-                { file_path: { $regex: '^(?!theme/assets/)' } },
-                { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
-                { file_path: { $regex: '.(css|js|svg)$' } },
-              ],
-            },
-          },
+          file_data: FILE_DATA_INCLUDE_QUERY,
         },
       });
 
