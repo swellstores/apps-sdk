@@ -13,9 +13,8 @@
     "type": "git",
     "url": "https://github.com/swellstores/swell-apps-sdk"
   },
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.js",
   "module": "./dist/index.mjs",
-  "browser": "./dist/index.js",
   "types": "./types/index.d.ts",
   "exports": {
     ".": {
