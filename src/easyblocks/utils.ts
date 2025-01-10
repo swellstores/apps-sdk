@@ -44,9 +44,9 @@ export async function getPageSections(
   getSectionSchemaHandler: any = getSectionSchema,
 ): Promise<ThemeSectionConfig[]> {
   const order =
-    sectionGroup?.order instanceof Array
+    sectionGroup.order instanceof Array
       ? sectionGroup.order
-      : Object.keys(sectionGroup?.sections || {});
+      : Object.keys(sectionGroup.sections || {});
 
   const pageSections = [];
 
