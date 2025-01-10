@@ -6,6 +6,7 @@ await build(['esm', 'cjs', 'iife'], {
   bundle: true,
   sourcemap: true,
   minify: true,
+  platform: 'node',
   packages: 'external',
   target: ['esnext'],
 });
