@@ -49,7 +49,6 @@ export async function getPageSections(
       : Object.keys(sectionGroup.sections || {});
 
   const pageSections = [];
-
   for (const key of order) {
     const section: ThemeSection = sectionGroup.sections[key];
 
