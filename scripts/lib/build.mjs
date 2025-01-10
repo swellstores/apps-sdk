@@ -28,9 +28,43 @@ const c = new Proxy(() => {}, {
   },
 });
 
-const toExtension = (format) =>
-  ({ esm: 'mjs', cjs: 'cjs', iife: 'js' }[format]);
+function toPlatform(format) {
+  switch (format) {
+    case 'esm':
+      return 'neutral';
 
+    case 'cjs':
+      return 'node';
+
+    case 'iife':
+      return 'browser';
+
+    default:
+      throw new Error(`Unsupported format: ${format}`);
+  }
+}
+
+function toExtension(format) {
+  switch (format) {
+    case 'esm':
+      return 'mjs';
+
+    case 'cjs':
+      return 'cjs';
+
+    case 'iife':
+      return 'js';
+
+    default:
+      throw new Error(`Unsupported format: ${format}`);
+  }
+}
+
+/**
+ * @param {string[]} formats
+ * @param {esbuild.BuildOptions} options
+ * @returns {Promise<void>}
+ */
 export async function build(formats, options) {
   const watchMode = process.argv[2] === 'watch';
 
@@ -83,6 +117,7 @@ export async function build(formats, options) {
       return esbuild[watchMode ? 'context' : 'build']({
         ...options,
         format,
+        platform: toPlatform(format),
         outfile: options.outfile
           ?.replaceAll(/\$formatExtension/g, toExtension(format))
           .replaceAll(/\$format/g, format),
