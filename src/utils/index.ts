@@ -532,3 +532,9 @@ export function scopeCustomCSS(custom_css: string, sectionID: string) {
 
   return scopedCSS;
 }
+
+export const SECTION_GROUP_CONTENT = 'ContentSections';
+
+export function getSectionGroupProp(sectionId: string): string {
+  return `SectionGroup_${sectionId}`;
+}

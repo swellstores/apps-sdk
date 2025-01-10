@@ -5,6 +5,7 @@ import type {
   UserDefinedTemplate,
 } from '@swell/easyblocks-core';
 
+import { SECTION_GROUP_CONTENT, getSectionGroupProp } from '../utils';
 import { SwellTheme } from '../theme';
 import {
   getAllSections,
@@ -90,8 +91,9 @@ function getLayoutSectionGroupComponentProps(
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
 ) {
   return layoutSectionGroups.map((sectionGroup) => ({
-    prop: `SectionGroup_${sectionGroup.id}`,
+    prop: getSectionGroupProp(sectionGroup.id),
     type: 'component-collection',
+    label: sectionGroup.label,
     required: true,
     accepts: getAcceptedLayoutSections(allSections, sectionGroup.type),
   }));
@@ -306,7 +308,7 @@ function getLayoutSectionGroupTemplateValues(
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
 ) {
   return layoutSectionGroups.reduce((acc: any, sectionGroup) => {
-    acc[`SectionGroup_${sectionGroup.id}`] = sectionGroup.sectionConfigs.map(
+    acc[getSectionGroupProp(sectionGroup.id)] = sectionGroup.sectionConfigs.map(
       ({ section, settings, schema }) => ({
         _id: `SectionGroup__${section.type}_${getRandomId()}`,
         _component: `${section.type}`,
@@ -493,7 +495,7 @@ export function getEasyblocksPagePropsWithConfigs(
     label: 'Page settings',
     schema: [
       {
-        prop: 'ContentSections',
+        prop: SECTION_GROUP_CONTENT,
         type: 'component-collection',
         required: true,
         accepts: getAcceptedSections(allSections, layoutSectionGroups, pageId),
@@ -775,7 +777,7 @@ export function getEasyblocksComponentDefinitions(
 
   const layoutSectionGroupComponents = layoutSectionGroups.reduce(
     (acc: any, sectionGroup) => {
-      acc[`SectionGroup___${sectionGroup.id}`] = getComponent(
+      acc[getSectionGroupProp(sectionGroup.id)] = getComponent(
         'layoutSectionGroup',
         sectionGroup,
       );

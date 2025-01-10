@@ -13,6 +13,8 @@ import ShopifyCustomer from './compatibility/shopify-objects/customer';
 import ShopifyCart from './compatibility/shopify-objects/cart';
 import { resolveMenuSettings } from './menus';
 import {
+  SECTION_GROUP_CONTENT,
+  getSectionGroupProp,
   themeConfigQuery,
   getAllSections,
   getPageSections,
@@ -30,6 +32,7 @@ import type {
   ThemeFormErrorMessages,
   ThemePresetSchema,
   ThemeSectionGroup,
+  ThemeSectionGroupInfo,
   ThemeSectionSchema,
   ThemeSectionConfig,
   ThemeSectionSettings,
@@ -1255,6 +1258,78 @@ export class SwellTheme {
     return sectionConfigs;
   }
 
+  /**
+   * Get a list of section groups for a page.
+   * 
+   * Basically we should get these section groups: `header`, `content` and `footer`.
+   * For now, section groups are searched for using regex in the page layout.
+   * There may be cases where section groups can be nested in other files,
+   * in which case they will not be visible to this function.
+   * 
+   * In the future, we may use a dummy page renderer and thus extract all section groups.
+   */
+  async getPageSectionGroups(pageId: string): Promise<ThemeSectionGroupInfo[]> {
+    const pageConfig = await this.getThemeTemplateConfigByType(
+      'templates',
+      pageId,
+    );
+
+    if (pageConfig === null) {
+      return [];
+    }
+
+    const pageSchema = parseJsonConfig(pageConfig);
+    const pageLayout = pageSchema.layout || 'theme';
+
+    const layoutConfig = await this.getThemeTemplateConfigByType(
+      'layouts',
+      `${pageLayout}.liquid`,
+    );
+
+    if (layoutConfig === null) {
+      return [];
+    }
+
+    const localeConfig = await this.getThemeConfig(
+      'theme/locales/en.default.schema.json',
+    );
+
+    const localeSchema = parseJsonConfig(localeConfig);
+
+    const layoutData = layoutConfig.file_data;
+    const iterator = layoutData.matchAll(/\bsections \'(\w.*?)\'|(\bcontent_for_layout\b)/gm);
+    const sections: ThemeSectionGroupInfo[] = [];
+
+    for (const match of iterator) {
+      if (match[1]) {
+        // section group
+        const sectionFileName = match[1];
+
+        const sectionConfig = await this.getThemeTemplateConfigByType(
+          'sections',
+          `${sectionFileName}.json`,
+        );
+
+        const sectionSchema = parseJsonConfig(sectionConfig);
+
+        let sectionName = sectionSchema.name;
+        if (typeof sectionName === 'string' && sectionName.startsWith('t:')) {
+          sectionName = get(localeSchema, sectionName.slice(2));
+        }
+
+        sections.push({
+          prop: getSectionGroupProp(sectionFileName),
+          label: sectionName || sectionFileName,
+        });
+      } else if (match[2]) {
+        // content_for_layout
+        sections.push({ prop: SECTION_GROUP_CONTENT, label: 'Template' });
+      }
+    }
+
+    return sections;
+  }
+
   async getLayoutSectionGroups(
     resolveSettings: boolean = true,
   ): Promise<ThemeLayoutSectionGroupConfig[]> {
@@ -1618,4 +1693,12 @@ export function findEditorSetting(
   }
 
   return null;
+}
+
+function parseJsonConfig(config?: SwellThemeConfig | null): any {
+  try {
+    return JSON.parse(config?.file_data || '{}');
+  } catch (err) {
+    return {};
+  }
 }
