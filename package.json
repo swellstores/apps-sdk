@@ -6,7 +6,7 @@
   "author": "Swell",
   "license": "MIT",
   "engines": {
-    "node": ">=16",
+    "node": ">=14.19.1",
     "npm": ">=8.17.0"
   },
   "repository": {
@@ -60,7 +60,6 @@
     "lodash-es": "^4.17.21",
     "qs": "^6.12.3",
     "strftime": "^0.10.3",
-    "swell-js": "^4.2.5",
-    "swell-node": "^6.0.0"
+    "swell-js": "^4.2.3"
   }
 }
