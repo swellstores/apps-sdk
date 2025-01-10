@@ -1,9 +1,11 @@
-import SwellJS from 'swell-js';
 import qs from 'qs';
+import SwellJS from 'swell-js';
+import SwellNode from 'swell-node';
 
-import { md5, toBase64 } from './utils';
 import { Cache } from './cache';
 import { CACHE_TIMEOUT_RESOURCES } from './resources';
+import { md5, toBase64 } from './utils';
+
 export * from './resources';
 
 import type {
@@ -49,7 +51,7 @@ export class Swell {
   public shopifyCompatibilityConfig?: SwellAppShopifyCompatibilityConfig;
 
   // Represents the Swell Backend API
-  public backend?: SwellBackendAPI;
+  public backend?: SwellNode.Client;
 
   // Represends the Swell Storefront API
   public storefront: typeof SwellJS;
@@ -115,11 +117,17 @@ export class Swell {
       this.headers = headers;
       this.swellHeaders = swellHeaders;
 
-      this.backend = new SwellBackendAPI({
-        storeId: swellHeaders['store-id'],
-        accessToken: swellHeaders['access-token'],
-        apiHost: swellHeaders['api-host'],
-      });
+      const backendApiUrl = `https://${swellHeaders['apiHost'] || DEFAULT_API_HOST}`;
+      this.backend = SwellNode.swell.createClient(
+        swellHeaders['store-id'],
+        swellHeaders['access-token'],
+        {
+          url: backendApiUrl,
+          headers: {
+            'User-Agent': 'swell-functions/1.0',
+          }
+        }
+      );
 
       this.storefront = this.getStorefrontInstance({
         ...params,
@@ -588,137 +596,27 @@ export class Swell {
   }
 
   async get(
-    ...args: Parameters<SwellBackendAPI['get']>
+    ...args: Parameters<SwellNode.Client['get']>
   ): Promise<SwellData | undefined> {
     return this.backend?.get(...args);
   }
 
   async put(
-    ...args: Parameters<SwellBackendAPI['put']>
+    ...args: Parameters<SwellNode.Client['put']>
   ): Promise<SwellData | undefined> {
     return this.backend?.put(...args);
   }
 
   async post(
-    ...args: Parameters<SwellBackendAPI['post']>
+    ...args: Parameters<SwellNode.Client['post']>
   ): Promise<SwellData | undefined> {
     return this.backend?.post(...args);
   }
 
   async delete(
-    ...args: Parameters<SwellBackendAPI['delete']>
+    ...args: Parameters<SwellNode.Client['delete']>
   ): Promise<SwellData | undefined> {
     return this.backend?.delete(...args);
-  }
-}
-
-export class SwellBackendAPI {
-  public apiHost: string = DEFAULT_API_HOST;
-  public apiAuth: string = '';
-
-  constructor({
-    storeId,
-    accessToken,
-    apiHost,
-  }: {
-    storeId: string;
-    accessToken: string;
-    apiHost?: string;
-  }) {
-    this.apiHost = apiHost || DEFAULT_API_HOST;
-    this.apiAuth = toBase64(`${storeId}:${accessToken}`);
-  }
-
-  async makeRequest(method: string, url: string, data?: object) {
-    const requestOptions: {
-      method: string;
-      headers: SwellData;
-      body?: string;
-    } = {
-      method,
-      headers: {
-        Authorization: `Basic ${this.apiAuth}`,
-        'User-Agent': 'swell-functions/1.0',
-        'Content-Type': 'application/json',
-      },
-    };
-
-    let query = '';
-
-    if (data) {
-      try {
-        if (method === 'GET') {
-          query = `?${this.stringifyQuery(data)}`;
-        } else {
-          requestOptions.body = JSON.stringify(data);
-          requestOptions.headers['Content-Length'] = String(
-            requestOptions.body.length,
-          );
-        }
-      } catch {
-        throw new Error(`Error serializing data: ${data}`);
-      }
-    }
-
-    const endpointUrl = String(url).startsWith('/') ? url.substring(1) : url;
-    const requestUrl = `${this.apiHost}/${endpointUrl}${query}`;
-
-    const response = await fetch(requestUrl, requestOptions);
-
-    const responseText = await response.text();
-
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = String(responseText || '').trim();
-    }
-
-    if (response.status > 299) {
-      throw new SwellError(result, {
-        status: response.status,
-        method,
-        endpointUrl,
-      });
-    } else if (method !== 'GET' && result?.errors) {
-      throw new SwellError(result.errors, { status: 400, method, endpointUrl });
-    }
-
-    return result;
-  }
-
-  stringifyQuery(queryObject: object, prefix?: string): string {
-    const result = [];
-
-    for (const [key, value] of Object.entries(queryObject)) {
-      const prefixKey = prefix ? `${prefix}[${key}]` : key;
-      const isObject = value !== null && typeof value === 'object';
-      const encodedResult = isObject
-        ? this.stringifyQuery(value, prefixKey)
-        : `${encodeURIComponent(prefixKey)}=${
-            value === null ? '' : encodeURIComponent(value)
-          }`;
-
-      result.push(encodedResult);
-    }
-
-    return result.join('&');
-  }
-
-  async get(url: string, query?: SwellData): Promise<SwellData> {
-    return this.makeRequest('GET', url, query);
-  }
-
-  async put(url: string, data: SwellData): Promise<SwellData> {
-    return this.makeRequest('PUT', url, data);
-  }
-
-  async post(url: string, data: SwellData): Promise<SwellData> {
-    return this.makeRequest('POST', url, data);
-  }
-
-  async delete(url: string, data?: SwellData): Promise<SwellData> {
-    return this.makeRequest('DELETE', url, data);
   }
 }
 
