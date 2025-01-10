@@ -401,6 +401,11 @@ export interface ThemePageSectionSchema extends ThemeSectionSchema {
   id: string;
 }
 
+export interface ThemeSectionGroupInfo {
+  prop: string;
+  label: string;
+}
+
 export interface ThemePageTemplateSectionConfig {
   type: string;
   settings: ThemeSettings;
