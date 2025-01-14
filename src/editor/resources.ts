@@ -54,8 +54,14 @@ async function fetchResourceData(
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
+  const session = swell.storefront?.session?.getCookie() || ''
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json/?${params.toString()}`,
+    {
+      headers: {
+        'X-Session': session,
+      }
+    }
   );
   return response.json();
 }
@@ -172,8 +178,15 @@ async function fetchResourceDataByPath(
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
+  
+  const session = swell.storefront?.session?.getCookie() || '';
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json?${params}`,
+    {
+      headers: {
+        'X-Session': session,
+      }
+    }
   );
   const data = response.json();
   return data;
