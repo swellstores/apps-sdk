@@ -214,9 +214,9 @@ export async function getPageSections(
   getSchema: (type: string) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemeSectionConfig[]> {
   const order =
-    sectionGroup.order instanceof Array
+    sectionGroup?.order instanceof Array
       ? sectionGroup.order
-      : Object.keys(sectionGroup.sections || {});
+      : Object.keys(sectionGroup?.sections || {});
 
   const pageSections = [];
   for (const key of order) {
