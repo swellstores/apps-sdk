@@ -257,9 +257,9 @@ export interface ThemeSectionConfig {
 }
 
 export interface ThemeSectionSchema {
-  id?: string;
-  label?: string;
-  fields?: ThemeSettingFieldSchema[];
+  id: string;
+  label: string;
+  fields: ThemeSettingFieldSchema[];
   type?: string; // layout sections only
   tag?: string;
   class?: string;

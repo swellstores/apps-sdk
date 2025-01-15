@@ -228,6 +228,7 @@ export async function getPageSections(
 
     const schema = (await getSchema(section.type)) || {
       id: section.type,
+      label: section.type,
       tag: 'div',
       class: '',
       fields: [],
