@@ -827,15 +827,19 @@ export class SwellTheme {
   async getSectionSchema(
     sectionName: string,
   ): Promise<Partial<ThemeSectionSchema> | undefined> {
+    let result;
+
     const config = await this.getThemeTemplateConfigByType(
       'sections',
       sectionName,
     );
+
     if (config?.file_path?.endsWith('.json')) {
       try {
-        return JSON.parse(config.file_data) || undefined;
+        result = JSON.parse(config.file_data) || undefined;
       } catch {
         // noop
+        return undefined;
       }
     } else if (config?.file_path?.endsWith('.liquid')) {
       // Fallback to the liquid file schema
@@ -851,9 +855,9 @@ export class SwellTheme {
 
         const schema = this.liquidSwell.lastSchema;
         if (schema) {
-          const result =
-            this.shopifyCompatibility.getSectionConfigSchema(schema);
-          return this.shopifyCompatibility.renderSchemaTranslations(
+          result = this.shopifyCompatibility.getSectionConfigSchema(schema);
+
+          result = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             result,
             this.globals.request?.locale,
@@ -861,6 +865,13 @@ export class SwellTheme {
         }
       }
     }
+
+    // Normalize schema properties
+    result.id = result.id || sectionName;
+    result.label = result.label || sectionName;
+    result.fields = result.fields || [];
+
+    return result;
   }
 
   getSectionConfigWithSchemaTagOnly(
@@ -1260,12 +1271,12 @@ export class SwellTheme {
 
   /**
    * Get a list of section groups for a page.
-   * 
+   *
    * Basically we should get these section groups: `header`, `content` and `footer`.
    * For now, section groups are searched for using regex in the page layout.
    * There may be cases where section groups can be nested in other files,
    * in which case they will not be visible to this function.
-   * 
+   *
    * In the future, we may use a dummy page renderer and thus extract all section groups.
    */
   async getPageSectionGroups(pageId: string): Promise<ThemeSectionGroupInfo[]> {
@@ -1297,7 +1308,9 @@ export class SwellTheme {
     const localeSchema = parseJsonConfig(localeConfig);
 
     const layoutData = layoutConfig.file_data;
-    const iterator = layoutData.matchAll(/\bsections \'(\w.*?)\'|(\bcontent_for_layout\b)/gm);
+    const iterator = layoutData.matchAll(
+      /\bsections \'(\w.*?)\'|(\bcontent_for_layout\b)/gm,
+    );
     const sections: ThemeSectionGroupInfo[] = [];
 
     for (const match of iterator) {
@@ -1362,7 +1375,7 @@ export class SwellTheme {
     sectionGroup: ThemeSectionGroup,
     data?: SwellData,
   ): Promise<ThemeSectionConfig[]> {
-    const sectionConfigs = await this.getPageSections(sectionGroup);
+    const sectionConfigs = await this.getPageSections(sectionGroup, true);
     return this.renderSectionConfigs(sectionConfigs, data);
   }
 
@@ -1532,13 +1545,13 @@ export function resolveSectionSettings(
 ): ThemeSectionSettings | undefined {
   const { settings, schema } = sectionConfig;
 
-  if (!settings?.section?.settings || !schema?.fields || !schema?.id) {
+  if (!schema || !settings?.section?.settings) {
     return settings;
   }
 
   const editorSettings: ThemeSettingSectionSchema[] = [
     {
-      label: schema.label || schema.id,
+      label: schema.label,
       fields: schema.fields,
     },
   ];
