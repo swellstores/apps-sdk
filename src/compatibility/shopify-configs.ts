@@ -72,6 +72,7 @@ export function convertShopifySectionSchema(
   sectionSchema: ShopifySectionSchema,
 ): ThemeSectionSchema {
   const schema: ThemeSectionSchema = {
+    id: sectionSchema.name,
     label: sectionSchema.name,
     type: sectionSchema.type,
     tag: sectionSchema.tag,

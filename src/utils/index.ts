@@ -81,8 +81,10 @@ export async function getAllSections(
       allSections.push({
         id: sectionConfig.name.split('.').pop(),
         ...schema,
-        ...(schema && { presets: resolveSectionPresets(schema) }),
-      });
+        ...(schema && {
+          presets: resolveSectionPresets(schema as ThemeSectionSchema),
+        }),
+      } as ThemeSectionSchema);
     }
   }
 
