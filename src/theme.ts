@@ -1213,8 +1213,8 @@ export class SwellTheme {
 
   async getTemplateSchema(
     config: SwellThemeConfig,
-  ): Promise<Partial<ThemeSectionSchema> | undefined> {
-    let schema: Partial<ThemeSectionSchema> | undefined;
+  ): Promise<ThemeSectionSchema | undefined> {
+    let schema: ThemeSectionSchema | undefined;
 
     const resolvedConfig = await this.getThemeConfig(config.file_path);
 

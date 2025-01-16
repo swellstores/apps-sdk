@@ -19,7 +19,7 @@ export async function getAllSections(
   theme: SwellTheme,
   themeConfigs: SwellThemeConfig[],
 ): Promise<ThemeSectionSchema[]> {
-  const allSections = [];
+  const allSections: ThemeSectionSchema[] = [];
 
   for (const config of themeConfigs) {
     if (filterSectionConfig(config, themeConfigs)) {
@@ -28,10 +28,12 @@ export async function getAllSections(
         config as SwellThemeConfig,
       );
 
-      allSections.push({
-        id: config.name.split('.').pop(),
-        ...schema,
-      });
+      if (schema) {
+        allSections.push({
+          ...schema,
+          id: config.name.split('.').pop(),
+        });
+      }
     }
   }
 
@@ -110,6 +112,10 @@ export async function getLayoutSectionGroups(
       config as SwellThemeConfig,
     );
 
+    if (!schema) {
+      return undefined;
+    }
+
     return {
       ...schema,
       id: config?.name.split('.').pop(),
@@ -163,8 +169,8 @@ export async function getSectionSchema(
 export async function renderTemplateSchema(
   theme: SwellTheme,
   config: SwellThemeConfig,
-): Promise<any> {
-  let schema = {};
+): Promise<ThemeSectionSchema | undefined> {
+  let schema: ThemeSectionSchema | undefined;
 
   if (config?.file_path?.endsWith('.liquid')) {
     if (theme.shopifyCompatibility) {
