@@ -401,9 +401,7 @@ export class SwellTheme {
       : new SwellStorefrontSingleton(this.swell, 'account');
 
     // await account.id;
-    if (account._getter) {
-      await account._getter();
-    }
+    await account._get();
   
     if (!account?.id) {
       return null;
