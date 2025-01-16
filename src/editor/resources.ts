@@ -32,12 +32,12 @@ export class MockRecordSingleton extends SwellStorefrontSingleton {
     super(swell, '', async function (this: any): Promise<any> {
       const data = await fetchResourceData(
         swell,
-        this.constructor.name,
+        this,
         slug,
         query,
       );
       const compiled = compileData(
-        this.constructor.name,
+        this,
         data,
         swell,
         '',

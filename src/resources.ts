@@ -574,9 +574,10 @@ export class SwellStorefrontSingleton<
   async _get() {
     if (this._getter) {
       const getter = this._getter;
+      const resourceName = this.constructor.name;
 
       this._result = Promise.resolve()
-        .then(() => getter.call(this))
+        .then(() => getter.call(resourceName))
         .then((result?: T | null) => {
           this._result = result;
 
