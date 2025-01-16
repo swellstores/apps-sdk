@@ -71,7 +71,7 @@ export async function getAllSections(
   themeConfigs: Map<string, SwellThemeConfig>,
   renderTemplateSchema: (
     config: SwellThemeConfig,
-  ) => Promise<Partial<ThemeSectionSchema> | undefined>,
+  ) => Promise<ThemeSectionSchema | undefined>,
 ): Promise<ThemePageSectionSchema[]> {
   const allSections: ThemePageSectionSchema[] = [];
 
@@ -79,11 +79,13 @@ export async function getAllSections(
     if (isSectionConfig(sectionConfig, themeConfigs)) {
       const schema = await renderTemplateSchema(sectionConfig);
 
-      allSections.push({
-        id: sectionConfig.name.split('.').pop(),
-        ...schema,
-        ...(schema && { presets: resolveSectionPresets(schema) }),
-      });
+      if (schema) {
+        allSections.push({
+          ...schema,
+          id: sectionConfig.name.split('.').pop() ?? '',
+          ...(schema && { presets: resolveSectionPresets(schema) }),
+        });
+      }
     }
   }
 
