@@ -60,6 +60,7 @@
     "lodash-es": "^4.17.21",
     "qs": "^6.12.3",
     "strftime": "^0.10.3",
-    "swell-js": "^4.2.3"
+    "swell-js": "^4.2.3",
+    "universal-cookie": "^7.2.1"
   }
 }

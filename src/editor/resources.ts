@@ -6,6 +6,12 @@ import {
   SwellStorefrontSingleton,
 } from '@/resources';
 import type { SwellData } from 'types/swell';
+import Cookies from 'universal-cookie';
+
+const cookies = new Cookies();
+export function getCookie(name: string) {
+  return cookies.get(name);
+}
 
 export class MockRecordResource extends SwellStorefrontRecord {
   constructor(swell: Swell, slug: string, query: SwellData = {}) {
@@ -54,12 +60,15 @@ async function fetchResourceData(
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
-  const session = swell.storefront?.session?.getCookie() || ''
+  const session = getCookie('swell-session') || '';
+  const swellData = getCookie('swell-data') || '';
+
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json/?${params.toString()}`,
     {
       headers: {
         'X-Session': session,
+        // 'X-Swell-Data': swellData,
       }
     }
   );
@@ -178,13 +187,16 @@ async function fetchResourceDataByPath(
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
-  
-  const session = swell.storefront?.session?.getCookie() || '';
+
+  const session = getCookie('swell-session') || '';
+  const swellData = getCookie('swell-data') || '';
+
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json?${params}`,
     {
       headers: {
         'X-Session': session,
+        // 'X-Swell-Data': swellData,
       }
     }
   );
