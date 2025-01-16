@@ -20,6 +20,7 @@ import type {
   ThemeSectionConfig,
   ThemeSectionGroup,
   ThemeSectionSchema,
+  ThemeSettings,
   ThemeSettingsBlock,
 } from 'types/swell';
 
@@ -532,6 +533,20 @@ export function scopeCustomCSS(custom_css: string, sectionID: string) {
     .join(' ');
 
   return scopedCSS;
+}
+
+export function extractSettingsFromForm(
+  form: Record<string, { value: unknown } | undefined>,
+  preset: object,
+): ThemeSettings {
+  return Object.entries(preset).reduce((acc, [key, value]) => {
+    const entryValue = form[key]?.value;
+    const hasValue = entryValue !== undefined && entryValue !== null;
+
+    acc[key] = hasValue ? entryValue : value;
+
+    return acc;
+  }, {} as ThemeSettings);
 }
 
 export const SECTION_GROUP_CONTENT = 'ContentSections';

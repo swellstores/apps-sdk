@@ -1,6 +1,7 @@
 import { get, isObject } from 'lodash-es';
 
 import { Swell, StorefrontResource } from '../api';
+import { extractSettingsFromForm } from '../utils';
 import { SwellTheme } from '../theme';
 import { ThemeFont } from '../liquid/font';
 import { ThemeForm } from '../liquid/form';
@@ -102,6 +103,73 @@ export class ShopifyCompatibility {
     globals.localization = this.getLocalizationObject(store, request);
 
     globals.all_country_option_tags = this.getAllCountryOptionTags(globals.geo);
+  }
+
+  /**
+   * Extracts values from the form according to the passed settings config
+   *
+   * @input
+   * ```js
+   * form = {
+   *   field1: { value: 'value1' },
+   *   field2: { value: 'value2' },
+   *   field3: { value: null },
+   *   extra: { value: 'value3' },
+   * }
+   * config = {
+   *   current: {
+   *     field1: 'old1',
+   *     field2: 'old2',
+   *     field3: 'old3',
+   *     field4: 'old4',
+   *   },
+   *   presets: {},
+   * }
+   * ```
+   *
+   * @output
+   * ```js
+   * return {
+   *   current: {
+   *     field1: 'value1',
+   *     field2: 'value2',
+   *     field3: 'old3',
+   *     field4: 'old4',
+   *   },
+   *   presets: {},
+   * }
+   * ```
+   */
+  adaptSettings(
+    form: Record<string, { value: unknown } | undefined>,
+    config: ShopifySettingsData,
+  ) {
+    const { current, presets } = config;
+
+    // `current` can be a preset object
+    if (typeof current === 'object' && current) {
+      return {
+        current: extractSettingsFromForm(form, current),
+        presets,
+      };
+    }
+
+    // Or the `current` one can be a string key
+    const preset = presets?.[current];
+
+    if (!preset) {
+      throw new Error(
+        `Failed to build settings config: "${current}" preset is not defined`,
+      );
+    }
+
+    return {
+      current,
+      presets: {
+        ...presets,
+        [current]: extractSettingsFromForm(form, preset),
+      },
+    };
   }
 
   adaptPageData(pageData: SwellData) {
