@@ -20,6 +20,7 @@ import type {
   ThemeSectionConfig,
   ThemeSectionGroup,
   ThemeSectionSchema,
+  ThemeSettings,
   ThemeSettingsBlock,
 } from 'types/swell';
 
@@ -70,7 +71,7 @@ export async function getAllSections(
   themeConfigs: Map<string, SwellThemeConfig>,
   renderTemplateSchema: (
     config: SwellThemeConfig,
-  ) => Promise<Partial<ThemeSectionSchema> | undefined>,
+  ) => Promise<ThemeSectionSchema | undefined>,
 ): Promise<ThemePageSectionSchema[]> {
   const allSections: ThemePageSectionSchema[] = [];
 
@@ -78,13 +79,13 @@ export async function getAllSections(
     if (isSectionConfig(sectionConfig, themeConfigs)) {
       const schema = await renderTemplateSchema(sectionConfig);
 
-      allSections.push({
-        id: sectionConfig.name.split('.').pop(),
-        ...schema,
-        ...(schema && {
-          presets: resolveSectionPresets(schema as ThemeSectionSchema),
-        }),
-      } as ThemeSectionSchema);
+      if (schema) {
+        allSections.push({
+          ...schema,
+          id: sectionConfig.name.split('.').pop() ?? '',
+          ...(schema && { presets: resolveSectionPresets(schema) }),
+        });
+      }
     }
   }
 
@@ -534,6 +535,20 @@ export function scopeCustomCSS(custom_css: string, sectionID: string) {
     .join(' ');
 
   return scopedCSS;
+}
+
+export function extractSettingsFromForm(
+  form: Record<string, { value: unknown } | undefined>,
+  preset: object,
+): ThemeSettings {
+  return Object.entries(preset).reduce((acc, [key, value]) => {
+    const entryValue = form[key]?.value;
+    const hasValue = entryValue !== undefined && entryValue !== null;
+
+    acc[key] = hasValue ? entryValue : value;
+
+    return acc;
+  }, {} as ThemeSettings);
 }
 
 export const SECTION_GROUP_CONTENT = 'ContentSections';

@@ -15,11 +15,16 @@
     "baseUrl": "./",
     "outDir": "./dist",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["src/*"]
     },
     "lib": ["es2022", "dom"],
-    "verbatimModuleSyntax": true,
     "jsxImportSource": "react"
   },
-  "exclude": ["node_modules", "dist", "scripts"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "scripts",
+    "jest.config.js",
+    "src/**/*.test.ts"
+  ]
 }

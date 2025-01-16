@@ -20,6 +20,7 @@ import {
   getPageSections,
   getLayoutSectionGroups,
   isObject,
+  extractSettingsFromForm,
 } from './utils';
 import { FILE_DATA_INCLUDE_QUERY, GEO_DATA } from './constants';
 
@@ -50,7 +51,7 @@ import type {
   SwellAppShopifyCompatibilityConfig,
 } from '../types/swell';
 
-import type { ShopifySectionSchema } from 'types/shopify';
+import type { ShopifySectionSchema, ShopifySettingsData } from 'types/shopify';
 import type { SwellCollection } from 'types/swell';
 import { scopeCustomCSS } from './utils';
 
@@ -493,6 +494,49 @@ export class SwellTheme {
     return Object.keys(this.globalData).length > 0 ? this.globalData : null;
   }
 
+  /**
+   * Extracts values from the form according to the passed settings config
+   *
+   * @input
+   * ```js
+   * form = {
+   *   field1: { value: 'value1' },
+   *   field2: { value: 'value2' },
+   *   field3: { value: null },
+   *   extra: { value: 'value3' },
+   * }
+   * config = {
+   *   field1: 'old1',
+   *   field2: 'old2',
+   *   field3: 'old3',
+   *   field4: 'old4',
+   * }
+   * ```
+   *
+   * @output
+   * ```js
+   * return {
+   *   field1: 'value1',
+   *   field2: 'value2',
+   *   field3: 'old3',
+   *   field4: 'old4',
+   * }
+   * ```
+   */
+  updateSettings(
+    form: Record<string, { value: unknown } | undefined>,
+    config: object,
+  ): ThemeSettings {
+    if (this.shopifyCompatibility) {
+      return this.shopifyCompatibility.adaptSettings(
+        form,
+        config as ShopifySettingsData,
+      );
+    }
+
+    return extractSettingsFromForm(form, config);
+  }
+
   resolveTranslationLocale(
     translationsConfig: ThemeSettings,
     localeCode: string,
@@ -733,6 +777,19 @@ export class SwellTheme {
     }
 
     return this.themeConfigs;
+  }
+
+  getPageConfigPath(pageId: string): string | null {
+    if (this.shopifyCompatibility) {
+      const configPath = this.shopifyCompatibility.getThemeFilePath(
+        'templates',
+        pageId,
+      );
+
+      return `theme/${configPath}.json`;
+    }
+
+    return `theme/templates/${pageId}.json`;
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
@@ -1156,8 +1213,8 @@ export class SwellTheme {
 
   async getTemplateSchema(
     config: SwellThemeConfig,
-  ): Promise<Partial<ThemeSectionSchema> | undefined> {
-    let schema: Partial<ThemeSectionSchema> | undefined;
+  ): Promise<ThemeSectionSchema | undefined> {
+    let schema: ThemeSectionSchema | undefined;
 
     const resolvedConfig = await this.getThemeConfig(config.file_path);
 
