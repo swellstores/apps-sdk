@@ -112,7 +112,7 @@ export interface ShopifySettingSection {
 export type ShopifySettingsSchema = Array<ShopifySettingSection>;
 
 export interface ShopifySettingsData {
-  current: Record<string, any>;
+  current: Record<string, any> | string;
   presets: Record<string, Record<string, any>>;
 }
 
