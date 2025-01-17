@@ -15,7 +15,6 @@ import type {
 
 export const MAX_QUERY_PAGE_LIMIT = 100;
 export const DEFAULT_QUERY_PAGE_LIMIT = 15;
-export const CACHE_TIMEOUT_RESOURCES = 1000 * 5; // 5s
 
 export class StorefrontResource<T extends SwellData = SwellData> {
   public _getter?: StorefrontResourceGetter<T>;

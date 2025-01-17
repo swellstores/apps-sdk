@@ -146,6 +146,7 @@ async function resolveFulfillment(
 ) {
   const shipments = await instance.swell.getCachedResource(
     `shipments-${order.id}`,
+    [],
     async () => {
       return (
         // Note: this does not work with the current Swell API

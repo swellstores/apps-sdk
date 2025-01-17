@@ -37,12 +37,17 @@
     "test": "jest"
   },
   "dependencies": {
+    "@keyv/compress-brotli": "^2.0.3",
     "@swell/easyblocks-core": "^1.0.10",
+    "@types/lodash": "^4.17.5",
+    "cache-manager": "^6.3.2",
     "color": "^4.2.3",
+    "keyv": "^5.2.3",
     "liquidjs": "^10.16.1",
     "lodash": "^4.17.21",
     "lodash-es": "^4.17.21",
     "qs": "^6.12.3",
+    "quick-lru": "^7.0.0",
     "strftime": "^0.10.3",
     "swell-js": "^4.2.3"
   },
@@ -51,7 +56,6 @@
     "@kruining/waterlogged": "^1.1.45",
     "@types/color": "^3.0.6",
     "@types/jest": "29.5.14",
-    "@types/lodash": "^4.17.5",
     "@types/lodash-es": "^4.17.12",
     "@types/qs": "^6.9.15",
     "@types/react": "^18.2.64",

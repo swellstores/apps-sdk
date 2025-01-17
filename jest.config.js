@@ -7,13 +7,15 @@ const tsconfig = JSON.parse(
 
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 export default {
+  clearMocks: true,
+  moduleFileExtensions: ['ts', 'js'],
+  moduleNameMapper: pathsToModuleNameMapper(tsconfig.compilerOptions.paths),
+  modulePaths: [tsconfig.compilerOptions.baseUrl],
+  restoreMocks: true,
   roots: ['<rootDir>/test', '<rootDir>/src'],
   testEnvironment: 'node',
-  modulePaths: [tsconfig.compilerOptions.baseUrl],
-  moduleNameMapper: pathsToModuleNameMapper(tsconfig.compilerOptions.paths),
-  moduleFileExtensions: ['ts', 'js'],
-  transformIgnorePatterns: ['/node_modules/(?!(lodash-es)/)'],
   transform: {
     '^.+\\.(ts|js)$': ['esbuild-jest', { sourcemap: true }],
   },
+  transformIgnorePatterns: ['/node_modules/(?!lodash-es|quick-lru)/'],
 };

@@ -73,6 +73,7 @@ async function resolveLastOrder(instance: ShopifyCompatibility, account: Storefr
 
   const lastOrder = await instance.swell.getCachedResource(
     `last-order-${accountId}`,
+    [],
     async () => {
       return (
         await instance.swell.storefront.account.listOrders({
