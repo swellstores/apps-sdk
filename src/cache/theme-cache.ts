@@ -31,6 +31,8 @@ function buildStores(namespace: string, store?: CFWorkerKV) {
     }),
   ];
 
+  console.log(`Initializing KV store${store ? ` - KV: enabled` : ''}`);
+
   if (store) {
     stores.push(new Keyv({
       store: new CFWorkerKVKeyvAdapter(namespace, store),
