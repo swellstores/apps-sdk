@@ -22,7 +22,7 @@ export interface SwellAppConfig {
 
 export interface SwellAppShopifyCompatibilityConfig {
   page_types: Record<string, string>;
-  page_routes: Record<string, { page_id?: string } | string>;
+  page_routes: Record<string, { page_id?: string } | string | null>;
   page_resources: Array<{
     page: string;
     resources: Array<{
@@ -256,8 +256,7 @@ export interface ThemeSectionConfig {
   class?: string;
 }
 
-export interface ThemeSectionSchema {
-  id: string;
+export interface ThemeSectionSchemaData {
   label: string;
   fields: ThemeSettingFieldSchema[];
   type?: string; // layout sections only
@@ -268,6 +267,10 @@ export interface ThemeSectionSchema {
   blocks?: ThemeBlockSchema[];
   presets?: ThemePresetSchema[];
   default?: ShopifySettingSchema;
+}
+
+export interface ThemeSectionSchema extends ThemeSectionSchemaData {
+  id: string;
 }
 
 export type ThemeSettingBasicInputType =

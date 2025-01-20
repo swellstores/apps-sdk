@@ -8,6 +8,7 @@ import type {
   ThemeSectionConfig,
   ThemeSectionGroup,
   ThemeSectionSchema,
+  ThemeSectionSchemaData,
   ThemeSectionSettings,
   ThemeSettingFieldSchema,
   ThemeSettingsBlock,
@@ -157,7 +158,7 @@ export async function getLayoutSectionGroups(
 export async function getSectionSchema(
   theme: SwellTheme,
   sectionName: string,
-): Promise<ThemeSectionSchema | undefined> {
+): Promise<ThemeSectionSchemaData | undefined> {
   const config = await theme.getThemeTemplateConfigByType(
     'sections',
     sectionName,
@@ -169,8 +170,8 @@ export async function getSectionSchema(
 export async function renderTemplateSchema(
   theme: SwellTheme,
   config: SwellThemeConfig,
-): Promise<ThemeSectionSchema | undefined> {
-  let schema: ThemeSectionSchema | undefined;
+): Promise<ThemeSectionSchemaData | undefined> {
+  let schema: ThemeSectionSchemaData | undefined;
 
   if (config?.file_path?.endsWith('.liquid')) {
     if (theme.shopifyCompatibility) {

@@ -1232,10 +1232,10 @@ export class SwellTheme {
           {}) as ShopifySectionSchema;
 
         if (lastSchema) {
-          schema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
+          const configSchema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
-            schema,
+            configSchema,
             this.globals.request?.locale,
           );
         }
