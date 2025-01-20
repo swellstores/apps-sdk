@@ -24,11 +24,12 @@ export class ThemeCache extends Cache {
 function buildStores(namespace: string, store?: CFWorkerKV) {
   const stores = [ new Keyv() ];
 
-  console.log(`Initializing KV store${store ? ` - KV: enabled` : ''}`);
+  console.log(`Initializing KV store: ${store ? 'enabled' : 'disabled'}`);
 
   if (store) {
     stores.push(new Keyv({
       store: new CFWorkerKVKeyvAdapter(namespace, store),
+      namespace: '', // disable default keyv namespace
     }));
   }
 
