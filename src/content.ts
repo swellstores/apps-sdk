@@ -6,7 +6,7 @@ export function getContentModel(
   swell: Swell,
   name: string,
 ): Promise<any> {
-  return swell.getCachedResource(`content-model-${name}`, () =>
+  return swell.getCachedResource(`content-model-${name}`, [], () =>
     swell.get('/:content/{name}', {
       name,
       public: true,

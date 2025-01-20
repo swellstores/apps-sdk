@@ -12,7 +12,7 @@ import type {
   ThemeBlockSchema,
   ThemeEditorSchema,
   ThemePresetSchema,
-  ThemeSectionSchema,
+  ThemeSectionSchemaData,
   ThemeSettingFieldSchema,
   ThemeSettings,
   ThemeSettingSectionSchema,
@@ -70,9 +70,8 @@ export function convertShopifySettingsPresets(
 
 export function convertShopifySectionSchema(
   sectionSchema: ShopifySectionSchema,
-): ThemeSectionSchema {
-  const schema: ThemeSectionSchema = {
-    id: sectionSchema.name.split('.').pop() ?? '',
+): ThemeSectionSchemaData {
+  const schema: ThemeSectionSchemaData = {
     label: sectionSchema.name,
     type: sectionSchema.type,
     tag: sectionSchema.tag,

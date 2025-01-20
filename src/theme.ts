@@ -262,16 +262,14 @@ export class SwellTheme {
       this.swell.swellHeaders['theme-config-version'],
     );
 
-    const settings = await this.swell.getCachedVersion<ThemeSettings>(
-      ['theme-settings-resolved'],
+    const settings = await this.swell.getCachedThemeVersion<ThemeSettings>(
+      'theme-settings-resolved',
       configVersion,
-      () => {
-        return resolveThemeSettings(
-          this,
-          configs.theme,
-          configs.editor?.settings,
-        );
-      },
+      () => resolveThemeSettings(
+        this,
+        configs.theme,
+        configs.editor?.settings,
+      ),
     );
 
     if (!settings) {
@@ -369,7 +367,7 @@ export class SwellTheme {
       return defaultValue;
     }
 
-    return this.swell.getCachedResource(`${key}-${cacheKey}`, () => handler());
+    return this.swell.getCachedResource(`${key}-${cacheKey}`, [], () => handler());
   }
 
   async fetchCart(): Promise<StorefrontResource> {
@@ -750,25 +748,27 @@ export class SwellTheme {
       this.swell.swellHeaders['theme-config-version'],
     );
 
-    const configs = await this.swell.getCachedVersion<
-      SwellCollection<SwellThemeConfig>
-    >(['theme-configs-all', themeId], configVersion, async () => {
-      console.log(
-        `Retrieving theme configurations - version: ${configVersion}`,
-      );
+    const configs = await this.swell.getCachedThemeVersion<SwellCollection<SwellThemeConfig>>(
+      `theme-configs-all:${themeId}`,
+      configVersion,
+      async () => {
+        console.log(
+          `Retrieving theme configurations - version: ${configVersion}`,
+        );
 
-      const configs = await this.swell.get('/:themes:configs', {
-        ...this.themeConfigQuery(),
-        // TODO: paginate to support more than 1000 configs
-        limit: 1000,
-        fields: 'type, name, file, file_path',
-        include: {
-          file_data: FILE_DATA_INCLUDE_QUERY,
-        },
-      });
+        const configs = await this.swell.get('/:themes:configs', {
+          ...this.themeConfigQuery(),
+          // TODO: paginate to support more than 1000 configs
+          limit: 1000,
+          fields: 'type, name, file, file_path',
+          include: {
+            file_data: FILE_DATA_INCLUDE_QUERY,
+          },
+        });
 
-      return configs as SwellCollection<SwellThemeConfig>;
-    });
+        return configs as SwellCollection<SwellThemeConfig>;
+      },
+    );
 
     this.themeConfigs = new Map();
 
@@ -1232,10 +1232,10 @@ export class SwellTheme {
           {}) as ShopifySectionSchema;
 
         if (lastSchema) {
-          schema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
+          const configSchema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
-            schema,
+            configSchema,
             this.globals.request?.locale,
           );
         }

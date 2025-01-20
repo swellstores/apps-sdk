@@ -26,7 +26,7 @@ import type {
   ThemeSettings,
   ThemePresetSchema,
   ThemeEditorSchema,
-  ThemeSectionSchema,
+  ThemeSectionSchemaData,
   SwellData,
   SwellMenu,
   SwellRecord,
@@ -326,7 +326,7 @@ export class ShopifyCompatibility {
 
   getSectionConfigSchema(
     sectionSchema: ShopifySectionSchema,
-  ): ThemeSectionSchema {
+  ): ThemeSectionSchemaData {
     return convertShopifySectionSchema(sectionSchema);
   }
 
