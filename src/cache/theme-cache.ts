@@ -1,4 +1,3 @@
-import { KeyvBrotli } from '@keyv/compress-brotli';
 import { Keyv } from 'keyv';
 import QuickLRU from 'quick-lru';
 
@@ -36,7 +35,6 @@ function buildStores(namespace: string, store?: CFWorkerKV) {
   if (store) {
     stores.push(new Keyv({
       store: new CFWorkerKVKeyvAdapter(namespace, store),
-      compression: KeyvBrotli
     }));
   }
 

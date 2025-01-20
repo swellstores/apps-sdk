@@ -37,7 +37,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "@keyv/compress-brotli": "^2.0.3",
     "@swell/easyblocks-core": "^1.0.10",
     "@types/lodash": "^4.17.5",
     "cache-manager": "^6.3.2",
