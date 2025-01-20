@@ -1,5 +1,4 @@
 import { Keyv } from 'keyv';
-import QuickLRU from 'quick-lru';
 
 import type { CFWorkerKV } from 'types/swell';
 
@@ -7,7 +6,6 @@ import { Cache } from './cache';
 import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
 
 const TTL = 1000 * 60; // 1m
-const MAX_ENTRIES = 100; // per client
 
 
 /**
@@ -24,12 +22,7 @@ export class ThemeCache extends Cache {
 }
 
 function buildStores(namespace: string, store?: CFWorkerKV) {
-  const stores = [
-    new Keyv({
-      // @ts-ignore
-      store: new QuickLRU.default({ maxSize: MAX_ENTRIES }),
-    }),
-  ];
+  const stores = [ new Keyv() ];
 
   console.log(`Initializing KV store${store ? ` - KV: enabled` : ''}`);
 

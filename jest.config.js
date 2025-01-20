@@ -17,5 +17,5 @@ export default {
   transform: {
     '^.+\\.(ts|js)$': ['esbuild-jest', { sourcemap: true }],
   },
-  transformIgnorePatterns: ['/node_modules/(?!lodash-es|quick-lru)/'],
+  transformIgnorePatterns: ['/node_modules/(?!lodash-es)/'],
 };
