@@ -18,7 +18,8 @@ export class RequestCache extends Cache {
 function buildStores() : Keyv[] {
   return [
     new Keyv({
-      store: new QuickLRU({ maxSize: MAX_ENTRIES }),
+      // @ts-ignore
+      store: new QuickLRU.default({ maxSize: MAX_ENTRIES }),
     }),
   ];
 }

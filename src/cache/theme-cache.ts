@@ -26,7 +26,8 @@ export class ThemeCache extends Cache {
 function buildStores(namespace: string, store?: CFWorkerKV) {
   const stores = [
     new Keyv({
-      store: new QuickLRU({ maxSize: MAX_ENTRIES }),
+      // @ts-ignore
+      store: new QuickLRU.default({ maxSize: MAX_ENTRIES }),
     }),
   ];
 
