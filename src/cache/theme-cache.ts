@@ -1,5 +1,4 @@
 import { Keyv } from 'keyv';
-import KeyvGzip from '@keyv/compress-gzip';
 
 import type { CFWorkerKV } from 'types/swell';
 
@@ -29,7 +28,6 @@ function buildStores(namespace: string, store?: CFWorkerKV) {
 
   if (store) {
     stores.push(new Keyv({
-      compression: new KeyvGzip(),
       namespace: 'theme',
       store: new CFWorkerKVKeyvAdapter(namespace, store),
     }));
