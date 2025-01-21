@@ -1,11 +1,12 @@
 import { Keyv } from 'keyv';
+import KeyvGzip from '@keyv/compress-gzip';
 
 import type { CFWorkerKV } from 'types/swell';
 
 import { Cache } from './cache';
 import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
 
-const TTL = 1000 * 60; // 1m
+const TTL = 90 * 24 * 60 * 60 * 1000; // 90 days
 
 
 /**
@@ -28,6 +29,7 @@ function buildStores(namespace: string, store?: CFWorkerKV) {
 
   if (store) {
     stores.push(new Keyv({
+      compression: new KeyvGzip(),
       namespace: 'theme',
       store: new CFWorkerKVKeyvAdapter(namespace, store),
     }));

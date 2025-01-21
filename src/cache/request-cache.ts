@@ -2,7 +2,7 @@ import { Keyv } from 'keyv';
 
 import { Cache } from './cache';
 
-const TTL = 1000 * 5; // 5s,
+const TTL = 30 * 1000; // 30s,
 
 export class RequestCache extends Cache {
   constructor() {
