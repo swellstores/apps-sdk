@@ -28,8 +28,8 @@ function buildStores(namespace: string, store?: CFWorkerKV) {
 
   if (store) {
     stores.push(new Keyv({
+      namespace: 'theme',
       store: new CFWorkerKVKeyvAdapter(namespace, store),
-      namespace: '', // disable default keyv namespace
     }));
   }
 
