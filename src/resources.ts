@@ -12,6 +12,7 @@ import type {
   SwellCollectionPages,
   StorefrontResourceGetter,
 } from '../types/swell';
+import { isLikePromise } from './liquid/utils';
 
 export const MAX_QUERY_PAGE_LIMIT = 100;
 export const DEFAULT_QUERY_PAGE_LIMIT = 15;
@@ -86,7 +87,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
         }
 
         // Return prop then if result is a promise
-        if (instance._result instanceof Promise) {
+        if (isLikePromise(instance._result)) {
           return instance._result
             .then(() => {
               return instance._getCollectionResultOrProp(instance, prop);

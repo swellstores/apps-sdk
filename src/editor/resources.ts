@@ -7,6 +7,19 @@ import {
 } from '@/resources';
 import type { SwellData } from 'types/swell';
 
+// use getCookie function which is set in swell.storefront
+function getCookie(swell: Swell, name: string): string {
+  const storefront = swell?.storefront as {
+    options?: { getCookie?: (key: string) => string | undefined };
+  };
+  const getCookie = storefront?.options?.getCookie;
+  if (typeof getCookie === 'function') {
+    return getCookie(name) || '';
+  }
+
+  return '';
+}
+
 export class MockRecordResource extends SwellStorefrontRecord {
   constructor(swell: Swell, slug: string, query: SwellData = {}) {
     super(swell, '', slug, query, async function (this: any): Promise<any> {
@@ -54,8 +67,18 @@ async function fetchResourceData(
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
+
+  const session = getCookie(swell, 'swell-session');
+  const swellData = getCookie(swell, 'swell-data');
+
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json/?${params.toString()}`,
+    {
+      headers: {
+        'X-Session': session,
+        'Swell-Data': JSON.stringify(swellData),
+      },
+    },
   );
   return response.json();
 }
@@ -172,8 +195,18 @@ async function fetchResourceDataByPath(
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
+
+  const session = getCookie(swell, 'swell-session');
+  const swellData = getCookie(swell, 'swell-data');
+
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json?${params}`,
+    {
+      headers: {
+        'X-Session': session,
+        'Swell-Data': JSON.stringify(swellData),
+      },
+    },
   );
   const data = response.json();
   return data;
