@@ -1,18 +1,18 @@
 import type { CFWorkerKV } from 'types/swell';
 
-import { md5 } from '../utils';
-
 /**
  * CloudFlare Workers KV adapter for Keyv.
  * Includes namespacing to prevent conflicts within shared storage.
  */
 export class CFWorkerKVKeyvAdapter {
-  private namespace: string;
+  private namespace: string; // magically passed in from Keyv
   private store: CFWorkerKV;
 
-  constructor(namespace: string, store: CFWorkerKV) {
-    this.namespace = namespace;
+  constructor(store: CFWorkerKV) {
     this.store = store;
+
+    // keyv will override namespace at runtime
+    this.namespace = 'dummy';
   }
 
   async has(key: string) : Promise<boolean> {
@@ -20,18 +20,22 @@ export class CFWorkerKVKeyvAdapter {
   }
 
   async get(key: string) : Promise<any> {
-    return this.store.get(this.cacheKey(key));
+    return this.store.get(key);
   }
 
   async set(key: string, value: any) : Promise<any> {
-    return this.store.put(this.cacheKey(key), value);
+    return this.store.put(key, value);
   }
 
   async delete(key: string) : Promise<void> {
-    await this.store.delete(this.cacheKey(key));
+    await this.store.delete(key);
   }
 
   async clear() : Promise<void> {
+    // store.clear() would reset the entire cache, but in this case
+    // we only want to clear entries within the given namespace.
+    // Note: If the cache is large, then this will not scale
+
     let cursor = '';
     let complete = false;
 
@@ -52,20 +56,5 @@ export class CFWorkerKVKeyvAdapter {
         );
       }
     }
-  }
-
-  /**
-   * Generates a namespaced cache key.
-   */
-  private cacheKey(key: string) : string {
-    let cacheKey = `${this.namespace}:${key}`;
-    // TODO: calculate the number of bytes
-    // 512 bytes, maximum key for KV storage
-    if (cacheKey.length > 512) {
-      // TODO: slice the first 480 bytes instead of the length of the code units
-      cacheKey = `${cacheKey.slice(0, 480)}${md5(cacheKey)}`;
-    }
-
-    return cacheKey;
   }
 }

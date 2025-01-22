@@ -131,6 +131,7 @@ export class Swell {
         swellHeaders,
       });
 
+      // Generate a unique namespace for this storefront/theme
       this.instanceId = [
         'store-id',
         'environment-id',
@@ -138,8 +139,8 @@ export class Swell {
         'theme-id',
         'theme-branch-id',
       ]
-        .map((key) => swellHeaders[key])
-        .join('|');
+        .map((key) => swellHeaders[key] || '0')
+        .join(':');
 
       this.isEditor =
         clientProps.isEditor ?? swellHeaders['deployment-mode'] === 'editor';
