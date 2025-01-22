@@ -101,7 +101,7 @@ export function isIterable<T>(value: unknown): value is Iterable<T> {
   return isObject(value) && Symbol.iterator in value;
 }
 
-export function isLikePromise(value: unknown): value is PromiseLike<unknown> {
+export function isLikePromise(value: unknown): value is Promise<unknown> {
   return isObject(value) && typeof value.then === 'function';
 }
 

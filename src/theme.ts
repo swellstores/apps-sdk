@@ -377,7 +377,8 @@ export class SwellTheme {
       : new SwellStorefrontSingleton(this.swell, 'cart');
 
     await cart.id;
-    if (!cart.id) {
+  
+    if (!cart?.id) {
       return {} as StorefrontResource;
     }
 
@@ -396,7 +397,8 @@ export class SwellTheme {
       : new SwellStorefrontSingleton(this.swell, 'account');
 
     await account.id;
-    if (!account.id) {
+  
+    if (!account?.id) {
       return null;
     }
 
