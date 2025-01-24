@@ -262,9 +262,10 @@ export class SwellTheme {
       this.swell.swellHeaders['theme-config-version'],
     );
 
-    const settings = await this.swell.getCachedThemeVersion<ThemeSettings>(
-      'theme-settings-resolved',
-      configVersion,
+    // Cache normalized theme settings.
+    const settings = await this.swell.getCachedResource<ThemeSettings>(
+      `theme-settings-resolved:v@${configVersion}`,
+      [],
       () => resolveThemeSettings(
         this,
         configs.theme,
@@ -751,7 +752,7 @@ export class SwellTheme {
     );
 
     const configs = await this.swell.getCachedThemeVersion<SwellCollection<SwellThemeConfig>>(
-      `theme-configs-all:${themeId}`,
+      `theme-configs-all:${this.swell.instanceId}`,
       configVersion,
       async () => {
         console.log(
