@@ -22,38 +22,48 @@ function getCookie(swell: Swell, name: string): string {
 
 export class MockRecordResource extends SwellStorefrontRecord {
   constructor(swell: Swell, slug: string, query: SwellData = {}) {
-    super(swell, '', slug, query, async function (this: any): Promise<any> {
-      const data = await fetchResourceData(
-        swell,
-        this.constructor.name,
-        slug,
-        query,
-      );
-      return compileData(this.constructor.name, data, swell, '', slug, query);
-    });
+    super(
+      swell,
+      '',
+      slug,
+      query,
+      async function (this: { _resourceName: string }): Promise<any> {
+        const data = await fetchResourceData(
+          swell,
+          this._resourceName,
+          slug,
+          query,
+        );
+        return compileData(this._resourceName, data, swell, '', slug, query);
+      },
+    );
   }
 }
 
 export class MockRecordSingleton extends SwellStorefrontSingleton {
   constructor(swell: Swell, slug: string, query: SwellData = {}) {
-    super(swell, '', async function (this: any): Promise<any> {
-      const data = await fetchResourceData(
-        swell,
-        this.constructor.name,
-        slug,
-        query,
-      );
-      const compiled = compileData(
-        this.constructor.name,
-        data,
-        swell,
-        '',
-        slug,
-        query,
-      );
+    super(
+      swell,
+      '',
+      async function (this: { _resourceName: string }): Promise<any> {
+        const data = await fetchResourceData(
+          swell,
+          this._resourceName,
+          slug,
+          query,
+        );
+        const compiled = compileData(
+          this._resourceName,
+          data,
+          swell,
+          '',
+          slug,
+          query,
+        );
 
-      return compiled;
-    });
+        return compiled;
+      },
+    );
   }
 }
 
