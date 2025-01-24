@@ -40,7 +40,6 @@ const SWELL_CLIENT_HEADERS = Object.freeze([
 
 const resourceCaches: Map<string, Cache> = new Map();
 const requestCaches: Map<string, Cache> = new Map();
-const themeCaches: Map<string, ThemeCache> = new Map();
 
 export class Swell {
   public url: URL;
@@ -48,6 +47,8 @@ export class Swell {
   public swellHeaders: SwellData;
   public queryParams: SwellData;
   public workerEnv?: CFThemeEnv;
+
+  private themeCache: ThemeCache;
 
   // Represents the swell.json app config
   public config?: SwellAppConfig;
@@ -112,6 +113,8 @@ export class Swell {
     );
 
     this.workerEnv = workerEnv;
+
+    this.themeCache = new ThemeCache(this.workerEnv?.THEME);
 
     if (serverHeaders) {
       const { headers, swellHeaders } = Swell.formatHeaders(serverHeaders);
@@ -209,7 +212,7 @@ export class Swell {
     handler: () => T | Promise<T>,
   ) {
     const cacheKey = `${key}:v@${version}`;
-    return this.getThemeCache().fetch<T>(cacheKey, handler);
+    return this.themeCache.fetch<T>(cacheKey, handler);
   }
 
   /**
@@ -397,21 +400,6 @@ export class Swell {
 
       return storefrontRequest<T>(method, url, id, data, opt);
     };
-  }
-
-  /**
-   * Caches client theme in perstent cache + in memory.
-   */
-  private getThemeCache() : Cache {
-    let cache = themeCaches.get(this.instanceId);
-    if (!cache) {
-      cache = new ThemeCache(
-        this.instanceId,
-        this.workerEnv?.THEME,
-      );
-      themeCaches.set(this.instanceId, cache);
-    }
-    return cache;
   }
 
   /**

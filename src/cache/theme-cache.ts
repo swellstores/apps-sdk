@@ -5,6 +5,7 @@ import type { CFWorkerKV } from 'types/swell';
 import { Cache } from './cache';
 import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
 
+const NAMESPACE = 'THEME';
 const TTL = 90 * 24 * 60 * 60 * 1000; // 90 days
 
 
@@ -13,22 +14,22 @@ const TTL = 90 * 24 * 60 * 60 * 1000; // 90 days
  * The KV layer supports namespacing and compression.
  */
 export class ThemeCache extends Cache {
-  constructor(namespace: string, store?: CFWorkerKV) {
+  constructor(store?: CFWorkerKV) {
     super({
-      stores: buildStores(namespace, store),
+      stores: buildStores(store),
       ttl: TTL,
     })
   }
 }
 
-function buildStores(namespace: string, store?: CFWorkerKV) {
+function buildStores(store?: CFWorkerKV) {
   const stores = [ new Keyv() ];
 
   console.log(`Initializing KV store: ${store ? 'enabled' : 'disabled'}`);
 
   if (store) {
     stores.push(new Keyv({
-      namespace,
+      namespace: NAMESPACE,
       store: new CFWorkerKVKeyvAdapter(store),
     }));
   }
