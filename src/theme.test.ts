@@ -4,12 +4,17 @@ import { ShopifyCompatibility } from './compatibility/shopify';
 
 import type { ShopifySettingsData } from 'types/shopify';
 
+const defaultServerHeaders = {
+  'swell-store-id': 'test',
+  'swell-public-key': 'pk_test_key',
+};
+
 describe('SwellTheme', () => {
   describe('#updateSettings', () => {
     it('should update settings', () => {
       const swell = new Swell({
         url: 'http://localhost',
-        serverHeaders: {},
+        serverHeaders: defaultServerHeaders,
       });
 
       const theme = new SwellTheme(swell);
@@ -41,7 +46,7 @@ describe('SwellTheme', () => {
     it('should update settings (shopify compatibility: current => object)', () => {
       const swell = new Swell({
         url: 'http://localhost',
-        serverHeaders: {},
+        serverHeaders: defaultServerHeaders,
       });
 
       const theme = new SwellTheme(swell);
@@ -80,7 +85,7 @@ describe('SwellTheme', () => {
     it('should update settings (shopify compatibility: current => string)', () => {
       const swell = new Swell({
         url: 'http://localhost',
-        serverHeaders: {},
+        serverHeaders: defaultServerHeaders,
       });
 
       const theme = new SwellTheme(swell);
@@ -125,7 +130,7 @@ describe('SwellTheme', () => {
     it('should return page config path', () => {
       const swell = new Swell({
         url: 'http://localhost',
-        serverHeaders: {},
+        serverHeaders: defaultServerHeaders,
       });
 
       const theme = new SwellTheme(swell);
@@ -138,7 +143,7 @@ describe('SwellTheme', () => {
     it('should return page config path (shopify compatibility)', () => {
       const swell = new Swell({
         url: 'http://localhost',
-        serverHeaders: {},
+        serverHeaders: defaultServerHeaders,
         shopifyCompatibilityConfig: {
           forms: [],
           object_resources: [],

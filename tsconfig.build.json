@@ -10,7 +10,6 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "isolatedModules": true,
     "jsx": "react-jsx",
     "baseUrl": "./",
     "outDir": "./dist",
@@ -25,6 +24,7 @@
     "dist",
     "scripts",
     "jest.config.js",
+    "eslint.config.mjs",
     "src/**/*.test.ts"
   ]
 }

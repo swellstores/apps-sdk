@@ -15,7 +15,9 @@ export default tseslint.config(
     languageOptions: {
       parserOptions: {
         projectService: true,
-        tsconfigRootDir: import.meta.dirname,
+        tsconfigRootDir:
+          // eslint-disable-next-line no-undef
+          typeof __dirname === 'string' ? __dirname : import.meta.dirname,
       },
     },
   },
