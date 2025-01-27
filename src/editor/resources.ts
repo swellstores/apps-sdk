@@ -79,7 +79,7 @@ async function fetchResourceData(
   });
 
   const session = getCookie(swell, 'swell-session');
-  const swellData = getCookie(swell, 'swell-data');
+  const swellData = getCookie(swell, 'swell-data') || {};
 
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json/?${params.toString()}`,
@@ -207,7 +207,7 @@ async function fetchResourceDataByPath(
   });
 
   const session = getCookie(swell, 'swell-session');
-  const swellData = getCookie(swell, 'swell-data');
+  const swellData = getCookie(swell, 'swell-data') || {};
 
   const response = await fetch(
     `${swell.storefront_url}/resources/${resource}.json?${params}`,
