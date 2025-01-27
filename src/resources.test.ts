@@ -2,6 +2,11 @@ import { StorefrontResource, Swell } from './api';
 import { SwellTheme } from './theme';
 import { MockRecordSingleton } from './editor/resources';
 
+const defaultServerHeaders = {
+  'swell-store-id': 'test',
+  'swell-public-key': 'pk_test_key',
+};
+
 describe('SwellSingletonResource', () => {
   describe('#should correctly fetch singleton resources in parallel', () => {
     it('should update settings', async () => {
@@ -25,7 +30,7 @@ describe('SwellSingletonResource', () => {
 
       const swell = new Swell({
         url: 'http://localhost',
-        serverHeaders: {},
+        serverHeaders: defaultServerHeaders,
       });
 
       swell.storefront_url = 'test';

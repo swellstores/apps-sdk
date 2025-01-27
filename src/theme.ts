@@ -378,7 +378,7 @@ export class SwellTheme {
       : new SwellStorefrontSingleton(this.swell, 'cart');
 
     await cart.id;
-  
+
     if (!cart?.id) {
       return {} as StorefrontResource;
     }
@@ -398,7 +398,7 @@ export class SwellTheme {
       : new SwellStorefrontSingleton(this.swell, 'account');
 
     await account.id;
-  
+
     if (!account?.id) {
       return null;
     }
@@ -671,7 +671,10 @@ export class SwellTheme {
     return null;
   }
 
-  resolveLookupResource(collection: string, id: string): StorefrontResource {
+  resolveLookupResource(
+    collection: string,
+    id: string,
+  ): StorefrontResource<SwellRecord> {
     const LookupResource = this.resources?.records?.[collection];
     const resource = LookupResource
       ? new LookupResource(this.swell, id)

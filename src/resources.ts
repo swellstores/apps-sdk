@@ -133,13 +133,15 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     return instance[prop];
   }
 
-  async _get(..._args: any[]): Promise<T | null | undefined> {
+  async _get(..._args: unknown[]): Promise<T | null | undefined> {
     if (this._getter) {
-      const getter = this._getter;
+      const getter = this._getter.bind(
+        this as unknown as SwellStorefrontResource<T>,
+      );
 
-      this._result = Promise.resolve()
+      return Promise.resolve()
         .then(() => getter())
-        .then((result: any) => {
+        .then((result) => {
           this._result = result;
 
           if (result) {
@@ -148,10 +150,10 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 
           return result;
         })
-        .catch((err: any) => {
+        .catch((err) => {
           console.log(err);
           return null;
-        }) as unknown as T;
+        });
     }
 
     return this._result;
@@ -232,6 +234,7 @@ export class SwellStorefrontResource<
 > extends StorefrontResource<T> {
   public _swell: Swell;
   public _resource: any;
+  public _resourceName!: string;
 
   public readonly _collection: string;
   public _query: SwellData = {};
@@ -343,7 +346,7 @@ export class SwellStorefrontCollection<
   _defaultGetter(): StorefrontResourceGetter<T> {
     const resource = this.getResourceObject();
 
-    async function defaultGetter(this: SwellStorefrontCollection<T>) {
+    async function defaultGetter(this: SwellStorefrontResource<T>) {
       return resource.list(this._query);
     }
 
@@ -434,7 +437,7 @@ export class SwellStorefrontCollection<
         const result = await originalGetter?.call(cloned);
 
         if (result) {
-          const compatibilityProps = compatibilityGetter(result as T);
+          const compatibilityProps = compatibilityGetter(result);
           return {
             ...result,
             ...(compatibilityProps || undefined),
@@ -449,7 +452,7 @@ export class SwellStorefrontCollection<
     if (this._isResultResolved()) {
       const result = cloneDeep(this._result);
       if (result) {
-        const compatibilityProps = compatibilityGetter(result as T);
+        const compatibilityProps = compatibilityGetter(result);
 
         Object.assign(cloned, result);
 

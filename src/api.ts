@@ -1,12 +1,7 @@
 import SwellJS from 'swell-js';
 import qs from 'qs';
 
-import {
-  Cache,
-  RequestCache,
-  ResourceCache,
-  ThemeCache
-} from './cache';
+import { Cache, RequestCache, ResourceCache, ThemeCache } from './cache';
 import { md5, toBase64 } from './utils';
 
 import type {
@@ -233,7 +228,8 @@ export class Swell {
     // Clear cache if header changed
     if (cacheModified) {
       const cacheKey = '_cache-modified';
-      const prevCacheModified = await this.getResourceCache().get<string>(cacheKey);
+      const prevCacheModified =
+        await this.getResourceCache().get<string>(cacheKey);
       if (prevCacheModified !== cacheModified) {
         await this.getRequestCache().flushAll();
         await this.getResourceCache().set(
@@ -290,7 +286,11 @@ export class Swell {
         value: session,
       });
     } catch (err) {
-      console.error(`Swell: unable to load settings (${err})`);
+      if (err instanceof Error) {
+        err.message = `Swell: unable to load settings (${err.message})`;
+      }
+
+      console.error(err);
     }
 
     return this.storefront.settings.get();
@@ -333,29 +333,33 @@ export class Swell {
     return this.backend?.delete(...args);
   }
 
-
   private getStorefrontInstance(params: SwellData) {
     const { swellHeaders, getCookie, setCookie, storefrontSettingStates } =
       params;
 
-    const storefront = SwellJS.create(
-      swellHeaders['store-id'],
-      swellHeaders['public-key'],
-      {
-        url: swellHeaders['admin-url'],
-        vaultUrl: swellHeaders['vault-url'],
-        getCookie,
-        setCookie:
-          setCookie &&
-          ((name: string, value: string, options: any) =>
-            setCookie(name, value, options, this)),
-        //@ts-ignore
-        headers: {
-          'Swell-Store-id': swellHeaders['store-id'],
-          'Swell-Storefront-Id': swellHeaders['storefront-id'],
-        },
+    const storeId = swellHeaders['store-id'];
+    const publicKey = swellHeaders['public-key'];
+
+    if (!storeId || !publicKey) {
+      throw new Error(
+        'Missing required headers: "swell-store-id" and "swell-public-key"',
+      );
+    }
+
+    const storefront = SwellJS.create(storeId, publicKey, {
+      url: swellHeaders['admin-url'],
+      vaultUrl: swellHeaders['vault-url'],
+      getCookie,
+      setCookie:
+        setCookie &&
+        ((name: string, value: string, options: any) =>
+          setCookie(name, value, options, this)),
+      //@ts-ignore
+      headers: {
+        'Swell-Store-id': storeId,
+        'Swell-Storefront-Id': swellHeaders['storefront-id'],
       },
-    );
+    });
 
     if (storefrontSettingStates) {
       Object.assign(storefront.settings, storefrontSettingStates);
@@ -405,7 +409,7 @@ export class Swell {
   /**
    * Caches client resources in memory.
    */
-  private getResourceCache() : Cache {
+  private getResourceCache(): Cache {
     let cache = resourceCaches.get(this.instanceId);
     if (!cache) {
       cache = new ResourceCache();
@@ -417,7 +421,7 @@ export class Swell {
   /**
    * Caches client storefront API requests in memory.
    */
-  private getRequestCache() : Cache {
+  private getRequestCache(): Cache {
     let cache = requestCaches.get(this.instanceId);
     if (!cache) {
       cache = new RequestCache();

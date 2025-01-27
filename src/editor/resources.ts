@@ -5,7 +5,7 @@ import {
   StorefrontResource,
   SwellStorefrontSingleton,
 } from '@/resources';
-import type { SwellData } from 'types/swell';
+import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
 
 // use getCookie function which is set in swell.storefront
 function getCookie(swell: Swell, name: string): string {
@@ -22,67 +22,60 @@ function getCookie(swell: Swell, name: string): string {
 
 export class MockRecordResource extends SwellStorefrontRecord {
   constructor(swell: Swell, slug: string, query: SwellData = {}) {
-    super(
-      swell,
-      '',
-      slug,
-      query,
-      async function (this: { _resourceName: string }): Promise<any> {
-        const data = await fetchResourceData(
-          swell,
-          this._resourceName,
-          slug,
-          query,
-        );
-        return compileData(this._resourceName, data, swell, '', slug, query);
-      },
-    );
+    super(swell, '', slug, query, async function (): Promise<SwellRecord> {
+      const data = await fetchResourceData<SwellRecord>(
+        swell,
+        this._resourceName,
+        slug,
+        query,
+      );
+
+      return compileData(this._resourceName, data, swell, '', slug, query);
+    });
   }
 }
 
 export class MockRecordSingleton extends SwellStorefrontSingleton {
   constructor(swell: Swell, slug: string, query: SwellData = {}) {
-    super(
-      swell,
-      '',
-      async function (this: { _resourceName: string }): Promise<any> {
-        const data = await fetchResourceData(
-          swell,
-          this._resourceName,
-          slug,
-          query,
-        );
-        const compiled = compileData(
-          this._resourceName,
-          data,
-          swell,
-          '',
-          slug,
-          query,
-        );
+    super(swell, '', async function (): Promise<SwellRecord> {
+      const data = await fetchResourceData<SwellRecord>(
+        swell,
+        this._resourceName,
+        slug,
+        query,
+      );
 
-        return compiled;
-      },
-    );
+      const compiled = compileData<SwellRecord>(
+        this._resourceName,
+        data,
+        swell,
+        '',
+        slug,
+        query,
+      );
+
+      return compiled;
+    });
   }
 }
 
-async function fetchResourceData(
+async function fetchResourceData<T>(
   swell: Swell,
   resource: string,
   slug?: string,
   query?: SwellData,
-): Promise<any> {
+): Promise<T> {
   const params = new URLSearchParams({
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
 
+  const search = params.size > 0 ? `?${params}` : '';
   const session = getCookie(swell, 'swell-session');
   const swellData = getCookie(swell, 'swell-data') || {};
 
   const response = await fetch(
-    `${swell.storefront_url}/resources/${resource}.json/?${params.toString()}`,
+    `${swell.storefront_url}/resources/${resource}.json/${search}`,
     {
       headers: {
         'X-Session': session,
@@ -90,21 +83,21 @@ async function fetchResourceData(
       },
     },
   );
-  return response.json();
+
+  return response.json() as T;
 }
 
-function compileData(
+function compileData<T>(
   resource: string,
-  data: any,
+  data: object,
   swell: Swell,
   path = '',
   parent_slug: string,
   parent_query: SwellData,
-): Record<string, any> {
-  const compiled: Record<string, any> = {};
+): T {
+  const compiled: Record<string, unknown> = {};
 
-  for (const key in data) {
-    const item = data[key];
+  for (const [key, item] of Object.entries(data)) {
     const updatedPath = path + `${path === '' ? '' : '/'}${key}`;
     let handler;
 
@@ -127,7 +120,7 @@ function compileData(
       : item;
   }
 
-  return compiled;
+  return compiled as T;
 }
 
 function createStorefrontResource(
@@ -137,10 +130,8 @@ function createStorefrontResource(
   parent_slug: string,
   parent_query: SwellData,
 ): StorefrontResource {
-  return new StorefrontResource(async function (
-    this: SwellStorefrontRecord,
-  ): Promise<any> {
-    const data = await fetchResourceDataByPath(
+  return new StorefrontResource(async function (): Promise<SwellData> {
+    const data = await fetchResourceDataByPath<SwellRecord>(
       swell,
       resource,
       path,
@@ -158,18 +149,30 @@ function createStorefrontRecord(
   parent_slug: string,
   parent_query: SwellData,
 ): SwellStorefrontRecord {
-  return new SwellStorefrontRecord(swell, resource, path, {}, async function (
-    this: SwellStorefrontRecord,
-  ): Promise<any> {
-    const data = await fetchResourceDataByPath(
-      swell,
-      resource,
-      path,
-      parent_slug,
-      parent_query,
-    );
-    return compileData(resource, data, swell, path, parent_slug, parent_query);
-  });
+  return new SwellStorefrontRecord(
+    swell,
+    resource,
+    path,
+    {},
+    async function (): Promise<SwellRecord> {
+      const data = await fetchResourceDataByPath<SwellRecord>(
+        swell,
+        resource,
+        path,
+        parent_slug,
+        parent_query,
+      );
+
+      return compileData<SwellRecord>(
+        resource,
+        data,
+        swell,
+        path,
+        parent_slug,
+        parent_query,
+      );
+    },
+  );
 }
 
 function createCollection(
@@ -179,38 +182,50 @@ function createCollection(
   parent_slug: string,
   parent_query: SwellData,
 ): SwellStorefrontCollection {
-  return new SwellStorefrontCollection(swell, resource, {}, async function (
-    this: SwellStorefrontCollection,
-  ): Promise<any> {
-    const data = await fetchResourceDataByPath(
-      swell,
-      resource,
-      path,
-      parent_slug,
-      parent_query,
-    );
-    return compileData(resource, data, swell, path, parent_slug, parent_query);
-  });
+  return new SwellStorefrontCollection(
+    swell,
+    resource,
+    {},
+    async function (): Promise<SwellCollection<SwellRecord>> {
+      const data = await fetchResourceDataByPath<SwellRecord>(
+        swell,
+        resource,
+        path,
+        parent_slug,
+        parent_query,
+      );
+
+      return compileData<SwellCollection<SwellRecord>>(
+        resource,
+        data,
+        swell,
+        path,
+        parent_slug,
+        parent_query,
+      );
+    },
+  );
 }
 
-async function fetchResourceDataByPath(
+async function fetchResourceDataByPath<T>(
   swell: Swell,
   resource: string,
   path: string,
   slug?: string,
   query?: SwellData,
-): Promise<any> {
+): Promise<T> {
   const params = new URLSearchParams({
     path,
     ...(slug && { slug }),
     ...(query && { query: JSON.stringify(query) }),
   });
 
+  const search = params.size > 0 ? `?${params}` : '';
   const session = getCookie(swell, 'swell-session');
   const swellData = getCookie(swell, 'swell-data') || {};
 
   const response = await fetch(
-    `${swell.storefront_url}/resources/${resource}.json?${params}`,
+    `${swell.storefront_url}/resources/${resource}.json${search}`,
     {
       headers: {
         'X-Session': session,
@@ -218,6 +233,6 @@ async function fetchResourceDataByPath(
       },
     },
   );
-  const data = response.json();
-  return data;
+
+  return response.json() as T;
 }

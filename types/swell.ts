@@ -93,9 +93,8 @@ export interface SwellCollection<T = SwellRecord> {
   pages: SwellCollectionPages;
 }
 
-export type InferSwellCollection<T> = T extends SwellCollection<infer U>
-  ? U
-  : SwellData;
+export type InferSwellCollection<T> =
+  T extends SwellCollection<infer U> ? U : SwellData;
 
 export interface SwellCollectionPage {
   start: number;
@@ -154,10 +153,9 @@ export interface SwellMenuItem {
   child_active?: boolean;
 }
 
-export type StorefrontResourceGetter<T = SwellData> = () =>
-  | Promise<T | null>
-  | T
-  | null;
+export type StorefrontResourceGetter<T extends SwellData = SwellData> = (
+  this: SwellStorefrontResource<T>,
+) => Promise<T | null> | T | null;
 
 export interface ThemeSettings {
   [key: string]: any;
@@ -210,7 +208,7 @@ export interface ThemeResourceFactory {
 }
 
 export interface ThemeLookupResourceFactory {
-  new (swell: Swell, id: string): StorefrontResource;
+  new (swell: Swell, id: string): StorefrontResource<SwellRecord>;
 }
 
 export interface ThemeResources {
