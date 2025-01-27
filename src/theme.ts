@@ -7,23 +7,25 @@ import {
   SwellStorefrontRecord,
   SwellStorefrontSingleton,
 } from './api';
-import { LiquidSwell, ThemeColor, ThemeFont, ThemeForm } from './liquid';
 import { ShopifyCompatibility } from './compatibility/shopify';
-import ShopifyCustomer from './compatibility/shopify-objects/customer';
 import ShopifyCart from './compatibility/shopify-objects/cart';
+import ShopifyCustomer from './compatibility/shopify-objects/customer';
+import { GEO_DATA } from './constants';
+import { LiquidSwell, ThemeColor, ThemeFont, ThemeForm } from './liquid';
 import { resolveMenuSettings } from './menus';
+import { ThemeLoader } from './theme/theme-loader';
 import {
   SECTION_GROUP_CONTENT,
   getSectionGroupProp,
-  themeConfigQuery,
   getAllSections,
   getPageSections,
   getLayoutSectionGroups,
   isObject,
   extractSettingsFromForm,
+  scopeCustomCSS,
 } from './utils';
-import { FILE_DATA_INCLUDE_QUERY, GEO_DATA } from './constants';
 
+import type { ShopifySectionSchema, ShopifySettingsData } from 'types/shopify';
 import type {
   ThemeGlobals,
   ThemeConfigs,
@@ -49,11 +51,7 @@ import type {
   SwellThemeConfig,
   SwellAppStorefrontThemeProps,
   SwellAppShopifyCompatibilityConfig,
-} from '../types/swell';
-
-import type { ShopifySectionSchema, ShopifySettingsData } from 'types/shopify';
-import type { SwellCollection } from 'types/swell';
-import { scopeCustomCSS } from './utils';
+} from 'types/swell';
 
 export class SwellTheme {
   public swell: Swell;
@@ -62,6 +60,8 @@ export class SwellTheme {
   public forms?: ThemeFormConfig[];
   public resources?: ThemeResources;
   public liquidSwell: LiquidSwell;
+
+  // Maps file path to theme config
   public themeConfigs: Map<string, SwellThemeConfig> | null = null;
 
   public page: any;
@@ -739,47 +739,17 @@ export class SwellTheme {
     return resolvedUrl;
   }
 
-  themeConfigQuery() {
-    const { swellHeaders } = this.swell;
-    return themeConfigQuery(swellHeaders);
-  }
-
   async getAllThemeConfigs(): Promise<Map<string, SwellThemeConfig>> {
-    if (this.themeConfigs) {
-      return this.themeConfigs;
-    }
+    if (!this.themeConfigs) {
+      const loader = new ThemeLoader(this.swell);
+      const configs = await loader.loadTheme();
 
-    const themeId = this.swell.swellHeaders['theme-id'];
-    const configVersion = String(
-      this.swell.swellHeaders['theme-config-version'],
-    );
+      const configsByPath = new Map<string,SwellThemeConfig>();
+      for (const config of configs) {
+        configsByPath.set(config.file_path, config);
+      }
 
-    const configs = await this.swell.getCachedThemeVersion<SwellCollection<SwellThemeConfig>>(
-      `theme-configs-all:${this.swell.instanceId}`,
-      configVersion,
-      async () => {
-        console.log(
-          `Retrieving theme configurations - version: ${configVersion}`,
-        );
-
-        const configs = await this.swell.get('/:themes:configs', {
-          ...this.themeConfigQuery(),
-          // TODO: paginate to support more than 1000 configs
-          limit: 1000,
-          fields: 'type, name, file, file_path',
-          include: {
-            file_data: FILE_DATA_INCLUDE_QUERY,
-          },
-        });
-
-        return configs as SwellCollection<SwellThemeConfig>;
-      },
-    );
-
-    this.themeConfigs = new Map();
-
-    for (const config of configs?.results ?? []) {
-      this.themeConfigs.set(config.file_path, config);
+      this.themeConfigs = configsByPath;
     }
 
     return this.themeConfigs;

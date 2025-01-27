@@ -1,7 +1,7 @@
 import SwellJS from 'swell-js';
 import qs from 'qs';
 
-import { Cache, RequestCache, ResourceCache, ThemeCache } from './cache';
+import { Cache, RequestCache, ResourceCache } from './cache';
 import { md5, toBase64 } from './utils';
 
 import type {
@@ -42,8 +42,6 @@ export class Swell {
   public swellHeaders: SwellData;
   public queryParams: SwellData;
   public workerEnv?: CFThemeEnv;
-
-  private themeCache: ThemeCache;
 
   // Represents the swell.json app config
   public config?: SwellAppConfig;
@@ -108,8 +106,6 @@ export class Swell {
     );
 
     this.workerEnv = workerEnv;
-
-    this.themeCache = new ThemeCache(this.workerEnv?.THEME);
 
     if (serverHeaders) {
       const { headers, swellHeaders } = Swell.formatHeaders(serverHeaders);
@@ -195,19 +191,6 @@ export class Swell {
     }
 
     return params;
-  }
-
-  /**
-   * Fetches a theme version resource
-   * First attempts to fetch from cache.
-   */
-  async getCachedThemeVersion<T>(
-    key: string,
-    version: string,
-    handler: () => T | Promise<T>,
-  ) {
-    const cacheKey = `${key}:v@${version}`;
-    return this.themeCache.fetch<T>(cacheKey, handler);
   }
 
   /**
