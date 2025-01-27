@@ -30,20 +30,6 @@ export * from './md5';
   console.log(util.inspect(value, { depth, colors: true }));
 } */
 
-export function themeConfigQuery(
-  swellHeaders: Record<string, unknown>,
-): Record<string, unknown> {
-  return {
-    parent_id: swellHeaders['theme-id'],
-    branch_id: swellHeaders['theme-branch-id'] || null,
-    preview:
-      swellHeaders['deployment-mode'] === 'editor' ||
-      swellHeaders['deployment-mode'] === 'preview'
-        ? true
-        : { $ne: true },
-  };
-}
-
 function isSectionConfig(
   config: SwellThemeConfig,
   themeConfigs: Map<string, SwellThemeConfig>,
