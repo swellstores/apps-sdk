@@ -1,18 +1,11 @@
 import { get, isObject } from 'lodash-es';
 
-import { Swell, StorefrontResource } from '../api';
-import { extractSettingsFromForm } from '../utils';
-import { SwellTheme } from '../theme';
-import { ThemeFont } from '../liquid/font';
-import { ThemeForm } from '../liquid/form';
-import ShopifyShop from './shopify-objects/shop';
-import ShopifyLocalization from './shopify-objects/localization';
-import {
-  adaptShopifyMenuData,
-  adaptShopifyFontData,
-  adaptShopifyFormData,
-  ShopifyResource,
-} from './shopify-objects';
+import { Swell, StorefrontResource } from '@/api';
+import { ThemeFont } from '@/liquid/font';
+import { ThemeForm } from '@/liquid/form';
+import { SwellTheme } from '@/theme';
+import { extractSettingsFromForm } from '@/utils';
+
 import {
   convertShopifySettingsSchema,
   convertShopifySettingsData,
@@ -20,6 +13,15 @@ import {
   convertShopifySectionSchema,
 } from './shopify-configs';
 import { shopifyFontToThemeFront } from './shopify-fonts';
+import {
+  adaptShopifyMenuData,
+  adaptShopifyFontData,
+  adaptShopifyFormData,
+  ShopifyResource,
+} from './shopify-objects';
+import * as ShopifyObjects from './shopify-objects';
+import ShopifyShop from './shopify-objects/shop';
+import ShopifyLocalization from './shopify-objects/localization';
 
 import type {
   ThemeGlobals,
@@ -43,8 +45,6 @@ import type {
   ShopifyFormResourceMap,
   ShopifyQueryParamsMap,
 } from '../../types/shopify';
-
-import * as ShopifyObjects from './shopify-objects';
 
 /*
  * This class is meant to be extended by a storefront app to provide compatibility with Shopify's Liquid

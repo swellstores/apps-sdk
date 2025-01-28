@@ -12,7 +12,7 @@ export default {
   moduleNameMapper: pathsToModuleNameMapper(tsconfig.compilerOptions.paths),
   modulePaths: [tsconfig.compilerOptions.baseUrl],
   restoreMocks: true,
-  roots: ['<rootDir>/test', '<rootDir>/src'],
+  roots: ['<rootDir>/src'],
   testEnvironment: 'node',
   transform: {
     '^.+\\.(ts|js)$': ['esbuild-jest', { sourcemap: true }],
