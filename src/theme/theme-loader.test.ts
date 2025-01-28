@@ -1,0 +1,118 @@
+import { Swell } from '../api';
+
+import { ThemeLoader } from './theme-loader';
+
+describe('#loadThemeFromManifest', () => {
+  const configs = [
+    {
+      file_data: 'foo',
+      hash: 'a',
+    },
+    {
+      file_data: 'bar',
+      hash: 'b',
+    },
+  ];
+
+  let swell;
+  let loader;
+
+  beforeEach(() => {
+    swell = new Swell({
+      headers: {},
+      swellHeaders: {
+        'public-key': 'publickey',
+        'store-id': 'test',
+        'theme-id': 'themeid',
+        'theme-version-hash': '####',
+        'theme-config-version': 4,
+      },
+      url: new URL('https://storefront.app'),
+    }); 
+
+    loader = new ThemeLoader(swell);
+
+    // Reset the theme cache.
+    loader.getCache().flushAll();
+  });
+
+  it('loads a theme from source', async () => {
+    jest.spyOn(swell, 'get').mockImplementation(async (url, data) => {
+      switch (url) {
+        case '/:themes:versions/:last': {
+          // Simulate the manifest request
+          return {
+            manifest: ['a', 'b'],
+          };
+        }
+        case '/:themes:configs': {
+          // Simulate the theme config request
+          return {
+            results: configs,
+          };
+        }
+        default: {
+          throw new Error(`Unexpected url: ${url}`);
+        }
+      }
+    });
+
+    const theme = await loader.loadThemeFromManifest();
+
+    expect(theme).toEqual(configs);
+
+    expect(swell.get).toHaveBeenCalledWith(
+      '/:themes:versions/:last',
+      expect.objectContaining({ hash: '####' }),
+    );
+  
+    expect(swell.get).toHaveBeenCalledWith(
+      '/:themes:configs',
+      expect.not.objectContaining({ hash: {$in: ['a', 'b']} }),
+    );
+  });
+
+  it('loads a theme from cache', async () => {
+    // seed cached manifest + all configs
+    await Promise.all([
+      loader.getCache().set('manifest:####', ['a', 'b']),
+      loader.getCache().set('config:a', configs[0]),
+      loader.getCache().set('config:b', configs[1]),
+    ]);
+
+    const theme = await loader.loadThemeFromManifest();
+    expect(theme).toEqual(configs);
+  });
+
+  it('loads a theme from cache and source', async () => {
+    // seed cached manifest + partial configs
+    await Promise.all([
+      loader.getCache().set('manifest:####', ['a', 'b']),
+      loader.getCache().set('config:a', configs[0]),
+      // config b is not in the cache
+    ]);
+
+    jest.spyOn(swell, 'get').mockImplementation(async (url, data) => {
+      switch (url) {
+        case '/:themes:configs': {
+          // Simulate the partial theme config request for config b
+          return {
+            results: [ configs[1] ],
+          };
+        }
+        default: {
+          throw new Error(`Unexpected url: ${url}`);
+        }
+      }
+    });
+
+    const theme = await loader.loadThemeFromManifest();
+
+    expect(theme).toEqual(configs);
+
+    expect(swell.get).toHaveBeenCalledWith(
+      '/:themes:configs',
+      expect.objectContaining({ hash: {$in: ['b']} }),
+    );
+  });
+}); // describe: #loadThemeFromManifest
