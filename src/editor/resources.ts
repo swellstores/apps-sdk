@@ -149,11 +149,13 @@ function createStorefrontRecord(
   parent_slug: string,
   parent_query: SwellData,
 ): SwellStorefrontRecord {
+  const query = getResourceQuery(parent_slug, parent_query);
+
   return new SwellStorefrontRecord(
     swell,
     resource,
     path,
-    {},
+    query,
     async function (): Promise<SwellRecord> {
       const data = await fetchResourceDataByPath<SwellRecord>(
         swell,
@@ -182,10 +184,12 @@ function createCollection(
   parent_slug: string,
   parent_query: SwellData,
 ): SwellStorefrontCollection {
+  const query = getResourceQuery(parent_slug, parent_query);
+
   return new SwellStorefrontCollection(
     swell,
     resource,
-    {},
+    query,
     async function (): Promise<SwellCollection<SwellRecord>> {
       const data = await fetchResourceDataByPath<SwellRecord>(
         swell,
@@ -235,4 +239,11 @@ async function fetchResourceDataByPath<T>(
   );
 
   return response.json() as T;
+}
+
+function getResourceQuery(slug?: string, query?: SwellData): SwellData {
+  return {
+    ...(slug && { slug }),
+    ...query,
+  };
 }
