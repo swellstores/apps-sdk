@@ -1,4 +1,4 @@
-import { Swell } from '../api';
+import { Swell } from '@/api';
 
 import { ThemeLoader } from './theme-loader';
 

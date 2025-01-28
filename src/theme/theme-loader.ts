@@ -2,7 +2,7 @@ import bluebird from 'bluebird';
 
 const { Promise } = bluebird;
 
-import { Swell } from '../api';
+import { Swell } from '@/api';
 import { ThemeCache } from '../cache';
 import { FILE_DATA_INCLUDE_QUERY } from '../constants';
 
