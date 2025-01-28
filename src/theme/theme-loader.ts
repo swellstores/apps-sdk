@@ -44,7 +44,6 @@ export class ThemeLoader {
       throw new Error('Theme version is required');
     }
 
-
     const configs = await this.getCache().fetch<SwellCollection<SwellThemeConfig>>(
       `configs-all:${this.swell.instanceId}:v@${configVersion}`,
       () => this.fetchThemeConfigsFromSource(),
@@ -85,7 +84,11 @@ export class ThemeLoader {
     // Fetch remaining unresolved configs from source.
     if (configHashesUnresolved.length > 0) {
       // Missing some/all configs. Fetch them from source.
-      const configs = await this.fetchThemeConfigsFromSource(configHashesUnresolved);
+      const configs = await this.fetchThemeConfigsFromSource(
+        // If no configs were resolved, then fetch them all. otherwise fetch
+        // the specific subset of configs.
+        configsByHash.size === 0 ? undefined : configHashesUnresolved,
+      );
       const newConfigs : SwellThemeConfig[] = configs?.results ?? [];
 
       for (const config of newConfigs) {
