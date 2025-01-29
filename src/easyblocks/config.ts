@@ -570,6 +570,7 @@ export function getEasyblocksPagePropsWithConfigs(
                 _id: `${section.type}_${Math.random()}`,
                 _component: `${section.type}`,
                 custom_css: settings?.section?.settings?.['custom_css'] || '',
+                disabled: settings?.section?.settings?.disabled || false,
                 ...reduce(
                   schema?.fields,
                   (acc, field) =>
