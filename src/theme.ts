@@ -266,11 +266,7 @@ export class SwellTheme {
     const settings = await this.swell.getCachedResource<ThemeSettings>(
       `theme-settings-resolved:v@${configVersion}`,
       [],
-      () => resolveThemeSettings(
-        this,
-        configs.theme,
-        configs.editor?.settings,
-      ),
+      () => resolveThemeSettings(this, configs.theme, configs.editor?.settings),
     );
 
     if (!settings) {
@@ -368,7 +364,9 @@ export class SwellTheme {
       return defaultValue;
     }
 
-    return this.swell.getCachedResource(`${key}-${cacheKey}`, [], () => handler());
+    return this.swell.getCachedResource(`${key}-${cacheKey}`, [], () =>
+      handler(),
+    );
   }
 
   async fetchCart(): Promise<StorefrontResource> {
@@ -744,7 +742,7 @@ export class SwellTheme {
       const loader = new ThemeLoader(this.swell);
       const configs = await loader.loadTheme();
 
-      const configsByPath = new Map<string,SwellThemeConfig>();
+      const configsByPath = new Map<string, SwellThemeConfig>();
       for (const config of configs) {
         configsByPath.set(config.file_path, config);
       }
@@ -1208,7 +1206,8 @@ export class SwellTheme {
           {}) as ShopifySectionSchema;
 
         if (lastSchema) {
-          const configSchema = this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
+          const configSchema =
+            this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
           schema = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             configSchema,
@@ -1438,10 +1437,11 @@ export class SwellTheme {
               index,
               template: templateConfig,
             });
-            if (settings?.section.settings.custom_css) {
+
+            if (settings?.section.custom_css) {
               output += `<style>${scopeCustomCSS(
-                settings?.section.settings.custom_css,
-                settings.section.id,
+                settings?.section.custom_css,
+                sectionConfig.id,
               )}</style>`;
             }
           }
@@ -1692,7 +1692,11 @@ export function findThemeSettingsByType(
 
   each(themeSettings, (value, key) => {
     // Ignore ThemeFont and StorefrontResource
-    if (isObject(value) && !(value instanceof ThemeFont) && !(value instanceof StorefrontResource)) {
+    if (
+      isObject(value) &&
+      !(value instanceof ThemeFont) &&
+      !(value instanceof StorefrontResource)
+    ) {
       // Nested settings
       foundSettings.push(
         ...findThemeSettingsByType(type, value, editorSchemaSettings),
