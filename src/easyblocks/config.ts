@@ -320,7 +320,7 @@ function getLayoutSectionGroupTemplateValues(
           },
           {},
         ),
-        custom_css: settings?.section.settings['custom_css'] || '',
+        custom_css: settings?.section['custom_css'] || '',
         ...(settings?.section.blocks
           ? {
               Blocks: settings.section.blocks.map((block) => ({
@@ -569,7 +569,7 @@ export function getEasyblocksPagePropsWithConfigs(
               ({ section, settings, schema }) => ({
                 _id: `${section.type}_${Math.random()}`,
                 _component: `${section.type}`,
-                custom_css: settings?.section?.settings?.['custom_css'] || '',
+                custom_css: settings?.section['custom_css'] || '',
                 disabled: settings?.section?.settings?.disabled || false,
                 ...reduce(
                   schema?.fields,

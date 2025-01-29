@@ -172,6 +172,7 @@ export interface ThemeSectionBase {
   settings: ThemeSettings;
   blocks?: ThemeSettingsBlock[];
   block_order?: string[];
+  custom_css?: string;
 }
 
 export interface ThemeSectionSettings extends ThemeSettings {
@@ -231,6 +232,7 @@ export interface ThemeSection {
   settings: ThemeSettings;
   blocks?: Record<string, ThemeSettingsBlock>;
   block_order?: string[];
+  custom_css?: string;
 }
 
 interface ThemeSectionGroupBase {
