@@ -110,6 +110,10 @@ export interface SwellThemeConfig extends SwellRecord {
   file_path: string;
 }
 
+export interface SwellThemeManifest {
+  [key: string]: string;
+}
+
 export interface SwellMenu {
   id: string;
   name: string;
