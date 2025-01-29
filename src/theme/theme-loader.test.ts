@@ -42,7 +42,8 @@ describe('#loadThemeFromManifest', () => {
         case '/:themes:versions/:last': {
           // Simulate the manifest request
           return {
-            manifest: ['a', 'b'],
+            hash: '####',
+            manifest: { patha: 'a', pathb: 'b' },
           };
         }
         case '/:themes:configs': {
@@ -63,9 +64,22 @@ describe('#loadThemeFromManifest', () => {
 
     expect(swell.get).toHaveBeenCalledWith(
       '/:themes:versions/:last',
-      expect.objectContaining({ hash: '####' }),
+      expect.objectContaining({
+        parent_id: 'themeid',
+        branch_id: null,
+        preview: { $ne: true },
+        fields: 'hash, manifest',
+      }),
     );
   
+    expect(swell.get).toHaveBeenCalledWith(
+      '/:themes:configs',
+      expect.objectContaining({
+        parent_id: 'themeid',
+        branch_id: null,
+        preview: { $ne: true },
+      }),
+    );
     expect(swell.get).toHaveBeenCalledWith(
       '/:themes:configs',
       expect.not.objectContaining({ hash: {$in: ['a', 'b']} }),
@@ -112,7 +126,12 @@ describe('#loadThemeFromManifest', () => {
 
     expect(swell.get).toHaveBeenCalledWith(
       '/:themes:configs',
-      expect.objectContaining({ hash: {$in: ['b']} }),
+      expect.objectContaining({
+        parent_id: 'themeid',
+        branch_id: null,
+        preview: { $ne: true },
+        hash: { $in: ['b'] },
+      }),
     );
   });
 }); // describe: #loadThemeFromManifest

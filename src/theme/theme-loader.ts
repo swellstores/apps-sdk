@@ -6,7 +6,11 @@ import { Swell } from '@/api';
 import { ThemeCache } from '../cache';
 import { FILE_DATA_INCLUDE_QUERY } from '../constants';
 
-import type { SwellCollection, SwellThemeConfig } from 'types/swell';
+import type {
+  SwellCollection,
+  SwellThemeConfig,
+  SwellThemeManifest,
+} from 'types/swell';
 
 // Max individual theme configs to fetch from source. If threshold is exceeded,
 // just fetch all configs from source.
@@ -62,12 +66,15 @@ export class ThemeLoader {
   private async loadThemeFromManifest() : Promise<SwellThemeConfig[]> {
     // Fetch the manifest, which contains a list of theme configs
     const manifest = await this.fetchManifest();
+    if (!manifest) {
+      throw new Error(`Failed to resolve manifest: ${this.swell.instanceId}`);
+    }
 
     // Determine which configs we already have, and which we do not have.
     const configHashesUnresolved : string[] = [];              // tracks unresolved configs
     const configsByHash = new Map<string, SwellThemeConfig>(); // tracks resolved configs
     await Promise.map(
-      manifest,
+      Object.values(manifest),
       (configHash) => {
         return this.getCache().get<SwellThemeConfig>(`config:${configHash}`)
           .then((config) => {
@@ -107,31 +114,36 @@ export class ThemeLoader {
   }
 
   /**
-   * Fetches the manifest (list of hashes) for a theme version.
+   * Fetches the manifest (set of config hashes) for a theme version.
    */
-  private async fetchManifest() : Promise<string[]> {
+  private async fetchManifest() : Promise<SwellThemeManifest | null> {
     const { swellHeaders } = this.swell;
 
     const versionHash = swellHeaders['theme-version-hash'];
 
-    const manifest = await this.getCache().fetch<string[]>(
-      `manifest:${versionHash}`,
-      async () => {
-        const themeVersion = await this.swell.get(
-          '/:themes:versions/:last',
-          {
-            ...this.themeVersionQueryFilter(),
-            hash: versionHash,
-            fields: 'manifest'
-          },
+    let manifest = await this.getCache()
+      .get<SwellThemeManifest>(`manifest:${versionHash}`);
+
+    if (!manifest) {
+      // No cached manifest. Ignore the hash and fetch the latest
+      // manifest from source.
+      const themeVersion = await this.swell.get(
+        '/:themes:versions/:last',
+        {
+          ...this.themeVersionQueryFilter(),
+          fields: 'hash, manifest',
+        }
+      );
+
+      if (themeVersion) {
+        // Cache the latest manifest.
+        await this.getCache().set(
+          `manifest:${themeVersion.hash}`,
+          themeVersion.manifest,
         );
 
-        return themeVersion?.manifest ?? []
-      },
-    );
-
-    if (manifest.length === 0) {
-      throw new Error(`Failed to resolve manifest: ${versionHash}`);
+        manifest = themeVersion.manifest;
+      }
     }
 
     return manifest;
