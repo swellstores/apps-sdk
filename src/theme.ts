@@ -466,6 +466,16 @@ export class SwellTheme {
     this.setFormData(formId, { success: true, withoutErrors: true });
   }
 
+  clearFormData(formId?: string): void {
+    if (!formId) {
+      this.formData = {};
+    } else {
+      delete this.formData[formId];
+    }
+
+    this.setGlobals({ forms: this.formData });
+  }
+
   serializeFormData(): SwellData | null {
     const serializedFormData: SwellData = {};
 
