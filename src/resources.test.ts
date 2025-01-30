@@ -1,6 +1,7 @@
 import { StorefrontResource, Swell } from './api';
-import { SwellTheme } from './theme';
 import { MockRecordSingleton } from './editor/resources';
+import { SwellStorefrontSingleton } from './resources';
+import { SwellTheme } from './theme';
 
 const defaultServerHeaders = {
   'swell-store-id': 'test',
@@ -86,4 +87,61 @@ describe('SwellSingletonResource', () => {
       );
     });
   });
-});
+}); // describe: SwellSingletonResource
+
+describe('SwellStorefrontSingleton', () => {
+  describe('#resolve', () => {
+    it('should fetch resource from source (Storefront API)', async () => {
+      const cart = {
+        id: 'cartid',
+        total: 9.99,
+      };
+
+      const swell = new Swell({
+        serverHeaders: defaultServerHeaders,
+        url: new URL('https://storefront.app'),
+      });
+
+      const resource = new SwellStorefrontSingleton(swell, 'cart');
+
+      // Simulate Storefront API to fetch the cart 
+      jest.spyOn(swell.storefront.cart, 'get').mockResolvedValue(cart);
+
+      const result = await resource.resolve();
+
+      expect(result).toEqual(cart);
+
+      // Made storefront API call
+      expect(swell.storefront.cart.get).toHaveBeenCalled();
+    });
+
+    it('should fetch resource from storefront context', async () => {
+      const cart = {
+        id: 'cartid',
+        total: 9.99,
+      };
+
+      const swell = new Swell({
+        serverHeaders: {
+          ...defaultServerHeaders,
+          'swell-storefront-context': JSON.stringify({ cart }),
+        },
+        url: new URL('https://storefront.app'),
+      });
+
+      const resource = new SwellStorefrontSingleton(swell, 'cart');
+
+      // Simulate Storefront API to fetch the cart 
+      jest.spyOn(swell.storefront.cart, 'get').mockImplementation(() => {
+        fail('Storefront API was called');
+      });
+
+      const result = await resource.resolve();
+
+      expect(result).toEqual(cart);
+
+      // No storefront API call was made
+      expect(swell.storefront.cart.get).not.toHaveBeenCalled();
+    });
+  }); // describe: #resolve
+}); // describe: SwellStorefrontSingleton
