@@ -246,10 +246,6 @@ export class SwellStorefrontResource<
     collection: string,
     getter?: StorefrontResourceGetter<T>,
   ) {
-    if (!(swell instanceof Swell)) {
-      throw new Error('Storefront resource requires `swell` instance.');
-    }
-
     super(getter);
     this._swell = swell;
     this._collection = collection;
@@ -470,7 +466,6 @@ export class SwellStorefrontRecord<
   T extends SwellData = SwellRecord,
 > extends SwellStorefrontResource<T> {
   public _id: string;
-  public id?: string;
 
   constructor(
     swell: Swell,
@@ -565,9 +560,20 @@ export class SwellStorefrontSingleton<
   }
 
   _defaultGetter(): StorefrontResourceGetter<T> {
+    const {
+      _collection,
+      _swell: { storefrontContext },
+    } = this;
+
     const resource = this.getResourceObject();
 
     async function defaultGetter(this: SwellStorefrontSingleton<T>) {
+      // Try and fetch from context first
+      if (storefrontContext[_collection] !== undefined) {
+        return storefrontContext[_collection];
+      }
+
+      // Otherwise fetch from source (Storefront API)
       return resource.get();
     }
 
@@ -615,10 +621,7 @@ export class SwellStorefrontPagination<
 
   constructor(resource: SwellStorefrontCollection<T>) {
     this._resource = resource;
-
-    if (resource instanceof SwellStorefrontCollection) {
-      this.setPaginationProps();
-    }
+    this.setPaginationProps();
   }
 
   setPaginationProps(): void {

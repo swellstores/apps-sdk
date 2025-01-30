@@ -55,6 +55,9 @@ export class Swell {
   // Represends the Swell Storefront API
   public storefront: typeof SwellJS;
 
+  // Contains resources passed from server via request headers.
+  public storefrontContext: SwellData;
+
   // A unique identifier for the current storefront app + environment being served
   // Used to isolate cache between different storefronts
   public instanceId: string = '';
@@ -153,6 +156,9 @@ export class Swell {
         'Swell client requires `serverHeaders` when initialized on the server-side, or `headers` and `swellHeaders` when initialized on the client-side.',
       );
     }
+
+    // Init resources sent from the server via request headers.
+    this.storefrontContext = this.initStorefrontContext();
   }
 
   static formatHeaders(serverHeaders?: Headers | SwellData): {
@@ -353,6 +359,21 @@ export class Swell {
     ) as typeof storefront.request;
 
     return storefront;
+  }
+
+  /**
+   * Initializes resources passed in from the server via request headers.
+   */
+  private initStorefrontContext() : SwellData {
+    let storefrontContext = {} as SwellData;
+    if (this.swellHeaders?.['storefront-context']) {
+      try {
+        storefrontContext = JSON.parse(this.swellHeaders['storefront-context']);
+      } catch (error) {
+        console.error('Failed to parse swell-storefront-context. Ignoring...')
+      }
+    }
+    return storefrontContext;
   }
 
   private isStorefrontRequestCacheable(method: string, url: string): boolean {
