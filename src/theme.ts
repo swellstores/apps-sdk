@@ -228,13 +228,7 @@ export class SwellTheme {
     await this.setCompatibilityConfigs(configs, localeCode);
 
     // Resolve menus after compatibility is determined
-    const menus = await resolveMenuSettings(
-      this,
-      this.swell.getStorefrontMenus(),
-      {
-        currentUrl: this.swell.url.pathname,
-      },
-    );
+    const menus = await this.resolveMenuSettings();
 
     return {
       store: storefrontSettings?.store,
@@ -287,7 +281,7 @@ export class SwellTheme {
     const swellPage = this.props.pages?.find(
       (page: ThemeSettings) => page.id === pageId,
     );
-    const isCustomPage = !Boolean(swellPage);
+    const isCustomPage = !swellPage;
     const page = {
       ...swellPage,
       current: this.swell.queryParams.page || 1,
@@ -693,6 +687,12 @@ export class SwellTheme {
     }
 
     return resource;
+  }
+
+  resolveMenuSettings() {
+    return resolveMenuSettings(this, this.swell.getStorefrontMenus(), {
+      currentUrl: this.swell.url.pathname,
+    });
   }
 
   resolveMenuSetting(value: string): SwellMenu | null {
@@ -1102,7 +1102,7 @@ export class SwellTheme {
       ?.split(/\_\_/) // Split generated IDs if needed
       .reverse();
 
-    let templateConfig = await this.getThemeTemplateConfigByType(
+    const templateConfig = await this.getThemeTemplateConfigByType(
       pageId ? 'templates' : 'sections',
       pageId ? pageId : sectionKey,
     );
