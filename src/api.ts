@@ -241,11 +241,17 @@ export class Swell {
     return settings || {};
   }
 
-  async getStorefrontSettings(): Promise<SwellData> {
+  async getStorefrontSettings(force: boolean = false): Promise<SwellData> {
     try {
       // Load all settings including menus, payments, etc
       const { settings, menus, payments, subscriptions, session } =
-        await this.storefront.request<any>('get', '/settings/all');
+        await this.storefront.request<any>(
+          'get',
+          '/settings/all',
+          undefined,
+          undefined,
+          { force },
+        );
 
       const storefrontSettings = this.storefront.settings as any;
 
@@ -364,19 +370,27 @@ export class Swell {
   /**
    * Initializes resources passed in from the server via request headers.
    */
-  private initStorefrontContext() : SwellData {
+  private initStorefrontContext(): SwellData {
     let storefrontContext = {} as SwellData;
     if (this.swellHeaders?.['storefront-context']) {
       try {
         storefrontContext = JSON.parse(this.swellHeaders['storefront-context']);
       } catch (error) {
-        console.error('Failed to parse swell-storefront-context. Ignoring...')
+        console.error('Failed to parse swell-storefront-context. Ignoring...');
       }
     }
     return storefrontContext;
   }
 
-  private isStorefrontRequestCacheable(method: string, url: string): boolean {
+  private isStorefrontRequestCacheable(
+    method: string,
+    url: string,
+    opt: any,
+  ): boolean {
+    if (opt?.force) {
+      return false;
+    }
+
     if (method === 'get') {
       const urlModel = url.split('/')[1];
 
@@ -399,7 +413,7 @@ export class Swell {
     const storefrontRequest = storefront.request;
 
     return (method: string, url: string, id?: any, data?: any, opt?: any) => {
-      if (this.isStorefrontRequestCacheable(method, url)) {
+      if (this.isStorefrontRequestCacheable(method, url, opt)) {
         return this.getRequestCache().fetch<T>(
           getCacheKey('request', [method, url, id, data, opt]),
           () => storefrontRequest<T>(method, url, id, data, opt),

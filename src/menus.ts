@@ -50,8 +50,14 @@ export async function resolveMenuItems(
   menuItems: SwellMenuItem[],
   options?: { currentUrl?: string },
 ): Promise<SwellMenuItem[]> {
+  const hasMenuItems = menuItems?.length > 0;
+
+  if (!hasMenuItems) {
+    return [];
+  }
+
   return Promise.all(
-    menuItems?.map(async (item) => {
+    menuItems.map(async (item) => {
       const { url, resource } = await resolveMenuItemUrlAndResource(
         theme,
         item,
@@ -274,7 +280,9 @@ export async function deferMenuItemUrlAndResource(
   theme: SwellTheme,
   pageId: string,
   id: string,
-  collectionSlugOrHandler?: string | ((resource: SwellStorefrontRecord) => Promise<string>),
+  collectionSlugOrHandler?:
+    | string
+    | ((resource: SwellStorefrontRecord) => Promise<string>),
 ): Promise<{ url: string; resource?: SwellStorefrontRecord }> {
   const { props } = theme;
 
@@ -282,8 +290,9 @@ export async function deferMenuItemUrlAndResource(
     (page) => page.id === pageId,
   )?.collection;
 
-  const resource =
-    collection ? new SwellStorefrontRecord(theme.swell, collection, id) : undefined;
+  const resource = collection
+    ? new SwellStorefrontRecord(theme.swell, collection, id)
+    : undefined;
 
   const slug = (await resource?.slug) || id;
 
