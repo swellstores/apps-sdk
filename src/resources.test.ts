@@ -1,7 +1,7 @@
+import { SwellTheme } from './theme';
 import { StorefrontResource, Swell } from './api';
 import { MockRecordSingleton } from './editor/resources';
 import { SwellStorefrontSingleton } from './resources';
-import { SwellTheme } from './theme';
 
 const defaultServerHeaders = {
   'swell-store-id': 'test',
@@ -61,7 +61,7 @@ describe('SwellSingletonResource', () => {
       });
 
       await Promise.all([
-        theme.fetchSingletonResourceCached<StorefrontResource | {}>(
+        theme.fetchSingletonResourceCached<StorefrontResource | object>(
           'cart',
           () => theme.fetchCart(),
           {},
@@ -104,7 +104,7 @@ describe('SwellStorefrontSingleton', () => {
 
       const resource = new SwellStorefrontSingleton(swell, 'cart');
 
-      // Simulate Storefront API to fetch the cart 
+      // Simulate Storefront API to fetch the cart
       jest.spyOn(swell.storefront.cart, 'get').mockResolvedValue(cart);
 
       const result = await resource.resolve();
@@ -131,9 +131,9 @@ describe('SwellStorefrontSingleton', () => {
 
       const resource = new SwellStorefrontSingleton(swell, 'cart');
 
-      // Simulate Storefront API to fetch the cart 
+      // Simulate Storefront API to fetch the cart
       jest.spyOn(swell.storefront.cart, 'get').mockImplementation(() => {
-        fail('Storefront API was called');
+        throw new Error('Storefront API was called');
       });
 
       const result = await resource.resolve();

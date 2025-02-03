@@ -67,8 +67,8 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
     *render(ctx: Context, emitter: Emitter): any {
       const r = this.liquid.renderer;
 
-      let collection = yield evalToken(this.collection, ctx);
-      let pageSize = Number(yield evalToken(this.pageSize, ctx));
+      const collection = yield evalToken(this.collection, ctx);
+      const pageSize = Number(yield evalToken(this.pageSize, ctx));
       const hash = yield this.hash.render(ctx);
 
       if (
@@ -82,14 +82,16 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         });
       }
 
-      const paginate = new SwellStorefrontPagination(collection);
-      if (liquidSwell.theme.shopifyCompatibility) {
-        paginate.setCompatibilityProps(
-          ShopifyPaginate(liquidSwell.theme.shopifyCompatibility, paginate),
-        );
-      }
+      if (collection) {
+        const paginate = new SwellStorefrontPagination(collection);
+        if (liquidSwell.theme.shopifyCompatibility) {
+          paginate.setCompatibilityProps(
+            ShopifyPaginate(liquidSwell.theme.shopifyCompatibility, paginate),
+          );
+        }
 
-      ctx.push({ paginate });
+        ctx.push({ paginate });
+      }
 
       yield r.renderTemplates(this.templates, ctx, emitter);
     }
