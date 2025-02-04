@@ -721,4 +721,46 @@ export class ShopifyCompatibility {
       .filter(Boolean)
       .join('\n');
   }
+
+
+  // returns true if this URL is used for script actions
+  isScriptFormActionUrl(url: string): boolean {
+    if (!url) {
+      return false;
+    }
+
+    const routes =
+      this.shopifyCompatibilityConfig?.editor_configs?.script_actions_routes ||
+      {};
+
+    for (const value of Object.values(routes)) {
+      if (url.startsWith(value)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // returns true if we should redirect to page start (#) after this action
+  needRedirectToPageStart(formId: string): boolean {
+    if (!formId) {
+      return false;
+    }
+    const formIds =
+      this.shopifyCompatibilityConfig?.editor_configs
+        ?.redirect_to_page_start_forms || [];
+    return formIds.includes(formId);
+  }
+
+  // returns true for checkout action
+  isCheckoutForm(formId: string): boolean {
+    if (!formId) {
+      return false;
+    }
+
+    return (
+      this.shopifyCompatibilityConfig?.editor_configs?.checkout_form === formId
+    );
+  }
 }
