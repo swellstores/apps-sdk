@@ -43,6 +43,11 @@ export interface SwellAppShopifyCompatibilityConfig {
       value: string;
     }>;
   }>;
+  editor_configs?: {
+    checkout_form?: string;
+    redirect_to_page_start_forms?: string[];
+    script_actions_routes?: Record<string, string>;
+  };
 }
 
 export interface SwellAppStorefrontThemePage {
