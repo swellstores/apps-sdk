@@ -1,3 +1,4 @@
+import { performance } from 'node:perf_hooks';
 import * as esbuild from 'esbuild';
 
 /**
@@ -28,22 +29,59 @@ const c = new Proxy(() => {}, {
   },
 });
 
-const toExtension = (format) =>
-  ({ esm: 'mjs', cjs: 'cjs', iife: 'js' }[format]);
+function toPlatform(format) {
+  switch (format) {
+    case 'esm':
+      return 'neutral';
 
-export async function build(formats, options) {
-  const watchMode = process.argv[2] === 'watch';
+    case 'cjs':
+      return 'node';
 
-  let builds = [];
+    case 'iife':
+      return 'browser';
+
+    default:
+      throw new Error(`Unsupported format: ${format}`);
+  }
+}
+
+function toExtension(format) {
+  switch (format) {
+    case 'esm':
+      return 'mjs';
+
+    case 'cjs':
+      return 'cjs';
+
+    case 'iife':
+      return 'js';
+
+    default:
+      throw new Error(`Unsupported format: ${format}`);
+  }
+}
+
+/**
+ * @param {string[]} formats
+ * @param {esbuild.BuildOptions} options
+ * @param {boolean} [watchMode]
+ * @returns {Promise<void>}
+ */
+export async function build(formats, options, watchMode = false) {
+  const builds = [];
 
   const add = () => {
     let done;
 
-    builds.push(new Promise((r) => (done = r)));
+    builds.push(
+      new Promise((resolve) => {
+        done = resolve;
+      }),
+    );
 
     if (builds.length === formats.length) {
       Promise.all(builds).then((results) => {
-        builds = [];
+        builds.length = 0;
 
         log(results);
       });
@@ -83,6 +121,7 @@ export async function build(formats, options) {
       return esbuild[watchMode ? 'context' : 'build']({
         ...options,
         format,
+        platform: toPlatform(format),
         outfile: options.outfile
           ?.replaceAll(/\$formatExtension/g, toExtension(format))
           .replaceAll(/\$format/g, format),
