@@ -1,5 +1,6 @@
 // @ts-check
 
+import globals from 'globals';
 import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import pluginJest from 'eslint-plugin-jest';
@@ -19,6 +20,12 @@ export default tseslint.config(
           // eslint-disable-next-line no-undef
           typeof __dirname === 'string' ? __dirname : import.meta.dirname,
       },
+    },
+  },
+  {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
   {

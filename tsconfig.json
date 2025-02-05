@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -21,6 +20,7 @@
   "exclude": [
     "node_modules",
     "dist",
+    "jest",
     "scripts",
     "eslint.config.mjs"
   ]

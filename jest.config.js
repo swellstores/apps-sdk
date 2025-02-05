@@ -16,6 +16,7 @@ export default {
   testEnvironment: 'node',
   transform: {
     '^.+\\.(ts|js)$': ['esbuild-jest', { sourcemap: true }],
+    '^.+\\.svg$': '<rootDir>/jest/file-transformer.js',
   },
   transformIgnorePatterns: ['/node_modules/(?!lodash-es)/'],
 };
