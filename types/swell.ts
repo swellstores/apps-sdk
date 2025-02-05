@@ -115,6 +115,11 @@ export interface SwellThemeConfig extends SwellRecord {
   file_path: string;
 }
 
+export interface SwellThemeVersion extends SwellRecord {
+  manifest: SwellThemeManifest;
+  hash: string;
+}
+
 export interface SwellThemeManifest {
   [key: string]: string;
 }
