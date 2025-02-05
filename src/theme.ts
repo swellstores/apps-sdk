@@ -49,6 +49,7 @@ import type {
   SwellRecord,
   SwellAppConfig,
   SwellThemeConfig,
+  SwellThemeVersion,
   SwellAppStorefrontThemeProps,
   SwellAppShopifyCompatibilityConfig,
 } from 'types/swell';
@@ -761,6 +762,17 @@ export class SwellTheme {
     }
 
     return this.themeConfigs;
+  }
+
+  /**
+   * Preloads updated theme configs. Used to optimize initial theme load.
+   */
+  async preloadThemeConfigs(
+    version: SwellThemeVersion,
+    configs: SwellThemeConfig[],
+  ): Promise<void> {
+    const loader = new ThemeLoader(this.swell);
+    await loader.preloadTheme(version, configs);
   }
 
   getPageConfigPath(pageId: string): string | null {

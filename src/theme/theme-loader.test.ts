@@ -135,3 +135,61 @@ describe('#loadThemeFromManifest', () => {
     );
   });
 }); // describe: #loadThemeFromManifest
+
+
+describe('#preloadTheme', () => {
+  const version = {
+    manifest: {
+      'path1': 'a',
+      'path2': 'b',
+      'path3': 'c',
+    },
+    hash: 'versionhash',
+  }
+
+  const configs = [
+    {
+      file_data: 'foo',
+      hash: 'a',
+    },
+    {
+      file_data: 'bar',
+      hash: 'b',
+    },
+  ];
+
+  let swell;
+  let loader;
+
+  beforeEach(() => {
+    swell = new Swell({
+      headers: {},
+      swellHeaders: {
+        'public-key': 'publickey',
+        'store-id': 'test',
+        'theme-id': 'themeid',
+        'theme-version-hash': '####',
+        'theme-config-version': 4,
+      },
+      url: new URL('https://storefront.app'),
+    }); 
+
+    loader = new ThemeLoader(swell);
+
+    // Reset the theme cache.
+    loader.getCache().flushAll();
+  });
+
+  it('caches the manifest and configs', async () => {
+    await loader.preloadTheme(version, configs);
+
+    const cachedManifest = await loader.getCache().get('manifest:versionhash');
+    expect(cachedManifest).toEqual(version.manifest);
+
+    const cachedConfigs = await Promise.all([
+      loader.getCache().get('config:a'),
+      loader.getCache().get('config:b'),
+    ]);
+    expect(cachedConfigs).toEqual(configs);
+  });
+}); // describe: #preloadTheme

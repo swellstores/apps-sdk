@@ -10,6 +10,7 @@ import type {
   SwellCollection,
   SwellThemeConfig,
   SwellThemeManifest,
+  SwellThemeVersion,
 } from 'types/swell';
 
 // Max individual theme configs to fetch from source. If threshold is exceeded,
@@ -35,6 +36,23 @@ export class ThemeLoader {
     // TODO: This will eventually be replaced by loadThemeFromManifest
     // return this.loadThemeFromManifest();
     return this.loadThemeAllConfigs();
+  }
+
+  /**
+   * Preloads a theme version and configs. This is used to optimize initial theme load.
+   */
+  async preloadTheme(
+    version: SwellThemeVersion,
+    configs: SwellThemeConfig[]
+  ) : Promise<void> {
+    await Promise.all([
+      this.cacheManifest(version),
+      Promise.map(
+        configs,
+        (config) => this.cacheThemeConfig(config),
+        { concurrency: 10 },
+      ),
+    ]);
   }
 
   /**
@@ -105,12 +123,26 @@ export class ThemeLoader {
       // Cache the newly resolved theme configs.
       await Promise.map(
         newConfigs,
-        (config) => this.getCache().set(`config:${config.hash}`, config),
+        (config) => this.cacheThemeConfig(config),
         { concurrency: 10 },
       );
     }
 
     return Array.from(configsByHash.values());
+  }
+
+  /**
+   * Caches a theme version manifest by hash.
+   */
+  private async cacheManifest(version: SwellThemeVersion) : Promise<void> {
+    await this.getCache().set(`manifest:${version.hash}`, version.manifest);
+  }
+
+  /**
+   * Caches a theme config by hash. 
+   */
+  private async cacheThemeConfig(config: SwellThemeConfig) : Promise<void> {
+    await this.getCache().set(`config:${config.hash}`, config);
   }
 
   /**
@@ -133,14 +165,11 @@ export class ThemeLoader {
           ...this.themeVersionQueryFilter(),
           fields: 'hash, manifest',
         }
-      );
+      ) as SwellThemeVersion;
 
       if (themeVersion) {
         // Cache the latest manifest.
-        await this.getCache().set(
-          `manifest:${themeVersion.hash}`,
-          themeVersion.manifest,
-        );
+        await this.cacheManifest(themeVersion);
 
         manifest = themeVersion.manifest;
       }
