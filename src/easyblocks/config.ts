@@ -569,8 +569,8 @@ export function getEasyblocksPagePropsWithConfigs(
               ({ section, settings, schema }) => ({
                 _id: `${section.type}_${Math.random()}`,
                 _component: `${section.type}`,
-                custom_css: settings?.section['custom_css'] || '',
-                disabled: settings?.section?.settings?.disabled || false,
+                custom_css: settings?.section?.custom_css || '',
+                disabled: settings?.section?.disabled || false,
                 ...reduce(
                   schema?.fields,
                   (acc, field) =>
@@ -594,6 +594,7 @@ export function getEasyblocksPagePropsWithConfigs(
                         return {
                           _id: `Block__${key}__${block.type}_${Math.random()}`,
                           _component: `Block__${section.type}__${block.type}`,
+                          disabled: block.disabled || false,
                           ...reduce(
                             block.settings,
                             (acc, value, key) => ({
