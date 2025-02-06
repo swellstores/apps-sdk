@@ -722,7 +722,6 @@ export class ShopifyCompatibility {
       .join('\n');
   }
 
-
   // returns true if this URL is used for script actions
   isScriptFormActionUrl(url: string): boolean {
     if (!url) {
@@ -732,6 +731,24 @@ export class ShopifyCompatibility {
     const routes =
       this.shopifyCompatibilityConfig?.editor_configs?.script_actions_routes ||
       {};
+
+    for (const value of Object.values(routes)) {
+      if (url === value) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  // returns true if this URL is used from scripts
+  isScriptUrl(url: string): boolean {
+    if (!url) {
+      return false;
+    }
+
+    const routes =
+      this.shopifyCompatibilityConfig?.editor_configs?.script_routes || {};
 
     for (const value of Object.values(routes)) {
       if (url.startsWith(value)) {

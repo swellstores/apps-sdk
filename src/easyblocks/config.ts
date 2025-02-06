@@ -350,6 +350,11 @@ function getLayoutSectionGroupTemplateValues(
   }, {});
 }
 
+function prepareSectionId(id?: string): string {
+  // we can't use / in script selectors
+  return (id || '').replaceAll('/', '_');
+}
+
 function getAllSectionComponentTemplates(
   allSections: ThemePageSectionSchema[],
 ) {
@@ -567,7 +572,7 @@ export function getEasyblocksPagePropsWithConfigs(
             _component: `swell_page`,
             ContentSections: pageSections.map(
               ({ section, settings, schema }) => ({
-                _id: `${section.type}_${Math.random()}`,
+                _id: prepareSectionId(section.id),
                 _component: `${section.type}`,
                 custom_css: settings?.section?.custom_css || '',
                 disabled: settings?.section?.disabled || false,
