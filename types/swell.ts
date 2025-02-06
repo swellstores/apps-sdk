@@ -178,6 +178,7 @@ export interface ThemeSettings {
 export interface ThemeSettingsBlock {
   type: string;
   settings: ThemeSettings;
+  disabled?: boolean;
 }
 
 export interface ThemeSectionBase {
@@ -187,6 +188,7 @@ export interface ThemeSectionBase {
   blocks?: ThemeSettingsBlock[];
   block_order?: string[];
   custom_css?: string;
+  disabled?: boolean;
 }
 
 export interface ThemeSectionSettings extends ThemeSettings {
