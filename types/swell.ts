@@ -47,6 +47,7 @@ export interface SwellAppShopifyCompatibilityConfig {
     checkout_form?: string;
     redirect_to_page_start_forms?: string[];
     script_actions_routes?: Record<string, string>;
+    script_routes?: Record<string, string>;
   };
 }
 

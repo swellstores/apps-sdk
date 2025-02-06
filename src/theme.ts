@@ -1110,9 +1110,12 @@ export class SwellTheme {
     }
 
     // Section ID could be a section name or a given config ID within a template
-    const [sectionKey, pageId] = sectionId
+    let [sectionKey, originalPageId] = sectionId
       ?.split(/\_\_/) // Split generated IDs if needed
       .reverse();
+
+    // return replaced '/' back
+    const pageId = (originalPageId || '').replaceAll('_', '/');
 
     const templateConfig = await this.getThemeTemplateConfigByType(
       pageId ? 'templates' : 'sections',
@@ -1127,14 +1130,16 @@ export class SwellTheme {
 
       // Render a section of a page template
       if (pageId && (sectionContent as ThemeSectionGroup)?.sections) {
+        const oldSections = (sectionContent as ThemeSectionGroup)?.sections;
+
         const pageSectionGroup = {
-          id: templateConfig.name,
+          // use original pageId to return exactly the requested section id
+          id: originalPageId,
           sections: {
-            [sectionKey]: (sectionContent as ThemeSectionGroup)?.sections?.[
-              sectionKey
-            ],
+            [sectionKey]: oldSections[sectionKey],
           },
         };
+
         const [pageSection] = await this.renderPageSections(
           pageSectionGroup,
           pageData,
@@ -1615,7 +1620,6 @@ export function resolveSectionSettings(
     ...settings,
     section: {
       ...settings.section,
-      id: schema.id,
       settings: resolveThemeSettings(
         theme,
         settings.section.settings,
