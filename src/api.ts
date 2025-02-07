@@ -382,6 +382,23 @@ export class Swell {
     return storefrontContext;
   }
 
+  /**
+   * Clears context for collection to allow refetch it
+   * @param collection - collection which context should be cleared
+   */
+  clearStoreFrontContext(collection: string) {
+    delete this.storefrontContext[collection];
+  }
+
+  /**
+   * Updates context for collection
+   * @param collection - collection which context should be updated
+   * @param value - new value
+   */
+  updateStoreFrontContext(collection: string, value: object) {
+    this.storefrontContext[collection] = value;
+  }
+
   private isStorefrontRequestCacheable(
     method: string,
     url: string,
