@@ -420,6 +420,20 @@ export class Swell {
         );
       }
 
+      // clear storefront context if we mutate it
+      switch (method) {
+        case 'delete':
+        case 'post':
+        case 'put': {
+          // put /cart/items
+          const contextKey = url.split('/')[1];
+          delete this.storefrontContext[contextKey];
+          break;
+        }
+
+        default:
+      }
+
       return storefrontRequest<T>(method, url, id, data, opt);
     };
   }
