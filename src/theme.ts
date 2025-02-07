@@ -172,6 +172,18 @@ export class SwellTheme {
     };
   }
 
+  // check if current page is allowed and return page to redirect otherwise
+  redirectFromNotAllowedPage(pageId?: string): string {
+    if (this.shopifyCompatibility) {
+      return this.shopifyCompatibility.redirectFromNotAllowedPage(
+        pageId || this.pageId || '',
+        this.globals,
+      );
+    }
+
+    return '';
+  }
+
   async getSettingsAndConfigs(): Promise<{
     store: SwellData;
     session: SwellData;

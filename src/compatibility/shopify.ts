@@ -780,4 +780,44 @@ export class ShopifyCompatibility {
       this.shopifyCompatibilityConfig?.editor_configs?.checkout_form === formId
     );
   }
+
+  // check if current page is allowed for account
+  redirectFromAccountRestrictedPage(
+    pageId: string,
+    account: StorefrontResource,
+  ): string {
+    const hasAccount = Boolean(account?.id);
+    if (!hasAccount) {
+      const requireAccountPages =
+        this.shopifyCompatibilityConfig?.editor_configs?.page_access
+          ?.require_account || [];
+      for (const info of requireAccountPages) {
+        if (pageId === info.page_id) {
+          return info.redirect_page_id;
+        }
+      }
+    }
+
+    return '';
+  }
+
+  // check if current page is allowed and return page to redirect otherwise
+  redirectFromNotAllowedPage(pageId: string, globals: ThemeGlobals): string {
+    if (!pageId) {
+      return '';
+    }
+
+    const redirectWithAccount = this.redirectFromAccountRestrictedPage(
+      pageId,
+      globals.account as StorefrontResource,
+    );
+    if (redirectWithAccount) {
+      return redirectWithAccount;
+    }
+
+    // additional page restrictions can be added there
+    // ...
+
+    return '';
+  }
 }

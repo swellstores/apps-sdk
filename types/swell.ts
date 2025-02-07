@@ -48,6 +48,14 @@ export interface SwellAppShopifyCompatibilityConfig {
     redirect_to_page_start_forms?: string[];
     script_actions_routes?: Record<string, string>;
     script_routes?: Record<string, string>;
+    page_access: {
+      require_account: [
+        {
+          page_id: string;
+          redirect_page_id: string;
+        },
+      ];
+    };
   };
 }
 
