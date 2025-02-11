@@ -1004,7 +1004,7 @@ export class SwellTheme {
     if (altTemplateId) {
       templateConfig = await this.getThemeTemplateConfigByType(
         'templates',
-        `${name}.${altTemplateId}`,
+        altTemplateId,
       );
     }
 
