@@ -1110,7 +1110,7 @@ export class SwellTheme {
     }
 
     // Section ID could be a section name or a given config ID within a template
-    let [sectionKey, originalPageId] = sectionId
+    const [sectionKey, originalPageId] = sectionId
       ?.split(/\_\_/) // Split generated IDs if needed
       .reverse();
 

@@ -103,24 +103,37 @@ export default function ShopifyProduct(
           };
         }, {}),
     ),
-    options_with_values: deferWith(product, (product: any) =>
-      product.options?.map((option: any, index: number) => ({
-        name: option.name,
-        position: index + 1,
-        selected_value: null,
-        values: option.values?.map((value: any) =>
-          ShopifyProductOption({
-            available: true,
-            id: value.id,
-            name: value.name,
-            product_url: null,
-            selected: false,
-            swatch: null,
-            variant: null,
-          }),
-        ),
-      })),
-    ),
+    options_with_values: deferWith(product, (product: any) => {
+      const { option_values } = instance.swell.queryParams;
+      let optionValues = (option_values || '').split(',');
+
+      // select the first variant by default
+      if (optionValues.length !== product.options?.length) {
+        const variants = getAvailableVariants(product);
+        const variant = variants[0];
+
+        optionValues = variant?.option_value_ids || [];
+      }
+
+      return product.options?.map((option: any, index: number) => {
+        return {
+          name: option.name,
+          position: index + 1,
+          selected_value: null,
+          values: option.values?.map((value: any) =>
+            ShopifyProductOption({
+              available: true,
+              id: value.id,
+              name: value.name,
+              product_url: null,
+              selected: optionValues.includes(value.id),
+              swatch: null,
+              variant: null,
+            }),
+          ),
+        };
+      });
+    }),
     price: deferWith(product, (product: any) => product.price),
     price_max: deferWith(product, (product: any) =>
       product.variants?.results?.reduce(
@@ -147,21 +160,27 @@ export default function ShopifyProduct(
     requires_selling_plan: false,
     selected_or_first_available_selling_plan_allocation: null,
     selected_or_first_available_variant: deferWith(product, (product: any) => {
-      const selectedVariant = instance.swell.queryParams.variant
-        ? product.variants?.results?.reverse().find(
-            (variant: any) =>
-              variant.id === instance.swell.queryParams.variant && // Selected by url param `variant`
-              (variant.stock_status === 'in_stock' || !variant.stock_status),
-          )
-        : null;
-      const selectedOrFirstVariant =
-        selectedVariant ||
-        product.variants?.results
-          ?.reverse()
-          .find(
-            (variant: any) =>
-              variant.stock_status === 'in_stock' || !variant.stock_status,
-          );
+      const { variant, option_values } = instance.swell.queryParams;
+      const optionValues = (option_values || '').split(',');
+      const hasOptionValues = optionValues.length > 0;
+      const variants = getAvailableVariants(product);
+
+      let selectedVariant = null;
+
+      if (variant) {
+        selectedVariant = variants.find(
+          (variant: any) => variant.id === variant,
+        );
+      } else if (hasOptionValues) {
+        selectedVariant = variants.find((variant: any) =>
+          variant.option_value_ids.every((optionValueId: string) =>
+            optionValues.includes(optionValueId),
+          ),
+        );
+      }
+
+      const selectedOrFirstVariant = selectedVariant || variants?.[0] || null;
+
       return selectedOrFirstVariant
         ? ShopifyVariant(instance, selectedOrFirstVariant, product, depth + 1)
         : ShopifyProduct(instance, product, depth + 1); // TODO: make sure this works correctly
@@ -188,4 +207,11 @@ export default function ShopifyProduct(
 
 export function ShopifyProductOption(values: SwellData) {
   return new ShopifyResource(values, 'name');
+}
+
+function getAvailableVariants(product: any) {
+  return (product.variants?.results?.reverse() || []).filter(
+    (variant: any) =>
+      variant.stock_status === 'in_stock' || !variant.stock_status,
+  );
 }
