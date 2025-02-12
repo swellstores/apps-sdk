@@ -5,9 +5,7 @@ import type {
 } from './swell';
 
 import type { ShopifyResource } from '../src/compatibility/shopify-objects/resource';
-
 import type { ShopifyCompatibility } from '../src/compatibility/shopify';
-
 import type { StorefrontResource } from '../src/resources';
 
 export type ShopifyBasicInputType =
@@ -36,7 +34,6 @@ export type ShopifySpecializedInputType =
   | 'inline_richtext'
   | 'link_list'
   | 'liquid'
-  | 'page'
   | 'page'
   | 'product'
   | 'product_list'
@@ -201,3 +198,11 @@ export interface ShopifyQueryParams {
 }
 
 export type ShopifyQueryParamsMap = Array<ShopifyQueryParams>;
+
+export interface ShopifyLocalizationSection {
+  [key: string]: string | ShopifyLocalizationSection;
+}
+
+export interface ShopifyLocalizationConfig {
+  [key: string]: ShopifyLocalizationSection;
+}

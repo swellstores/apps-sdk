@@ -8,6 +8,7 @@
     "module": "esnext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
     "jsx": "react-jsx",
     "incremental": true,
     "baseUrl": "./",

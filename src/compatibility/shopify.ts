@@ -31,9 +31,9 @@ import type {
   ThemeSectionSchemaData,
   SwellData,
   SwellMenu,
-  SwellRecord,
   SwellThemeConfig,
   SwellAppShopifyCompatibilityConfig,
+  SwellSettingsGeo,
 } from '../../types/swell';
 
 import type {
@@ -44,6 +44,7 @@ import type {
   ShopifyObjectResourceMap,
   ShopifyFormResourceMap,
   ShopifyQueryParamsMap,
+  ShopifyLocalizationConfig,
 } from '../../types/shopify';
 
 /*
@@ -57,8 +58,12 @@ export class ShopifyCompatibility {
   public objectResourceMap: ShopifyObjectResourceMap;
   public formResourceMap: ShopifyFormResourceMap;
   public queryParamsMap: ShopifyQueryParamsMap;
-  public editorLocaleConfig: { [key: string]: any } | undefined;
   public shopifyCompatibilityConfig?: SwellAppShopifyCompatibilityConfig;
+
+  public editorLocaleConfig?: Record<
+    string,
+    ShopifyLocalizationConfig | undefined
+  >;
 
   constructor(theme: SwellTheme) {
     this.theme = theme;
@@ -218,7 +223,7 @@ export class ShopifyCompatibility {
       if (paramMap) {
         const toObject =
           typeof paramMap.to === 'function'
-            ? paramMap.to(key, value)
+            ? paramMap.to(key, value as string)
             : { [paramMap.to]: value };
         Object.assign(adaptedParams, toObject);
       } else {
@@ -243,7 +248,7 @@ export class ShopifyCompatibility {
   ) {
     const formMap = this.formResourceMap.find((form) => form.type === formType);
     if (formMap?.clientParams) {
-      return await formMap.clientParams(scope, arg);
+      return formMap.clientParams(scope, arg);
     }
   }
 
@@ -258,7 +263,7 @@ export class ShopifyCompatibility {
     );
 
     if (formMap && formTypeConfig) {
-      return formTypeConfig.client_params?.reduce((acc: any, param: any) => {
+      return formTypeConfig.client_params?.reduce((acc, param) => {
         return (
           `<input type="hidden" name="${param.name}" value="${param.value}" />` +
           acc
@@ -281,7 +286,7 @@ export class ShopifyCompatibility {
       (form) => form.type === formType || form.shopifyType === formType,
     );
     if (typeof formMap?.serverResponse === 'function') {
-      return await formMap.serverResponse(context);
+      return formMap.serverResponse(context);
     }
   }
 
@@ -334,7 +339,7 @@ export class ShopifyCompatibility {
     theme: SwellTheme,
     localeCode = 'en',
     suffix = '.json',
-  ) {
+  ): Promise<ShopifyLocalizationConfig> {
     const settingConfigs = await theme.getAllThemeConfigs();
 
     const shopifyLocaleConfigs = new Map<string, SwellThemeConfig>();
@@ -385,7 +390,10 @@ export class ShopifyCompatibility {
     return {};
   }
 
-  async getEditorLocaleConfig(theme: SwellTheme, localeCode: string) {
+  async getEditorLocaleConfig(
+    theme: SwellTheme,
+    localeCode: string,
+  ): Promise<ShopifyLocalizationConfig> {
     if (this.editorLocaleConfig?.[localeCode]) {
       return this.editorLocaleConfig[localeCode];
     }
@@ -401,11 +409,11 @@ export class ShopifyCompatibility {
     return editorLocaleConfig;
   }
 
-  async renderSchemaTranslations(
+  async renderSchemaTranslations<T>(
     theme: SwellTheme,
-    schema: SwellData,
+    schema: T,
     localeCode: string = 'en',
-  ): Promise<any> {
+  ): Promise<T> {
     if (!isObject(schema)) {
       return schema;
     }
@@ -415,7 +423,7 @@ export class ShopifyCompatibility {
       localeCode,
     );
 
-    return await this.renderSchemaTranslationValue(
+    return this.renderSchemaTranslationValue(
       theme,
       schema,
       localeCode,
@@ -423,46 +431,65 @@ export class ShopifyCompatibility {
     );
   }
 
-  async renderSchemaTranslationValue(
+  async renderSchemaTranslationValue<T>(
     theme: SwellTheme,
-    schemaValue: any,
+    schemaValue: T,
     localCode: string,
-    editorLocaleConfig: any,
-  ): Promise<any> {
-    if (typeof schemaValue === 'string') {
-      if (schemaValue.startsWith('t:')) {
-        const key = schemaValue.slice(2);
-        const keyParts = key?.split('.');
-        const keyName = keyParts.pop() || '';
-        const keyPath = keyParts.join('.');
-        const langObject = get(editorLocaleConfig, keyPath);
+    editorLocaleConfig: ShopifyLocalizationConfig,
+  ): Promise<T> {
+    switch (typeof schemaValue) {
+      case 'string': {
+        if (schemaValue.startsWith('t:')) {
+          const key = schemaValue.slice(2);
+          const keyParts = key?.split('.');
+          const keyName = keyParts.pop() || '';
+          const keyPath = keyParts.join('.');
+          const langObject = get(editorLocaleConfig, keyPath);
 
-        return langObject?.[keyName] ?? key;
+          return (langObject?.[keyName] ?? key) as T;
+        }
+
+        break;
       }
-    } else if (schemaValue instanceof Array) {
-      const result = [];
-      for (const value of schemaValue) {
-        result.push(
-          await this.renderSchemaTranslationValue(
-            theme,
-            value,
-            localCode,
-            editorLocaleConfig,
-          ),
-        );
+
+      case 'object': {
+        if (Array.isArray(schemaValue)) {
+          const result = [];
+
+          for (const value of schemaValue) {
+            result.push(
+              await this.renderSchemaTranslationValue(
+                theme,
+                value,
+                localCode,
+                editorLocaleConfig,
+              ),
+            );
+          }
+
+          return result as T;
+        }
+
+        if (schemaValue !== null) {
+          const result = { ...schemaValue } as Record<string, unknown>;
+
+          for (const [key, value] of Object.entries(schemaValue)) {
+            result[key] = await this.renderSchemaTranslationValue<unknown>(
+              theme,
+              value,
+              localCode,
+              editorLocaleConfig,
+            );
+          }
+
+          return result as T;
+        }
+
+        break;
       }
-      return result;
-    } else if (isObject(schemaValue)) {
-      const result: any = { ...schemaValue };
-      for (const [key, value] of Object.entries(schemaValue)) {
-        result[key] = await this.renderSchemaTranslationValue(
-          theme,
-          value,
-          localCode,
-          editorLocaleConfig,
-        );
-      }
-      return result;
+
+      default:
+        break;
     }
 
     return schemaValue;
@@ -478,8 +505,7 @@ export class ShopifyCompatibility {
 
   getPageRouteUrl(pageId: string): string {
     return (
-      this.theme.props.pages?.find((page: any) => page.id === pageId)?.url ||
-      pageId
+      this.theme.props.pages?.find((page) => page.id === pageId)?.url || pageId
     );
   }
 
@@ -504,14 +530,16 @@ export class ShopifyCompatibility {
       search_url: this.getPageRouteUrl('search'),
     };
 
+    type RouteKey = keyof typeof routes;
+
     if (this.shopifyCompatibilityConfig?.page_routes) {
       for (const [key, value] of Object.entries(
         this.shopifyCompatibilityConfig.page_routes,
       )) {
         if (value && typeof value === 'object' && value.page_id) {
-          (routes as any)[key] = this.getPageRouteUrl(value.page_id);
+          routes[key as RouteKey] = this.getPageRouteUrl(value.page_id);
         } else if (typeof value === 'string') {
-          (routes as any)[key] = value;
+          routes[key as RouteKey] = value;
         }
       }
     }
@@ -528,12 +556,12 @@ export class ShopifyCompatibility {
 
     let pageId;
     let pageExt;
-    const urlParams: SwellData = {};
+    const urlParams: Record<string, string | undefined> = {};
 
     const [pathname, query] = url.split('?');
     const pathExtParts = pathname.split('.');
     const ext = pathExtParts[1] ? pathExtParts.pop() : null;
-    const [_, segment1, segment2, segment3] = pathExtParts.join('.').split('/');
+    const [, segment1, segment2, segment3] = pathExtParts.join('.').split('/');
 
     if (ext === 'js') {
       pageExt = 'json';
@@ -592,7 +620,7 @@ export class ShopifyCompatibility {
         // TODO: replace with pathToRegexp
         const adaptedUrl = pageUrl.replace(
           /:(\w+)/g,
-          (_match, key) => urlParams[key],
+          (_match, key) => urlParams[key] as string,
         );
         return adaptedUrl + (ext ? `.${ext}` : '') + (query ? `?${query}` : '');
       }
@@ -690,8 +718,10 @@ export class ShopifyCompatibility {
         to: 'sort',
       },
       {
-        from: (param: string) => param.startsWith('filter.v.'),
-        to: (param: string, value: string) => {
+        from(param) {
+          return param.startsWith('filter.v.');
+        },
+        to(param, value) {
           const filterKey = param.split('filter.v.')[1];
           const filterValue = value;
 
@@ -701,15 +731,15 @@ export class ShopifyCompatibility {
     ];
   }
 
-  getAllCountryOptionTags(geoSettings: SwellRecord) {
+  getAllCountryOptionTags(geoSettings: SwellSettingsGeo) {
     return geoSettings?.countries
-      ?.map((country: any) => {
+      ?.map((country) => {
         if (!country) return;
 
         const provinces = [
           ...(geoSettings?.states || [])
-            .filter((state: any) => state.country === country.id)
-            .map((state: any) => [state.id, state.name]),
+            .filter((state) => state.country === country.id)
+            .map((state) => [state.id, state.name]),
         ];
         const provincesEncoded = JSON.stringify(provinces).replace(
           /"/g,
