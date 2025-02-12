@@ -505,8 +505,14 @@ export function stringifyQueryParams(queryParams: SwellData) {
   );
 }
 
-export function scopeCustomCSS(custom_css: string, sectionID: string) {
+export function scopeCustomCSS(
+  custom_css: string | string[],
+  sectionID: string,
+): string {
+  custom_css = Array.isArray(custom_css) ? custom_css.join(' ') : custom_css;
+
   const cssRules = custom_css.split('}');
+
   const scopedCSS = cssRules
     .map((rule) => {
       const [selectors, properties] = rule.split('{');
