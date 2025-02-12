@@ -37,8 +37,8 @@ export default function ShopifyLineItem(
               cartDiscount.type === 'order'
                 ? 'all'
                 : ['shipment', 'product'].includes(cartDiscount.type)
-                ? 'entitled'
-                : 'explicit',
+                  ? 'entitled'
+                  : 'explicit',
             target_type:
               cartDiscount.type === 'shipment' ? 'shipping_line' : 'line_item',
             title: discountSourceName,
@@ -47,8 +47,8 @@ export default function ShopifyLineItem(
               cartDiscount.type === 'promo'
                 ? 'automatic'
                 : cartDiscount.type === 'coupon'
-                ? 'discount_code'
-                : 'manual',
+                  ? 'discount_code'
+                  : 'manual',
             value:
               cartDiscount.rule?.value_type === 'fixed'
                 ? cartDiscount.rule?.value_fixed
@@ -122,10 +122,10 @@ export default function ShopifyLineItem(
     // unit_price_measurement // only available in germany and france
     url: deferWith(item.product, (product: any) => `/products/${product.slug}`), // TODO: use page mapping
     url_to_remove: null, // TODO
-    variant: deferWith(
-      [item.product, item.variant],
-      () =>
-        item.variant && ShopifyVariant(instance, item.variant, item.product),
+    variant: deferWith([item.product, item.variant], () =>
+      item.variant
+        ? ShopifyVariant(instance, item.variant, item.product)
+        : ShopifyProduct(instance, item.product),
     ),
     vendor: null,
     discounts: null, // Deprecated by Shopify

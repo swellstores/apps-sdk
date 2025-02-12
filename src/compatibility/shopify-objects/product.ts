@@ -157,6 +157,11 @@ export default function ShopifyProduct(
       product,
       (product: any) => product.prices?.length > 0,
     ),
+    quantity_rule: {
+      min: 1,
+      max: null,
+      increment: 1,
+    },
     requires_selling_plan: false,
     selected_or_first_available_selling_plan_allocation: null,
     selected_or_first_available_variant: deferWith(product, (product: any) => {
