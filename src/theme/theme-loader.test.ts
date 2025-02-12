@@ -2,6 +2,8 @@ import { Swell } from '@/api';
 
 import { ThemeLoader } from './theme-loader';
 
+import type { SwellThemeConfig, SwellThemeVersion } from 'types/swell';
+
 describe('#loadThemeFromManifest', () => {
   const configs = [
     {
@@ -14,10 +16,10 @@ describe('#loadThemeFromManifest', () => {
     },
   ];
 
-  let swell;
-  let loader;
+  let swell: Swell;
+  let loader: ThemeLoader;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     swell = new Swell({
       headers: {},
       swellHeaders: {
@@ -25,15 +27,15 @@ describe('#loadThemeFromManifest', () => {
         'store-id': 'test',
         'theme-id': 'themeid',
         'theme-version-hash': '####',
-        'theme-config-version': 4,
+        'theme-config-version': '4',
       },
       url: new URL('https://storefront.app'),
-    }); 
+    });
 
     loader = new ThemeLoader(swell);
 
     // Reset the theme cache.
-    loader.getCache().flushAll();
+    await loader.getCache().flushAll();
   });
 
   it('loads a theme from source', async () => {
@@ -71,7 +73,7 @@ describe('#loadThemeFromManifest', () => {
         fields: 'hash, manifest',
       }),
     );
-  
+
     expect(swell.get).toHaveBeenCalledWith(
       '/:themes:configs',
       expect.objectContaining({
@@ -82,7 +84,7 @@ describe('#loadThemeFromManifest', () => {
     );
     expect(swell.get).toHaveBeenCalledWith(
       '/:themes:configs',
-      expect.not.objectContaining({ hash: {$in: ['a', 'b']} }),
+      expect.not.objectContaining({ hash: { $in: ['a', 'b'] } }),
     );
   });
 
@@ -111,7 +113,7 @@ describe('#loadThemeFromManifest', () => {
         case '/:themes:configs': {
           // Simulate the partial theme config request for config b
           return {
-            results: [ configs[1] ],
+            results: [configs[1]],
           };
         }
         default: {
@@ -136,32 +138,38 @@ describe('#loadThemeFromManifest', () => {
   });
 }); // describe: #loadThemeFromManifest
 
-
 describe('#preloadTheme', () => {
-  const version = {
+  const version: SwellThemeVersion = {
     manifest: {
-      'path1': 'a',
-      'path2': 'b',
-      'path3': 'c',
+      path1: 'a',
+      path2: 'b',
+      path3: 'c',
     },
     hash: 'versionhash',
-  }
+    id: 'test_id',
+  };
 
-  const configs = [
+  const configs: SwellThemeConfig[] = [
     {
+      file_path: 'path1',
       file_data: 'foo',
       hash: 'a',
+      type: 'theme',
+      id: '1',
     },
     {
+      file_path: 'path1',
       file_data: 'bar',
       hash: 'b',
+      type: 'theme',
+      id: '2',
     },
   ];
 
-  let swell;
-  let loader;
+  let swell: Swell;
+  let loader: ThemeLoader;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     swell = new Swell({
       headers: {},
       swellHeaders: {
@@ -169,15 +177,15 @@ describe('#preloadTheme', () => {
         'store-id': 'test',
         'theme-id': 'themeid',
         'theme-version-hash': '####',
-        'theme-config-version': 4,
+        'theme-config-version': '4',
       },
       url: new URL('https://storefront.app'),
-    }); 
+    });
 
     loader = new ThemeLoader(swell);
 
     // Reset the theme cache.
-    loader.getCache().flushAll();
+    await loader.getCache().flushAll();
   });
 
   it('caches the manifest and configs', async () => {

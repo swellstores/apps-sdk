@@ -11,9 +11,10 @@ import {
 import { LiquidSwell } from '..';
 import { ThemeForm } from '../form';
 
-import type { Template, TopLevelToken } from 'liquidjs';
+import type { Template, TopLevelToken, ValueToken } from 'liquidjs';
 import type { QuotedToken } from 'liquidjs/dist/tokens';
-import type { TagClass } from 'liquidjs/dist/template';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
+import type { ThemeFormConfig } from 'types/swell';
 
 // {% form 'form_type' %}
 // {% form 'form_type', param %}
@@ -24,10 +25,10 @@ const IGNORED_SHOPIFY_FORMS = ['new_comment', 'guest_login'];
 export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class FormTag extends Tag {
     private formType: string;
-    private formConfig: any;
+    private formConfig?: ThemeFormConfig;
     private templates: Template[] = [];
     private hash: Hash;
-    private arg: any;
+    private arg?: ValueToken;
 
     constructor(
       token: TagToken,
@@ -59,7 +60,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       throw new Error(`tag ${token.getText()} not closed`);
     }
 
-    *render(ctx: Context): any {
+    *render(ctx: Context): TagRenderReturn {
       if (!this.formConfig) {
         return `<!-- form '${this.formType}' not found in theme configuration -->`;
       }

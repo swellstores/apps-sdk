@@ -1,3 +1,5 @@
+import type { FormatInput } from 'swell-js';
+
 import type {
   SwellStorefrontRecord,
   SwellStorefrontResource,
@@ -9,7 +11,31 @@ import type {
   StorefrontResource,
 } from '../src/api';
 
-import type { ShopifySettingSchema } from './shopify';
+import type {
+  ShopifySettingSchema,
+  ShopifySettingsData,
+  ShopifySettingsSchema,
+} from './shopify';
+
+export interface SwellApiParams {
+  url: URL | string;
+  config?: SwellAppConfig;
+  shopifyCompatibilityConfig?: SwellAppShopifyCompatibilityConfig;
+  headers?: Record<string, string | undefined>;
+  swellHeaders?: Record<string, string | undefined>;
+  serverHeaders?: Headers | Record<string, string | undefined>; // Required on the server
+  queryParams?: URLSearchParams | Record<string, string | undefined>;
+  workerEnv?: CFThemeEnv;
+  isEditor?: boolean;
+  getCookie?: (name: string) => string | undefined;
+  setCookie?: (
+    name: string,
+    value: string,
+    options: object | undefined,
+    swell: Swell,
+  ) => void;
+  [key: string]: unknown;
+}
 
 export interface SwellAppConfig {
   id: string;
@@ -71,6 +97,66 @@ export interface SwellAppStorefrontThemeProps {
 export interface SwellAppStorefrontThemeResources {
   singletons: Record<string, string>;
   records: Record<string, string>;
+}
+
+export interface SwellSettingsGeoItem {
+  id: string;
+  name: string;
+}
+
+export interface SwellSettingsGeoCountry extends SwellSettingsGeoItem {
+  state_label?: string;
+}
+
+export interface SwellSettingsGeoState extends SwellSettingsGeoItem {
+  country: string;
+}
+
+export type SwellSettingsGeoTimezone = SwellSettingsGeoItem;
+export type SwellSettingsGeoCurrency = SwellSettingsGeoItem;
+export type SwellSettingsGeoLocale = SwellSettingsGeoItem;
+
+export interface SwellSettingsGeo {
+  id: 'geo';
+  countries: SwellSettingsGeoCountry[];
+  currencies: SwellSettingsGeoCurrency[];
+  locales: SwellSettingsGeoLocale[];
+  states: SwellSettingsGeoState[];
+  timezones: SwellSettingsGeoTimezone[];
+}
+
+export interface SwellPageRequest {
+  host: string;
+  origin: string;
+  path: string;
+  query: QueryParams;
+  locale: string;
+  currency: string;
+  is_editor: boolean;
+  is_preview: boolean;
+  design_mode?: boolean;
+  visual_section_preview?: boolean;
+  page_type?: string;
+}
+
+export interface SwellProductFilterOption {
+  value: unknown;
+  label?: string;
+  count?: number;
+  active?: boolean;
+}
+
+export interface SwellProductFilter {
+  id: string;
+  label: string;
+  type: string;
+  options?: SwellProductFilterOption[];
+  interval?: number;
+  range_min?: number;
+  range_max?: number;
+  param_name: string;
+  active_options?: SwellProductFilterOption[];
+  inactive_options?: SwellProductFilterOption[];
 }
 
 export interface SwellErrorOptions {
@@ -141,7 +227,7 @@ export enum SwellMenuItemType {
   Category = 'category',
   Page = 'page',
   Blog = 'blog',
-  BlogCatgory = 'blog_category',
+  BlogCategory = 'blog_category',
   Content = 'content',
   ContentList = 'content_list',
   Url = 'url',
@@ -167,6 +253,8 @@ export interface SwellMenuItem {
   child_current?: boolean;
   child_active?: boolean;
 }
+
+export type QueryParams = import('qs').ParsedQs;
 
 export type StorefrontResourceGetter<T extends SwellData = SwellData> = (
   this: SwellStorefrontResource<T>,
@@ -196,16 +284,43 @@ export interface ThemeSectionSettings extends ThemeSettings {
   section: ThemeSectionBase;
 }
 
-// TODO: fix this
-export type ThemePage = Record<string, any>;
+export interface ThemePageSchema {
+  layout?: string;
+  page?: {
+    slug?: string;
+    label?: string;
+    description?: string;
+  };
+}
+
+interface ThemePageAdditionalProps {
+  description?: string;
+  current: number;
+  label: string;
+  slug?: string;
+}
+
+export interface ThemeCustomPage extends ThemePageAdditionalProps {
+  custom: true;
+  id: string;
+}
+
+export interface ThemeSwellPage
+  extends SwellAppStorefrontThemePage,
+    ThemePageAdditionalProps {
+  custom: false;
+}
+
+export type ThemePage = ThemeSwellPage | ThemeCustomPage;
 
 export interface ThemeGlobals extends SwellData {
   store: SwellData;
-  request: SwellData;
+  request: SwellPageRequest;
   settings: ThemeSettings;
   page: ThemePage;
   configs: ThemeConfigs;
   menus?: Record<string, SwellMenu>;
+  translations: Record<string, unknown>;
   [key: string]: any;
 }
 
@@ -217,8 +332,8 @@ export interface ThemeConfigs {
   [key: string]: any;
 
   // Shopify compatibility
-  settings_schema?: any;
-  settings_data?: any;
+  settings_schema?: ShopifySettingsSchema;
+  settings_data?: ShopifySettingsData;
 }
 
 export interface ThemeResourceFactory {
@@ -255,6 +370,7 @@ export interface ThemeSection {
 interface ThemeSectionGroupBase {
   id?: string;
   type?: string;
+  name?: string;
   order?: string[];
 }
 
@@ -501,17 +617,7 @@ export type RenderTranslation = (
   locale?: string,
 ) => Promise<string>;
 
-interface RenderCurrencyParams {
-  code?: string;
-  rate?: number;
-  locale?: string;
-  decimals?: number;
-}
-
-export type RenderCurrency = (
-  amount: number,
-  params?: RenderCurrencyParams,
-) => string;
+export type RenderCurrency = (amount: number, params?: FormatInput) => string;
 
 export type ResolveFilePath = (fileName: string, extName?: string) => string;
 

@@ -25,6 +25,7 @@ import {
   scopeCustomCSS,
 } from './utils';
 
+import type { FormatInput } from 'swell-js';
 import type { ShopifySectionSchema, ShopifySettingsData } from 'types/shopify';
 import type {
   ThemeGlobals,
@@ -52,6 +53,9 @@ import type {
   SwellThemeVersion,
   SwellAppStorefrontThemeProps,
   SwellAppShopifyCompatibilityConfig,
+  SwellPageRequest,
+  ThemePage,
+  ThemePageSchema,
 } from 'types/swell';
 
 export class SwellTheme {
@@ -65,7 +69,7 @@ export class SwellTheme {
   // Maps file path to theme config
   public themeConfigs: Map<string, SwellThemeConfig> | null = null;
 
-  public page: any;
+  public page?: ThemeSettings;
   public pageId: string | undefined;
   public shopifyCompatibility: ShopifyCompatibility | null = null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
@@ -131,7 +135,7 @@ export class SwellTheme {
 
     this.page = page;
 
-    const globals = {
+    const globals: ThemeGlobals = {
       ...this.globalData,
       store,
       settings,
@@ -151,7 +155,7 @@ export class SwellTheme {
     };
 
     if (this.shopifyCompatibility) {
-      this.shopifyCompatibility.adaptGlobals(globals as ThemeGlobals);
+      this.shopifyCompatibility.adaptGlobals(globals);
     }
 
     this.setGlobals(globals);
@@ -162,7 +166,7 @@ export class SwellTheme {
   }
 
   setGlobals(globals: SwellData): void {
-    (this.globals as any) = {
+    this.globals = {
       ...this.globals,
       ...globals,
     };
@@ -203,26 +207,30 @@ export class SwellTheme {
       editor: {},
       translations: {},
       presets: [],
-      ...settingConfigs.reduce((acc: any, config) => {
-        const configName = config?.name.split('.')[0];
-        if (configName) {
-          let configValue;
-          if (config?.file_path?.endsWith('.json')) {
-            try {
-              configValue = JSON.parse(config.file_data);
-            } catch (err) {
-              configValue = null;
+      ...settingConfigs.reduce(
+        (acc, config) => {
+          const configName: string = config?.name.split('.')[0];
+          if (configName) {
+            if (config?.file_path?.endsWith('.json')) {
+              let configValue;
+              try {
+                configValue = JSON.parse(config.file_data);
+              } catch (err) {
+                configValue = null;
+              }
+              acc[configName] = configValue;
             }
           }
-          acc[configName] = configValue;
-        }
-        return acc;
-      }, {}),
+          return acc;
+        },
+        {} as Record<string, unknown>,
+      ),
     };
 
     const session = await this.swell.storefront.settings.session();
 
-    const localeCode = session.locale || storefrontSettings?.store?.locale;
+    const localeCode: string =
+      session.locale || storefrontSettings?.store?.locale;
 
     this.resolveTranslationLocale(configs.translations, localeCode);
 
@@ -242,14 +250,14 @@ export class SwellTheme {
 
   async resolvePageData(
     store: SwellData,
-    configs: SwellData,
+    configs: ThemeConfigs,
     session?: SwellData,
     pageId?: string,
   ): Promise<{
     settings: ThemeSettings;
-    request: ThemeSettings;
-    page: ThemeSettings;
-    cart: SwellStorefrontSingleton | {};
+    request: SwellPageRequest;
+    page: ThemePage;
+    cart: SwellStorefrontSingleton | object;
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
@@ -268,13 +276,13 @@ export class SwellTheme {
       throw new Error('Failed to resolve theme settings');
     }
 
-    const request = {
+    const request: SwellPageRequest = {
       host: this.swell.url.host,
       origin: this.swell.url.origin,
       path: this.swell.url.pathname,
       query: this.swell.queryParams,
-      locale: session?.locale || store.locale,
-      currency: session?.currency || store.currency,
+      locale: (session?.locale || store.locale) as string,
+      currency: (session?.currency || store.currency) as string,
       is_editor: this.swell.isEditor,
       is_preview: this.swell.isPreview,
     };
@@ -282,15 +290,15 @@ export class SwellTheme {
     const swellPage = this.props.pages?.find(
       (page: ThemeSettings) => page.id === pageId,
     );
-    const isCustomPage = !swellPage;
+
     const page = {
       ...swellPage,
-      current: this.swell.queryParams.page || 1,
+      current: Number(this.swell.queryParams.page) || 1,
       url: this.swell.url.pathname,
-      custom: isCustomPage,
-      slug: null,
-      description: null,
-    };
+      custom: !swellPage,
+      description: undefined,
+      slug: undefined,
+    } as ThemePage;
 
     if (pageId) {
       const templateConfig = await this.getThemeTemplateConfigByType(
@@ -298,9 +306,11 @@ export class SwellTheme {
         pageId,
       );
 
-      let pageSchema;
+      let pageSchema: ThemePageSchema | undefined;
       try {
-        pageSchema = JSON.parse(templateConfig?.file_data || '');
+        pageSchema = JSON.parse(
+          templateConfig?.file_data || '',
+        ) as ThemePageSchema;
       } catch {
         // noop
       }
@@ -309,13 +319,13 @@ export class SwellTheme {
         const { slug, label, description } = pageSchema.page;
 
         page.slug = slug;
-        page.label = label;
+        page.label = label || page.label;
         page.description = description;
       }
     }
 
     const [cart, account] = await Promise.all([
-      this.fetchSingletonResourceCached<StorefrontResource | {}>(
+      this.fetchSingletonResourceCached<StorefrontResource | object>(
         'cart',
         () => this.fetchCart(),
         {},
@@ -556,7 +566,7 @@ export class SwellTheme {
 
     return reduce(
       translationsConfig,
-      (acc: any, value: any, key: string) => {
+      (acc, value, key) => {
         if (isObject(value)) {
           acc[key] = this.resolveTranslationLocale(value, localeCode);
         } else {
@@ -589,7 +599,7 @@ export class SwellTheme {
         }
         return acc;
       },
-      {},
+      {} as Record<string, unknown>,
     );
   }
 
@@ -950,6 +960,21 @@ export class SwellTheme {
   }
 
   async renderThemeTemplate(
+    filePath: `${string}.liquid`,
+    data?: SwellData,
+  ): Promise<string>;
+
+  async renderThemeTemplate(
+    filePath: `${string}.json`,
+    data?: SwellData,
+  ): Promise<ThemePageTemplateConfig>;
+
+  async renderThemeTemplate(
+    filePath: string,
+    data?: SwellData,
+  ): Promise<string | ThemePageTemplateConfig>;
+
+  async renderThemeTemplate(
     filePath: string,
     data?: SwellData,
   ): Promise<string | ThemePageTemplateConfig> {
@@ -1022,17 +1047,13 @@ export class SwellTheme {
       );
 
       if (themeTemplate && typeof themeTemplate !== 'string') {
-        themeTemplate.id = templateConfig.name;
+        themeTemplate.id = String(templateConfig.name);
       }
 
       return themeTemplate;
     }
 
-    console.error(
-      new Error(`Page template not found: templates/${name}.liquid`),
-    );
-
-    throw new PageNotFound();
+    throw new PageNotFound('Page template not found', 404, `templates/${name}`);
   }
 
   async renderPage(
@@ -1072,7 +1093,7 @@ export class SwellTheme {
   async renderAllSections(
     sectionsIds: string | Array<string>,
     pageData?: SwellData,
-  ): Promise<{ [key: string]: string }> {
+  ): Promise<Record<string, string>> {
     const sections =
       typeof sectionsIds === 'string'
         ? sectionsIds.split(/\s*,\s*/)
@@ -1084,20 +1105,23 @@ export class SwellTheme {
       }),
     );
 
-    return sectionsRendered.reduce((acc: any, section: any, index: number) => {
-      const sectionId = sections[index];
-      if (this.shopifyCompatibility) {
-        // TODO: figure out a way to use compatibility class for this
-        acc[sectionId] = `
+    return sectionsRendered.reduce(
+      (acc, section, index) => {
+        const sectionId = sections[index];
+        if (this.shopifyCompatibility) {
+          // TODO: figure out a way to use compatibility class for this
+          acc[sectionId] = `
           <div id="shopify-section-${sectionId}" class="shopify-section">${section}</div>
         `.trim();
-      } else {
-        acc[sectionId] = `
+        } else {
+          acc[sectionId] = `
           <div id="swell-section-${sectionId}" class="swell-section">${section}</div>
         `.trim();
-      }
-      return acc;
-    }, {});
+        }
+        return acc;
+      },
+      {} as Record<string, string>,
+    );
   }
 
   async renderSection(
@@ -1111,7 +1135,7 @@ export class SwellTheme {
 
     // Section ID could be a section name or a given config ID within a template
     const [sectionKey, originalPageId] = sectionId
-      ?.split(/\_\_/) // Split generated IDs if needed
+      .split(/__/) // Split generated IDs if needed
       .reverse();
 
     // return replaced '/' back
@@ -1235,11 +1259,12 @@ export class SwellTheme {
         if (lastSchema) {
           const configSchema =
             this.shopifyCompatibility.getSectionConfigSchema(lastSchema);
-          schema = await this.shopifyCompatibility.renderSchemaTranslations(
-            this,
-            configSchema,
-            this.globals.request?.locale,
-          );
+          schema =
+            await this.shopifyCompatibility.renderSchemaTranslations<ThemeSectionSchema>(
+              this,
+              configSchema as ThemeSectionSchema,
+              this.globals.request?.locale,
+            );
         }
       }
     } else if (resolvedConfig.file_data) {
@@ -1348,7 +1373,7 @@ export class SwellTheme {
       return [];
     }
 
-    const pageSchema = parseJsonConfig(pageConfig);
+    const pageSchema = parseJsonConfig<ThemePageSchema>(pageConfig);
     const pageLayout = pageSchema.layout || 'theme';
 
     const layoutConfig = await this.getThemeTemplateConfigByType(
@@ -1368,7 +1393,7 @@ export class SwellTheme {
 
     const layoutData = layoutConfig.file_data;
     const iterator = layoutData.matchAll(
-      /\bsections \'(\w.*?)\'|(\bcontent_for_layout\b)/gm,
+      /\bsections '(\w.*?)'|(\bcontent_for_layout\b)/gm,
     );
     const sections: ThemeSectionGroupInfo[] = [];
 
@@ -1382,7 +1407,7 @@ export class SwellTheme {
           `${sectionFileName}.json`,
         );
 
-        const sectionSchema = parseJsonConfig(sectionConfig);
+        const sectionSchema = parseJsonConfig<ThemeSectionGroup>(sectionConfig);
 
         let sectionName = sectionSchema.name;
         if (typeof sectionName === 'string' && sectionName.startsWith('t:')) {
@@ -1438,20 +1463,20 @@ export class SwellTheme {
     return this.renderSectionConfigs(sectionConfigs, data);
   }
 
-  async renderSectionConfigs(
+  renderSectionConfigs(
     sectionConfigs: ThemeSectionConfig[],
     data?: SwellData,
   ): Promise<ThemeSectionConfig[]> {
-    return await Promise.all(
-      sectionConfigs.map((sectionConfig: ThemeSectionConfig, index: number) => {
-        const { section, schema } = sectionConfig;
-        let { settings } = sectionConfig;
+    return Promise.all(
+      sectionConfigs.map(
+        async (sectionConfig: ThemeSectionConfig, index: number) => {
+          const { section, schema } = sectionConfig;
+          let { settings } = sectionConfig;
 
-        if (schema?.fields && this.globals) {
-          settings = resolveSectionSettings(this, sectionConfig);
-        }
+          if (schema?.fields && this.globals) {
+            settings = resolveSectionSettings(this, sectionConfig);
+          }
 
-        return new Promise<ThemeSectionConfig>(async (resolve) => {
           const templateConfig = await this.getThemeTemplateConfigByType(
             'sections',
             `${section.type}.liquid`,
@@ -1473,12 +1498,12 @@ export class SwellTheme {
             }
           }
 
-          resolve({
+          return {
             ...sectionConfig,
             output,
-          });
-        });
-      }),
+          };
+        },
+      ),
     );
   }
 
@@ -1550,27 +1575,29 @@ export class SwellTheme {
     return result || fallback || '';
   }
 
-  renderCurrency(amount: number, params: any): string {
+  renderCurrency(amount: number, params?: FormatInput): string {
     const swellSettings = this.swell.storefront.settings as any;
-    const swellCurrency = this.swell.storefront.currency as any;
+    const swellCurrency = this.swell.storefront.currency;
 
     // FIXME: Total hack because on the client side the currency is getting set to `[object Promise]` for some reason
     const settingState = swellSettings.state;
-    const code = (swellCurrency.code = settingState?.store?.currency || 'USD');
+    const code = settingState?.store?.currency || 'USD';
 
-    swellCurrency.locale = settingState?.store?.locale || 'en-US';
-    swellCurrency.state = settingState?.store?.locales?.find(
-      (locale: any) => locale.code === code,
-    ) || { code };
+    Object.assign(swellCurrency, {
+      code,
+      locale: settingState?.store?.locale || 'en-US',
+      state: settingState?.store?.locales?.find(
+        (locale: any) => locale.code === code,
+      ) || { code }
+    });
 
-    return swellCurrency.format(amount, params);
+    return swellCurrency.format(amount, params as FormatInput);
   }
 }
 
-export class PageError {
+export class PageError extends Error {
   public title: string;
   public status: number = 500;
-  public message: string;
   public description?: string;
 
   constructor(
@@ -1578,9 +1605,10 @@ export class PageError {
     status: number = 500,
     description?: string,
   ) {
+    super(String(title) + (description ? `: ${description}` : ''));
+
     this.title = String(title);
     this.status = status;
-    this.message = this.title + (description ? `: ${description}` : '');
     this.description = description;
   }
 
@@ -1771,10 +1799,10 @@ export function findEditorSetting(
   return null;
 }
 
-function parseJsonConfig(config?: SwellThemeConfig | null): any {
+function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {
   try {
-    return JSON.parse(config?.file_data || '{}');
+    return JSON.parse(config?.file_data || '{}') as T;
   } catch (err) {
-    return {};
+    return {} as T;
   }
 }

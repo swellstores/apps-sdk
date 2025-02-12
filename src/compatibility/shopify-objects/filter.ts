@@ -6,18 +6,22 @@ import { ShopifyCompatibility } from '../shopify';
 
 import { ShopifyResource } from './resource';
 
-import type { SwellData, SwellRecord } from 'types/swell';
+import type {
+  QueryParams,
+  SwellProductFilter,
+  SwellProductFilterOption,
+} from 'types/swell';
 
 export default function ShopifyFilter(
   instance: ShopifyCompatibility,
-  filter: SwellRecord,
+  filter: SwellProductFilter,
 ) {
   const isRange = filter.type === 'range';
   const isBoolean = filter.type === 'boolean';
 
   return new ShopifyResource({
     active_values: !isRange
-      ? filter.active_options?.map((option: SwellData) =>
+      ? filter.active_options?.map((option) =>
           ShopifyFilterValue(instance, option, filter),
         )
       : undefined,
@@ -25,7 +29,7 @@ export default function ShopifyFilter(
       ? ShopifyFilterValue(instance, { value: '' }, filter)
       : undefined,
     inactive_values: !isRange
-      ? filter.inactive_options?.map((option: SwellData) =>
+      ? filter.inactive_options?.map((option) =>
           ShopifyFilterValue(instance, option, filter),
         )
       : undefined,
@@ -41,14 +45,18 @@ export default function ShopifyFilter(
     presentation: 'text', // TODO: image, swatch
     range_max: filter.range_max,
     true_value: isBoolean
-      ? ShopifyFilterValue(instance, { value: filter.options[0].value }, filter)
+      ? ShopifyFilterValue(
+          instance,
+          { value: filter.options?.[0].value },
+          filter,
+        )
       : undefined,
     type:
       filter.id === 'price' ? 'price_range' : isBoolean ? 'boolean' : 'list',
     url_to_remove: removeFilterFromUrl(instance, `filter_${filter.id}`, true),
     values:
       filter.id !== 'price' &&
-      filter.options?.map((option: SwellData) =>
+      filter.options?.map((option) =>
         ShopifyFilterValue(instance, option, filter),
       ),
   });
@@ -56,8 +64,8 @@ export default function ShopifyFilter(
 
 export function ShopifyFilterValue(
   instance: ShopifyCompatibility,
-  filterOption: SwellData,
-  filter: SwellRecord,
+  filterOption: SwellProductFilterOption,
+  filter: SwellProductFilter,
   paramSuffix?: string,
 ) {
   const paramName = paramSuffix
@@ -71,11 +79,15 @@ export function ShopifyFilterValue(
     label: filterOption.label,
     param_name: paramName,
     swatch: null, // TODO when we support swatches
-    url_to_add: addFilterValueToUrl(instance, paramName, filterOption.value),
+    url_to_add: addFilterValueToUrl(
+      instance,
+      paramName,
+      filterOption.value as string,
+    ),
     url_to_remove: removeFilterValueFromUrl(
       instance,
       filter.param_name,
-      filterOption.value,
+      filterOption.value as string,
     ),
     value: filterOptionValue(instance, filterOption, filter, paramSuffix),
   });
@@ -83,15 +95,15 @@ export function ShopifyFilterValue(
 
 function filterOptionValue(
   instance: ShopifyCompatibility,
-  filterOption: SwellData,
-  filter: SwellData,
+  filterOption: SwellProductFilterOption,
+  filter: SwellProductFilter,
   paramSuffix?: string,
 ) {
   const { queryParams } = instance.swell;
 
-  const queryValue = paramSuffix
-    ? queryParams[filter.param_name]?.[paramSuffix]
-    : queryParams[filter.param_name];
+  const queryValue: string | undefined = paramSuffix
+    ? (queryParams[filter.param_name] as Record<string, string>)?.[paramSuffix]
+    : (queryParams[filter.param_name] as string);
 
   return filter.type === 'range'
     ? queryValue !== undefined && queryValue !== ''
@@ -100,15 +112,22 @@ function filterOptionValue(
     : filterOption.value;
 }
 
-function cleanQueryParams(queryParams: SwellData) {
-  return Object.keys(queryParams).reduce((acc: SwellData, key: string) => {
-    if (queryParams[key] !== '') {
-      acc[key] = isObject(queryParams[key])
-        ? cleanQueryParams(queryParams[key])
-        : queryParams[key];
-    }
-    return acc;
-  }, {});
+function cleanQueryParams(queryParams: QueryParams): Record<string, unknown> {
+  return Object.keys(queryParams).reduce(
+    (acc, key) => {
+      const value = queryParams[key];
+
+      if (value !== '') {
+        acc[key] =
+          isObject(value) && !Array.isArray(value)
+            ? cleanQueryParams(value)
+            : value;
+      }
+
+      return acc;
+    },
+    {} as Record<string, unknown>,
+  );
 }
 
 function removeFilterFromUrl(
@@ -140,7 +159,7 @@ function removeFilterValueFromUrl(
   const queryString = stringifyQueryParams({
     ...cleanQueryParams(queryParams),
     [paramName]: Array.isArray(queryParams[paramName])
-      ? queryParams[paramName].filter((v: string) => v !== value)
+      ? queryParams[paramName].filter((v) => v !== value)
       : undefined,
     page: undefined,
   });
@@ -160,8 +179,8 @@ function addFilterValueToUrl(
     [paramName]: Array.isArray(queryParams[paramName])
       ? queryParams[paramName].concat(value)
       : typeof queryParams[paramName] === 'string'
-      ? [queryParams[paramName], value]
-      : value,
+        ? [queryParams[paramName], value]
+        : value,
     page: undefined,
   });
 

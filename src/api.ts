@@ -5,6 +5,7 @@ import { Cache, RequestCache, ResourceCache } from './cache';
 import { md5, toBase64 } from './utils';
 
 import type {
+  SwellApiParams,
   SwellAppConfig,
   SwellErrorOptions,
   SwellMenu,
@@ -17,30 +18,14 @@ export * from './resources';
 
 const DEFAULT_API_HOST = 'https://api.schema.io';
 
-const SWELL_CLIENT_HEADERS = Object.freeze([
-  'swell-store-id',
-  'swell-environment-id',
-  'swell-app-id',
-  'swell-app-version',
-  'swell-theme-id',
-  'swell-theme-version',
-  'swell-theme-branch-id',
-  'swell-theme-config-version',
-  'swell-public-key',
-  'swell-admin-url',
-  'swell-vault-url',
-  'swell-deployment-mode',
-  'swell-request-id',
-]);
-
-const resourceCaches: Map<string, Cache> = new Map();
-const requestCaches: Map<string, Cache> = new Map();
+const resourceCaches = new Map<string, Cache>();
+const requestCaches = new Map<string, Cache>();
 
 export class Swell {
   public url: URL;
-  public headers: SwellData;
-  public swellHeaders: SwellData;
-  public queryParams: SwellData;
+  public headers: Record<string, string | undefined>;
+  public swellHeaders: Record<string, string | undefined>;
+  public queryParams: qs.ParsedQs;
   public workerEnv?: CFThemeEnv;
 
   // Represents the swell.json app config
@@ -73,19 +58,7 @@ export class Swell {
 
   public storefront_url?: string;
 
-  constructor(params: {
-    url: URL | string;
-    config?: SwellAppConfig;
-    shopifyCompatibilityConfig?: SwellAppShopifyCompatibilityConfig;
-    headers?: SwellData;
-    swellHeaders?: SwellData;
-    serverHeaders?: Headers | SwellData; // Required on the server
-    queryParams?: URLSearchParams | SwellData;
-    workerEnv?: CFThemeEnv;
-    getCookie?: (name: string) => string | undefined;
-    setCookie?: (name: string, value: string, options: any) => void;
-    [key: string]: any;
-  }) {
+  constructor(params: SwellApiParams) {
     const {
       url,
       config,
@@ -117,8 +90,8 @@ export class Swell {
       this.swellHeaders = swellHeaders;
 
       this.backend = new SwellBackendAPI({
-        storeId: swellHeaders['store-id'],
-        accessToken: swellHeaders['access-token'],
+        storeId: swellHeaders['store-id'] as string,
+        accessToken: swellHeaders['access-token'] as string,
         apiHost: swellHeaders['api-host'],
       });
 
@@ -141,6 +114,7 @@ export class Swell {
 
       this.isEditor =
         clientProps.isEditor ?? swellHeaders['deployment-mode'] === 'editor';
+
       this.isPreview =
         this.isEditor || swellHeaders['deployment-mode'] === 'preview';
     } else if (headers && swellHeaders) {
@@ -161,24 +135,26 @@ export class Swell {
     this.storefrontContext = this.initStorefrontContext();
   }
 
-  static formatHeaders(serverHeaders?: Headers | SwellData): {
-    headers: SwellData;
-    swellHeaders: SwellData;
+  static formatHeaders(
+    serverHeaders?: Headers | Record<string, string | undefined>,
+  ): {
+    headers: Record<string, string | undefined>;
+    swellHeaders: Record<string, string | undefined>;
   } {
-    let headers: SwellData = {};
-    const swellHeaders: SwellData = {};
+    let headers: Record<string, string | undefined> = {};
+    const swellHeaders: Record<string, string | undefined> = {};
 
     if (serverHeaders instanceof Headers) {
-      serverHeaders.forEach((value: string, key: string) => {
+      serverHeaders.forEach((value, key) => {
         headers[key] = value;
       });
     } else if (serverHeaders) {
       headers = serverHeaders;
     }
 
-    for (const key in headers) {
-      if (key.startsWith('swell-')) {
-        swellHeaders[key.replace('swell-', '')] = headers[key] || '';
+    for (const [key, value] of Object.entries(headers)) {
+      if (key.startsWith('swell-') && value) {
+        swellHeaders[key.replace('swell-', '')] = value;
       }
     }
 
@@ -186,9 +162,9 @@ export class Swell {
   }
 
   static formatQueryParams(
-    queryParams?: URLSearchParams | SwellData,
-  ): SwellData {
-    let params: SwellData = {};
+    queryParams?: URLSearchParams | Record<string, string | undefined>,
+  ): qs.ParsedQs {
+    let params: qs.ParsedQs = {};
 
     if (queryParams instanceof URLSearchParams) {
       params = qs.parse(queryParams.toString());
@@ -241,7 +217,7 @@ export class Swell {
     return settings || {};
   }
 
-  async getStorefrontSettings(force: boolean = false): Promise<SwellData> {
+  async getStorefrontSettings(force = false): Promise<SwellData> {
     try {
       // Load all settings including menus, payments, etc
       const { settings, menus, payments, subscriptions, session } =
@@ -328,9 +304,13 @@ export class Swell {
     return this.backend?.delete(...args);
   }
 
-  private getStorefrontInstance(params: SwellData) {
+  private getStorefrontInstance(params: SwellApiParams) {
     const { swellHeaders, getCookie, setCookie, storefrontSettingStates } =
       params;
+
+    if (!swellHeaders) {
+      throw new Error('Swell headers are required');
+    }
 
     const storeId = swellHeaders['store-id'];
     const publicKey = swellHeaders['public-key'];
@@ -347,12 +327,11 @@ export class Swell {
       getCookie,
       setCookie:
         setCookie &&
-        ((name: string, value: string, options: any) =>
+        ((name: string, value: string, options?: object) =>
           setCookie(name, value, options, this)),
-      //@ts-ignore
       headers: {
         'Swell-Store-id': storeId,
-        'Swell-Storefront-Id': swellHeaders['storefront-id'],
+        'Swell-Storefront-Id': swellHeaders['storefront-id'] as string,
       },
     });
 
@@ -385,7 +364,7 @@ export class Swell {
   private isStorefrontRequestCacheable(
     method: string,
     url: string,
-    opt: any,
+    opt?: { force: boolean },
   ): boolean {
     if (opt?.force) {
       return false;
@@ -515,7 +494,7 @@ export class SwellBackendAPI {
     this.apiAuth = toBase64(`${storeId}:${accessToken}`);
   }
 
-  async makeRequest(method: string, url: string, data?: object) {
+  async makeRequest<T>(method: string, url: string, data?: object): Promise<T> {
     const requestOptions: {
       method: string;
       headers: SwellData;

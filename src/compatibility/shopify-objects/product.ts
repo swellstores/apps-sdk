@@ -105,7 +105,7 @@ export default function ShopifyProduct(
     ),
     options_with_values: deferWith(product, (product: any) => {
       const { option_values } = instance.swell.queryParams;
-      let optionValues = (option_values || '').split(',');
+      let optionValues = String(option_values || '').split(',');
 
       // select the first variant by default
       if (optionValues.length !== product.options?.length) {
@@ -161,7 +161,7 @@ export default function ShopifyProduct(
     selected_or_first_available_selling_plan_allocation: null,
     selected_or_first_available_variant: deferWith(product, (product: any) => {
       const { variant, option_values } = instance.swell.queryParams;
-      const optionValues = (option_values || '').split(',');
+      const optionValues = String(option_values || '').split(',');
       const hasOptionValues = optionValues.length > 0;
       const variants = getAvailableVariants(product);
 

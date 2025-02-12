@@ -9,6 +9,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    "verbatimModuleSyntax": true,
     "jsx": "react-jsx",
     "baseUrl": "./",
     "outDir": "./dist",
