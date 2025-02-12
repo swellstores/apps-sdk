@@ -32,6 +32,7 @@
     "prebuild": "rimraf dist",
     "build": "node scripts/build.mjs",
     "postbuild": "tsc --project tsconfig.build.json",
+    "prepare": "git config core.hooksPath .git-hooks || echo 'Not in a git repo'",
     "prepublishOnly": "npm i && npm run build",
     "watch": "node scripts/build.mjs watch",
     "test": "jest --silent"

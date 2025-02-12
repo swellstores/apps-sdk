@@ -276,7 +276,7 @@ export interface ThemeSectionBase {
   settings: ThemeSettings;
   blocks?: ThemeSettingsBlock[];
   block_order?: string[];
-  custom_css?: string;
+  custom_css?: string | string[];
   disabled?: boolean;
 }
 
