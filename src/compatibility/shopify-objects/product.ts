@@ -104,16 +104,8 @@ export default function ShopifyProduct(
         }, {}),
     ),
     options_with_values: deferWith(product, (product: any) => {
-      const { option_values } = instance.swell.queryParams;
-      let optionValues = String(option_values || '').split(',');
-
-      // select the first variant by default
-      if (optionValues.length !== product.options?.length) {
-        const variants = getAvailableVariants(product);
-        const variant = variants[0];
-
-        optionValues = variant?.option_value_ids || [];
-      }
+      const variant = getSelectedVariant(product, instance.swell.queryParams);
+      const optionValues = variant?.option_value_ids || [];
 
       return product.options?.map((option: any, index: number) => {
         return {
@@ -165,29 +157,10 @@ export default function ShopifyProduct(
     requires_selling_plan: false,
     selected_or_first_available_selling_plan_allocation: null,
     selected_or_first_available_variant: deferWith(product, (product: any) => {
-      const { variant, option_values } = instance.swell.queryParams;
-      const optionValues = String(option_values || '').split(',');
-      const hasOptionValues = optionValues.length > 0;
-      const variants = getAvailableVariants(product);
+      const variant = getSelectedVariant(product, instance.swell.queryParams);
 
-      let selectedVariant = null;
-
-      if (variant) {
-        selectedVariant = variants.find(
-          (variant: any) => variant.id === variant,
-        );
-      } else if (hasOptionValues) {
-        selectedVariant = variants.find((variant: any) =>
-          variant.option_value_ids.every((optionValueId: string) =>
-            optionValues.includes(optionValueId),
-          ),
-        );
-      }
-
-      const selectedOrFirstVariant = selectedVariant || variants?.[0] || null;
-
-      return selectedOrFirstVariant
-        ? ShopifyVariant(instance, selectedOrFirstVariant, product, depth + 1)
+      return variant
+        ? ShopifyVariant(instance, variant, product, depth + 1)
         : ShopifyProduct(instance, product, depth + 1); // TODO: make sure this works correctly
     }),
     selected_selling_plan: null,
@@ -214,8 +187,33 @@ export function ShopifyProductOption(values: SwellData) {
   return new ShopifyResource(values, 'name');
 }
 
+function getSelectedVariant(product: any, queryParams: SwellData) {
+  const { variant: queryVariant, option_values: queryOptionValues } =
+    queryParams;
+  const variants = getAvailableVariants(product);
+
+  let selectedVariant = null;
+
+  if (queryVariant) {
+    selectedVariant = variants.find(
+      (variant: any) => variant.id === queryVariant,
+    );
+  } else if (queryOptionValues) {
+    const optionValues = queryOptionValues.split(',');
+
+    selectedVariant = variants.find((variant: any) =>
+      variant.option_value_ids.every((optionValueId: string) =>
+        optionValues.includes(optionValueId),
+      ),
+    );
+  }
+
+  return selectedVariant || variants?.[0] || null;
+}
+
 function getAvailableVariants(product: any) {
-  return (product.variants?.results?.reverse() || []).filter(
+  // Using slice() to avoid mutating the original array with reverse()
+  return (product.variants?.results?.slice()?.reverse() || []).filter(
     (variant: any) =>
       variant.stock_status === 'in_stock' || !variant.stock_status,
   );
