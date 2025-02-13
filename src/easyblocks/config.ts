@@ -143,15 +143,13 @@ function getEditorSchemaComponentProps(themeGlobals: ThemeGlobals) {
   return (themeGlobals?.configs?.editor?.settings ?? []).reduce(
     (acc: any[], settingGroup) => {
       for (const field of settingGroup.fields || []) {
-        if (field?.id) {
-          acc.push({
-            prop: field.id,
-            label: field.label,
-            optional: true,
-            group: settingGroup.label,
-            ...schemaToEasyblocksProps(field),
-          });
-        }
+        acc.push({
+          prop: field.id,
+          label: field.label,
+          optional: true,
+          group: settingGroup.label,
+          ...schemaToEasyblocksProps(field),
+        });
       }
 
       return acc;
@@ -542,11 +540,12 @@ export function getEasyblocksPagePropsWithConfigs(
       label: 'Swell color scheme',
       schema: params.fields.map((field: any) => ({
         prop: field.id,
-        type: field.id === 'background_gradient' ? 'text' : field.type,
         label: field.label,
-        description: field.description,
-        defaultValue: { value: field.default },
-        required: true,
+        optional: true,
+        ...schemaToEasyblocksProps({
+          ...field,
+          type: field.id === 'background_gradient' ? 'text' : field.type,
+        }),
       })),
       styles() {
         return {
