@@ -1,4 +1,3 @@
 #!/bin/sh
 echo 'Execute pre commit hook'
-npm test
-npx tsc --project tsconfig.build.json --noEmit
+npm test && npx tsc --project tsconfig.build.json --noEmit
