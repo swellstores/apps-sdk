@@ -2,9 +2,12 @@ import { cloneDeep } from 'lodash-es';
 
 import { ShopifyCompatibility } from '../shopify';
 
-import { isObject } from '@/liquid/utils';
+import { isLikePromise, isObject } from '@/liquid/utils';
 
-import type { StorefrontResource, SwellStorefrontCollection } from '@/resources';
+import type {
+  StorefrontResource,
+  SwellStorefrontCollection,
+} from '@/resources';
 import type { SwellData, SwellRecord } from 'types/swell';
 
 export class ShopifyResource {
@@ -12,7 +15,11 @@ export class ShopifyResource {
   stringProp?: string;
   linkProps?: string[];
 
-  constructor(props: Record<string, any>, stringProp?: string, linkProps?: string[]) {
+  constructor(
+    props: Record<string, any>,
+    stringProp?: string,
+    linkProps?: string[],
+  ) {
     this.props = props;
     this.stringProp = stringProp;
     this.linkProps = linkProps;
@@ -94,10 +101,12 @@ export class DeferredShopifyResource<T> {
 
   async resolve() {
     if (this.result === undefined) {
-      this.result = Promise.resolve().then(() => this.handler()).then((value) => {
-        this.result = value !== undefined ? value : null;
-        return value;
-      });
+      this.result = Promise.resolve()
+        .then(() => this.handler())
+        .then((value) => {
+          this.result = value !== undefined ? value : null;
+          return value;
+        });
     }
 
     return this.result;
@@ -109,16 +118,21 @@ export function defer<T>(handler: () => Promise<T> | T) {
 }
 
 export function isResolvable(asyncProp: unknown): boolean {
-  return isObject(asyncProp) && (
-    asyncProp instanceof Promise || typeof asyncProp._resolve === 'function'
+  return (
+    isObject(asyncProp) &&
+    (isLikePromise(asyncProp) || typeof asyncProp._resolve === 'function')
   );
 }
 
-function isStorefrontResource<T extends SwellData>(resource: unknown): resource is StorefrontResource<T> {
-  return isObject(resource) && typeof resource._resolve === 'function'
+function isStorefrontResource<T extends SwellData>(
+  resource: unknown,
+): resource is StorefrontResource<T> {
+  return isObject(resource) && typeof resource._resolve === 'function';
 }
 
-export async function resolveAsyncProp<R extends SwellData>(asyncProp: unknown): Promise<R | R[] | null | undefined> {
+export async function resolveAsyncProp<R extends SwellData>(
+  asyncProp: unknown,
+): Promise<R | R[] | null | undefined> {
   return Array.isArray(asyncProp)
     ? Promise.all<R[]>(
         asyncProp.map((prop) =>
@@ -126,11 +140,14 @@ export async function resolveAsyncProp<R extends SwellData>(asyncProp: unknown):
         ),
       )
     : isStorefrontResource<R>(asyncProp)
-    ? asyncProp._resolve()
-    : asyncProp as R;
+      ? asyncProp._resolve()
+      : (asyncProp as R);
 }
 
-export async function handleDeferredProp<T, R extends SwellData>(asyncProp: unknown, handler: (...value: R[]) => T): Promise<T | null> {
+export async function handleDeferredProp<T, R extends SwellData>(
+  asyncProp: unknown,
+  handler: (...value: R[]) => T,
+): Promise<T | null> {
   return resolveAsyncProp<R>(asyncProp)
     .then((value) => {
       if (Array.isArray(asyncProp) && Array.isArray(value)) {
@@ -150,7 +167,8 @@ export async function handleDeferredProp<T, R extends SwellData>(asyncProp: unkn
 }
 
 export function deferWith<T, R extends SwellData = SwellData>(
-  asyncProp: unknown, handler: (...value: R[]) => T
+  asyncProp: unknown,
+  handler: (...value: R[]) => T,
 ): DeferredShopifyResource<T | null> {
   return new DeferredShopifyResource<T | null>(() =>
     handleDeferredProp(asyncProp, handler),

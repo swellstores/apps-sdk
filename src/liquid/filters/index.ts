@@ -46,6 +46,7 @@ import placeholder_svg_tag from './shopify/placeholder_svg_tag';
 
 // Swell only
 import inline_editable from './inline_editable';
+import { isLikePromise } from '../utils';
 
 export const filters = {
   asset_url,
@@ -144,7 +145,7 @@ export async function resolveAsyncProps(
 
   let prop = propArg;
 
-  if (prop instanceof Promise) {
+  if (isLikePromise(prop)) {
     prop = await prop;
   }
 
@@ -158,7 +159,7 @@ export async function resolveAsyncProps(
         const [key, ...remainingKeys] = propPath.split('.');
         const targetProp = prop[key];
 
-        if (targetProp instanceof Promise) {
+        if (isLikePromise(targetProp)) {
           prop[key] = await targetProp;
         } else if (typeof targetProp?.resolve === 'function') {
           prop[key] = await targetProp.resolve();

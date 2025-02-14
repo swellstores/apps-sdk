@@ -63,7 +63,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 
         if (typeof prop === 'symbol') {
           if (prop === Symbol.toStringTag) {
-            if (instance._result instanceof Promise) {
+            if (isLikePromise(instance._result)) {
               return '[object Promise]';
             } else if (instance._result !== undefined) {
               return '[object Object]';
@@ -173,7 +173,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
   }
 
   _isResultResolved(): boolean {
-    return this._result !== undefined && !(this._result instanceof Promise);
+    return this._result !== undefined && !isLikePromise(this._result);
   }
 
   async resolve(
