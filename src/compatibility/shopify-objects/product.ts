@@ -49,10 +49,8 @@ export default function ShopifyProduct(
         product.images?.[0] && ShopifyMedia(instance, product.images[0]),
     ),
     first_available_variant: deferWith(product, (product: any) =>
-      product.variants?.results?.find(
-        (variant: any) =>
-          variant.stock_status === 'in_stock' || variant.stock_status === null,
-      ),
+      // it returns first variant with empty query
+      getSelectedVariant(product, {}),
     ),
     'gift_card?': deferWith(
       product,

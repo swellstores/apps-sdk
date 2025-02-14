@@ -13,6 +13,7 @@ import type {
   CFThemeEnv,
   SwellAppShopifyCompatibilityConfig,
 } from '../types/swell';
+import { isLikePromise } from './liquid/utils';
 
 export * from './resources';
 
@@ -273,7 +274,7 @@ export class Swell {
       'menuState',
     );
 
-    if (!menus || menus instanceof Promise) {
+    if (!menus || isLikePromise(menus)) {
       return [];
     }
 

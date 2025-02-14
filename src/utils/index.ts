@@ -23,6 +23,7 @@ import type {
   ThemeSettings,
   ThemeSettingsBlock,
 } from 'types/swell';
+import { isLikePromise } from '@/liquid/utils';
 
 export * from './md5';
 
@@ -399,7 +400,7 @@ export async function resolveAsyncResources(
   let nextResolveStorefrontResources = resolveStorefrontResources;
 
   try {
-    if (response instanceof Promise) {
+    if (isLikePromise(response)) {
       nextResolveStorefrontResources = false;
       result = await response;
     }
@@ -436,7 +437,7 @@ export async function resolveAsyncResources(
       for (const [key] of Object.entries(result)) {
         if (!resolveStorefrontResources) {
           if (
-            result[key] instanceof Promise ||
+            isLikePromise(result[key]) ||
             result[key] instanceof StorefrontResource ||
             result[key] instanceof ShopifyResource
           ) {
