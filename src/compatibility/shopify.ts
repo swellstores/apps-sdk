@@ -185,7 +185,10 @@ export class ShopifyCompatibility {
     // Add object resources to the page based on the page resource map
     if (pageMap) {
       for (const [key, value] of Object.entries(pageData)) {
-        const resourceMap = pageMap.resources.find(({ from }) => from === key);
+        const resourceMap = pageMap.resources.find(
+          ({ from }) => from === key || from.startsWith(`${key}.`),
+        );
+
         if (resourceMap && value instanceof StorefrontResource) {
           pageData[resourceMap.to] = resourceMap.object(this, value);
         }
