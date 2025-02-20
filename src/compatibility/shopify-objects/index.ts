@@ -1,8 +1,4 @@
-import {
-  Swell,
-  SwellStorefrontRecord,
-  SwellStorefrontCollection,
-} from '@/api';
+import { Swell, SwellStorefrontRecord, SwellStorefrontCollection } from '@/api';
 import { ShopifyCompatibility } from '@/compatibility/shopify';
 import type { ThemeFont } from '@/liquid/font';
 import type { ThemeForm } from '@/liquid/form';
@@ -21,6 +17,7 @@ import ShopifyOrder from './order';
 import ShopifyPaginate from './paginate';
 import ShopifyPredictiveSearch from './predictive_search';
 import ShopifyProduct from './product';
+import ShopifyRecommendations from './recommendations';
 import ShopifyPage from './page';
 import { DeferredShopifyResource, ShopifyResource } from './resource';
 import ShopifySearch from './search';
@@ -43,6 +40,7 @@ export {
   ShopifyPaginate,
   ShopifyPredictiveSearch,
   ShopifyProduct,
+  ShopifyRecommendations,
   ShopifyPage,
   ShopifyLink,
   ShopifyLocalization,
