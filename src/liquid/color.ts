@@ -14,14 +14,14 @@ export class ThemeColor {
   public green: number;
   public blue: number;
 
-  constructor(value: string) {
+  constructor(value: ThemeColor | string) {
     try {
-      this.color = Color(value);
+      this.color = isThemeColorLike(value) ? value.color : Color(value);
       this.colorValues = this.color.object();
       this.red = Number(this.colorValues.r);
       this.green = Number(this.colorValues.g);
       this.blue = Number(this.colorValues.b);
-    } catch (err) {
+    } catch (_err) {
       // Just default to black in case of parse error
       this.color = Color('#000000');
       this.colorValues = this.color.object();
@@ -35,101 +35,97 @@ export class ThemeColor {
     return colorVal instanceof ThemeColor ? colorVal : new ThemeColor(colorVal);
   }
 
-  toString() {
+  toString(): string {
     return this.color.string();
   }
 
-  lighten(percent: number) {
+  lighten(percent: number): string {
     return this.color
       .lighten(percent / 100)
       .hex()
       .toLowerCase();
   }
 
-  darken(percent: number) {
+  darken(percent: number): string {
     return this.color
       .darken(percent / 100)
       .hex()
       .toLowerCase();
   }
 
-  rgb() {
+  rgb(): string {
     return this.color.rgb().toString();
   }
 
-  rgba(alpha: number) {
+  rgba(alpha: number): string {
     return this.color.alpha(alpha).rgb().toString();
   }
 
-  hsl() {
+  hsl(): string {
     return this.color.hsl().round().toString();
   }
 
-  hex() {
+  hex(): string {
     return this.color.hex().toLowerCase();
   }
 
-  saturate(value: number) {
+  saturate(value: number): string {
     return this.color
       .saturate(value / 100)
       .hex()
       .toLowerCase();
   }
 
-  desaturate(value: number) {
+  desaturate(value: number): string {
     return this.color
       .desaturate(value / 100)
       .hex()
       .toLowerCase();
   }
 
-  modify(field: string, value: number) {
-    if (
-      ![
-        'red',
-        'green',
-        'blue',
-        'alpha',
-        'hue',
-        'lightness',
-        'saturation',
-      ].includes(field)
-    ) {
-      return this.toString();
+  modify(field: string, value: number): string {
+    switch (field) {
+      case 'red':
+      case 'green':
+      case 'blue':
+      case 'alpha':
+      case 'hue':
+      case 'lightness':
+        break;
+
+      case 'saturation':
+        return this.color.saturationl(value).hex();
+
+      default:
+        return this.toString();
     }
 
-    if (field === 'saturation') {
-      return this.color.saturationl(value);
-    }
-
-    const color = (this.color as any)[field](value);
+    const color = this.color[field](value);
 
     return field === 'alpha' ? color.string() : color.hex();
   }
 
-  extract(field: string) {
-    if (
-      ![
-        'red',
-        'green',
-        'blue',
-        'alpha',
-        'hue',
-        'lightness',
-        'saturation',
-      ].includes(field)
-    ) {
-      return this.toString();
+  extract(field: string): string {
+    switch (field) {
+      case 'red':
+      case 'green':
+      case 'blue':
+      case 'alpha':
+      case 'hue':
+      case 'lightness':
+        break;
+
+      case 'saturation':
+        return this.color.saturationl().toString();
+
+      default:
+        return this.toString();
     }
 
-    if (field === 'saturation') {
-      return this.color.saturationl();
-    }
-
-    return (this.color as any)[field]().toString();
+    return this.color[field]().toString();
   }
 
-  mix(color2: ThemeColor, ratio: number) {
+  mix(color2: ThemeColor, ratio: number): string {
     const c1 = this.color;
     const c2 = color2.color;
     const [r1, g1, b1] = c1.rgb().array();
@@ -144,7 +140,7 @@ export class ThemeColor {
     return c1.alpha() !== 1 ? mixedColor.string() : mixedColor.hex();
   }
 
-  contrast(color2: ThemeColor) {
+  contrast(color2: ThemeColor): string {
     return this.color.contrast(color2.color).toFixed(1);
   }
 
@@ -170,15 +166,27 @@ export class ThemeColor {
   }
 }
 
-export function mix(a: number, b: number, r: number): number {
+function mix(a: number, b: number, r: number): number {
   return (a * r + b * (100 - r)) / 100;
 }
 
-export function diff(v1: number, v2: number): number {
+function diff(v1: number, v2: number): number {
   return Math.max(v1, v2) - Math.min(v1, v2);
 }
 
-export function brightness(colorStr: string): number {
-  const [r, g, b] = Color(colorStr).rgb().array();
-  return (r * 299 + g * 587 + b * 114) / 1000;
+// function brightness(colorStr: string): number {
+//   const [r, g, b] = Color(colorStr).rgb().array();
+//   return (r * 299 + g * 587 + b * 114) / 1000;
+// }
+
+function isThemeColorLike(value: unknown): value is ThemeColor {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.hasOwn(value, 'color') &&
+    Object.hasOwn(value, 'colorValues') &&
+    Object.hasOwn(value, 'red') &&
+    Object.hasOwn(value, 'green') &&
+    Object.hasOwn(value, 'blue')
+  );
 }

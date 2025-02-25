@@ -1,4 +1,4 @@
-import { LiquidSwell, ThemeColor } from "..";
+import { LiquidSwell, ThemeColor } from '..';
 
 // {{ '#EA5AB9' | color_to_hsl }} => hsl(320, 77%, 64%)
 
