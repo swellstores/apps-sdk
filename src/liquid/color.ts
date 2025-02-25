@@ -8,6 +8,10 @@ export type ColorParam =
   | Record<string, unknown>;
 
 export class ThemeColor {
+  // A class identifier used for instanceof-like checks.
+  static readonly className: string = 'ThemeColor';
+  public readonly className: string = 'ThemeColor';
+
   public color: Color;
   public colorValues: ColorParam;
   public red: number;
@@ -167,6 +171,21 @@ export class ThemeColor {
       Math.max(this.brightness(), color2.brightness()) -
       Math.min(this.brightness(), color2.brightness())
     );
+  }
+
+  /**
+   * Custom implementation of the `Symbol.hasInstance` method to check if an object is an instance of `ThemeColor`.
+   * This method is used by `instanceof` to determine whether an object is an instance of the class.
+   *
+   * @param {string | ThemeColor} instance - The object to check.
+   * @returns {boolean} `true` if the instance is a `ThemeColor` object, `false` otherwise.
+   */
+  static [Symbol.hasInstance](instance: string | ThemeColor): boolean {
+    if (typeof instance === 'string') {
+      return false;
+    }
+
+    return instance.className === ThemeColor.className;
   }
 }
 
