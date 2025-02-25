@@ -343,18 +343,10 @@ export class ShopifyCompatibility {
     localeCode = 'en',
     suffix = '.json',
   ): Promise<ShopifyLocalizationConfig> {
-    const settingConfigs = await theme.getAllThemeConfigs();
-
-    const shopifyLocaleConfigs = new Map<string, SwellThemeConfig>();
-
-    for (const config of settingConfigs.values()) {
-      if (
-        config.file_path.startsWith('theme/locales/') &&
-        config.file_path.endsWith(suffix)
-      ) {
-        shopifyLocaleConfigs.set(config.file_path, config);
-      }
-    }
+    const shopifyLocaleConfigs = await theme.getThemeConfigsByPath(
+      'theme/locales/',
+      suffix,
+    );
 
     let localeConfig: SwellThemeConfig | null =
       shopifyLocaleConfigs.get(`theme/locales/${localeCode}${suffix}`) ?? null;
