@@ -125,7 +125,6 @@ export async function getLayoutSectionGroups(
 
   const sectionGroupConfigs = allSectionsList.filter(
     (config) =>
-      config.file_path.startsWith('theme/sections/') &&
       config.file_path.endsWith('.json') &&
       // Section groups must not have a liquid file
       !allSections.has(config.file_path.replace(/\.json$/, '.liquid')),

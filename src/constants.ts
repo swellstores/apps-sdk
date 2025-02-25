@@ -3,7 +3,6 @@ import type { SwellData } from 'types/swell';
 export const FILE_DATA_INCLUDE_QUERY: SwellData = {
   url: '/:themes:configs/{id}/file/data',
   conditions: {
-    type: 'theme',
     // Only expand theme files
     // Do not expand non-text data
     file: {

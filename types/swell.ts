@@ -3,6 +3,7 @@ import type { FormatInput } from 'swell-js';
 import type {
   SwellStorefrontRecord,
   SwellStorefrontResource,
+  SwellStorefrontSingleton,
 } from '../src/resources';
 
 import type {
@@ -315,12 +316,19 @@ export type ThemePage = ThemeSwellPage | ThemeCustomPage;
 
 export interface ThemeGlobals extends SwellData {
   store: SwellData;
-  request: SwellPageRequest;
   settings: ThemeSettings;
-  page: ThemePage;
-  configs: ThemeConfigs;
+  session: SwellData;
+  request: SwellPageRequest;
   menus?: Record<string, SwellMenu>;
+  page: ThemePage;
+  cart: SwellStorefrontSingleton | {};
+  account: SwellStorefrontSingleton | null;
+  customer?: SwellStorefrontSingleton | null;
+  geo: SwellSettingsGeo;
+  configs: ThemeConfigs;
   translations: Record<string, unknown>;
+  canonical_url: string;
+  shopify_compatibility: boolean;
   [key: string]: any;
 }
 
