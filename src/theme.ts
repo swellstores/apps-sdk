@@ -125,7 +125,7 @@ export class SwellTheme {
   async initGlobals(pageId: string): Promise<void> {
     this.pageId = pageId;
 
-    await this.themeLoader.init();
+    await this.themeLoader.init(this.themeConfigs || undefined);
 
     const { store, session, menus, geo, configs } =
       await this.getSettingsAndConfigs();

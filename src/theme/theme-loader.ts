@@ -32,7 +32,18 @@ export class ThemeLoader {
     this.swell = swell;
   }
 
-  async init() {
+  async init(themeConfigs?: Map<string, SwellThemeConfig>) {
+    const { swellHeaders } = this.swell;
+
+    if (themeConfigs) {
+      this.setConfigs(themeConfigs);
+      return;
+    }
+
+    if (!swellHeaders['theme-id']) {
+      return;
+    }
+
     await this.fetchManifest();
 
     if (!this.manifest) {
@@ -57,6 +68,18 @@ export class ThemeLoader {
     }
 
     return this.loadThemeAllConfigs();
+  }
+
+  /**
+   * Load theme configs from internal data, typically in the editor.
+   */
+  setConfigs(themeConfigs: Map<string, SwellThemeConfig>) {
+    this.configs = Object.fromEntries(themeConfigs);
+    this.configPaths = Object.keys(this.configs);
+    this.manifest = this.configPaths.reduce((manifest, path) => {
+      manifest[path] = this.configs[path]?.hash;
+      return manifest;
+    }, {} as SwellThemeManifest);
   }
 
   /**
