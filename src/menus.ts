@@ -4,7 +4,11 @@ import { SwellTheme } from './theme';
 import { SwellStorefrontRecord, SwellStorefrontCollection } from './api';
 import { arrayToObject } from './utils';
 
-import type { SwellMenu, SwellMenuItem } from '../types/swell';
+import {
+  SwellMenuItemType,
+  type SwellMenu,
+  type SwellMenuItem,
+} from '../types/swell';
 
 export async function resolveMenuSettings(
   theme: SwellTheme,
@@ -12,10 +16,12 @@ export async function resolveMenuSettings(
   options?: { currentUrl?: string },
 ) {
   const resolvedMenus = await Promise.all(
-    menus?.map(async (menu: SwellMenu) => ({
-      ...menu,
-      items: await resolveMenuItems(theme, menu.items, options),
-    })),
+    menus?.map(
+      async (menu): Promise<SwellMenu> => ({
+        ...menu,
+        items: await resolveMenuItems(theme, menu.items, options),
+      }),
+    ),
   );
 
   const compatibleMenus =
@@ -27,20 +33,20 @@ export async function resolveMenuSettings(
       // todo set handle-based menu ids if set
     }) || [];
 
-  return arrayToObject([
+  return arrayToObject<SwellMenu>([
     ...compatibleMenus,
     // Add menus with id as handle for shopify compatibility
     ...(theme.shopifyCompatibility
-      ? compatibleMenus
-          .map((menu) => {
-            if (menu.handle) {
-              return {
-                ...menu,
-                id: menu.handle,
-              };
-            }
-          })
-          .filter(Boolean)
+      ? compatibleMenus.reduce<SwellMenu[]>((acc, menu) => {
+          if (menu.handle) {
+            acc.push({
+              ...menu,
+              id: menu.handle,
+            });
+          }
+
+          return acc;
+        }, [])
       : []),
   ]);
 }
@@ -164,7 +170,7 @@ export async function getMenuItemUrlAndResource(
   }
 
   // Return URL value as-is
-  if (type === 'url') {
+  if (type === SwellMenuItemType.Url) {
     return { url: typeof value === 'string' ? value : '' };
   }
 
@@ -172,12 +178,12 @@ export async function getMenuItemUrlAndResource(
 
   // Build path based on content type of item
   switch (type) {
-    case 'home':
+    case SwellMenuItemType.Home:
       return {
         url: getMenuItemStorefrontUrl(theme, 'index'),
       };
 
-    case 'category':
+    case SwellMenuItemType.Category:
       if (!id) {
         return {
           url: getMenuItemStorefrontUrl(theme, 'categories/index'),
@@ -189,7 +195,7 @@ export async function getMenuItemUrlAndResource(
         id,
       );
 
-    case 'product':
+    case SwellMenuItemType.Product:
       if (!id) {
         return {
           url: getMenuItemStorefrontUrl(theme, 'products/index'),
@@ -197,10 +203,10 @@ export async function getMenuItemUrlAndResource(
       }
       return await deferMenuItemUrlAndResource(theme, 'products/product', id);
 
-    case 'page':
+    case SwellMenuItemType.Page:
       return await deferMenuItemUrlAndResource(theme, 'pages/page', id);
 
-    case 'blog':
+    case SwellMenuItemType.Blog:
       return await deferMenuItemUrlAndResource(
         theme,
         'blogs/blog',
@@ -215,10 +221,10 @@ export async function getMenuItemUrlAndResource(
         },
       );
 
-    case 'blog_category':
+    case SwellMenuItemType.BlogCategory:
       return await deferMenuItemUrlAndResource(theme, 'blogs/category', id);
 
-    case 'content_list':
+    case SwellMenuItemType.ContentList:
       if (model) {
         const slug = model?.replace('content/', '');
         return {
@@ -228,7 +234,7 @@ export async function getMenuItemUrlAndResource(
       }
       break;
 
-    case 'content':
+    case SwellMenuItemType.Content:
       if (model) {
         const collectionSlug = model?.replace('content/', '');
         return await deferMenuItemUrlAndResource(
@@ -240,7 +246,7 @@ export async function getMenuItemUrlAndResource(
       }
       break;
 
-    case 'search':
+    case SwellMenuItemType.Search:
       return {
         url: getMenuItemStorefrontUrl(theme, 'search'),
       };

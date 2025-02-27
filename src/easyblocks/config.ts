@@ -2,6 +2,11 @@ import { reduce } from 'lodash-es';
 import type {
   Backend,
   Document,
+  ExternalSchemaProp,
+  InternalTemplate,
+  NoCodeComponentDefinition,
+  NoCodeComponentEntry,
+  SchemaProp,
   UserDefinedTemplate,
 } from '@swell/easyblocks-core';
 
@@ -23,6 +28,7 @@ import type {
   ThemeSectionConfig,
   ThemeSectionEnabledDisabled,
   ThemeSectionGroup,
+  ThemeSettingFieldSchema,
 } from 'types/swell';
 
 export async function getEasyblocksPropsFromThemeConfigs(
@@ -30,7 +36,11 @@ export async function getEasyblocksPropsFromThemeConfigs(
   themeConfigs: SwellThemeConfig[],
   pageId: string,
 ) {
-  const pageTemplate = await getEasyblocksPageTemplate(theme, pageId);
+  const pageTemplate = await getEasyblocksPageTemplate<ThemeSectionGroup>(
+    theme,
+    pageId,
+  );
+
   const allSections = await getAllSections(theme, themeConfigs);
   const pageSections = await getPageSections(
     theme,
@@ -46,10 +56,10 @@ export async function getEasyblocksPropsFromThemeConfigs(
   };
 }
 
-export async function getEasyblocksPageTemplate(
+export async function getEasyblocksPageTemplate<T>(
   theme: SwellTheme,
   pageId: string,
-) {
+): Promise<T | undefined> {
   let templateConfig: SwellThemeConfig | null = null;
 
   templateConfig = await theme.getThemeTemplateConfigByType(
@@ -58,14 +68,14 @@ export async function getEasyblocksPageTemplate(
   );
 
   if (templateConfig) {
-    return JSON.parse(templateConfig.file_data);
+    return JSON.parse(templateConfig.file_data) as T;
   }
 }
 
 function getAcceptedLayoutSections(
   allSections: ThemePageSectionSchema[],
   groupType: string,
-) {
+): string[] {
   return allSections.reduce((acc: string[], section) => {
     if (section.enabled_on) {
       if (checkEnabledDisabledOn(section.enabled_on, 'groups', groupType)) {
@@ -89,8 +99,8 @@ function getAcceptedLayoutSections(
 function getLayoutSectionGroupComponentProps(
   allSections: ThemePageSectionSchema[],
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
-) {
-  return layoutSectionGroups.map((sectionGroup) => ({
+): SchemaProp[] {
+  return layoutSectionGroups.map<SchemaProp>((sectionGroup) => ({
     prop: getSectionGroupProp(sectionGroup.id),
     type: 'component-collection',
     label: sectionGroup.label,
@@ -119,8 +129,8 @@ function getAcceptedSections(
   allSections: ThemePageSectionSchema[],
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
   pageId: string,
-) {
-  return allSections.reduce((acc: string[], section) => {
+): string[] {
+  return allSections.reduce<string[]>((acc, section) => {
     if (section.enabled_on) {
       if (checkEnabledDisabledOn(section.enabled_on, 'templates', pageId)) {
         acc.push(String(section.id));
@@ -139,12 +149,14 @@ function getAcceptedSections(
   }, []);
 }
 
-function getEditorSchemaComponentProps(themeGlobals: ThemeGlobals) {
-  return (themeGlobals?.configs?.editor?.settings ?? []).reduce(
-    (acc: any[], settingGroup) => {
+function getEditorSchemaComponentProps(
+  themeGlobals: ThemeGlobals,
+): SchemaProp[] {
+  return (themeGlobals?.configs?.editor?.settings ?? []).reduce<SchemaProp[]>(
+    (acc, settingGroup) => {
       for (const field of settingGroup.fields || []) {
         acc.push({
-          prop: field.id,
+          prop: field.id as string,
           label: field.label,
           optional: true,
           group: settingGroup.label,
@@ -158,18 +170,20 @@ function getEditorSchemaComponentProps(themeGlobals: ThemeGlobals) {
   );
 }
 
-function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
-  const list: unknown[] = [];
+function getAllSectionComponents(
+  allSections: ThemePageSectionSchema[],
+): NoCodeComponentDefinition[] {
+  const list: NoCodeComponentDefinition[] = [];
 
   for (const section of allSections) {
     const hasBlocks =
       Array.isArray(section.blocks) && section.blocks.length > 0;
 
     list.push({
-      id: `${section.id}`,
+      id: section.id,
       label: section.label,
       schema: [
-        ...(section.fields || []).reduce((acc: any[], field) => {
+        ...(section.fields || []).reduce<ExternalSchemaProp[]>((acc, field) => {
           if (field.id && field.type) {
             acc.push({
               prop: field.id,
@@ -191,34 +205,44 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
                   (block) => `Block__${section.id}__${block.type}`,
                 ),
                 // TODO: figure out how to make this work, doesn't work for collections normally
-                defaultValue: section.presets?.[0]?.blocks?.reduce(
-                  (acc: any[], block) => {
-                    const blockDef = section.blocks?.find(
-                      ({ type }) => type === block.type,
-                    );
-
-                    if (blockDef) {
-                      acc.push({
-                        _component: `Block__${section.id}__${block.type}`,
-                        ...reduce(
-                          blockDef.fields,
-                          (acc: any, blockField) => {
-                            if (blockField.id) {
-                              acc[blockField.id] = schemaToEasyblocksValue(
-                                blockDef.fields,
-                                blockField.id,
-                                blockField.default,
-                              );
-                            }
-
-                            return acc;
-                          },
-                          {},
-                        ),
-                      });
+                defaultValue: section.presets?.reduce<NoCodeComponentEntry[]>(
+                  (acc, preset, index) => {
+                    if (!preset.blocks) {
+                      return acc;
                     }
 
-                    return acc;
+                    return preset.blocks.reduce<NoCodeComponentEntry[]>(
+                      (acc, block) => {
+                        const blockDef = section.blocks?.find(
+                          ({ type }) => type === block.type,
+                        );
+
+                        if (blockDef) {
+                          acc.push({
+                            _id: `Block__${section.id}__${block.type}__preset_${index}`,
+                            _component: `Block__${section.id}__${block.type}`,
+                            ...reduce(
+                              blockDef.fields,
+                              (acc, blockField) => {
+                                if (blockField.id) {
+                                  acc[blockField.id] = schemaToEasyblocksValue(
+                                    blockDef.fields,
+                                    blockField.id,
+                                    blockField.default,
+                                  );
+                                }
+
+                                return acc;
+                              },
+                              {} as Record<string, unknown>,
+                            ),
+                          });
+                        }
+
+                        return acc;
+                      },
+                      acc,
+                    );
                   },
                   [],
                 ),
@@ -227,7 +251,7 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
                   label: 'Add block',
                   aspectRatio: 1,
                 },
-              },
+              } as ExternalSchemaProp,
             ]
           : []),
         {
@@ -241,7 +265,7 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
             rows: 5,
             placeholder: 'Enter custom CSS...',
           },
-        },
+        } as ExternalSchemaProp,
       ],
       styles: () => {
         return {
@@ -254,10 +278,10 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
 
     if (hasBlocks) {
       list.push(
-        ...(section.blocks || []).map((block) => ({
+        ...(section.blocks || []).map<NoCodeComponentDefinition>((block) => ({
           id: `Block__${section.id}__${block.type}`,
           label: block.label,
-          schema: (block.fields || []).reduce((acc: any[], field) => {
+          schema: (block.fields || []).reduce<SchemaProp[]>((acc, field) => {
             if (field.id && field.type) {
               acc.push({
                 prop: field.id,
@@ -284,9 +308,11 @@ function getAllSectionComponents(allSections: ThemePageSectionSchema[]) {
   return list;
 }
 
-function getEditorSchemaTemplateValues(themeGlobals: ThemeGlobals) {
+function getEditorSchemaTemplateValues(
+  themeGlobals: ThemeGlobals,
+): Partial<NoCodeComponentEntry> | undefined {
   return themeGlobals?.configs?.editor?.settings?.reduce(
-    (acc: any, settingGroup) => {
+    (acc, settingGroup) => {
       for (const field of settingGroup.fields || []) {
         if (field?.id) {
           acc[field.id] = schemaToEasyblocksValue(
@@ -298,54 +324,61 @@ function getEditorSchemaTemplateValues(themeGlobals: ThemeGlobals) {
       }
       return acc;
     },
-    {},
+    {} as Partial<NoCodeComponentEntry>,
   );
 }
 
 function getLayoutSectionGroupTemplateValues(
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
-) {
-  return layoutSectionGroups.reduce((acc: any, sectionGroup) => {
-    acc[getSectionGroupProp(sectionGroup.id)] = sectionGroup.sectionConfigs.map(
-      ({ section, settings, schema }) => ({
-        _id: `SectionGroup__${section.type}_${getRandomId()}`,
-        _component: `${section.type}`,
-        ...reduce(
-          settings?.section.settings,
-          (acc: any, value, key) => {
-            acc[key] = schemaToEasyblocksValue(schema?.fields, key, value);
-            return acc;
-          },
-          {},
-        ),
-        custom_css: settings?.section['custom_css'] || '',
-        ...(settings?.section.blocks
-          ? {
-              Blocks: settings.section.blocks.map((block) => ({
-                _id: `Block__${section.type}__${block.type}_${getRandomId()}`,
-                _component: `Block__${section.type}__${block.type}`,
-                ...reduce(
-                  block.settings,
-                  (acc: any, value, key) => {
-                    acc[key] = schemaToEasyblocksValue(
-                      schema?.blocks?.find(({ type }) => type === block.type)
-                        ?.fields,
-                      key,
-                      value,
-                    );
+): Record<string, NoCodeComponentEntry[]> {
+  return layoutSectionGroups.reduce(
+    (acc, sectionGroup) => {
+      acc[getSectionGroupProp(sectionGroup.id)] =
+        sectionGroup.sectionConfigs.map<NoCodeComponentEntry>(
+          ({ section, settings, schema }) => ({
+            _id: `SectionGroup__${section.type}_${getRandomId()}`,
+            _component: `${section.type}`,
+            ...reduce(
+              settings?.section.settings,
+              (acc, value, key) => {
+                acc[key] = schemaToEasyblocksValue(schema?.fields, key, value);
+                return acc;
+              },
+              {} as Record<string, unknown>,
+            ),
+            custom_css: settings?.section['custom_css'] || '',
+            ...(settings?.section.blocks
+              ? {
+                  Blocks: settings.section.blocks.map<NoCodeComponentEntry>(
+                    (block) => ({
+                      _id: `Block__${section.type}__${block.type}_${getRandomId()}`,
+                      _component: `Block__${section.type}__${block.type}`,
+                      ...reduce(
+                        block.settings,
+                        (acc, value, key) => {
+                          acc[key] = schemaToEasyblocksValue(
+                            schema?.blocks?.find(
+                              ({ type }) => type === block.type,
+                            )?.fields,
+                            key,
+                            value,
+                          );
 
-                    return acc;
-                  },
-                  {},
-                ),
-              })),
-            }
-          : undefined),
-      }),
-    );
+                          return acc;
+                        },
+                        {} as Record<string, unknown>,
+                      ),
+                    }),
+                  ),
+                }
+              : undefined),
+          }),
+        );
 
-    return acc;
-  }, {});
+      return acc;
+    },
+    {} as Record<string, NoCodeComponentEntry[]>,
+  );
 }
 
 function prepareSectionId(id?: string): string {
@@ -355,60 +388,65 @@ function prepareSectionId(id?: string): string {
 
 function getAllSectionComponentTemplates(
   allSections: ThemePageSectionSchema[],
-) {
-  const list: unknown[] = [];
+): InternalTemplate[] {
+  const list: InternalTemplate[] = [];
 
   for (const section of allSections) {
     if (section.presets) {
       list.push(
-        ...section.presets.map((preset, index) => ({
+        ...section.presets.map<InternalTemplate>((preset, index) => ({
           id: `${section.id}__preset_${index}`,
           entry: {
             _id: `${section.id}__preset_${index}`,
             _component: section.id,
-            custom_css: preset.settings?.['custom_css'] || '',
+            custom_css: (preset.settings?.['custom_css'] || '') as string,
             ...reduce(
               section.fields,
-              (acc: any, field: any) => {
-                acc[field.id] = schemaToEasyblocksValue(
-                  section.fields,
-                  field.id,
-                  preset.settings?.[field.id],
-                );
+              (acc, field) => {
+                if (field.id) {
+                  acc[field.id] = schemaToEasyblocksValue(
+                    section.fields,
+                    field.id,
+                    preset.settings?.[field.id],
+                  );
+                }
 
                 return acc;
               },
-              {},
+              {} as Record<string, unknown>,
             ),
-            Blocks: preset.blocks?.reduce((acc: any[], block) => {
-              const blockDef = section.blocks?.find(
-                ({ type }) => type === block.type,
-              );
+            Blocks: preset.blocks?.reduce<NoCodeComponentEntry[]>(
+              (acc, block) => {
+                const blockDef = section.blocks?.find(
+                  ({ type }) => type === block.type,
+                );
 
-              if (blockDef) {
-                acc.push({
-                  _id: `Block__${section.id}__${block.type}__preset_${index}`,
-                  _component: `Block__${section.id}__${block.type}`,
-                  ...reduce(
-                    blockDef.fields,
-                    (acc: any, blockField) => {
-                      if (blockField.id) {
-                        acc[blockField.id] = schemaToEasyblocksValue(
-                          blockDef.fields,
-                          blockField.id,
-                          block.settings?.[blockField.id],
-                        );
-                      }
+                if (blockDef) {
+                  acc.push({
+                    _id: `Block__${section.id}__${block.type}__preset_${index}`,
+                    _component: `Block__${section.id}__${block.type}`,
+                    ...reduce(
+                      blockDef.fields,
+                      (acc, blockField) => {
+                        if (blockField.id) {
+                          acc[blockField.id] = schemaToEasyblocksValue(
+                            blockDef.fields,
+                            blockField.id,
+                            block.settings?.[blockField.id],
+                          );
+                        }
 
-                      return acc;
-                    },
-                    {},
-                  ),
-                });
-              }
+                        return acc;
+                      },
+                      {} as Record<string, unknown>,
+                    ),
+                  });
+                }
 
-              return acc;
-            }, []),
+                return acc;
+              },
+              [],
+            ),
           },
         })),
       );
@@ -416,14 +454,14 @@ function getAllSectionComponentTemplates(
 
     if (section.blocks) {
       list.push(
-        ...section.blocks.map((block) => ({
+        ...section.blocks.map<InternalTemplate>((block) => ({
           id: `Block__${section.id}__${block.type}`,
           entry: {
             _id: `Block__${section.id}__${block.type}`,
             _component: `Block__${section.id}__${block.type}`,
             ...reduce(
               block.fields,
-              (acc: any, field) => {
+              (acc, field) => {
                 if (field.id && field.default !== undefined) {
                   acc[field.id] = schemaToEasyblocksValue(
                     block.fields,
@@ -434,7 +472,7 @@ function getAllSectionComponentTemplates(
 
                 return acc;
               },
-              {},
+              {} as Record<string, unknown>,
             ),
           },
         })),
@@ -444,7 +482,7 @@ function getAllSectionComponentTemplates(
 
   // Filter templates with settings because
   // easyblocks creates a default template for each component otherwise
-  return list.filter((template: any) => {
+  return list.filter((template) => {
     return Object.keys(template.entry).some(
       (key) => key !== '_id' && key !== '_component',
     );
@@ -458,7 +496,7 @@ export function getEasyblocksPagePropsWithConfigs(
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
   pageId: string,
 ) {
-  const rootComponent = {
+  const rootComponent: NoCodeComponentDefinition = {
     id: 'swell_global',
     // label: 'Page: ' + pageId,
     label: 'Theme settings',
@@ -493,7 +531,7 @@ export function getEasyblocksPagePropsWithConfigs(
     },
   };
 
-  const pageComponent = {
+  const pageComponent: NoCodeComponentDefinition = {
     id: 'swell_page',
     // label: 'Page: ' + pageId,
     label: 'Page settings',
@@ -508,7 +546,7 @@ export function getEasyblocksPagePropsWithConfigs(
           label: 'Add section',
           aspectRatio: 1,
         },
-      },
+      } as ExternalSchemaProp,
       ...getLayoutSectionGroupComponentProps(allSections, layoutSectionGroups),
     ],
 
@@ -522,7 +560,7 @@ export function getEasyblocksPagePropsWithConfigs(
     },
   };
 
-  const components = [
+  const components: NoCodeComponentDefinition[] = [
     rootComponent,
     pageComponent,
     ...getAllSectionComponents(allSections),
@@ -533,13 +571,16 @@ export function getEasyblocksPagePropsWithConfigs(
   );
 
   if (colorSchemeGroup) {
-    const { params } = colorSchemeGroup;
+    const params = (colorSchemeGroup as ExternalSchemaProp)
+      .params as unknown as ThemeSettingFieldSchema;
+
+    const { fields = [] } = params;
 
     components.push({
       id: 'swell_color_scheme_group',
       label: 'Swell color scheme',
-      schema: params.fields.map((field: any) => ({
-        prop: field.id,
+      schema: fields.map<ExternalSchemaProp>((field) => ({
+        prop: field.id as string,
         label: field.label,
         optional: true,
         ...schemaToEasyblocksProps({
@@ -557,7 +598,7 @@ export function getEasyblocksPagePropsWithConfigs(
     });
   }
 
-  const templates = [
+  const templates: InternalTemplate[] = [
     // TODO: add templates for all other components (sections) with preset setting defaults
     {
       id: 'swell_global',
@@ -567,9 +608,9 @@ export function getEasyblocksPagePropsWithConfigs(
         ...getEditorSchemaTemplateValues(themeGlobals),
         swell_page: [
           {
-            _id: `swell_page`,
-            _component: `swell_page`,
-            ContentSections: pageSections.map(
+            _id: 'swell_page',
+            _component: 'swell_page',
+            ContentSections: pageSections.map<NoCodeComponentEntry>(
               ({ section, settings, schema }) => ({
                 _id: prepareSectionId(section.id),
                 _component: `${section.type}`,
@@ -577,46 +618,47 @@ export function getEasyblocksPagePropsWithConfigs(
                 disabled: settings?.section?.disabled || false,
                 ...reduce(
                   schema?.fields,
-                  (acc, field) =>
-                    field?.id
-                      ? {
-                          ...acc,
-                          [field.id]: schemaToEasyblocksValue(
-                            schema?.fields,
-                            field.id,
-                            settings?.section?.settings?.[field.id],
-                          ),
-                        }
-                      : acc,
-                  {},
+                  (acc, field) => {
+                    if (field?.id) {
+                      acc[field.id] = schemaToEasyblocksValue(
+                        schema?.fields,
+                        field.id,
+                        settings?.section?.settings?.[field.id],
+                      );
+                    }
+
+                    return acc;
+                  },
+                  {} as Record<string, unknown>,
                 ),
                 ...(section?.blocks
                   ? {
-                      Blocks: Object.keys(section.blocks).map((key: any) => {
-                        if (!section.blocks) return;
-                        const block = section.blocks[key];
-                        return {
-                          _id: `Block__${key}__${block.type}_${Math.random()}`,
-                          _component: `Block__${section.type}__${block.type}`,
-                          disabled: block.disabled || false,
-                          ...reduce(
-                            block.settings,
-                            (acc, value, key) => ({
-                              ...acc,
-                              [key]: schemaToEasyblocksValue(
-                                schema?.blocks?.find(
-                                  ({ type }) => type === block.type,
-                                )?.fields,
-                                key,
-                                value,
-                              ),
-                            }),
-                            {},
-                          ),
-                        };
-                      }),
+                      Blocks: Object.entries(section.blocks).map(
+                        ([key, block]): NoCodeComponentEntry => {
+                          return {
+                            _id: `Block__${key}__${block.type}_${Math.random()}`,
+                            _component: `Block__${section.type}__${block.type}`,
+                            disabled: block.disabled || false,
+                            ...reduce(
+                              block.settings,
+                              (acc, value, key) => {
+                                acc[key] = schemaToEasyblocksValue(
+                                  schema?.blocks?.find(
+                                    ({ type }) => type === block.type,
+                                  )?.fields,
+                                  key,
+                                  value,
+                                );
+
+                                return acc;
+                              },
+                              {} as Record<string, unknown>,
+                            ),
+                          };
+                        },
+                      ),
                     }
-                  : {}),
+                  : undefined),
               }),
             ),
             ...getLayoutSectionGroupTemplateValues(layoutSectionGroups),
@@ -625,10 +667,10 @@ export function getEasyblocksPagePropsWithConfigs(
       },
     },
     {
-      id: `swell_page`,
+      id: 'swell_page',
       entry: {
-        _id: `swell_page`,
-        _component: `swell_page`,
+        _id: 'swell_page',
+        _component: 'swell_page',
       },
     },
     ...getAllSectionComponentTemplates(allSections),
@@ -775,33 +817,39 @@ export function getEasyblocksPagePropsWithConfigs(
 export function getEasyblocksComponentDefinitions(
   allSections: ThemePageSectionSchema[],
   layoutSectionGroups: ThemeLayoutSectionGroupConfig[],
-  getComponent: (type: string, data?: any) => any,
-) {
-  const pageSectionComponents = allSections.reduce((acc: any, section) => {
-    acc[`${section.id}`] = getComponent('pageSection', section);
-    return acc;
-  }, {});
+  getComponent: (type: string, data?: unknown) => React.ComponentType,
+): Record<string, React.ComponentType> {
+  const pageSectionComponents = allSections.reduce(
+    (acc, section) => {
+      acc[`${section.id}`] = getComponent('pageSection', section);
+      return acc;
+    },
+    {} as Record<string, React.ComponentType>,
+  );
 
   const layoutSectionGroupComponents = layoutSectionGroups.reduce(
-    (acc: any, sectionGroup) => {
+    (acc, sectionGroup) => {
       acc[getSectionGroupProp(sectionGroup.id)] = getComponent(
         'layoutSectionGroup',
         sectionGroup,
       );
       return acc;
     },
-    {},
+    {} as Record<string, React.ComponentType>,
   );
 
-  const blockComponents = allSections.reduce((acc: any, section) => {
-    if (section.blocks) {
-      for (const block of section.blocks) {
-        const blockId = `Block__${section.id}__${block.type}`;
-        acc[blockId] = getComponent('block', { section, block });
+  const blockComponents = allSections.reduce(
+    (acc, section) => {
+      if (section.blocks) {
+        for (const block of section.blocks) {
+          const blockId = `Block__${section.id}__${block.type}`;
+          acc[blockId] = getComponent('block', { section, block });
+        }
       }
-    }
-    return acc;
-  }, {});
+      return acc;
+    },
+    {} as Record<string, React.ComponentType>,
+  );
 
   return {
     ...pageSectionComponents,
@@ -817,7 +865,7 @@ export function getEasyblocksBackend() {
   // Only a mock backend for now
   const easyblocksBackend: Backend = {
     documents: {
-      get: async ({ id }) => {
+      get({ id }) {
         console.log('Easyblocks backend documents.get()', id);
         const document = {
           id,
@@ -827,37 +875,37 @@ export function getEasyblocksBackend() {
             _component: 'swell_page',
           },
         } as Document;
-        return document;
+        return Promise.resolve(document);
       },
-      create: async (payload) => {
+      create(payload) {
         console.log('Easyblocks backend documents.create()', payload);
-        return {} as Document;
+        return Promise.resolve({} as Document);
       },
-      update: async (payload) => {
+      update(payload) {
         console.log('Easyblocks backend documents.update()', payload);
-        return {} as Document;
+        return Promise.resolve({} as Document);
       },
     },
     templates: {
-      get: async (payload) => {
+      get(payload) {
         console.log('Easyblocks backend templates.get()', payload);
-        return {} as UserDefinedTemplate;
+        return Promise.resolve({} as UserDefinedTemplate);
       },
-      getAll: async () => {
+      getAll() {
         console.log('Easyblocks backend get templates.getAll()');
-        return [] as UserDefinedTemplate[];
+        return Promise.resolve([] as UserDefinedTemplate[]);
       },
-      create: async (payload) => {
+      create(payload) {
         console.log('Easyblocks backend get templates.create()', payload);
-        return {} as UserDefinedTemplate;
+        return Promise.resolve({} as UserDefinedTemplate);
       },
-      update: async (payload) => {
+      update(payload) {
         console.log('Easyblocks backend get templates.update()', payload);
-        return {} as UserDefinedTemplate;
+        return Promise.resolve({} as UserDefinedTemplate);
       },
-      delete: async (payload) => {
+      delete(payload) {
         console.log('Easyblocks backend get templates.delete()', payload);
-        return;
+        return Promise.resolve();
       },
     },
   };
@@ -865,6 +913,6 @@ export function getEasyblocksBackend() {
   return easyblocksBackend;
 }
 
-function getRandomId() {
+function getRandomId(): string {
   return (Math.random() + 1).toString(36).substring(7);
 }
