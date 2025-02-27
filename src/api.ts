@@ -281,27 +281,27 @@ export class Swell {
     return menus;
   }
 
-  async get(
+  async get<T = SwellData>(
     ...args: Parameters<SwellBackendAPI['get']>
-  ): Promise<SwellData | undefined> {
-    return this.backend?.get(...args);
+  ): Promise<T | undefined> {
+    return this.backend?.get<T>(...args);
   }
 
-  async put(
+  async put<T = SwellData>(
     ...args: Parameters<SwellBackendAPI['put']>
-  ): Promise<SwellData | undefined> {
+  ): Promise<T | undefined> {
     return this.backend?.put(...args);
   }
 
-  async post(
+  async post<T = SwellData>(
     ...args: Parameters<SwellBackendAPI['post']>
-  ): Promise<SwellData | undefined> {
+  ): Promise<T | undefined> {
     return this.backend?.post(...args);
   }
 
-  async delete(
+  async delete<T = SwellData>(
     ...args: Parameters<SwellBackendAPI['delete']>
-  ): Promise<SwellData | undefined> {
+  ): Promise<T | undefined> {
     return this.backend?.delete(...args);
   }
 
@@ -571,19 +571,19 @@ export class SwellBackendAPI {
     return result.join('&');
   }
 
-  async get(url: string, query?: SwellData): Promise<SwellData> {
+  async get<T = SwellData>(url: string, query?: SwellData): Promise<T> {
     return this.makeRequest('GET', url, query);
   }
 
-  async put(url: string, data: SwellData): Promise<SwellData> {
+  async put<T = SwellData>(url: string, data: SwellData): Promise<T> {
     return this.makeRequest('PUT', url, data);
   }
 
-  async post(url: string, data: SwellData): Promise<SwellData> {
+  async post<T = SwellData>(url: string, data: SwellData): Promise<T> {
     return this.makeRequest('POST', url, data);
   }
 
-  async delete(url: string, data?: SwellData): Promise<SwellData> {
+  async delete<T = SwellData>(url: string, data?: SwellData): Promise<T> {
     return this.makeRequest('DELETE', url, data);
   }
 }

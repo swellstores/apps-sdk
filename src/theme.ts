@@ -196,13 +196,13 @@ export class SwellTheme {
       translations: {},
       presets: [],
       ...Array.from(settingConfigs.values()).reduce(
-        (acc: any, config) => {
-          const configName = config?.name.split('.')[0];
+        (acc, config) => {
+          const configName = String(config?.name || '').split('.')[0];
           if (configName) {
             let configValue;
             try {
               configValue = JSON.parse(config.file_data);
-            } catch (err) {
+            } catch (_err) {
               configValue = null;
             }
             acc[configName] = configValue;
@@ -522,12 +522,12 @@ export class SwellTheme {
    */
   updateSettings(
     form: Record<string, { value: unknown } | undefined>,
-    config: object,
+    config: Record<string, unknown>,
   ): ThemeSettings {
     if (this.shopifyCompatibility) {
       return this.shopifyCompatibility.adaptSettings(
         form,
-        config as ShopifySettingsData,
+        config as unknown as ShopifySettingsData,
       );
     }
 
@@ -549,7 +549,7 @@ export class SwellTheme {
 
     return reduce(
       translationsConfig,
-      (acc: any, value: any, key: string) => {
+      (acc, value, key) => {
         if (isObject(value)) {
           acc[key] = this.resolveTranslationLocale(value, localeCode);
         } else {
@@ -582,7 +582,7 @@ export class SwellTheme {
         }
         return acc;
       },
-      {},
+      {} as Record<string, unknown>,
     );
   }
 
@@ -1465,8 +1465,8 @@ export class SwellTheme {
     sectionConfigs: ThemeSectionConfig[],
     data?: SwellData,
   ): Promise<ThemeSectionConfig[]> {
-    return await Promise.all(
-      sectionConfigs.map((sectionConfig: ThemeSectionConfig, index: number) => {
+    return Promise.all(
+      sectionConfigs.map(async (sectionConfig, index) => {
         const { section, schema } = sectionConfig;
         let { settings } = sectionConfig;
 
@@ -1474,33 +1474,31 @@ export class SwellTheme {
           settings = resolveSectionSettings(this, sectionConfig);
         }
 
-        return new Promise<ThemeSectionConfig>(async (resolve) => {
-          const templateConfig = await this.getThemeTemplateConfigByType(
-            'sections',
-            `${section.type}.liquid`,
-          );
-          let output = '';
-          if (templateConfig) {
-            output = await this.renderTemplate(templateConfig, {
-              ...data,
-              ...settings,
-              index,
-              template: templateConfig,
-            });
-
-            if (settings?.section.custom_css) {
-              output += `<style>${scopeCustomCSS(
-                settings?.section.custom_css,
-                sectionConfig.id,
-              )}</style>`;
-            }
-          }
-
-          resolve({
-            ...sectionConfig,
-            output,
+        const templateConfig = await this.getThemeTemplateConfigByType(
+          'sections',
+          `${section.type}.liquid`,
+        );
+        let output = '';
+        if (templateConfig) {
+          output = await this.renderTemplate(templateConfig, {
+            ...data,
+            ...settings,
+            index,
+            template: templateConfig,
           });
-        });
+
+          if (settings?.section.custom_css) {
+            output += `<style>${scopeCustomCSS(
+              settings?.section.custom_css,
+              sectionConfig.id,
+            )}</style>`;
+          }
+        }
+
+        return {
+          ...sectionConfig,
+          output,
+        };
       }),
     );
   }
@@ -1523,7 +1521,7 @@ export class SwellTheme {
 
   async renderTranslation(
     key: string,
-    data?: any,
+    data?: unknown,
     fallback?: string,
   ): Promise<string> {
     const langObject = this.globals.translations;
@@ -1678,16 +1676,27 @@ export function resolveThemeSettings(
       // Object-based setting types
       switch (setting?.type) {
         case 'color_scheme_group': {
-          each(value, (_, schemeId) => {
-            each(value[schemeId].settings, (colorValue, colorId) => {
-              const fieldDef = find(setting.fields, { id: colorId });
+          each(value, (scheme, schemeId) => {
+            if (
+              isObject(scheme) &&
+              typeof scheme.settings === 'object' &&
+              scheme.settings
+            ) {
+              const settings = scheme.settings as Record<
+                string,
+                string | ThemeColor
+              >;
 
-              // Skip empty values and gradient field
-              if (fieldDef?.type === 'color' && colorValue) {
-                value[schemeId].id = schemeId;
-                value[schemeId].settings[colorId] = new ThemeColor(colorValue);
-              }
-            });
+              each(settings, (colorValue, colorId) => {
+                const fieldDef = find(setting.fields, { id: colorId });
+
+                // Skip empty values and gradient field
+                if (fieldDef?.type === 'color' && colorValue) {
+                  scheme.id = schemeId;
+                  settings[colorId] = new ThemeColor(colorValue);
+                }
+              });
+            }
           });
 
           return;
@@ -1722,6 +1731,7 @@ export function resolveThemeSettings(
           break;
         case 'image':
           settings[key] = theme.resolveImageSetting(value);
+          break;
         default:
           break;
       }

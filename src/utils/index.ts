@@ -11,7 +11,6 @@ import { LANG_TO_COUNTRY_CODES } from '../constants';
 
 import type {
   SwellData,
-  SwellRecord,
   SwellThemeConfig,
   ThemeLayoutSectionGroupConfig,
   ThemePageSectionSchema,
@@ -69,7 +68,10 @@ export async function getAllSections(
       if (schema) {
         allSections.push({
           ...schema,
-          id: sectionConfig.name.split('.').pop() ?? '',
+          id:
+            String(sectionConfig.name || '')
+              .split('.')
+              .pop() ?? '',
           ...(schema && { presets: resolveSectionPresets(schema) }),
         });
       }
@@ -84,10 +86,10 @@ function resolveSectionPresets(
 ): ThemePresetSchema[] {
   if (!Array.isArray(schema?.presets)) return [];
 
-  return schema.presets.map((preset) => ({
+  return schema.presets.map<ThemePresetSchema>((preset) => ({
     label: preset.label,
     settings: {
-      ...schema.fields?.reduce((acc: any, field) => {
+      ...schema.fields?.reduce<ThemeSettings>((acc, field) => {
         if (field.id && field.default !== undefined) {
           acc[field.id] = field.default;
         }
@@ -101,7 +103,7 @@ function resolveSectionPresets(
         ? {
             ...block,
             settings: {
-              ...blockDef.fields.reduce((acc: any, field) => {
+              ...blockDef.fields.reduce<ThemeSettings>((acc, field) => {
                 if (field.id && field.default !== undefined) {
                   acc[field.id] = field.default;
                 }
@@ -163,15 +165,17 @@ export async function getLayoutSectionGroups(
     const schema = await renderTemplateSchema(config);
     return {
       ...schema,
-      id: config.name.split('.').pop(),
+      id: String(config.name || '')
+        .split('.')
+        .pop(),
     };
   };
 
-  const layoutSectionGroups = [];
+  const layoutSectionGroups: ThemeLayoutSectionGroupConfig[] = [];
   for (const config of sectionGroupConfigs) {
     let sectionGroup;
     try {
-      sectionGroup = JSON.parse(config.file_data);
+      sectionGroup = JSON.parse(config.file_data) as ThemeSectionGroup;
       // Convert name to label if shopify format
       if (sectionGroup?.name) {
         sectionGroup.label = sectionGroup.name;
@@ -187,11 +191,14 @@ export async function getLayoutSectionGroups(
         sectionGroup,
         getSectionSchema,
       );
+
       layoutSectionGroups.push({
         ...sectionGroup,
-        id: config.name.split('.').pop(),
+        id: String(config.name || '')
+          .split('.')
+          .pop(),
         sectionConfigs,
-      });
+      } as ThemeLayoutSectionGroupConfig);
     }
   }
 
@@ -199,15 +206,14 @@ export async function getLayoutSectionGroups(
 }
 
 export async function getPageSections(
-  sectionGroup: ThemeSectionGroup | SwellRecord,
+  sectionGroup: ThemeSectionGroup,
   getSchema: (type: string) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemeSectionConfig[]> {
-  const order =
-    sectionGroup?.order instanceof Array
-      ? sectionGroup.order
-      : Object.keys(sectionGroup?.sections || {});
+  const order = Array.isArray(sectionGroup?.order)
+    ? sectionGroup.order
+    : Object.keys(sectionGroup?.sections || {});
 
-  const pageSections = [];
+  const pageSections: ThemeSectionConfig[] = [];
   for (const key of order) {
     const section: ThemeSection = sectionGroup.sections[key];
 
@@ -215,7 +221,9 @@ export async function getPageSections(
       continue;
     }
 
-    const schema = (await getSchema(section.type)) || {
+    const schema: ThemeSectionSchema = ((await getSchema(
+      section.type,
+    )) as ThemeSectionSchema) || {
       id: section.type,
       label: section.type,
       tag: 'div',
@@ -226,10 +234,9 @@ export async function getPageSections(
 
     const id = sectionGroup.id ? `page__${sectionGroup.id}__${key}` : schema.id;
 
-    const blockOrder =
-      section.block_order instanceof Array
-        ? section.block_order
-        : Object.keys(section.blocks || {});
+    const blockOrder = Array.isArray(section.block_order)
+      ? section.block_order
+      : Object.keys(section.blocks || {});
 
     const blocks: ThemeSettingsBlock[] = blockOrder
       .map((key: string) => section.blocks?.[key])
@@ -253,15 +260,15 @@ export async function getPageSections(
     });
   }
 
-  return pageSections as ThemeSectionConfig[];
+  return pageSections;
 }
 
-export function isArray(value: any) {
+export function isArray<T>(value: unknown): value is Array<T> {
   // be compatible with IE 8
   return String(value) === '[object Array]';
 }
 
-export function isObject(value: any) {
+export function isObject(value: unknown): value is Record<string, unknown> {
   const type = typeof value;
   return value !== null && (type === 'object' || type === 'function');
 }
@@ -278,14 +285,18 @@ export function toBase64(inputString: string): string {
   return base64String;
 }
 
-export function arrayToObject(arr: Array<any>, key = 'id') {
+export function arrayToObject<
+  // T extends Record<keyof T | K, unknown>,
+  T extends { [I in keyof T | K]?: T[I] },
+  K extends string = 'id',
+>(arr: T[], key: K = 'id' as K): Record<string, T> {
   return reduce(
     arr,
-    (obj: { [key: string]: any }, value) => {
-      obj[value[key]] = value;
+    (obj, value) => {
+      obj[String(value[key])] = value;
       return obj;
     },
-    {},
+    {} as Record<string, T>,
   );
 }
 
@@ -302,79 +313,78 @@ export function getCountryCodeFromLocale(locale: string): string {
 }
 
 export function forEachKeyDeep(
-  obj: any,
-  fn: (key: string, value: any) => boolean | void,
+  obj: Record<string, unknown>,
+  fn: (key: string, value: unknown) => boolean | void,
 ) {
   if (typeof obj !== 'object' || obj === null) {
     return;
   }
 
-  for (const key of Object.keys(obj)) {
-    if (Object.hasOwn(obj, key)) {
-      const result = fn(key, obj);
+  for (const [key, value] of Object.entries(obj)) {
+    const result = fn(key, obj);
 
-      if (result !== false) {
-        const value = obj[key];
-
-        if (typeof value === 'object' && value !== null) {
-          forEachKeyDeep(value, fn);
-        }
+    if (result !== false) {
+      if (typeof value === 'object' && value !== null) {
+        forEachKeyDeep(value as Record<string, unknown>, fn);
       }
     }
   }
 }
 
-export function findCircularReferences(value: any) {
+export function findCircularReferences(value: object): unknown[] {
   const references = new Set();
 
-  forEachKeyDeep(value, (_key, value) => {
+  forEachKeyDeep(value as Record<string, unknown>, (_key, value) => {
     if (typeof value === 'object' && value !== null) {
       if (references.has(value)) {
         return false;
       }
+
       references.add(value);
     }
+
+    return true;
   });
 
   return Array.from(references);
 }
 
-export function removeCircularReferences(value: any) {
-  const references = new WeakSet();
-
+export function removeCircularReferences(value: object) {
   if (!value) {
     return value;
   }
 
+  const references = new WeakSet();
+
   return JSON.parse(
-    JSON.stringify(value, (_key, value) => {
+    JSON.stringify(value, (_key, value: unknown) => {
       if (typeof value === 'object' && value !== null) {
         if (references.has(value)) {
           // Clone circular reference
-          return JSON.parse(JSON.stringify(value));
+          return JSON.parse(JSON.stringify(value)) as object;
         }
         references.add(value);
       }
       return value;
     }),
-  );
+  ) as object;
 }
 
-export function dehydrateSwellRefsInStorefrontResources(obj: any) {
+export function dehydrateSwellRefsInStorefrontResources(obj: unknown): void {
   if (typeof obj !== 'object' || obj === null) {
-    return obj;
+    return;
   }
 
-  for (const key in obj) {
-    if (key === '_swell') {
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === '_swell' && '_swell' in obj) {
       obj[key] = undefined;
     } else {
-      dehydrateSwellRefsInStorefrontResources(obj[key]);
+      dehydrateSwellRefsInStorefrontResources(value);
     }
   }
 }
 
-function getStorefrontResourceType(value: any) {
+function getStorefrontResourceType(value: unknown) {
   if (value === undefined) {
     return undefined;
   } else if (value instanceof SwellStorefrontCollection) {
@@ -391,7 +401,7 @@ function getStorefrontResourceType(value: any) {
 }
 
 export async function resolveAsyncResources(
-  response: any,
+  response: unknown,
   resolveStorefrontResources: boolean = true,
   resolveWithResourceMetadata: boolean = false,
 ) {
@@ -413,8 +423,8 @@ export async function resolveAsyncResources(
       );
     }
 
-    if (result instanceof Array) {
-      result = await Promise.all(
+    if (Array.isArray(result)) {
+      const array = await Promise.all(
         result.map((item) =>
           resolveAsyncResources(
             item,
@@ -424,44 +434,47 @@ export async function resolveAsyncResources(
         ),
       );
 
-      if (result.filter((item: any) => item !== undefined).length === 0) {
+      result = array;
+
+      if (!array.some((item) => item !== undefined)) {
         return resolveStorefrontResources ? [] : undefined;
       }
     } else if (
       typeof result === 'object' &&
       result !== null &&
-      !result._swell
+      (!('_swell' in result) || !result._swell)
     ) {
-      const objectResult: any = {};
-      for (const [key] of Object.entries(result)) {
+      const objectResult: Record<string, unknown> = {};
+
+      for (const [key, value] of Object.entries(result)) {
         if (!resolveStorefrontResources) {
           if (
-            isLikePromise(result[key]) ||
-            result[key] instanceof StorefrontResource ||
-            result[key] instanceof ShopifyResource
+            isLikePromise(value) ||
+            value instanceof StorefrontResource ||
+            value instanceof ShopifyResource
           ) {
             objectResult[key] = {
-              _type: getStorefrontResourceType(result[key]),
+              _type: getStorefrontResourceType(value),
               ...(resolveWithResourceMetadata
                 ? {
                     value: await resolveAsyncResources(
-                      result[key],
+                      value,
                       nextResolveStorefrontResources,
                       resolveWithResourceMetadata,
                     ),
                   }
-                : {}),
+                : undefined),
             };
             continue;
           }
         }
 
-        if (result[key] instanceof StorefrontResource) {
+        if (value instanceof StorefrontResource) {
           if (resolveWithResourceMetadata) {
             objectResult[key] = {
-              _type: getStorefrontResourceType(result[key]),
+              _type: getStorefrontResourceType(value),
               value: await resolveAsyncResources(
-                result[key],
+                value,
                 nextResolveStorefrontResources,
                 resolveWithResourceMetadata,
               ),
@@ -471,7 +484,7 @@ export async function resolveAsyncResources(
         }
 
         objectResult[key] = await resolveAsyncResources(
-          result[key],
+          value,
           nextResolveStorefrontResources,
           resolveWithResourceMetadata,
         );
@@ -486,7 +499,7 @@ export async function resolveAsyncResources(
 
       return objectResult;
     }
-  } catch (err: any) {
+  } catch (err) {
     console.error(err);
     return response;
   }
@@ -494,7 +507,7 @@ export async function resolveAsyncResources(
   return result;
 }
 
-export function stringifyQueryParams(queryParams: SwellData) {
+export function stringifyQueryParams(queryParams: SwellData): string {
   return qs.stringify(
     {
       ...queryParams,
@@ -531,16 +544,16 @@ export function scopeCustomCSS(
 
 export function extractSettingsFromForm(
   form: Record<string, { value: unknown } | undefined>,
-  preset: object,
+  preset: Record<string, unknown>,
 ): ThemeSettings {
-  return Object.entries(preset).reduce((acc, [key, value]) => {
+  return Object.entries(preset).reduce<ThemeSettings>((acc, [key, value]) => {
     const entryValue = form[key]?.value;
     const hasValue = entryValue !== undefined && entryValue !== null;
 
     acc[key] = hasValue ? entryValue : value;
 
     return acc;
-  }, {} as ThemeSettings);
+  }, {});
 }
 
 export const SECTION_GROUP_CONTENT = 'ContentSections';

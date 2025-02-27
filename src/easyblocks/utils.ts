@@ -1,20 +1,27 @@
 import type { ShopifySectionSchema } from 'types/shopify';
 
 import type {
-  SwellRecord,
   SwellThemeConfig,
   ThemeLayoutSectionGroupConfig,
   ThemeSection,
+  ThemeSectionBase,
   ThemeSectionConfig,
   ThemeSectionGroup,
   ThemeSectionSchema,
   ThemeSectionSchemaData,
   ThemeSectionSettings,
   ThemeSettingFieldSchema,
+  ThemeSettings,
   ThemeSettingsBlock,
+  ThemeSettingSectionSchema,
 } from 'types/swell';
 
 import type { SwellTheme } from '../theme';
+import type {
+  CompiledComponentConfigBase,
+  ExternalReference,
+  ExternalSchemaProp,
+} from '@swell/easyblocks-core';
 
 export async function getAllSections(
   theme: SwellTheme,
@@ -24,15 +31,14 @@ export async function getAllSections(
 
   for (const config of themeConfigs) {
     if (filterSectionConfig(config, themeConfigs)) {
-      const schema = await renderTemplateSchema(
-        theme,
-        config as SwellThemeConfig,
-      );
+      const schema = await renderTemplateSchema(theme, config);
 
       if (schema) {
         allSections.push({
           ...schema,
-          id: config.name.split('.').pop(),
+          id: String(config.name || '')
+            .split('.')
+            .pop() as string,
         });
       }
     }
@@ -43,32 +49,37 @@ export async function getAllSections(
 
 export async function getPageSections(
   theme: SwellTheme,
-  sectionGroup: ThemeSectionGroup | SwellRecord,
-  getSectionSchemaHandler: any = getSectionSchema,
+  sectionGroup: ThemeSectionGroup,
+  getSectionSchemaHandler: (
+    theme: SwellTheme,
+    sectionName: string,
+  ) => Promise<ThemeSectionSchemaData | undefined> = getSectionSchema,
 ): Promise<ThemeSectionConfig[]> {
-  const order =
-    sectionGroup.order instanceof Array
-      ? sectionGroup.order
-      : Object.keys(sectionGroup.sections || {});
+  const order = Array.isArray(sectionGroup.order)
+    ? sectionGroup.order
+    : Object.keys(sectionGroup.sections || {});
 
-  const pageSections = [];
+  const pageSections: ThemeSectionConfig[] = [];
+
   for (const key of order) {
     const section: ThemeSection = sectionGroup.sections[key];
 
-    const schema = await getSectionSchemaHandler(theme, section.type);
-    if (!schema) {
+    const schemaData = await getSectionSchemaHandler(theme, section.type);
+
+    if (!schemaData) {
       continue;
     }
 
+    const schema: ThemeSectionSchema = { ...schemaData, id: key };
+
     const id = sectionGroup.id ? `page__${sectionGroup.id}__${key}` : schema.id;
 
-    const blockOrder =
-      section.block_order instanceof Array
-        ? section.block_order
-        : Object.keys(section.blocks || {});
+    const blockOrder = Array.isArray(section.block_order)
+      ? section.block_order
+      : Object.keys(section.blocks || {});
 
     const blocks: ThemeSettingsBlock[] = blockOrder
-      .map((key: string) => section.blocks?.[key])
+      .map((key) => section.blocks?.[key])
       .filter(Boolean) as ThemeSettingsBlock[];
 
     const settings: ThemeSectionSettings = {
@@ -80,7 +91,7 @@ export async function getPageSections(
     };
 
     pageSections.push({
-      id: id as string,
+      id: id,
       settings: settings,
       section: { id, ...section },
       tag: schema.tag || 'div',
@@ -119,15 +130,17 @@ export async function getLayoutSectionGroups(
 
     return {
       ...schema,
-      id: config?.name.split('.').pop(),
+      id: String(config?.name || '')
+        .split('.')
+        .pop() as string,
     };
   };
 
-  const layoutSectionGroups = [];
+  const layoutSectionGroups: ThemeLayoutSectionGroupConfig[] = [];
   for (const config of layoutSectionGroupConfigs) {
     let sectionGroup;
     try {
-      sectionGroup = JSON.parse(config.file_data);
+      sectionGroup = JSON.parse(config.file_data) as ThemeSectionGroup;
       // Convert name to label if shopify format
       if (sectionGroup?.name) {
         sectionGroup.label = sectionGroup.name;
@@ -144,18 +157,21 @@ export async function getLayoutSectionGroups(
         sectionGroup,
         getSectionSchema,
       );
+
       layoutSectionGroups.push({
         ...sectionGroup,
-        id: config.name.split('.').pop(),
+        id: String(config.name || '')
+          .split('.')
+          .pop(),
         sectionConfigs,
-      });
+      } as ThemeLayoutSectionGroupConfig);
     }
   }
 
   return layoutSectionGroups;
 }
 
-export async function getSectionSchema(
+async function getSectionSchema(
   theme: SwellTheme,
   sectionName: string,
 ): Promise<ThemeSectionSchemaData | undefined> {
@@ -167,7 +183,7 @@ export async function getSectionSchema(
   return renderTemplateSchema(theme, config as SwellThemeConfig);
 }
 
-export async function renderTemplateSchema(
+async function renderTemplateSchema(
   theme: SwellTheme,
   config: SwellThemeConfig,
 ): Promise<ThemeSectionSchemaData | undefined> {
@@ -180,16 +196,19 @@ export async function renderTemplateSchema(
 
       await theme.renderTemplate(config);
 
-      const lastSchema = (theme.liquidSwell.lastSchema ||
-        {}) as ShopifySectionSchema;
+      const lastSchema = theme.liquidSwell.lastSchema;
 
       if (lastSchema) {
-        schema = theme.shopifyCompatibility.getSectionConfigSchema(lastSchema);
+        schema = theme.shopifyCompatibility.getSectionConfigSchema(
+          lastSchema as ShopifySectionSchema,
+        );
       }
     }
   } else if (config?.file_data) {
     try {
-      schema = JSON.parse(config?.file_data) || undefined;
+      schema = (JSON.parse(config?.file_data) || undefined) as
+        | ThemeSectionSchemaData
+        | undefined;
     } catch {
       // noop
     }
@@ -198,10 +217,10 @@ export async function renderTemplateSchema(
   return schema;
 }
 
-export function filterSectionConfig(
+function filterSectionConfig(
   config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
-) {
+): boolean {
   if (!config.file_path.startsWith('theme/sections/')) {
     return false;
   }
@@ -209,10 +228,10 @@ export function filterSectionConfig(
   return isJsonOrLiquidConfig(config, themeConfigs);
 }
 
-export function filterAllLayoutSectionGroupConfigs(
+function filterAllLayoutSectionGroupConfigs(
   config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
-) {
+): boolean {
   if (
     !config.file_path.startsWith('theme/sections/') ||
     !config.file_path.endsWith('.json')
@@ -222,14 +241,14 @@ export function filterAllLayoutSectionGroupConfigs(
 
   const targetFilePath = config.file_path.replace(/\.json$/, '.liquid');
 
-  return !themeConfigs.find((c) => c.file_path === targetFilePath);
+  return !themeConfigs.some((c) => c.file_path === targetFilePath);
 }
 
-export function filterLayoutSectionGroupConfig(
+function filterLayoutSectionGroupConfig(
   config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
   type: string,
-) {
+): boolean {
   if (
     !config.file_path.endsWith(`/${type}.json`) &&
     !config.file_path.endsWith(`/${type}.liquid`)
@@ -240,10 +259,10 @@ export function filterLayoutSectionGroupConfig(
   return isJsonOrLiquidConfig(config, themeConfigs);
 }
 
-export function isJsonOrLiquidConfig(
+function isJsonOrLiquidConfig(
   config: SwellThemeConfig,
   themeConfigs: SwellThemeConfig[],
-) {
+): boolean {
   if (config.file_path.endsWith('.liquid')) {
     const targetFilePath = config.file_path.replace(/\.liquid$/, '.json');
 
@@ -261,13 +280,17 @@ export function isJsonOrLiquidConfig(
   return false;
 }
 
-export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
-  const sharedProps = {
+type EasyblocksFieldProps = Omit<ExternalSchemaProp, 'prop' | 'label'>;
+
+export function schemaToEasyblocksProps(
+  field: ThemeSettingFieldSchema,
+): EasyblocksFieldProps {
+  const sharedProps: Omit<EasyblocksFieldProps, 'type'> = {
     description: field.description,
-    defaultValue: field.default !== undefined ? field.default : null,
+    defaultValue: field.default as ExternalReference,
     isLabelHidden: true,
     layout: 'column',
-    params: field,
+    params: field as unknown as Record<string, unknown>,
   };
 
   let typeProps;
@@ -409,13 +432,13 @@ export function schemaToEasyblocksProps(field: ThemeSettingFieldSchema) {
   return {
     ...sharedProps,
     ...typeProps,
-  };
+  } as EasyblocksFieldProps;
 }
 
 export function schemaToEasyblocksValue(
   fields: ThemeSettingFieldSchema[] | undefined,
   fieldId: string,
-  value: any,
+  value: unknown,
 ) {
   if (value === undefined) {
     return null;
@@ -451,8 +474,11 @@ export function schemaToEasyblocksValue(
   }
 }
 
-export function getThemeSettingsFromProps(props: any, editorSchema: any[]) {
-  return editorSchema?.reduce((acc: any, settingGroup: any) => {
+export function getThemeSettingsFromProps(
+  props: Record<string, unknown>,
+  editorSchema: ThemeSettingSectionSchema[],
+): ThemeSettings | undefined {
+  return editorSchema?.reduce<ThemeSettings>((acc, settingGroup) => {
     for (const field of settingGroup.fields || []) {
       if (field?.id) {
         acc[field.id] = props[field.id];
@@ -463,34 +489,50 @@ export function getThemeSettingsFromProps(props: any, editorSchema: any[]) {
   }, {});
 }
 
-export function getSectionSettingsFromProps(props: any, sectionSchema: any) {
-  return sectionSchema
-    ? {
-        settings: sectionSchema.fields?.reduce((acc: any, field: any) => {
-          if (field?.id) {
-            acc[field.id] = props[field.id];
-          }
-          return acc;
-        }, {}),
-        id: sectionSchema.id,
-        blocks: props.Blocks?.filter(
-          (propBlock: any) => propBlock.props.compiled?._component,
-        ).map((propBlock: any) => {
-          const blockProps = propBlock.props.compiled.props;
-          const blockType = propBlock.props.compiled._component.split('__')[2];
-          const blockSchema = sectionSchema.blocks?.find(
-            (block: any) => block.type === blockType,
-          );
-          return {
-            type: blockType,
-            settings: blockSchema?.fields?.reduce((acc: any, field: any) => {
-              if (field?.id) {
-                acc[field.id] = blockProps[field.id];
-              }
-              return acc;
-            }, {}),
-          };
-        }),
+type ReactEasyblocksCompiledComponent = React.ReactElement<{
+  compiled: CompiledComponentConfigBase;
+}>;
+
+interface PageSectionComponentProps {
+  Blocks?: ReactEasyblocksCompiledComponent[];
+  [key: string]: unknown;
+}
+
+export function getSectionSettingsFromProps(
+  props: PageSectionComponentProps,
+  sectionSchema?: ThemeSectionSchema,
+): ThemeSectionBase | undefined {
+  if (!sectionSchema) {
+    return;
+  }
+
+  return {
+    settings: sectionSchema.fields.reduce<ThemeSettings>((acc, field) => {
+      if (field?.id) {
+        acc[field.id] = props[field.id];
       }
-    : {};
+      return acc;
+    }, {}),
+    id: sectionSchema.id,
+    blocks: props.Blocks?.filter((propBlock) =>
+      Boolean(propBlock.props.compiled?._component),
+    ).map((propBlock): ThemeSettingsBlock => {
+      const blockProps = propBlock.props.compiled.props;
+      const blockType = propBlock.props.compiled._component.split('__')[2];
+      const blockSchema = sectionSchema.blocks?.find(
+        (block) => block.type === blockType,
+      );
+
+      return {
+        type: blockType,
+        settings:
+          blockSchema?.fields?.reduce<ThemeSettings>((acc, field) => {
+            if (field?.id) {
+              acc[field.id] = blockProps[field.id] as unknown;
+            }
+            return acc;
+          }, {}) || {},
+      };
+    }),
+  };
 }
