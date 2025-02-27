@@ -120,7 +120,7 @@ export class ThemeLoader {
         return config;
       }
 
-      return this.fetchThemeConfigsFromSourceByPath(filePath);
+      return this.fetchThemeConfigsFromSourceByPath(filePath, hash);
     }
 
     return null;
@@ -320,9 +320,13 @@ export class ThemeLoader {
 
   /**
    * Fetches one theme config via Swell Backend API.
+   * This is used when a hash entry cannot be found.
+   * We may override the cached hash in order to ensure it is found on reload,
+   * but we probably need to find why that happens in the first place (TODO).
    */
   private async fetchThemeConfigsFromSourceByPath(
     filePath: string,
+    hash?: string,
   ): Promise<SwellThemeConfig | null> {
     console.log(`Retrieving theme config - ${filePath}`);
 
@@ -336,6 +340,10 @@ export class ThemeLoader {
     })) as SwellThemeConfig | null;
 
     if (config) {
+      if (hash) {
+        // Override hash to ensure cache exists next round
+        config.hash = hash;
+      }
       await this.cacheThemeConfig(config);
     }
 
