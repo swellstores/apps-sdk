@@ -273,7 +273,6 @@ export interface ThemeSettingsBlock {
 
 export interface ThemeSectionBase {
   id: string;
-  type: string;
   settings: ThemeSettings;
   blocks?: ThemeSettingsBlock[];
   block_order?: string[];
@@ -379,6 +378,7 @@ interface ThemeSectionGroupBase {
   id?: string;
   type?: string;
   name?: string;
+  label?: string;
   order?: string[];
 }
 
@@ -478,12 +478,12 @@ export interface ThemeSettingFieldSchema {
   type: ThemeSettingBasicInputType | ThemeSettingAliasInputType;
   label: string;
   id?: string;
-  default?: any;
+  default?: unknown;
   hint?: string;
   description?: string;
   placeholder?: string;
   value_type?: string;
-  fallback?: any;
+  fallback?: unknown;
   required?: boolean;
   fields?: Array<ThemeSettingFieldSchema>;
   localized?: boolean;
