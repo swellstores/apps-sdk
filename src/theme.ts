@@ -1457,7 +1457,11 @@ export class SwellTheme {
     sectionGroup: ThemeSectionGroup,
     data?: SwellData,
   ): Promise<ThemeSectionConfig[]> {
-    const sectionConfigs = await this.getPageSections(sectionGroup, true);
+    let sectionConfigs = await this.getPageSections(sectionGroup, true);
+    // skip disabled sections
+    sectionConfigs = sectionConfigs.filter(
+      (sectionConfig) => sectionConfig.section.disabled !== true,
+    );
     return this.renderSectionConfigs(sectionConfigs, data);
   }
 
@@ -1637,6 +1641,20 @@ export function resolveSectionSettings(
     },
   ];
 
+  // skip disabled blocks
+  let blocks = settings.section.blocks?.filter(
+    (block) => block.disabled !== true,
+  );
+
+  blocks = blocks?.map((block) => ({
+    ...block,
+    settings: resolveThemeSettings(
+      theme,
+      block.settings,
+      schema.blocks?.filter((schemaBlock) => schemaBlock.type === block.type),
+    ),
+  }));
+
   return {
     ...settings,
     section: {
@@ -1646,16 +1664,7 @@ export function resolveSectionSettings(
         settings.section.settings,
         editorSettings,
       ),
-      blocks: settings.section.blocks?.map((block) => ({
-        ...block,
-        settings: resolveThemeSettings(
-          theme,
-          block.settings,
-          schema.blocks?.filter(
-            (schemaBlock) => schemaBlock.type === block.type,
-          ),
-        ),
-      })),
+      blocks,
     },
   };
 }
