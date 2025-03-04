@@ -23,6 +23,37 @@ describe('SwellTheme', () => {
         field1: { value: 'value1' },
         field2: { value: 'value2' },
         field3: { value: null },
+      };
+
+      const config = {
+        field1: 'old1',
+        field2: 'old2',
+        field3: 'old3',
+        field4: 'old4',
+      };
+
+      const settings = theme.updateSettings(form, config);
+
+      expect(settings).toEqual({
+        field1: 'value1',
+        field2: 'value2',
+        field3: 'old3',
+        field4: 'old4',
+      });
+    });
+
+    it('should add new settings', () => {
+      const swell = new Swell({
+        url: 'http://localhost',
+        serverHeaders: defaultServerHeaders,
+      });
+
+      const theme = new SwellTheme(swell);
+
+      const form = {
+        field1: { value: 'value1' },
+        field2: { value: 'value2' },
+        field3: { value: null },
         extra: { value: 'value3' },
       };
 
@@ -35,11 +66,12 @@ describe('SwellTheme', () => {
 
       const settings = theme.updateSettings(form, config);
 
-      expect(settings).toMatchObject({
+      expect(settings).toEqual({
         field1: 'value1',
         field2: 'value2',
         field3: 'old3',
         field4: 'old4',
+        extra: 'value3',
       });
     });
 
@@ -56,7 +88,6 @@ describe('SwellTheme', () => {
         field1: { value: 'value1' },
         field2: { value: 'value2' },
         field3: { value: null },
-        extra: { value: 'value3' },
       };
 
       const config: ShopifySettingsData = {
@@ -71,7 +102,7 @@ describe('SwellTheme', () => {
 
       const settings = theme.updateSettings(form, config);
 
-      expect(settings).toMatchObject({
+      expect(settings).toEqual({
         current: {
           field1: 'value1',
           field2: 'value2',
@@ -95,7 +126,6 @@ describe('SwellTheme', () => {
         field1: { value: 'value1' },
         field2: { value: 'value2' },
         field3: { value: null },
-        extra: { value: 'value3' },
       };
 
       const config: ShopifySettingsData = {
@@ -112,7 +142,7 @@ describe('SwellTheme', () => {
 
       const settings = theme.updateSettings(form, config);
 
-      expect(settings).toMatchObject({
+      expect(settings).toEqual({
         current: 'preset_name',
         presets: {
           preset_name: {

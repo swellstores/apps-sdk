@@ -1,5 +1,5 @@
 import qs from 'qs';
-import { reduce } from 'lodash-es';
+import { cloneDeep, reduce } from 'lodash-es';
 
 import {
   StorefrontResource,
@@ -544,16 +544,17 @@ export function scopeCustomCSS(
 
 export function extractSettingsFromForm(
   form: Record<string, { value: unknown } | undefined>,
-  preset: Record<string, unknown>,
+  currentSettings: Record<string, unknown>,
 ): ThemeSettings {
-  return Object.entries(preset).reduce<ThemeSettings>((acc, [key, value]) => {
-    const entryValue = form[key]?.value;
-    const hasValue = entryValue !== undefined && entryValue !== null;
-
-    acc[key] = hasValue ? entryValue : value;
-
-    return acc;
-  }, {});
+  return Object.entries(form).reduce<ThemeSettings>(
+    (acc, [formKey, formValue]) => {
+      if (formValue?.value !== null && formValue?.value !== undefined) {
+        acc[formKey] = formValue?.value;
+      }
+      return acc;
+    },
+    cloneDeep(currentSettings),
+  );
 }
 
 export const SECTION_GROUP_CONTENT = 'ContentSections';
