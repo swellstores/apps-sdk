@@ -166,7 +166,7 @@ export class SwellTheme {
   }
 
   setGlobals(globals: SwellData): void {
-    (this.globals as any) = {
+    this.globals = {
       ...this.globals,
       ...globals,
     };

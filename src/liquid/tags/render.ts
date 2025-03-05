@@ -1,20 +1,13 @@
 import { assign } from 'lodash-es';
 
-import {
-  Liquid,
-  Tag,
-  TagToken,
-  Context,
-  Hash,
-  evalToken,
-} from 'liquidjs';
+import { Liquid, Tag, TagToken, Context, Hash, evalToken } from 'liquidjs';
 
 import { LiquidSwell } from '..';
 import { ForloopDrop, toEnumerable } from '../utils';
 
 import type { ValueToken, TopLevelToken } from 'liquidjs';
 import type { QuotedToken, IdentifierToken } from 'liquidjs/dist/tokens';
-import type { TagClass } from 'liquidjs/dist/template';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
 // {% render 'component', variable: value %}
 // {% render 'component' for array as item %}
@@ -76,19 +69,14 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       this.hash = new Hash(tokenizer.remaining());
     }
 
-    *render(ctx: Context): any {
+    *render(ctx: Context): TagRenderReturn {
       const { hash } = this;
 
       const themeConfig = yield liquidSwell.getThemeConfig(
         yield liquidSwell.getComponentPath(this.fileName),
       );
 
-      const childCtx = new Context({}, ctx.opts, {
-        sync: ctx.sync,
-        globals: ctx.globals,
-        strictVariables: ctx.strictVariables,
-      });
-
+      const childCtx = ctx.spawn();
       const scope = childCtx.bottom() as { [key: string]: any };
       assign(scope, yield hash.render(ctx));
 
@@ -111,7 +99,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
           collection.length,
           value.getText(),
           alias as string,
-        ) as ForloopDrop;
+        );
         for (const item of collection) {
           scope[alias as string] = item;
           output += yield liquidSwell.renderTemplate(themeConfig, scope);

@@ -22,6 +22,7 @@ import {
 import * as ShopifyObjects from './shopify-objects';
 import ShopifyShop from './shopify-objects/shop';
 import ShopifyLocalization from './shopify-objects/localization';
+import ObjectHandlesDrop from './drops/object-handles';
 
 import type {
   ThemeGlobals,
@@ -99,14 +100,10 @@ export class ShopifyCompatibility {
       page_type: page?.id,
     };
 
-    globals.linklists = menus;
-
+    globals.linklists = new ObjectHandlesDrop<SwellMenu>(menus);
     globals.current_page = this.swell.queryParams.page || 1;
-
     globals.routes = this.getPageRoutes();
-
     globals.localization = this.getLocalizationObject(store, request);
-
     globals.all_country_option_tags = this.getAllCountryOptionTags(globals.geo);
   }
 
@@ -178,15 +175,15 @@ export class ShopifyCompatibility {
   }
 
   adaptPageData(pageData: SwellData) {
-    const pageMap = this.pageResourceMap.find(
-      ({ page }) => page === this.pageId,
-    );
+    const pageMap = this.pageResourceMap.get(this.pageId || '');
 
     // Add object resources to the page based on the page resource map
     if (pageMap) {
       for (const [key, value] of Object.entries(pageData)) {
+        const keyObject = `${key}.`;
+
         const resourceMap = pageMap.resources.find(
-          ({ from }) => from === key || from.startsWith(`${key}.`),
+          ({ from }) => from === key || from.startsWith(keyObject),
         );
 
         if (resourceMap && value instanceof StorefrontResource) {
@@ -201,9 +198,7 @@ export class ShopifyCompatibility {
   adaptObjectData(objectData: SwellData) {
     // Adapt individual resources to Shopify objects from page data
     for (const value of Object.values(objectData)) {
-      const objectMap = this.objectResourceMap.find(
-        ({ from }) => from === value?.constructor.name,
-      );
+      const objectMap = this.objectResourceMap.get(value?.constructor.name);
 
       if (objectMap) {
         const objectProps = objectMap.object(this, value);
@@ -648,52 +643,60 @@ export class ShopifyCompatibility {
 
   getPageResourceMap(): ShopifyPageResourceMap {
     if (!this.shopifyCompatibilityConfig?.page_resources) {
-      return [];
+      return new Map();
     }
 
-    return this.shopifyCompatibilityConfig.page_resources.map((item) => ({
-      page: item.page,
-      resources: item.resources.map(({ from, to, object }) => {
-        const shopifyObject =
-          ShopifyObjects[object as keyof typeof ShopifyObjects];
+    return this.shopifyCompatibilityConfig.page_resources.reduce(
+      (map, item) => {
+        return map.set(item.page, {
+          page: item.page,
+          resources: item.resources.map(({ from, to, object }) => {
+            const shopifyObject =
+              ShopifyObjects[object as keyof typeof ShopifyObjects];
 
-        if (!shopifyObject) {
-          throw new Error(`ShopifyObject for '${object}' not found.`);
-        }
+            if (!shopifyObject) {
+              throw new Error(`ShopifyObject for '${object}' not found.`);
+            }
 
-        return {
-          from,
-          to,
-          object: shopifyObject as (
-            shopify: ShopifyCompatibility,
-            value: StorefrontResource<SwellData>,
-          ) => ShopifyResource,
-        };
-      }),
-    }));
+            return {
+              from,
+              to,
+              object: shopifyObject as (
+                shopify: ShopifyCompatibility,
+                value: StorefrontResource<SwellData>,
+              ) => ShopifyResource,
+            };
+          }),
+        });
+      },
+      new Map() as ShopifyPageResourceMap,
+    );
   }
 
   getObjectResourceMap(): ShopifyObjectResourceMap {
     if (!this.shopifyCompatibilityConfig?.object_resources) {
-      return [];
+      return new Map();
     }
 
-    return this.shopifyCompatibilityConfig.object_resources.map((item) => {
-      const shopifyObject =
-        ShopifyObjects[item.object as keyof typeof ShopifyObjects];
+    return this.shopifyCompatibilityConfig.object_resources.reduce(
+      (map, item) => {
+        const shopifyObject =
+          ShopifyObjects[item.object as keyof typeof ShopifyObjects];
 
-      if (!shopifyObject) {
-        throw new Error(`ShopifyObject for '${item.object}' not found.`);
-      }
+        if (!shopifyObject) {
+          throw new Error(`ShopifyObject for '${item.object}' not found.`);
+        }
 
-      return {
-        from: item.from,
-        object: shopifyObject as (
-          shopify: ShopifyCompatibility,
-          value: StorefrontResource<SwellData>,
-        ) => ShopifyResource,
-      };
-    });
+        return map.set(item.from, {
+          from: item.from,
+          object: shopifyObject as (
+            shopify: ShopifyCompatibility,
+            value: StorefrontResource<SwellData>,
+          ) => ShopifyResource,
+        });
+      },
+      new Map() as ShopifyObjectResourceMap,
+    );
   }
 
   getFormResourceMap(): ShopifyFormResourceMap {

@@ -171,14 +171,14 @@ export interface ShopifyPage {
   resources: Array<ShopifyPageResource>;
 }
 
-export type ShopifyPageResourceMap = Array<ShopifyPage>;
+export type ShopifyPageResourceMap = Map<string, ShopifyPage>;
 
 interface ShopifyObject {
-  from: any;
+  from: string;
   object(shopify: ShopifyCompatibility, value: SwellData): ShopifyResource;
 }
 
-export type ShopifyObjectResourceMap = Array<ShopifyObject>;
+export type ShopifyObjectResourceMap = Map<string, ShopifyObject>;
 
 export interface ShopifyForm {
   type: string;

@@ -54,7 +54,7 @@ export function adaptShopifyMenuData(
 ): SwellData {
   const shopifyLinkList = {
     ...menu,
-    handle: menu.id.replace(/\_/g, '-'),
+    handle: menu.id.replace(/_/g, '-'),
     title: menu.name,
   };
   return {
