@@ -405,6 +405,7 @@ export interface ThemeSectionSchemaData {
   class?: string;
   enabled_on?: ThemeSectionEnabledDisabled;
   disabled_on?: ThemeSectionEnabledDisabled;
+  limit?: number;
   blocks?: ThemeBlockSchema[];
   presets?: ThemePresetSchema[];
   default?: ShopifySettingSchema;

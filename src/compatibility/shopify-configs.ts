@@ -76,6 +76,7 @@ export function convertShopifySectionSchema(
     type: sectionSchema.type,
     tag: sectionSchema.tag,
     class: sectionSchema.class,
+    limit: sectionSchema.limit,
     enabled_on: sectionSchema.enabled_on,
     disabled_on: sectionSchema.disabled_on,
     fields: (sectionSchema.settings || []).map((setting) =>

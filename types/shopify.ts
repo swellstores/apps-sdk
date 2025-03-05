@@ -151,6 +151,7 @@ export interface ShopifySectionSchema {
   class?: string;
   enabled_on?: ThemeSectionEnabledDisabled;
   disabled_on?: ThemeSectionEnabledDisabled;
+  limit?: number;
   settings: ShopifySettingSchema[];
   blocks?: ShopifySectionBlockSchema[];
   presets?: ShopifySectionPresetSchema[];
