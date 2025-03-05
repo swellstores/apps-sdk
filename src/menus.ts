@@ -16,12 +16,14 @@ export async function resolveMenuSettings(
   options?: { currentUrl?: string },
 ) {
   const resolvedMenus = await Promise.all(
-    menus?.map(
-      async (menu): Promise<SwellMenu> => ({
+    menus?.map(async (menu): Promise<SwellMenu> => {
+      const item: SwellMenu = {
         ...menu,
         items: await resolveMenuItems(theme, menu.items, options),
-      }),
-    ),
+      };
+
+      return item;
+    }),
   );
 
   const compatibleMenus =

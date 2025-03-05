@@ -1,14 +1,9 @@
-import {
-  Liquid,
-  Tag,
-  TagToken,
-  Context,
-} from 'liquidjs';
+import { Liquid, Tag, TagToken, Context } from 'liquidjs';
 
 import { LiquidSwell } from '../..';
 
 import type { Template, TopLevelToken } from 'liquidjs';
-import type { TagClass } from 'liquidjs/dist/template';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
 // Swell prefers separate JSON files, but this is supported for backward compatibility
 
@@ -41,7 +36,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         .start();
     }
 
-    *render(ctx: Context): any {
+    *render(ctx: Context): TagRenderReturn {
       const jsonOutput = yield this.liquid.renderer.renderTemplates(
         this.templates,
         ctx,
