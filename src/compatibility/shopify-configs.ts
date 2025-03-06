@@ -198,7 +198,8 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'article':
       swellProps = {
         type: 'lookup',
-        collection: 'content/blogs:posts',
+        collection: 'content/blogs',
+        titleField: 'title',
       };
       break;
 
