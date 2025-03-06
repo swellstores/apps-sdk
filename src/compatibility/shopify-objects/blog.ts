@@ -55,6 +55,14 @@ export default function ShopifyBlog(
       blogCategory,
       (blogCategory: any) => `/blogs/${blogCategory.slug}`,
     ),
+    featured_image: deferWith(
+      blogCategory,
+      (blogCategory: any) => blogCategory.image,
+    ),
+    content: deferWith(
+      blogCategory,
+      (blogCategory: any) => blogCategory.content,
+    ),
 
     // Not supported
     'comments_enabled?': false,
