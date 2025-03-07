@@ -359,7 +359,7 @@ export class ShopifyCompatibility {
         const defaultLocale = `.default${suffix}`;
 
         for (const config of shopifyLocaleConfigs.values()) {
-          if (config.file_path.endsWith(defaultLocale)) {
+          if (config?.file_path?.endsWith(defaultLocale)) {
             localeConfig = config;
             break;
           }
