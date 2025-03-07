@@ -622,9 +622,6 @@ export class SwellTheme {
         this,
         localeCode,
       );
-      if (!Object.keys(configs.translations).length) {
-        this.shopifyCompatibility = null;
-      }
     }
 
     // Make sure compatibility instance and config setting are resolved
@@ -942,9 +939,9 @@ export class SwellTheme {
     }
 
     // Normalize schema properties
-    result.id = result.id || sectionName;
-    result.label = result.label || sectionName;
-    result.fields = result.fields || [];
+    result.id = result?.id || sectionName;
+    result.label = result?.label || sectionName;
+    result.fields = result?.fields || [];
 
     return result;
   }
