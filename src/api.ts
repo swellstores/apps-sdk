@@ -281,6 +281,13 @@ export class Swell {
     return menus;
   }
 
+  getStorefrontLocalization() {
+    const { code: currency } = this.storefront.currency.get();
+    const { code: locale } = this.storefront.locale.get();
+
+    return { currency, locale };
+  }
+
   async get<T = SwellData>(
     ...args: Parameters<SwellBackendAPI['get']>
   ): Promise<T | undefined> {
