@@ -9,14 +9,19 @@ export default function ShopifyLocalization(
   store: SwellData,
   request: SwellData,
 ) {
+  const { currency: storefrontCurrency, locale: storefrontLocale } =
+    _instance.swell.getStorefrontLocalization();
+
   const requestCurrency =
     store.currencies.find(
-      (currency: any) => currency.code === request.currency,
+      (currency: any) =>
+        currency.code === (storefrontCurrency || request.currency),
     ) || store.currencies[0];
 
   const requestLocale =
-    store.locales.find((locale: any) => locale.code === request.locale) ||
-    store.locales[0];
+    store.locales.find(
+      (locale: any) => locale.code === (storefrontLocale || request.locale),
+    ) || store.locales[0];
 
   return new ShopifyResource({
     available_countries: getAvailableCountries(store),
@@ -73,7 +78,9 @@ function getShopifyCountryFromCurrency(currency: SwellData, store: SwellData) {
   };
 }
 
-function getCountryNameByCurrency(currencyCode: keyof typeof CURRENCY_COUNTRIES) {
+function getCountryNameByCurrency(
+  currencyCode: keyof typeof CURRENCY_COUNTRIES,
+) {
   if (currencyCode in CURRENCY_COUNTRIES) {
     return CURRENCY_COUNTRIES[currencyCode];
   }

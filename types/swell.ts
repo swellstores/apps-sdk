@@ -615,10 +615,10 @@ export type RenderTemplateString = (
   data?: SwellData,
 ) => Promise<string>;
 
-export type RenderTemplateSections = (
+export type RenderPageSections = (
   sections: ThemeSectionGroup,
   data?: SwellData,
-) => Promise<string>;
+) => Promise<ThemeSectionConfig[]>;
 
 export type RenderTranslation = (
   key: string,

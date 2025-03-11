@@ -11,7 +11,7 @@ import type {
   GetThemeTemplateConfigByType,
   RenderCurrency,
   RenderTemplate,
-  RenderTemplateSections,
+  RenderPageSections,
   RenderTemplateString,
   RenderTranslation,
   ThemeSectionSchema,
@@ -28,7 +28,7 @@ interface LiquidSwellOptions {
   getAssetUrl: GetAssetUrl;
   renderTemplate: RenderTemplate;
   renderTemplateString: RenderTemplateString;
-  renderTemplateSections: RenderTemplateSections;
+  renderPageSections: RenderPageSections;
   renderTranslation: RenderTranslation;
   renderCurrency: RenderCurrency;
   isEditor: boolean;
@@ -47,7 +47,7 @@ export class LiquidSwell extends Liquid {
   public getAssetUrl: GetAssetUrl;
   public renderTemplate: RenderTemplate;
   public renderTemplateString: RenderTemplateString;
-  public renderTemplateSections: RenderTemplateSections;
+  public renderPageSections: RenderPageSections;
   public renderTranslation: RenderTranslation;
   public renderCurrency: RenderCurrency;
   public engine: Liquid;
@@ -69,7 +69,7 @@ export class LiquidSwell extends Liquid {
     getAssetUrl,
     renderTemplate,
     renderTemplateString,
-    renderTemplateSections,
+    renderPageSections,
     renderTranslation,
     renderCurrency,
     isEditor,
@@ -91,8 +91,8 @@ export class LiquidSwell extends Liquid {
     this.renderTemplate = renderTemplate || theme.renderTemplate.bind(theme);
     this.renderTemplateString =
       renderTemplateString || theme.renderTemplateString.bind(theme);
-    this.renderTemplateSections =
-      renderTemplateSections || theme.renderTemplateSections.bind(theme);
+    this.renderPageSections =
+      renderPageSections || theme.renderPageSections.bind(theme);
     this.renderTranslation =
       renderTranslation || theme.renderTranslation.bind(theme);
     this.renderCurrency = renderCurrency || theme.renderCurrency.bind(theme);

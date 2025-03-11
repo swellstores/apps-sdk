@@ -31,6 +31,12 @@ import type {
   ThemeSettingFieldSchema,
 } from 'types/swell';
 
+// By default, Easyblocks wraps each section in a SelectionFrameController.
+// This wrapper interferes with CSS styles, and it is not needed,
+// as the Swell Theme Editor has its own logic for sections/blocks.
+// noInline=true disables the Easyblocks SelectionFrameController.
+const NO_INLINE = true;
+
 export async function getEasyblocksPropsFromThemeConfigs(
   theme: SwellTheme,
   themeConfigs: SwellThemeConfig[],
@@ -105,6 +111,7 @@ function getLayoutSectionGroupComponentProps(
     type: 'component-collection',
     label: sectionGroup.label,
     required: true,
+    noInline: NO_INLINE,
     accepts: getAcceptedLayoutSections(allSections, sectionGroup.type),
   }));
 }
@@ -201,6 +208,7 @@ function getAllSectionComponents(
                 prop: 'Blocks',
                 type: 'component-collection',
                 required: true,
+                noInline: NO_INLINE,
                 accepts: (section.blocks || []).map(
                   (block) => `Block__${section.id}__${block.type}`,
                 ),
@@ -507,7 +515,7 @@ export function getEasyblocksPagePropsWithConfigs(
         required: true,
         accepts: ['swell_page'],
         isNonChangable: true,
-        noInline: true,
+        noInline: NO_INLINE,
       },
       ...getEditorSchemaComponentProps(themeGlobals),
     ],
@@ -540,6 +548,7 @@ export function getEasyblocksPagePropsWithConfigs(
         prop: SECTION_GROUP_CONTENT,
         type: 'component-collection',
         required: true,
+        noInline: NO_INLINE,
         accepts: getAcceptedSections(allSections, layoutSectionGroups, pageId),
         placeholderAppearance: {
           height: 250,

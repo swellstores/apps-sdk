@@ -105,7 +105,7 @@ export class SwellTheme {
         this.getThemeTemplateConfigByType.bind(this),
       renderTemplate: this.renderTemplate.bind(this),
       renderTemplateString: this.renderTemplateString.bind(this),
-      renderTemplateSections: this.renderTemplateSections.bind(this),
+      renderPageSections: this.renderPageSections.bind(this),
       renderTranslation: this.lang.bind(this),
       renderCurrency: this.renderCurrency.bind(this),
       isEditor: swell.isEditor,
@@ -131,7 +131,7 @@ export class SwellTheme {
       await this.getSettingsAndConfigs();
 
     const { settings, request, page, cart, account, customer } =
-      await this.resolvePageData(store, configs, session, pageId);
+      await this.resolvePageData(store, configs, pageId);
 
     this.page = page;
 
@@ -215,11 +215,9 @@ export class SwellTheme {
 
     const session = await this.swell.storefront.settings.session();
 
-    const localeCode = session.locale || storefrontSettings?.store?.locale;
+    this.resolveTranslationLocale(configs.translations);
 
-    this.resolveTranslationLocale(configs.translations, localeCode);
-
-    await this.setCompatibilityConfigs(configs, localeCode);
+    await this.setCompatibilityConfigs(configs);
 
     // Resolve menus after compatibility is determined
     const menus = await this.resolveMenuSettings();
@@ -236,7 +234,6 @@ export class SwellTheme {
   async resolvePageData(
     store: SwellData,
     configs: SwellData,
-    session?: SwellData,
     pageId?: string,
   ): Promise<{
     settings: ThemeSettings;
@@ -261,13 +258,15 @@ export class SwellTheme {
       throw new Error('Failed to resolve theme settings');
     }
 
+    const { locale, currency } = this.swell.getStorefrontLocalization();
+
     const request = {
       host: this.swell.url.host,
       origin: this.swell.url.origin,
       path: this.swell.url.pathname,
       query: this.swell.queryParams,
-      locale: session?.locale || store.locale,
-      currency: session?.currency || store.currency,
+      locale: locale || store.locale,
+      currency: currency || store.currency,
       is_editor: this.swell.isEditor,
       is_preview: this.swell.isPreview,
     };
@@ -534,24 +533,24 @@ export class SwellTheme {
     return extractSettingsFromForm(form, config);
   }
 
-  resolveTranslationLocale(
-    translationsConfig: ThemeSettings,
-    localeCode: string,
-  ) {
+  resolveTranslationLocale(translationsConfig: ThemeSettings) {
     if (!translationsConfig) {
       return {};
     }
-    if (!localeCode) {
+
+    const { locale } = this.swell.getStorefrontLocalization();
+
+    if (!locale) {
       return translationsConfig;
     }
 
-    const localeShortCode = localeCode.split('-')[0];
+    const localeShortCode = locale.split('-')[0];
 
     return reduce(
       translationsConfig,
       (acc, value, key) => {
         if (isObject(value)) {
-          acc[key] = this.resolveTranslationLocale(value, localeCode);
+          acc[key] = this.resolveTranslationLocale(value);
         } else {
           if (typeof value === 'string' && value.startsWith('t:')) {
             // Translate from global config
@@ -564,7 +563,7 @@ export class SwellTheme {
             acc[key] =
               get(
                 translationConfigGlobal,
-                `${translationPath}.$locale.${localeCode}.${translationEnd}`,
+                `${translationPath}.$locale.${locale}.${translationEnd}`,
               ) ||
               get(
                 translationConfigGlobal,
@@ -575,7 +574,7 @@ export class SwellTheme {
           } else {
             // Translate from local config
             acc[key] =
-              get(translationsConfig, `$locale.${localeCode}.${key}`) ||
+              get(translationsConfig, `$locale.${locale}.${key}`) ||
               get(translationsConfig, `$locale.${localeShortCode}.${key}`) ||
               value;
           }
@@ -586,7 +585,7 @@ export class SwellTheme {
     );
   }
 
-  async setCompatibilityConfigs(configs: ThemeConfigs, localeCode: string) {
+  async setCompatibilityConfigs(configs: ThemeConfigs) {
     const shopifyCompatibility = () => {
       if (!this.shopifyCompatibility) {
         this.shopifyCompatibility = new this.shopifyCompatibilityClass(this);
@@ -595,13 +594,16 @@ export class SwellTheme {
     };
 
     if (!Object.keys(configs.editor).length && configs.settings_schema) {
+      // The editor should use the store locale, not the storefront locale.
+      const store = await this.swell.storefront.settings.get('store');
+
       configs.editor = shopifyCompatibility().getEditorConfig(
         configs.settings_schema,
       );
       configs.editor = await shopifyCompatibility().renderSchemaTranslations(
         this,
         configs.editor,
-        localeCode,
+        (store.currency as string) || 'en-US',
       );
     }
 
@@ -618,9 +620,11 @@ export class SwellTheme {
     }
 
     if (!Object.keys(configs.translations).length) {
+      const { locale } = this.swell.getStorefrontLocalization();
+
       configs.translations = await shopifyCompatibility().getLocaleConfig(
         this,
-        localeCode,
+        locale,
       );
     }
 
@@ -932,7 +936,7 @@ export class SwellTheme {
           result = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             result,
-            this.globals.request?.locale,
+            this.globals.store?.locale,
           );
         }
       }
@@ -1081,7 +1085,6 @@ export class SwellTheme {
 
       pageConfig.page = this.resolveTranslationLocale(
         pageConfig.page as ThemeSettings,
-        this.globals.request?.locale,
       );
     }
 
@@ -1257,7 +1260,7 @@ export class SwellTheme {
           schema = (await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             configSchema,
-            this.globals.request?.locale,
+            this.globals.store?.locale,
           )) as ThemeSectionSchema;
         }
       }
@@ -1469,11 +1472,10 @@ export class SwellTheme {
     return Promise.all(
       sectionConfigs.map(async (sectionConfig, index) => {
         const { section, schema } = sectionConfig;
-        let { settings } = sectionConfig;
-
-        if (schema?.fields && this.globals) {
-          settings = resolveSectionSettings(this, sectionConfig);
-        }
+        const settings =
+          schema?.fields && this.globals
+            ? resolveSectionSettings(this, sectionConfig)
+            : { ...sectionConfig.settings };
 
         const templateConfig = await this.getThemeTemplateConfigByType(
           'sections',
@@ -1488,7 +1490,7 @@ export class SwellTheme {
             template: templateConfig,
           });
 
-          if (settings?.section.custom_css) {
+          if (settings?.section?.custom_css) {
             output += `<style>${scopeCustomCSS(
               settings?.section.custom_css,
               sectionConfig.id,
@@ -1502,22 +1504,6 @@ export class SwellTheme {
         };
       }),
     );
-  }
-
-  async renderTemplateSections(
-    sectionGroup: ThemeSectionGroup,
-    data?: SwellData,
-  ): Promise<string> {
-    const sectionConfigs = await this.renderPageSections(sectionGroup, data);
-
-    return sectionConfigs
-      .map(
-        (section) =>
-          `<${section.tag} ${section.class ? `class="${section.class}"` : ''}>${
-            section.output
-          }</${section.tag}>`,
-      )
-      .join('\n');
   }
 
   async renderTranslation(
@@ -1573,19 +1559,7 @@ export class SwellTheme {
   }
 
   renderCurrency(amount: number, params: any): string {
-    const swellSettings = this.swell.storefront.settings as any;
-    const swellCurrency = this.swell.storefront.currency as any;
-
-    // FIXME: Total hack because on the client side the currency is getting set to `[object Promise]` for some reason
-    const settingState = swellSettings.state;
-    const code = (swellCurrency.code = settingState?.store?.currency || 'USD');
-
-    swellCurrency.locale = settingState?.store?.locale || 'en-US';
-    swellCurrency.state = settingState?.store?.locales?.find(
-      (locale: any) => locale.code === code,
-    ) || { code };
-
-    return swellCurrency.format(amount, params);
+    return this.swell.storefront.currency.format(amount, params);
   }
 }
 

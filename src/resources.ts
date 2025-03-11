@@ -503,9 +503,13 @@ export class SwellStorefrontRecord<
   async _get(id: string, query: SwellData = {}): Promise<T | null | undefined> {
     this._id = id || this._id;
 
+    const { currency, locale } = this._swell.getStorefrontLocalization();
+
     this._query = {
       ...this._query,
       ...query,
+      $currency: currency,
+      $locale: locale,
     };
 
     if (this._getter) {

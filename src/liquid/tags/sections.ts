@@ -5,6 +5,7 @@ import { LiquidSwell } from '..';
 import type { TopLevelToken } from 'liquidjs';
 import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass } from 'liquidjs/dist/template';
+import type { ThemeSectionConfig } from 'types/swell';
 
 // {% sections 'section-group' %}
 
@@ -28,18 +29,24 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
 
       try {
         const sectionGroup = JSON.parse(themeConfig.file_data);
-        const output = yield liquidSwell.renderTemplateSections(sectionGroup);
-        const sc = liquidSwell.theme.globals.shopify_compatibility;
-        return sc
-          ? `
-          <div class="swell-section-group swell-section-group--${this.fileName} shopify-section shopify-section-group-${this.fileName}" id="shopify-sections--${themeConfig.hash}__${this.fileName}">
-            ${output}
-          </div>`
-          : `
-          <div class="swell-section-group" swell-section-group--${this.fileName}" id="swell-section-group--${themeConfig.hash}__${this.fileName}">
-            ${output}
-          </div>`;
-      } catch (err) {
+        const sectionConfigs =
+          yield liquidSwell.renderPageSections(sectionGroup);
+        const { shopify_compatibility: shopifyCompatibility } =
+          liquidSwell.theme.globals;
+
+        return `<div id="swell-section-group__${this.fileName}">${sectionConfigs
+          .map((section: ThemeSectionConfig) => {
+            const id = `${shopifyCompatibility ? 'shopify' : 'swell'}-section-sections--${themeConfig.hash}__${section.id}`;
+            const className = shopifyCompatibility
+              ? `shopify-section shopify-section-group-${this.fileName} section-${section.id}`
+              : `swell-section swell-section-group-${this.fileName} section-${section.id}`;
+
+            return `<${section.tag} id="${id}" class="${className} ${section.class || ''}">${
+              section.output
+            }</${section.tag}>`;
+          })
+          .join('')}</div>`;
+      } catch (_err) {
         return '';
       }
     }

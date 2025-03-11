@@ -7,10 +7,18 @@ type DescribeLiquidCallbackType = (
   liquid: LiquidSwell,
 ) => void;
 
+const swell = {
+  getStorefrontLocalization: jest.fn(() => ({
+    currency: 'USD',
+    locale: 'en-US',
+  })),
+};
+
 const theme = {
+  swell,
   globals: {},
   formData: {},
-  getFormConfig: jest.fn((formType) => ({
+  getFormConfig: jest.fn((_formType) => ({
     id: 'test_form',
     url: '/test',
   })),
@@ -23,7 +31,7 @@ const liquid = new LiquidSwell({
   getAssetUrl: jest.fn(async (asset) => `assets/${asset}`),
   renderTemplate: jest.fn(),
   renderTemplateString: jest.fn(),
-  renderTemplateSections: jest.fn(),
+  renderPageSections: jest.fn(),
   renderTranslation: jest.fn(async (key) => `Translation: ${key}`),
   renderCurrency: jest.fn((amount) => `$${amount}`),
   isEditor: true,
