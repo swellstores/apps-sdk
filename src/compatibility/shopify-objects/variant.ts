@@ -27,7 +27,7 @@ export default function ShopifyVariant(
         variant.stock_status === 'in_stock' || !variant.stock_status,
     ),
     barcode: null,
-    compare_at_price: defer(() => variant.compare_price),
+    compare_at_price: defer(() => variant.orig_price),
     featured_image: deferWith<any, any>(
       [product, variant],
       (product, variant) => {
