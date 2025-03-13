@@ -30,7 +30,7 @@ export default function ShopifyProduct(
         product.stock_status === 'in_stock' || !product.stock_status,
     ),
     collections: [], // TODO: need to support this in the resource class somehow
-    compare_at_price: defer(() => product.compare_price), // Note: This field hasn't been standardized as of May 2024
+    compare_at_price: defer(() => product.orig_price), // Note: This field hasn't been standardized as of May 2024
     compare_at_price_max: null,
     compare_at_price_min: null,
     compare_at_price_varies: false,
