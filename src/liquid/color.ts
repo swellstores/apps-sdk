@@ -16,8 +16,13 @@ export class ThemeColor {
 
   constructor(value: ThemeColor | string) {
     try {
-      this.color = isThemeColorLike(value) ? value.color : Color(value);
+      this.color = isThemeColorLike(value)
+        ? typeof value.color.object === 'function' // ensure we have this required method
+          ? value.color
+          : Color(value.colorValues) // create a new Color otherwise
+        : Color(value);
       this.colorValues = this.color.object();
+
       this.red = Number(this.colorValues.r);
       this.green = Number(this.colorValues.g);
       this.blue = Number(this.colorValues.b);
