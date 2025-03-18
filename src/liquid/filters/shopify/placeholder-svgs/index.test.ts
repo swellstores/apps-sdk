@@ -14,7 +14,8 @@ describe('placeholder-svgs', () => {
         // must have the "preserveAspectRatio" property to scale correctly.
         // If the current svg files do not have this property,
         // you can find it in the git history of the corresponding files.
-        const index = /\bapparel\b/.test(pair[0]) ? 1 : 0;
+        const index =
+          /\bapparel\b/.test(pair[0]) || pair[0] === 'image' ? 1 : 0;
         acc[index].push(pair);
         return acc;
       },
