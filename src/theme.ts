@@ -705,12 +705,12 @@ export class SwellTheme {
     return await this.renderTranslation(key, data, fallback);
   }
 
-  resolveFontSetting(value: string): ThemeFont | null {
+  resolveFontSetting(value: string): ThemeFont {
     if (this.shopifyCompatibility) {
       const fontSetting =
         this.shopifyCompatibility.getFontFromShopifySetting(value);
 
-      const adaptedFont = new ThemeFont(fontSetting || value);
+      const adaptedFont = ThemeFont.get(fontSetting || value);
       Object.assign(
         adaptedFont,
         this.shopifyCompatibility.getFontData(adaptedFont),
@@ -719,7 +719,7 @@ export class SwellTheme {
       return adaptedFont;
     }
 
-    return new ThemeFont(value);
+    return ThemeFont.get(value);
   }
 
   resolveUrlSetting(value: string): string {

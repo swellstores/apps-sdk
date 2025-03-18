@@ -36,8 +36,16 @@ export class ThemeColor {
     }
   }
 
-  static get(colorVal: string | ThemeColor): ThemeColor {
-    return colorVal instanceof ThemeColor ? colorVal : new ThemeColor(colorVal);
+  static get(value: string | ThemeColor): ThemeColor {
+    return value instanceof ThemeColor ? value : new ThemeColor(value);
+  }
+
+  static clone(value: string | ThemeColor): ThemeColor {
+    if (isThemeColorLike(value)) {
+      return new ThemeColor(ThemeColor.get(value).toString());
+    }
+
+    return new ThemeColor(value);
   }
 
   toString(): string {

@@ -5,7 +5,6 @@ import { ThemeFont } from '../font';
 
 export default function bind(_liquidSwell: LiquidSwell) {
   return (fontSetting: string) => {
-    const font = ThemeFont.get(fontSetting);
-    return font.url();
+    return ThemeFont.get(fontSetting).url();
   };
 }
