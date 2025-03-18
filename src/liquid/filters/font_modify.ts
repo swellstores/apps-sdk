@@ -7,7 +7,7 @@ import { ThemeFont } from '../font';
 
 export default function bind(_liquidSwell: LiquidSwell) {
   return (fontSetting: any, prop: string, value: string) => {
-    const font = ThemeFont.get(fontSetting);
-    return font.modify(prop, value);
+    // Do not modify the original value
+    return ThemeFont.clone(fontSetting).modify(prop, value);
   };
 }

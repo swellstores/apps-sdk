@@ -64,10 +64,20 @@ export class ThemeFont {
     }
   }
 
-  static get(fontSetting: string | ThemeFont): ThemeFont {
-    return fontSetting instanceof ThemeFont
-      ? fontSetting
-      : new ThemeFont(fontSetting);
+  static get(value: string | ThemeFont): ThemeFont {
+    if (isThemeFontLike(value)) {
+      return value;
+    }
+
+    return new ThemeFont(value);
+  }
+
+  static clone(value: string | ThemeFont): ThemeFont {
+    if (isThemeFontLike(value)) {
+      return new ThemeFont(ThemeFont.get(value).toString());
+    }
+
+    return new ThemeFont(value);
   }
 
   static findByFamily(family: string) {
@@ -90,8 +100,8 @@ export class ThemeFont {
       style: axes.includes('ital')
         ? 'italic'
         : axes.includes('slnt')
-        ? 'oblique'
-        : 'normal',
+          ? 'oblique'
+          : 'normal',
       variant: {
         wght: weight,
         wdth: axes.includes('wdth')
@@ -160,8 +170,8 @@ export class ThemeFont {
       typeof variant?.ital === 'number'
         ? variant.ital
         : style === 'italic'
-        ? font?.variants.find((v) => v.ital && v.ital > 0)?.ital
-        : undefined;
+          ? font?.variants.find((v) => v.ital && v.ital > 0)?.ital
+          : undefined;
 
     const opszValue =
       typeof variant?.opsz === 'number' ? variant.opsz : undefined;
@@ -170,8 +180,8 @@ export class ThemeFont {
       typeof variant?.slnt === 'number'
         ? variant.slnt
         : style === 'oblique'
-        ? font?.variants.find((v) => v.slnt && v.slnt > 0)?.slnt
-        : undefined;
+          ? font?.variants.find((v) => v.slnt && v.slnt > 0)?.slnt
+          : undefined;
 
     return {
       family,
@@ -180,8 +190,8 @@ export class ThemeFont {
         italValue !== undefined
           ? 'italic'
           : slntValue !== undefined
-          ? 'oblique'
-          : 'normal',
+            ? 'oblique'
+            : 'normal',
       variant: {
         wght: weight || variant?.wght,
         wdth: wdthValue,
@@ -192,7 +202,7 @@ export class ThemeFont {
     };
   }
 
-  static combinedGoogleFontUrl(fontSettings: any[]) {
+  static combinedGoogleFontUrl(fontSettings: string[]): string {
     const allFonts = fontSettings.map((font) => ThemeFont.get(font));
 
     const allFamilies: string[] = [];
@@ -208,11 +218,11 @@ export class ThemeFont {
     )}&display=swap`;
   }
 
-  toString() {
+  toString(): string {
     return this.id;
   }
 
-  googleFamily() {
+  googleFamily(): string {
     if (this.definition) {
       const allAxes = this.definition.axes.sort(); // Must be alphabetical
       const allValues = this.definition.variants
@@ -226,56 +236,70 @@ export class ThemeFont {
     return '';
   }
 
-  url() {
+  url(): string {
     return `https://fonts.googleapis.com/css2?family=${this.googleFamily()}&display=swap`;
   }
 
-  face(options: { font_display?: string } = {}) {
+  face(options: { font_display?: string } = {}): string {
     const css = `
     @font-face {
       font-family: '${this.family}';
       font-style: ${this.style};
       font-weight: ${this.weight};${
-      options.font_display
-        ? `\n      font-display: ${options.font_display};`
-        : ''
-    }
+        options.font_display
+          ? `\n      font-display: ${options.font_display};`
+          : ''
+      }
     }
   `;
     // trim whitespace
-    return css.replace(/^    */gm, '').trim();
+    return css.replace(/^ {3} */gm, '').trim();
   }
 
   modify(prop: string, value: string): ThemeFont | null {
     // Returns null if modified property is invalid
     switch (prop) {
-      case 'style':
+      case 'style': {
         const validStyle = this.resolveValidProperty(prop, value);
+
         if (validStyle) {
           this.style = value;
-          if (value === 'oblique') {
-            this.variant.slnt = 1;
-          } else if (value === 'italic') {
-            this.variant.ital = 1;
-          } else {
-            this.variant.slnt = 0;
-            this.variant.ital = 0;
+
+          switch (value) {
+            case 'oblique':
+              this.variant.slnt = 1;
+              break;
+
+            case 'italic':
+              this.variant.ital = 1;
+              break;
+
+            default:
+              this.variant.slnt = 0;
+              this.variant.ital = 0;
+              break;
           }
+
           break;
         }
+
         return null;
+      }
 
       // Modify weight by relative or absolute value
-      case 'weight':
+      case 'weight': {
         let targetWeight;
+
         switch (value) {
           case 'normal':
             targetWeight = 400;
             break;
+
           case 'bold':
             targetWeight = 700;
             break;
-          case 'lighter':
+
+          case 'lighter': {
             if (this.weight <= 400) {
               targetWeight = 100;
             } else if (this.weight <= 700) {
@@ -283,8 +307,11 @@ export class ThemeFont {
             } else {
               targetWeight = 700;
             }
+
             break;
-          case 'bolder':
+          }
+
+          case 'bolder': {
             if (this.weight < 400) {
               targetWeight = 400;
             } else if (this.weight < 700) {
@@ -292,17 +319,29 @@ export class ThemeFont {
             } else {
               targetWeight = 900;
             }
+
             break;
-          default:
-            if (value[0] === '+') {
-              targetWeight = this.weight + Number.parseInt(value.slice(1), 10);
-            } else if (value[0] === '-') {
-              targetWeight = this.weight - Number.parseInt(value.slice(1), 10);
-            } else {
-              targetWeight = Number.parseInt(value, 10);
+          }
+
+          default: {
+            switch (value.slice(0, 1)) {
+              case '+':
+                targetWeight =
+                  this.weight + Number.parseInt(value.slice(1), 10);
+                break;
+
+              case '-':
+                targetWeight =
+                  this.weight - Number.parseInt(value.slice(1), 10);
+                break;
+
+              default:
+                targetWeight = Number.parseInt(value, 10);
+                break;
             }
 
             break;
+          }
         }
 
         const validWeight = this.resolveValidProperty(
@@ -317,16 +356,19 @@ export class ThemeFont {
         }
 
         return null;
+      }
 
       // Modify variant properties
       case 'wght':
       case 'wdth':
       case 'slnt':
       case 'opsz':
-      case 'ital':
+      case 'ital': {
         const validValue = this.resolveValidProperty(prop, value) as number;
+
         if (validValue) {
           this.variant[prop] = validValue;
+
           if (prop === 'slnt' && validValue > 0) {
             this.style = 'oblique';
           } else if (prop === 'ital' && validValue > 0) {
@@ -334,13 +376,23 @@ export class ThemeFont {
           } else if (prop === 'slnt' || prop === 'ital') {
             this.style = 'normal';
           }
+
           break;
         }
+
         return null;
+      }
 
       default:
         throw new Error(`Invalid font property: ${prop}`);
     }
+
+    this.id = ThemeFont.settingToString({
+      variant: this.variant,
+      family: this.family,
+      weight: this.weight,
+      style: this.style,
+    });
 
     return this;
   }
@@ -389,4 +441,19 @@ export class ThemeFont {
         return null;
     }
   }
+}
+
+function isObjectLike(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isThemeFontLike(value: unknown): value is ThemeFont {
+  return (
+    isObjectLike(value) &&
+    typeof value.style === 'string' &&
+    typeof value.family === 'string' &&
+    typeof value.weight === 'number' &&
+    typeof value.modify === 'function' &&
+    typeof value.googleFamily === 'function'
+  );
 }
