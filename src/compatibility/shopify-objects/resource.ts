@@ -3,6 +3,7 @@ import { cloneDeep } from 'lodash-es';
 import { ShopifyCompatibility } from '../shopify';
 
 import { isLikePromise, isObject } from '@/liquid/utils';
+import LiquidArray from '@/liquid/array';
 
 import type {
   StorefrontResource,
@@ -64,7 +65,7 @@ export class ShopifyResource {
             })
             .catch((err: unknown) => {
               console.log(err);
-              (instance[prop] as any) = null;
+              instance[prop] = null;
               return null;
             });
         }
@@ -104,6 +105,7 @@ export class DeferredShopifyResource<T> {
       this.result = Promise.resolve()
         .then(() => this.handler())
         .then((value) => {
+          value = Array.isArray(value) ? (LiquidArray.from(value) as T) : value;
           this.result = value !== undefined ? value : null;
           return value;
         });
@@ -187,7 +189,7 @@ export function deferSwellCollectionWithShopifyResults<
 ) {
   return deferWith<SwellStorefrontCollection, T>(asyncProp, (value) => {
     return (
-      (value[key])?._cloneWithCompatibilityResult((valueResult) => {
+      value[key]?._cloneWithCompatibilityResult((valueResult) => {
         return {
           results: valueResult?.results?.map((result) => {
             const shopifyResult = ShopifyObject(instance, result);
