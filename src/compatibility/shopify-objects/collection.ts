@@ -21,19 +21,24 @@ export default function ShopifyCollection(
     return category.clone();
   }
 
-  const productResults = deferWith(category, (category: ShopifyProductCollection) => {
-    return (
-      category.products?._cloneWithCompatibilityResult((products) => {
-        return {
-          results: products?.results?.map((product) =>
-            ShopifyProduct(instance, product),
-          ),
-        };
-      }) ?? null
-    );
-  });
+  const productResults = deferWith(
+    category,
+    (category: ShopifyProductCollection) => {
+      return (
+        category.products?._cloneWithCompatibilityResult((products) => {
+          return {
+            results: products?.results?.map((product) =>
+              ShopifyProduct(instance, product),
+            ),
+          };
+        }) ?? null
+      );
+    },
+  );
 
-  async function productsResolved(): Promise<SwellCollection | null | undefined> {
+  async function productsResolved(): Promise<
+    SwellCollection | null | undefined
+  > {
     const resolved = await productResults.resolve();
 
     if (resolved && '_resolve' in resolved) {
@@ -49,37 +54,30 @@ export default function ShopifyCollection(
     ),
     all_tags: defer(
       async () =>
-        (await productsResolved())?.results?.reduce(
-          (types: any[], product) => {
-            if (Array.isArray(product.tags)) {
-              types.push(...product.tags);
-            }
+        (await productsResolved())?.results?.reduce((types: any[], product) => {
+          if (Array.isArray(product.tags)) {
+            types.push(...product.tags);
+          }
 
-            return types;
-          },
-          [],
-        ) || [],
+          return types;
+        }, []) || [],
     ),
-    all_types: defer(
-      async () => {
-        const products = await productsResolved();
+    all_types: defer(async () => {
+      const products = await productsResolved();
 
-        if (!products?.results) {
-          return [];
+      if (!products?.results) {
+        return [];
+      }
+
+      const types = products.results.reduce((set, product) => {
+        if (product.type) {
+          set.add(product.type);
         }
 
-        const types = products.results.reduce(
-          (set, product) => {
-            if (product.type) {
-              set.add(product.type);
-            }
+        return set;
+      }, new Set<string>());
 
-            return set;
-          },
-          new Set<string>(),
-        );
-
-        return Array.from(types.values());
+      return Array.from(types.values());
     }),
     all_vendors: [],
     current_type: null,
@@ -96,8 +94,8 @@ export default function ShopifyCollection(
     ),
     filters: defer(
       async () =>
-        (await productsResolved() as any)?.filter_options?.map((filter: any) =>
-          ShopifyFilter(instance, filter),
+        ((await productsResolved()) as any)?.filter_options?.map(
+          (filter: any) => ShopifyFilter(instance, filter),
         ) || [],
     ),
     handle: defer(() => category.slug),
@@ -122,4 +120,3 @@ export default function ShopifyCollection(
     ),
   });
 }
-
