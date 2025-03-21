@@ -8,6 +8,7 @@ import {
   SwellStorefrontSingleton,
 } from './api';
 import { ShopifyCompatibility } from './compatibility/shopify';
+import ShopifyTemplate from './compatibility/shopify-objects/template';
 import ShopifyCart from './compatibility/shopify-objects/cart';
 import ShopifyCustomer from './compatibility/shopify-objects/customer';
 import { GEO_DATA } from './constants';
@@ -880,6 +881,7 @@ export class SwellTheme {
       return '';
     }
 
+
     try {
       return await this.liquidSwell.parseAndRender(template, data);
     } catch (err: any) {
@@ -977,10 +979,8 @@ export class SwellTheme {
     data?: SwellData,
   ): Promise<string | ThemePageTemplateConfig> {
     const config = await this.getThemeTemplateConfig(filePath);
-    const content = await this.renderTemplate(config, {
-      ...data,
-      template: config,
-    });
+
+    const content = await this.renderTemplate(config, data);
 
     if (config?.file_path?.endsWith('.json')) {
       try {
@@ -1039,6 +1039,20 @@ export class SwellTheme {
     }
 
     if (templateConfig) {
+      const templatePath = name.split('/').splice(1).join('/') || null;
+
+      let templateData = {
+        name,
+        alt_name: altTemplateId || null,
+        path: templatePath || null,
+      } as SwellData;
+
+      if (this.shopifyCompatibility) {
+        templateData = ShopifyTemplate(this.shopifyCompatibility, templateData);
+      }
+
+      this.setGlobals({ template: templateData });
+
       const themeTemplate = await this.renderThemeTemplate(
         templateConfig.file_path,
         data,
@@ -1487,7 +1501,6 @@ export class SwellTheme {
             ...data,
             ...settings,
             index,
-            template: templateConfig,
           });
 
           if (settings?.section?.custom_css) {
