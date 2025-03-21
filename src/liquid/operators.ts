@@ -1,12 +1,19 @@
 import { defaultOperators } from 'liquidjs';
 
-import { isComparable, toValue, isArray } from './utils';
+import { isComparable, toValue, isArray, isFunction } from './utils';
 
 import type { Operators } from 'liquidjs';
 
 export const swellOperators: Operators = {
   ...defaultOperators,
   '==': equal,
+  '!=': (l: any, r: any) => !equal(l, r),
+  contains: (l: any, r: any) => {
+    l = toValue(l);
+    if (isArray(l)) return l.some((i) => equal(i, r));
+    if (isFunction(l?.indexOf)) return l.indexOf(toValue(r)) > -1;
+    return false;
+  },
 };
 
 export function equal(lhs: unknown, rhs: unknown): boolean {
