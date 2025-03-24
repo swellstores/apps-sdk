@@ -905,7 +905,7 @@ export class SwellTheme {
   async getSectionSchema(
     sectionName: string,
   ): Promise<Partial<ThemeSectionSchema> | undefined> {
-    let result;
+    let result: Partial<ThemeSectionSchema> | undefined;
 
     const config = await this.getThemeTemplateConfigByType(
       'sections',
@@ -914,7 +914,9 @@ export class SwellTheme {
 
     if (config?.file_path?.endsWith('.json')) {
       try {
-        result = JSON.parse(config.file_data) || undefined;
+        result =
+          (JSON.parse(config.file_data) as Partial<ThemeSectionSchema>) ||
+          undefined;
       } catch {
         // noop
         return undefined;
@@ -938,16 +940,18 @@ export class SwellTheme {
           result = await this.shopifyCompatibility.renderSchemaTranslations(
             this,
             result,
-            this.globals.store?.locale,
+            this.globals.store?.locale as string,
           );
         }
       }
     }
 
     // Normalize schema properties
-    result.id = result?.id || sectionName;
-    result.label = result?.label || sectionName;
-    result.fields = result?.fields || [];
+    if (result) {
+      result.id = result.id || sectionName;
+      result.label = result.label || sectionName;
+      result.fields = result.fields || [];
+    }
 
     return result;
   }
