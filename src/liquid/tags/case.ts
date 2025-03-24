@@ -29,13 +29,17 @@ import type { TagClass } from 'liquidjs/dist/template';
 
 export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class CaseTag extends Tag {
-    value: Value
-    branches: { values: ValueToken[], templates: Template[] }[] = []
-    elseTemplates: Template[] = []
-    isBlock: boolean = false
+    value: Value;
+    branches: { values: ValueToken[], templates: Template[] }[] = [];
+    elseTemplates: Template[] = [];
+    isBlock: boolean = false;
 
-    constructor (tagToken: TagToken, remainTokens: TopLevelToken[], liquid: Liquid) {
-      super(tagToken, remainTokens, liquid)
+    constructor(
+      tagToken: TagToken,
+      remainTokens: TopLevelToken[],
+      liquid: Liquid,
+    ) {
+      super(tagToken, remainTokens, liquid);
 
       // Determine if the variable is a block
       const begin = this.tokenizer.p;
@@ -44,10 +48,10 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       this.tokenizer.p = begin;
 
       this.value = new Value(this.tokenizer.readFilteredValue(), this.liquid)
-      this.elseTemplates = []
+      this.elseTemplates = [];
 
-      let p: Template[] = []
-      let elseCount = 0
+      let p: Template[] = [];
+      let elseCount = 0;
       const stream: ParseStream = this.liquid.parser.parseStream(remainTokens)
         .on('tag:when', (token: TagToken) => {
           if (elseCount > 0) {
@@ -56,62 +60,75 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
 
           p = []
 
-          const values: ValueToken[] = []
+          const values: ValueToken[] = [];
           while (!token.tokenizer.end()) {
-            values.push(token.tokenizer.readValueOrThrow())
-            token.tokenizer.skipBlank()
+            values.push(token.tokenizer.readValueOrThrow());
+            token.tokenizer.skipBlank();
             if (token.tokenizer.peek() === ',') {
-              token.tokenizer.readTo(',')
+              token.tokenizer.readTo(',');
             } else {
-              token.tokenizer.readTo('or')
+              token.tokenizer.readTo('or');
             }
           }
           this.branches.push({
             values,
-            templates: p
-          })
+            templates: p,
+          });
         })
         .on('tag:else', () => {
-          elseCount++
-          p = this.elseTemplates
+          elseCount++;
+          p = this.elseTemplates;
         })
         .on('tag:endcase', () => stream.stop())
         .on('template', (tpl: Template) => {
           if (p !== this.elseTemplates || elseCount === 1) {
-            p.push(tpl)
+            p.push(tpl);
           }
         })
         .on('end', () => {
           throw new Error(`tag ${tagToken.getText()} not closed`)
         })
 
-      stream.start()
+      stream.start();
     }
 
     * render (ctx: Context): Generator<any> {
-      const r = this.liquid.renderer
-      const target = toValue(yield this.value.value(ctx, ctx.opts.lenientIf))
-      let branchHit = false
+      const r = this.liquid.renderer;
+      const target = toValue(yield this.value.value(ctx, ctx.opts.lenientIf));
+      let branchHit = false;
 
       let output = '';
       for (const branch of this.branches) {
         for (const valueToken of branch.values) {
-          const value = yield evalToken(valueToken, ctx, ctx.opts.lenientIf)
+          const value = yield evalToken(valueToken, ctx, ctx.opts.lenientIf);
           if (target === value) {
-            const blockOutput = yield r.renderTemplates(branch.templates, ctx)
-            output += this.isBlock && liquidSwell.isEditor
-              ? `<span class="swell-block">${blockOutput}</span>`
-              : blockOutput
-            branchHit = true
-            break
+            let blockOutput: string = yield r.renderTemplates(
+              branch.templates,
+              ctx,
+            );
+            let replaced = false;
+            if (this.isBlock && liquidSwell.isEditor) {
+              let pos = blockOutput?.indexOf('class="');
+              if (pos > -1) {
+                pos += 7;
+                blockOutput = `${blockOutput.slice(0, pos)}${'swell-block '}${blockOutput.slice(pos)}`;
+                replaced = true;
+              }
+            }
+            output +=
+              this.isBlock && liquidSwell.isEditor && !replaced
+                ? `<span class="swell-block">${blockOutput}</span>`
+                : blockOutput;
+            branchHit = true;
+            break;
           }
         }
       }
       if (!branchHit) {
-        output += yield r.renderTemplates(this.elseTemplates, ctx)
+        output += yield r.renderTemplates(this.elseTemplates, ctx);
       }
 
-      return output
+      return output;
     }
   };
 }
