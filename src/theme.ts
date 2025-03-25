@@ -282,6 +282,7 @@ export class SwellTheme {
       custom: isCustomPage,
       slug: null,
       description: null,
+      $locale: null,
     };
 
     if (pageId) {
@@ -298,11 +299,12 @@ export class SwellTheme {
       }
 
       if (pageSchema?.page) {
-        const { slug, label, description } = pageSchema.page;
+        const { slug, label, description, $locale } = pageSchema.page;
 
         page.slug = slug;
         page.label = label;
         page.description = description;
+        page.$locale = $locale;
       }
     }
 
@@ -1646,6 +1648,17 @@ export function resolveThemeSettings(
   editorSchemaSettings?: ThemeSettingSectionSchema[],
 ): ThemeSettings {
   const settings = cloneDeep(themeSettings);
+
+  if (settings.$locale) {
+    const { locale } = theme.swell.getStorefrontLocalization();
+    const localeConfig = settings.$locale[locale] || {};
+
+    for (const [key, value] of Object.entries(localeConfig)) {
+      if (value) {
+        settings[key] = value;
+      }
+    }
+  }
 
   each(settings, (value, key) => {
     const setting =
