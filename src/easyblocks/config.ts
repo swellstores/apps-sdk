@@ -274,6 +274,11 @@ function getAllSectionComponents(
             placeholder: 'Enter custom CSS...',
           },
         } as ExternalSchemaProp,
+        {
+          prop: '$locale',
+          type: 'swell_locale',
+          isLabelHidden: true,
+        },
       ],
       styles: () => {
         return {
@@ -289,18 +294,27 @@ function getAllSectionComponents(
         ...(section.blocks || []).map<NoCodeComponentDefinition>((block) => ({
           id: `Block__${section.id}__${block.type}`,
           label: block.label,
-          schema: (block.fields || []).reduce<SchemaProp[]>((acc, field) => {
-            if (field.id && field.type) {
-              acc.push({
-                prop: field.id,
-                label: field.label,
-                optional: true,
-                ...schemaToEasyblocksProps(field),
-              });
-            }
+          schema: (block.fields || []).reduce<SchemaProp[]>(
+            (acc, field) => {
+              if (field.id && field.type) {
+                acc.push({
+                  prop: field.id,
+                  label: field.label,
+                  optional: true,
+                  ...schemaToEasyblocksProps(field),
+                });
+              }
 
-            return acc;
-          }, []),
+              return acc;
+            },
+            [
+              {
+                prop: '$locale',
+                type: 'swell_locale',
+                isLabelHidden: true,
+              },
+            ],
+          ),
           styles: () => {
             return {
               styled: {
@@ -517,6 +531,11 @@ export function getEasyblocksPagePropsWithConfigs(
         isNonChangable: true,
         noInline: NO_INLINE,
       },
+      {
+        prop: '$locale',
+        type: 'swell_locale',
+        isLabelHidden: true,
+      },
       ...getEditorSchemaComponentProps(themeGlobals),
     ],
     // Collapse all global page settings
@@ -615,6 +634,7 @@ export function getEasyblocksPagePropsWithConfigs(
         _id: 'swell_global',
         _component: 'swell_global',
         ...getEditorSchemaTemplateValues(themeGlobals),
+        $locale: themeGlobals?.configs?.theme?.$locale,
         swell_page: [
           {
             _id: 'swell_page',
@@ -625,6 +645,7 @@ export function getEasyblocksPagePropsWithConfigs(
                 _component: `${section.type}`,
                 custom_css: settings?.section?.custom_css || '',
                 disabled: settings?.section?.disabled || false,
+                $locale: settings?.section?.settings?.$locale,
                 ...reduce(
                   schema?.fields,
                   (acc, field) => {
@@ -704,6 +725,12 @@ export function getEasyblocksPagePropsWithConfigs(
           type: 'inline',
           widget: {
             id: 'SwellCSS',
+          },
+        },
+        swell_locale: {
+          type: 'inline',
+          widget: {
+            id: 'SwellLocale',
           },
         },
         swell_boolean: {

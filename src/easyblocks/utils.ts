@@ -2,6 +2,7 @@ import type { ShopifySectionSchema } from 'types/shopify';
 
 import type {
   SwellThemeConfig,
+  SwellLocaleProp,
   ThemeLayoutSectionGroupConfig,
   ThemeSection,
   ThemeSectionBase,
@@ -495,6 +496,7 @@ type ReactEasyblocksCompiledComponent = React.ReactElement<{
 
 interface PageSectionComponentProps {
   Blocks?: ReactEasyblocksCompiledComponent[];
+  $locale?: SwellLocaleProp;
   [key: string]: unknown;
 }
 
@@ -507,12 +509,17 @@ export function getSectionSettingsFromProps(
   }
 
   return {
-    settings: sectionSchema.fields.reduce<ThemeSettings>((acc, field) => {
-      if (field?.id) {
-        acc[field.id] = props[field.id];
-      }
-      return acc;
-    }, {}),
+    settings: sectionSchema.fields.reduce<ThemeSettings>(
+      (acc, field) => {
+        if (field?.id) {
+          acc[field.id] = props[field.id];
+        }
+        return acc;
+      },
+      {
+        $locale: props.$locale,
+      },
+    ),
     id: sectionSchema.id,
     blocks: props.Blocks?.filter((propBlock) =>
       Boolean(propBlock.props.compiled?._component),
@@ -526,12 +533,15 @@ export function getSectionSettingsFromProps(
       return {
         type: blockType,
         settings:
-          blockSchema?.fields?.reduce<ThemeSettings>((acc, field) => {
-            if (field?.id) {
-              acc[field.id] = blockProps[field.id] as unknown;
-            }
-            return acc;
-          }, {}) || {},
+          blockSchema?.fields?.reduce<ThemeSettings>(
+            (acc, field) => {
+              if (field?.id) {
+                acc[field.id] = blockProps[field.id] as unknown;
+              }
+              return acc;
+            },
+            { $locale: blockProps.$locale },
+          ) || {},
       };
     }),
   };
