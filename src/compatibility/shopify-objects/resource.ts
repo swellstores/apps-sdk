@@ -3,7 +3,6 @@ import { cloneDeep } from 'lodash-es';
 import { ShopifyCompatibility } from '../shopify';
 
 import { isLikePromise, isObject } from '@/liquid/utils';
-import LiquidArray from '@/liquid/array';
 
 import type {
   StorefrontResource,
@@ -105,7 +104,6 @@ export class DeferredShopifyResource<T> {
       this.result = Promise.resolve()
         .then(() => this.handler())
         .then((value) => {
-          value = Array.isArray(value) ? (LiquidArray.from(value) as T) : value;
           this.result = value !== undefined ? value : null;
           return value;
         });
