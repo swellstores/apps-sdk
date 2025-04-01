@@ -10,12 +10,14 @@ describe('placeholder-svgs', () => {
   describe('preserveAspectRatio', () => {
     const [regular, apparel] = Object.entries(svgs).reduce<[Pair[], Pair[]]>(
       (acc, pair) => {
-        // Svg images containing "apparel" in the name
+        // Svg images containing "apparel", "lifestyle" in the name and "image.svg"
         // must have the "preserveAspectRatio" property to scale correctly.
         // If the current svg files do not have this property,
         // you can find it in the git history of the corresponding files.
         const index =
-          /\bapparel\b/.test(pair[0]) || pair[0] === 'image' ? 1 : 0;
+          /\b(apparel|lifestyle)\b/.test(pair[0]) || pair[0] === 'image'
+            ? 1
+            : 0;
         acc[index].push(pair);
         return acc;
       },
