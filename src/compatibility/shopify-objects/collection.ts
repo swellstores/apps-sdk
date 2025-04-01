@@ -104,7 +104,7 @@ export default function ShopifyCollection(
     metafields: null,
     next_product: null,
     previous_product: null,
-    products: productResults,
+    products: defer(async () => (await productsResolved())?.results),
     products_count: defer(
       async () => (await productsResolved())?.results?.length || 0,
     ),
