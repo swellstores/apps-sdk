@@ -285,6 +285,10 @@ export class Swell {
     const { code: currency } = this.storefront.currency.get();
     const { code: locale } = this.storefront.locale.get();
 
+    if (!currency || !locale) {
+      throw new Error('Swell: localization not established');
+    }
+
     return { currency, locale };
   }
 

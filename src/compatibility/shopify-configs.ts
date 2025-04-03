@@ -1,3 +1,5 @@
+import { isObject } from '@/utils';
+
 import type {
   ShopifySectionBlockSchema,
   ShopifySectionPresetSchema,
@@ -20,6 +22,7 @@ import type {
 
 export function convertShopifySettingsSchema(
   settingsSchema: ShopifySettingsSchema,
+  locale: string,
 ): ThemeEditorSchema {
   const editor: ThemeEditorSchema = {
     settings: [],
@@ -35,8 +38,8 @@ export function convertShopifySettingsSchema(
   }
 
   settingsSchema.forEach((section: ShopifySettingSection) => {
-    (editor.settings as any[]).push(
-      shopifySchemaSectionToSwellSettingSection(section),
+    editor.settings?.push(
+      shopifySchemaSectionToSwellSettingSection(section, locale),
     );
   });
 
@@ -52,10 +55,13 @@ export function convertShopifySettingsData(
     settingsData.presets?.[settingsData.current]
   ) {
     return settingsData.presets[settingsData.current];
-  } else if (typeof settingsData.current === 'object') {
+  }
+
+  if (typeof settingsData.current === 'object') {
     // Shopify's current settings in the first object
     return settingsData.current || {};
   }
+
   return {};
 }
 
@@ -70,9 +76,10 @@ export function convertShopifySettingsPresets(
 
 export function convertShopifySectionSchema(
   sectionSchema: ShopifySectionSchema,
+  locale: string,
 ): ThemeSectionSchemaData {
   const schema: ThemeSectionSchemaData = {
-    label: sectionSchema.name,
+    label: getLocalizedValue(sectionSchema.name, locale),
     type: sectionSchema.type,
     tag: sectionSchema.tag,
     class: sectionSchema.class,
@@ -80,40 +87,44 @@ export function convertShopifySectionSchema(
     enabled_on: sectionSchema.enabled_on,
     disabled_on: sectionSchema.disabled_on,
     fields: (sectionSchema.settings || []).map((setting) =>
-      shopifySchemaSettingToSwellSettingField(setting),
+      shopifySchemaSettingToSwellSettingField(setting, locale),
     ),
     blocks: (sectionSchema.blocks || []).map((block) =>
-      shopifySchemaBlockToSwellBlockSchema(block),
+      shopifySchemaBlockToSwellBlockSchema(block, locale),
     ),
     presets: (sectionSchema.presets || []).map((preset) =>
-      shopifySchemaPresetToSwellPresetSchema(preset),
+      shopifySchemaPresetToSwellPresetSchema(preset, locale),
     ),
-    default: sectionSchema.default,
+    default: sectionSchema.default
+      ? shopifySchemaPresetToSwellPresetSchema(sectionSchema.default, locale)
+      : undefined,
   };
 
   return schema;
 }
 
-export function shopifySchemaBlockToSwellBlockSchema(
+function shopifySchemaBlockToSwellBlockSchema(
   block: ShopifySectionBlockSchema,
+  locale: string,
 ): ThemeBlockSchema {
   const schema: ThemeBlockSchema = {
     type: block.type,
-    label: block.name,
+    label: getLocalizedValue(block.name, locale),
     limit: block.limit,
     fields: (block.settings || []).map((setting) =>
-      shopifySchemaSettingToSwellSettingField(setting),
+      shopifySchemaSettingToSwellSettingField(setting, locale),
     ),
   };
 
   return schema;
 }
 
-export function shopifySchemaPresetToSwellPresetSchema(
+function shopifySchemaPresetToSwellPresetSchema(
   preset: ShopifySectionPresetSchema,
+  locale: string,
 ): ThemePresetSchema {
   const schema: ThemePresetSchema = {
-    label: preset.name,
+    label: getLocalizedValue(preset.name, locale),
     settings: preset.settings,
     blocks: preset.blocks,
   };
@@ -121,23 +132,25 @@ export function shopifySchemaPresetToSwellPresetSchema(
   return schema;
 }
 
-export function shopifySchemaSectionToSwellSettingSection(
+function shopifySchemaSectionToSwellSettingSection(
   section: ShopifySettingSection,
+  locale: string,
 ): ThemeSettingSectionSchema {
   const swellSettingSection: ThemeSettingSectionSchema = {
-    label: section.name,
+    label: getLocalizedValue(section.name, locale),
     fields: (section.settings || []).map((setting) =>
-      shopifySchemaSettingToSwellSettingField(setting),
+      shopifySchemaSettingToSwellSettingField(setting, locale),
     ),
   };
 
   return swellSettingSection;
 }
 
-export function shopifySchemaSettingToSwellSettingField(
+function shopifySchemaSettingToSwellSettingField(
   setting: ShopifySettingSchema,
+  locale: string,
 ): ThemeSettingFieldSchema {
-  let swellProps: any = {};
+  let swellProps: Partial<ThemeSettingFieldSchema> = {};
 
   switch (setting.type) {
     case 'text':
@@ -155,14 +168,19 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'paragraph':
       swellProps = {
         type: 'paragraph',
-        label: setting.content,
+        label: setting.content
+          ? getLocalizedValue(setting.content, locale)
+          : undefined,
       };
       break;
 
     case 'select':
       swellProps = {
         type: 'select',
-        options: setting.options,
+        options: setting.options?.map((option) => ({
+          label: getLocalizedValue(option.label, locale),
+          value: option.value,
+        })),
       };
       break;
 
@@ -175,7 +193,10 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'radio':
       swellProps = {
         type: 'radio',
-        options: setting.options,
+        options: setting.options?.map((option) => ({
+          label: getLocalizedValue(option.label, locale),
+          value: option.value,
+        })),
       };
       break;
 
@@ -226,14 +247,9 @@ export function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'color':
-      swellProps = {
-        type: 'color',
-      };
-      break;
-
     case 'color_background':
       swellProps = {
-        type: 'color_background',
+        type: 'color',
       };
       break;
 
@@ -249,6 +265,7 @@ export function shopifySchemaSettingToSwellSettingField(
         fields: (setting.definition || []).map((setting) =>
           shopifySchemaSettingToSwellSettingField(
             setting as ShopifySettingSchema,
+            locale,
           ),
         ),
         role: setting.role,
@@ -263,7 +280,7 @@ export function shopifySchemaSettingToSwellSettingField(
 
     case 'html':
       swellProps = {
-        type: 'html',
+        type: 'basic_html',
       };
       break;
 
@@ -351,16 +368,44 @@ export function shopifySchemaSettingToSwellSettingField(
     case 'header':
       swellProps = {
         type: 'header',
-        label: setting.content,
+        label: setting.content
+          ? getLocalizedValue(setting.content, locale)
+          : undefined,
       };
+      break;
+
+    default:
       break;
   }
 
   return {
     id: setting.id,
-    label: setting.label,
-    default: setting.default,
-    description: setting.info,
+    label: getLocalizedValue(setting.label, locale),
+    default: setting.default
+      ? getLocalizedValue(setting.default, locale)
+      : undefined,
+    description: setting.info
+      ? getLocalizedValue(setting.info, locale)
+      : undefined,
     ...swellProps,
-  };
+  } as ThemeSettingFieldSchema;
+}
+
+function getLocalizedValue(
+  value: string | Record<string, string | undefined>,
+  locale: string,
+): string {
+  if (isObject(value)) {
+    const localized = value[locale];
+
+    if (localized) {
+      return localized;
+    }
+
+    const shortLocale = locale.slice(0, 2);
+
+    return value[shortLocale] as string;
+  }
+
+  return value;
 }

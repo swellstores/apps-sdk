@@ -80,7 +80,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
             return instance[prop];
           }
 
-          instance._result = instance._get().catch((err: any) => {
+          instance._result = instance._get().catch((err: unknown) => {
             console.log(err);
             return instance._getCollectionResultOrProp(instance, prop);
           }) as unknown as T;
@@ -126,7 +126,9 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 
     if (prop in instance._compatibilityProps) {
       return instance._compatibilityProps[prop];
-    } else if (instance._result && prop in instance._result) {
+    }
+
+    if (instance._result && prop in instance._result) {
       return instance._result[prop];
     }
 

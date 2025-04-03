@@ -1,17 +1,6 @@
-import { Context } from 'liquidjs';
+import { Context, Drop } from 'liquidjs';
+
 import { StorefrontResource } from '../resources';
-
-export const toString = Object.prototype.toString;
-export const hasOwnProperty = Object.hasOwnProperty;
-
-/**
- * Utils used by liquidjs tags and filters
- */
-export class Drop {
-  liquidMethodMissing(key: string) {
-    return undefined;
-  }
-}
 
 // Note: has to refactor this to use class props instead of methods for some reason
 // The class methods weren't working in our implementation
@@ -40,22 +29,22 @@ export class ForloopDrop extends Drop {
     this.rindex0 = length - 1;
   }
 
-  next() {
-    this.i++;
-    this.index++;
-    this.index0++;
+  next(): void {
+    this.i += 1;
+    this.index += 1;
+    this.index0 += 1;
     this.first = false;
     this.last = this.i === this.length - 1;
-    this.rindex--;
-    this.rindex0--;
+    this.rindex -= 1;
+    this.rindex0 -= 1;
   }
 
-  valueOf() {
+  valueOf(): string {
     return JSON.stringify(this);
   }
 }
 
-export function toValue(value: any) {
+export function toValue(value: unknown) {
   return value instanceof Drop && isFunction(value.valueOf)
     ? value.valueOf()
     : value;
@@ -69,13 +58,17 @@ export function isNumber(value: unknown): value is number {
   return typeof value === 'number';
 }
 
-export function isFunction(value: unknown): value is Function {
+export function isFunction(
+  value: unknown,
+): value is (...args: unknown[]) => unknown {
   return typeof value === 'function';
 }
 
 export function toLiquid(value: unknown) {
-  if (isObject(value) && isFunction(value.toLiquid))
+  if (isObject(value) && isFunction(value.toLiquid)) {
     return toLiquid(value.toLiquid());
+  }
+
   return value;
 }
 
@@ -89,12 +82,18 @@ export function isUndefined(value: unknown): value is undefined {
 
 export function isArray<T>(value: unknown): value is Array<T> {
   // be compatible with IE 8
-  return toString.call(value) === '[object Array]';
+  return Object.prototype.toString.call(value) === '[object Array]';
 }
 
 export function isObject(value: unknown): value is Record<string, unknown> {
-  const type = typeof value;
-  return value !== null && (type === 'object' || type === 'function');
+  switch (typeof value) {
+    case 'object':
+    case 'function':
+      return value !== null;
+
+    default:
+      return false;
+  }
 }
 
 export function isIterable<T>(value: unknown): value is Iterable<T> {
@@ -105,11 +104,11 @@ export function isLikePromise(value: unknown): value is Promise<unknown> {
   return isObject(value) && typeof value.then === 'function';
 }
 
-export function isTruthy(val: any, ctx: Context): boolean {
+export function isTruthy(val: unknown, ctx: Context): boolean {
   return !isFalsy(val, ctx);
 }
 
-export function isFalsy(val: any, ctx: Context): boolean {
+export function isFalsy(val: unknown, ctx: Context): boolean {
   if (ctx.opts.jsTruthy) {
     return !val;
   } else {
@@ -158,7 +157,7 @@ export function stringify(value: unknown): string {
 }
 
 export function paramsToProps(
-  params: string[] | Record<string, string>,
+  params: (string | [string, unknown])[] | Record<string, string>,
 ): Record<string, unknown> {
   // Convert array formatted params to props object
   if (Array.isArray(params)) {
@@ -194,21 +193,27 @@ export async function jsonStringifyAsync(
     value = await value.resolve();
   }
 
-  await resolveAllKeys(value);
+  if (typeof value === 'undefined') {
+    value = null;
+  } else {
+    await resolveAllKeys(value);
+  }
 
   // Catch circular references, for example StorefrontResource
-  const references: any[] = [];
+  const references = new WeakSet();
 
   return JSON.stringify(
     value,
-    (_key, value) => {
-      if (typeof value === 'object' && value !== null) {
-        if (references.includes(value)) {
+    (_key: string, value: unknown) => {
+      if (isObject(value)) {
+        if (references.has(value)) {
           // Ignore circular reference
           return;
         }
-        references.push(value);
+
+        references.add(value);
       }
+
       return value;
     },
     space,
@@ -227,7 +232,7 @@ async function resolveAllKeys(
     if (isLikePromise(val)) {
       value[key] = await val;
       await resolveAllKeys(value[key], references);
-    } else if (typeof val === 'object' && val !== null) {
+    } else if (isObject(val)) {
       if (references.has(val)) {
         // Ignore circular reference
         return false;
@@ -241,17 +246,16 @@ async function forEachKeyDeep(
   obj: Record<string, unknown>,
   fn: (key: string, value: Record<string, unknown>) => Promise<unknown>,
 ) {
-  if (typeof obj !== 'object' || obj === null) {
+  if (!isObject(obj)) {
     return;
   }
-  for (const key in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-      const result = await fn(key, obj);
-      if (result !== false) {
-        const value = obj[key];
-        if (typeof value === 'object' && value !== null) {
-          await forEachKeyDeep(value as Record<string, unknown>, fn);
-        }
+
+  for (const [key, value] of Object.entries(obj)) {
+    const result = await fn(key, obj);
+
+    if (result !== false) {
+      if (isObject(value)) {
+        await forEachKeyDeep(value, fn);
       }
     }
   }

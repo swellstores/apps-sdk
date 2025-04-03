@@ -23,8 +23,7 @@ export default function ShopifyVariant(
   return new ShopifyResource({
     available: deferWith<any, any>(
       variant,
-      (variant) =>
-        variant.stock_status === 'in_stock' || !variant.stock_status,
+      (variant) => variant.stock_status === 'in_stock' || !variant.stock_status,
     ),
     barcode: null,
     compare_at_price: defer(() => variant.orig_price),
@@ -50,6 +49,7 @@ export default function ShopifyVariant(
     incoming: false,
     inventory_management: null,
     inventory_policy: null,
+    inventory_quantity: Infinity,
     matched: false,
     metafields: null,
     next_incoming_date: null,
@@ -108,7 +108,9 @@ function getOptions(product: any, variant: any) {
       },
       {},
     );
-    return variant.option_value_ids?.map((id: any) => optionValuesById[id]);
+    return variant.option_value_ids
+      ?.map((id: any) => optionValuesById[id])
+      .filter(Boolean);
   });
 }
 

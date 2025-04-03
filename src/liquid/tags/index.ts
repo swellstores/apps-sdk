@@ -40,7 +40,5 @@ export const tags = {
 };
 
 export function bindTags(liquidSwell: LiquidSwell) {
-  each(tags, (bind, tag) =>
-    liquidSwell.engine.registerTag(tag, bind(liquidSwell)),
-  );
+  each(tags, (bind, tag) => liquidSwell.registerTag(tag, bind(liquidSwell)));
 }
