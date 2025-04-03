@@ -172,7 +172,7 @@ export class SwellTheme {
       ...globals,
     };
 
-    this.liquidSwell.engine.options.globals = {
+    this.liquidSwell.options.globals = {
       ...this.globals,
     };
   }
@@ -882,7 +882,6 @@ export class SwellTheme {
     if (config === null || template === null) {
       return '';
     }
-
 
     try {
       return await this.liquidSwell.parseAndRender(template, data);

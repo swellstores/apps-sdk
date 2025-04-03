@@ -1,4 +1,4 @@
-import { cloneDeep } from 'lodash-es';
+import { cloneDeep, noop } from 'lodash-es';
 
 import { ShopifyCompatibility } from '../shopify';
 
@@ -56,17 +56,17 @@ export class ShopifyResource {
         }
 
         if (instance[prop] instanceof DeferredShopifyResource) {
-          return instance[prop]
-            .resolve()
-            .then((value: unknown) => {
+          return instance[prop].resolve().then(
+            (value: unknown) => {
               instance[prop] = value;
               return value;
-            })
-            .catch((err: unknown) => {
+            },
+            (err: unknown) => {
               console.log(err);
               instance[prop] = null;
               return null;
-            });
+            },
+          );
         }
 
         return instance[prop];
@@ -96,15 +96,22 @@ export class DeferredShopifyResource<T> {
   private result: Promise<T> | T | undefined | null;
 
   constructor(handler: () => Promise<T> | T) {
+    this.result = undefined;
     this.handler = handler;
   }
 
   async resolve() {
     if (this.result === undefined) {
       this.result = Promise.resolve()
-        .then(() => this.handler())
+        .then(() => {
+          const value = this.handler();
+          // Reset handler as it will no longer be used (free memory)
+          this.handler = noop as () => Promise<T> | T;
+          return value;
+        })
         .then((value) => {
-          this.result = value !== undefined ? value : null;
+          value = (value !== undefined ? value : null) as T;
+          this.result = value;
           return value;
         });
     }
@@ -113,8 +120,10 @@ export class DeferredShopifyResource<T> {
   }
 }
 
-export function defer<T>(handler: () => Promise<T> | T) {
-  return new DeferredShopifyResource(handler);
+export function defer<T>(
+  handler: () => Promise<T> | T,
+): DeferredShopifyResource<T> {
+  return new DeferredShopifyResource<T>(handler);
 }
 
 export function isResolvable(asyncProp: unknown): boolean {
@@ -184,7 +193,7 @@ export function deferSwellCollectionWithShopifyResults<
   key: string,
   ShopifyObject: (instance: ShopifyCompatibility, result: SwellRecord) => R,
   handler?: (shopifyResult: R, result: SwellRecord) => void,
-) {
+): DeferredShopifyResource<SwellStorefrontCollection | null> {
   return deferWith<SwellStorefrontCollection, T>(asyncProp, (value) => {
     return (
       value[key]?._cloneWithCompatibilityResult((valueResult) => {

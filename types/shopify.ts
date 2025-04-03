@@ -1,8 +1,4 @@
-import type {
-  SwellData,
-  OptionItem,
-  ThemeSectionEnabledDisabled,
-} from './swell';
+import type { SwellData, ThemeSectionEnabledDisabled } from './swell';
 
 import type { ShopifyResource } from '../src/compatibility/shopify-objects/resource';
 import type { ShopifyCompatibility } from '../src/compatibility/shopify';
@@ -61,6 +57,11 @@ export interface ShopifySettingRoleSchema {
   links: string;
 }
 
+export interface ShopifyOptionItem {
+  label: string | Record<string, string | undefined>;
+  value: string;
+}
+
 export interface ShopifySettingDefinitionSchema {
   type: 'header' | 'color' | 'color_background';
   label: string;
@@ -72,15 +73,15 @@ export interface ShopifySettingDefinitionSchema {
 
 export interface ShopifySettingSchema {
   type: ShopifyBasicInputType | ShopifySpecializedInputType;
-  label: string;
+  label: string | Record<string, string | undefined>;
   id?: string;
-  info?: string;
-  default?: any;
+  info?: string | Record<string, string | undefined>;
+  default?: string | Record<string, string | undefined>;
   placeholder?: string;
-  content?: string;
+  content?: string | Record<string, string | undefined>;
 
   // select
-  options?: Array<OptionItem>;
+  options?: ShopifyOptionItem[];
   group?: string;
 
   // range
@@ -93,20 +94,20 @@ export interface ShopifySettingSchema {
   limit?: number;
 
   // color_scheme_group
-  definition?: Array<ShopifySettingDefinitionSchema>;
+  definition?: ShopifySettingDefinitionSchema[];
 
   role?: ShopifySettingRoleSchema;
 
   // video_url
-  accept?: Array<string>; // youtube, vimeo, or both
+  accept?: string[]; // youtube, vimeo, or both
 }
 
 export interface ShopifySettingSection {
   name: string;
-  settings?: Array<ShopifySettingSchema>;
+  settings?: ShopifySettingSchema[];
 }
 
-export type ShopifySettingsSchema = Array<ShopifySettingSection>;
+export type ShopifySettingsSchema = ShopifySettingSection[];
 
 export interface ShopifySettingsData {
   current: Record<string, any> | string;
@@ -128,7 +129,7 @@ export interface ShopifySectionPresetSchema {
 
 export interface ShopifySettingSection {
   name: string;
-  settings?: Array<ShopifySettingSchema>;
+  settings?: ShopifySettingSchema[];
 }
 
 export interface ShopifySectionGroupItem {
@@ -155,7 +156,7 @@ export interface ShopifySectionSchema {
   settings: ShopifySettingSchema[];
   blocks?: ShopifySectionBlockSchema[];
   presets?: ShopifySectionPresetSchema[];
-  default?: ShopifySettingSchema;
+  default?: ShopifySectionPresetSchema;
 }
 
 export interface ShopifyPageResource {
@@ -169,7 +170,7 @@ export interface ShopifyPageResource {
 
 export interface ShopifyPage {
   page: string;
-  resources: Array<ShopifyPageResource>;
+  resources: ShopifyPageResource[];
 }
 
 export type ShopifyPageResourceMap = Map<string, ShopifyPage>;
@@ -191,14 +192,14 @@ export interface ShopifyForm {
   serverResponse?(context: SwellData): SwellData;
 }
 
-export type ShopifyFormResourceMap = Array<ShopifyForm>;
+export type ShopifyFormResourceMap = ShopifyForm[];
 
 export interface ShopifyQueryParams {
   from: string | ((param: string) => boolean);
   to: string | ((param: string, value: string) => SwellData);
 }
 
-export type ShopifyQueryParamsMap = Array<ShopifyQueryParams>;
+export type ShopifyQueryParamsMap = ShopifyQueryParams[];
 
 export interface ShopifyLocalizationSection {
   [key: string]: string | ShopifyLocalizationSection;

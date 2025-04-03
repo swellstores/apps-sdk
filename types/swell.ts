@@ -13,7 +13,7 @@ import type {
 } from '../src/api';
 
 import type {
-  ShopifySettingSchema,
+  ShopifySettingRoleSchema,
   ShopifySettingsData,
   ShopifySettingsSchema,
 } from './shopify';
@@ -408,7 +408,7 @@ export interface ThemeSectionSchemaData {
   limit?: number;
   blocks?: ThemeBlockSchema[];
   presets?: ThemePresetSchema[];
-  default?: ShopifySettingSchema;
+  default?: ThemePresetSchema;
 }
 
 export interface ThemeSectionSchema extends ThemeSectionSchemaData {
@@ -488,6 +488,7 @@ export interface ThemeSettingFieldSchema {
   required?: boolean;
   fields?: Array<ThemeSettingFieldSchema>;
   localized?: boolean;
+  titleField?: string;
 
   // short_text
   format?: string;
@@ -534,6 +535,9 @@ export interface ThemeSettingFieldSchema {
   query?: SwellData;
   params?: SwellData;
   limit?: number;
+
+  // shopify compatibility
+  role?: ShopifySettingRoleSchema;
 }
 
 export interface ThemeSettingSectionSchema {
@@ -654,12 +658,17 @@ export interface ThemeFontVariantSetting {
   variant?: ThemeFontVariant;
 }
 
+export interface ThemeFormConfigParam {
+  name: string;
+  value: string;
+}
+
 export interface ThemeFormConfig {
   id: string;
   url: string;
   return_url?: string;
-  params?: string[];
-  handler?: Function;
+  params?: ThemeFormConfigParam[];
+  handler?: () => void;
 }
 
 export interface ThemeFormErrorMessage {

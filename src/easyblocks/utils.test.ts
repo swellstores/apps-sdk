@@ -1,6 +1,8 @@
-import { Swell } from '../api';
-import { SwellTheme } from '../theme';
-import { ShopifyCompatibility } from '../compatibility/shopify';
+import { Swell } from '@/api';
+import { SwellTheme } from '@/theme';
+import { ShopifyCompatibility } from '@/compatibility/shopify';
+
+import { setStorefrontLocalization } from '@/liquid/test-helpers';
 
 import {
   getAllSections,
@@ -27,6 +29,8 @@ describe('easyblocks/utils', () => {
           'public-key': 'publickey',
         },
       });
+
+      setStorefrontLocalization(swell, 'en-US', 'USD');
 
       const theme = new SwellTheme(swell);
       theme.shopifyCompatibility = new ShopifyCompatibility(theme);
@@ -170,6 +174,8 @@ describe('easyblocks/utils', () => {
           'theme-id': 'test_theme_id',
         },
       });
+
+      setStorefrontLocalization(swell, 'en-US', 'USD');
 
       const theme = new SwellTheme(swell);
       theme.shopifyCompatibility = new ShopifyCompatibility(theme);

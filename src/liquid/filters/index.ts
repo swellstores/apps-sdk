@@ -1,5 +1,4 @@
 import { each } from 'lodash-es';
-import { LiquidSwell } from '..';
 
 import asset_url from './asset_url';
 import brightness_difference from './brightness_difference';
@@ -33,6 +32,7 @@ import money from './money';
 import money_with_currency from './money_with_currency';
 import money_without_currency from './money_without_currency';
 import money_without_trailing_zeros from './money_without_trailing_zeros';
+import script_tag from './script_tag';
 import stylesheet_tag from './stylesheet_tag';
 import time_tag from './time_tag';
 import translate from './translate';
@@ -47,7 +47,16 @@ import placeholder_svg_tag from './shopify/placeholder_svg_tag';
 
 // Swell only
 import inline_editable from './inline_editable';
-import { isLikePromise } from '../utils';
+
+// Utils
+import { isLikePromise, isFunction, isObject } from '../utils';
+
+import type { LiquidSwell } from '..';
+import type {
+  FilterHandler,
+  FilterImpl,
+  FilterImplOptions,
+} from 'liquidjs/dist/template';
 
 export const filters = {
   asset_url,
@@ -82,6 +91,7 @@ export const filters = {
   money_with_currency,
   money_without_currency,
   money_without_trailing_zeros,
+  script_tag,
   stylesheet_tag,
   time_tag,
   translate,
@@ -99,13 +109,13 @@ export const filters = {
   inline_editable,
 };
 
-export function bindFilters(liquidSwell: LiquidSwell) {
+export function bindFilters(liquidSwell: LiquidSwell): void {
   each(filters, (handler, tag) => {
     if (typeof handler === 'function') {
-      liquidSwell.engine.registerFilter(tag, handler(liquidSwell));
+      liquidSwell.registerFilter(tag, handler(liquidSwell));
     } else if (typeof handler.bind === 'function') {
       const { bind, resolve } = handler;
-      liquidSwell.engine.registerFilter(
+      liquidSwell.registerFilter(
         tag,
         bindWithResolvedProps(liquidSwell, bind, resolve),
       );
@@ -116,16 +126,16 @@ export function bindFilters(liquidSwell: LiquidSwell) {
 // Resolve specific nested props
 function bindWithResolvedProps(
   liquidSwell: LiquidSwell,
-  bind: (liquidSwell: LiquidSwell) => any,
-  resolve: Array<Array<string> | boolean> = [],
-) {
+  bind: (liquidSwell: LiquidSwell) => FilterHandler,
+  resolve: Array<string[] | boolean> = [],
+): FilterImplOptions {
   const handler = bind(liquidSwell);
   if (!Array.isArray(resolve)) {
     return handler;
   }
 
-  return async (...props: any[]) => {
-    const resolvedProps = await Promise.all(
+  return async function (this: FilterImpl, ...props: unknown[]) {
+    const [arg0, ...args] = await Promise.all(
       props.map((prop, index) => {
         if (Array.isArray(resolve[index]) || resolve[index] === true) {
           return resolveAsyncProps(prop, resolve[index]);
@@ -133,22 +143,23 @@ function bindWithResolvedProps(
         return prop;
       }),
     );
-    return handler(...resolvedProps);
+
+    return handler.call(this, arg0, ...args);
   };
 }
 
 export async function resolveAsyncProps(
-  propArg: any,
-  resolveProps: boolean | Array<string>,
-): Promise<any> {
+  propArg: unknown,
+  resolveProps: boolean | string[],
+): Promise<unknown> {
   if (!propArg) {
     return propArg;
   }
 
-  let prop = propArg;
+  let prop = propArg as Record<string, unknown>;
 
   if (isLikePromise(prop)) {
-    prop = await prop;
+    prop = (await prop) as Record<string, unknown>;
   }
 
   try {
@@ -161,10 +172,12 @@ export async function resolveAsyncProps(
         const [key, ...remainingKeys] = propPath.split('.');
         const targetProp = prop[key];
 
-        if (isLikePromise(targetProp)) {
-          prop[key] = await targetProp;
-        } else if (typeof targetProp?.resolve === 'function') {
-          prop[key] = await targetProp.resolve();
+        if (isObject(targetProp)) {
+          if (isLikePromise(targetProp)) {
+            prop[key] = await targetProp;
+          } else if (isFunction(targetProp.resolve)) {
+            prop[key] = await targetProp.resolve();
+          }
         }
 
         if (remainingKeys.length > 0) {

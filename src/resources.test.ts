@@ -41,11 +41,13 @@ describe('SwellSingletonResource', () => {
         new Date().toISOString(),
       ) as jest.Mock;
 
-      global.fetch = jest.fn(() =>
+      const fetchMock = jest.fn(() =>
         Promise.resolve({
           json: () => Promise.resolve({ id: 'test' }),
         }),
-      ) as jest.Mock;
+      );
+
+      global.fetch = fetchMock as jest.Mock;
 
       const theme = new SwellTheme(swell, {
         resources: {
@@ -75,8 +77,8 @@ describe('SwellSingletonResource', () => {
       ]);
 
       // correct resources should be fetched
-      const { calls } = (global.fetch as jest.Mock).mock;
-      expect(calls.length).toEqual(2);
+      const { calls } = fetchMock.mock;
+      expect(calls).toHaveLength(2);
       const cartCall = calls[0] as string[];
       expect(cartCall[0]).toEqual(
         'test/resources/CartResource.json/?query=%7B%7D',

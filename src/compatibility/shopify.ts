@@ -48,7 +48,7 @@ import type {
   ShopifyLocalizationConfig,
 } from '../../types/shopify';
 
-/*
+/**
  * This class is meant to be extended by a storefront app to provide compatibility with Shopify's Liquid
  */
 export class ShopifyCompatibility {
@@ -324,13 +324,15 @@ export class ShopifyCompatibility {
   }
 
   getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema {
-    return convertShopifySettingsSchema(settingsSchema);
+    const { locale } = this.swell.getStorefrontLocalization();
+    return convertShopifySettingsSchema(settingsSchema, locale);
   }
 
   getSectionConfigSchema(
     sectionSchema: ShopifySectionSchema,
   ): ThemeSectionSchemaData {
-    return convertShopifySectionSchema(sectionSchema);
+    const { locale } = this.swell.getStorefrontLocalization();
+    return convertShopifySectionSchema(sectionSchema, locale);
   }
 
   async getLocaleConfig(

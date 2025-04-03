@@ -1,4 +1,15 @@
 import { reduce } from 'lodash-es';
+
+import { SECTION_GROUP_CONTENT, getSectionGroupProp } from '../utils';
+
+import {
+  getAllSections,
+  getPageSections,
+  getLayoutSectionGroups,
+  schemaToEasyblocksProps,
+  schemaToEasyblocksValue,
+} from './utils';
+
 import type {
   Backend,
   Document,
@@ -10,15 +21,7 @@ import type {
   UserDefinedTemplate,
 } from '@swell/easyblocks-core';
 
-import { SECTION_GROUP_CONTENT, getSectionGroupProp } from '../utils';
-import { SwellTheme } from '../theme';
-import {
-  getAllSections,
-  getPageSections,
-  getLayoutSectionGroups,
-  schemaToEasyblocksProps,
-  schemaToEasyblocksValue,
-} from './utils';
+import type { SwellTheme } from '../theme';
 
 import type {
   SwellThemeConfig,
@@ -65,7 +68,7 @@ export async function getEasyblocksPropsFromThemeConfigs(
 export async function getEasyblocksPageTemplate<T>(
   theme: SwellTheme,
   pageId: string,
-): Promise<T | undefined> {
+): Promise<T | string | undefined> {
   let templateConfig: SwellThemeConfig | null = null;
 
   templateConfig = await theme.getThemeTemplateConfigByType(
@@ -74,6 +77,10 @@ export async function getEasyblocksPageTemplate<T>(
   );
 
   if (templateConfig) {
+    if (templateConfig.file_path.endsWith('.liquid')) {
+      return templateConfig.file_data;
+    }
+
     return JSON.parse(templateConfig.file_data) as T;
   }
 }
@@ -634,7 +641,7 @@ export function getEasyblocksPagePropsWithConfigs(
         _id: 'swell_global',
         _component: 'swell_global',
         ...getEditorSchemaTemplateValues(themeGlobals),
-        $locale: themeGlobals?.configs?.theme?.$locale,
+        $locale: themeGlobals?.configs?.theme?.$locale as string,
         swell_page: [
           {
             _id: 'swell_page',
@@ -645,7 +652,7 @@ export function getEasyblocksPagePropsWithConfigs(
                 _component: `${section.type}`,
                 custom_css: settings?.section?.custom_css || '',
                 disabled: settings?.section?.disabled || false,
-                $locale: settings?.section?.settings?.$locale,
+                $locale: settings?.section?.settings?.$locale as string,
                 ...reduce(
                   schema?.fields,
                   (acc, field) => {
@@ -803,6 +810,12 @@ export function getEasyblocksPagePropsWithConfigs(
           type: 'inline',
           widget: {
             id: 'SwellSelect',
+          },
+        },
+        swell_radio: {
+          type: 'inline',
+          widget: {
+            id: 'SwellRadio',
           },
         },
         swell_short_text: {

@@ -1,9 +1,14 @@
-import { LiquidSwell } from '..';
+import type { FilterHandler } from 'liquidjs/dist/template';
+import type { LiquidSwell } from '..';
 
 // {{ form.errors | default_errors }}
 
-export default function bind(_liquidSwell: LiquidSwell) {
-  return async (errors: any) => {
+export default function bind(_liquidSwell: LiquidSwell): FilterHandler {
+  return async function filterDefaultError(errors) {
+    if (!errors) {
+      return '';
+    }
+
     const errorMessages = await Promise.all(
       Array.from(errors).map((error: any) => error?.message || 'Unknown error'),
     );

@@ -23,14 +23,14 @@ export * from './font';
 
 interface LiquidSwellOptions {
   theme: SwellTheme;
-  getThemeConfig: GetThemeConfig;
+  getThemeConfig?: GetThemeConfig;
   getThemeTemplateConfigByType?: GetThemeTemplateConfigByType;
-  getAssetUrl: GetAssetUrl;
-  renderTemplate: RenderTemplate;
-  renderTemplateString: RenderTemplateString;
-  renderPageSections: RenderPageSections;
-  renderTranslation: RenderTranslation;
-  renderCurrency: RenderCurrency;
+  getAssetUrl?: GetAssetUrl;
+  renderTemplate?: RenderTemplate;
+  renderTemplateString?: RenderTemplateString;
+  renderPageSections?: RenderPageSections;
+  renderTranslation?: RenderTranslation;
+  renderCurrency?: RenderCurrency;
   isEditor: boolean;
   locale?: string;
   currency?: string;
@@ -43,22 +43,21 @@ interface LiquidSwellOptions {
 export class LiquidSwell extends Liquid {
   public theme: SwellTheme;
   public getThemeConfig: GetThemeConfig;
-  public getThemeTemplateConfigByType: GetThemeTemplateConfigByType | undefined;
+  public getThemeTemplateConfigByType: GetThemeTemplateConfigByType;
   public getAssetUrl: GetAssetUrl;
   public renderTemplate: RenderTemplate;
   public renderTemplateString: RenderTemplateString;
   public renderPageSections: RenderPageSections;
   public renderTranslation: RenderTranslation;
   public renderCurrency: RenderCurrency;
-  public engine: Liquid;
 
   public isEditor: boolean;
-  public locale: string | undefined;
-  public currency: string | undefined;
-  public layoutName: string | undefined;
-  public extName: string | undefined;
-  public componentsDir: string | undefined;
-  public sectionsDir: string | undefined;
+  public locale: string;
+  public currency: string;
+  public layoutName: string;
+  public extName: string;
+  public componentsDir: string;
+  public sectionsDir: string;
 
   public lastSchema: ThemeSectionSchema | undefined;
 
@@ -80,10 +79,19 @@ export class LiquidSwell extends Liquid {
     componentsDir,
     sectionsDir,
   }: LiquidSwellOptions) {
-    super();
+    getThemeConfig = getThemeConfig || theme.getThemeConfig.bind(theme);
+    extName = extName || 'liquid';
+
+    super({
+      cache: false,
+      relativeReference: false,
+      fs: getLiquidFS(getThemeConfig, extName),
+      ownPropertyOnly: false,
+      operators: swellOperators,
+    });
 
     this.theme = theme;
-    this.getThemeConfig = getThemeConfig || theme.getThemeConfig.bind(theme);
+    this.getThemeConfig = getThemeConfig;
     this.getThemeTemplateConfigByType =
       getThemeTemplateConfigByType ||
       theme.getThemeTemplateConfigByType.bind(theme);
@@ -96,109 +104,93 @@ export class LiquidSwell extends Liquid {
     this.renderTranslation =
       renderTranslation || theme.renderTranslation.bind(theme);
     this.renderCurrency = renderCurrency || theme.renderCurrency.bind(theme);
-    this.isEditor = isEditor;
+    this.isEditor = Boolean(isEditor);
     this.locale = locale || 'en-US';
     this.currency = currency || 'USD';
     this.layoutName = layoutName || 'theme';
-    this.extName = extName || 'liquid';
+    this.extName = extName;
     this.componentsDir = componentsDir || 'components';
     this.sectionsDir = sectionsDir || 'sections';
 
-    this.engine = this.initLiquidEngine();
-  }
-
-  initLiquidEngine(): Liquid {
-    this.engine = new Liquid({
-      cache: false,
-      relativeReference: false,
-      fs: this.getLiquidFS(),
-      ownPropertyOnly: false,
-      operators: swellOperators,
-    });
-
     bindTags(this);
     bindFilters(this);
-
-    return this.engine;
-  }
-
-  getLiquidFS(): FS {
-    const { getThemeConfig, resolveFilePath } = this;
-    return {
-      /** read a file asynchronously */
-      async readFile(filePath: string): Promise<string> {
-        const resolvedPath = resolveFilePath(filePath);
-        return getThemeConfig(resolvedPath).then(
-          (template) =>
-            template?.file_data ||
-            `<!-- theme template not found: ${resolvedPath} -->`,
-        );
-      },
-      /** check if a file exists asynchronously */
-      async exists(filePath: string): Promise<boolean> {
-        return true;
-      },
-      /** read a file synchronously */
-      readFileSync(_filePath: string): string {
-        return '';
-      },
-      /** check if a file exists synchronously */
-      existsSync(_filePath: string): boolean {
-        return false;
-      },
-      /** check if file is contained in `root`, always return `true` by default. Warning: not setting this could expose path traversal vulnerabilities. */
-      contains(_root: string, _file: string): boolean {
-        return true;
-      },
-      /** resolve a file against directory, for given `ext` option */
-      resolve(_dir: string, file: string, _ext: string): string {
-        return file;
-      },
-      /** fallback file for lookup failure */
-      fallback(_filePath: string): string | undefined {
-        return;
-      },
-    };
   }
 
   async parseAndRender(template: string, data: any): Promise<string> {
-    return this.engine.parseAndRender(template, data);
-  }
-
-  resolveFilePath(fileName: string, extName?: string): string {
-    return `theme/${fileName}.${extName || this.extName}`;
+    return super.parseAndRender(template, data);
   }
 
   async resolveFilePathByType(
     type: string,
     name: string,
   ): Promise<string | undefined> {
-    if (this.getThemeTemplateConfigByType) {
-      const config = await this.getThemeTemplateConfigByType(type, name);
-      if (config?.file_path) {
-        return config.file_path;
-      }
+    const config = await this.getThemeTemplateConfigByType(type, name);
+
+    if (config?.file_path) {
+      return config.file_path;
     }
   }
 
   async getComponentPath(componentName: string): Promise<string> {
     return (
       (await this.resolveFilePathByType('components', componentName)) ||
-      this.resolveFilePath(`${this.componentsDir}/${componentName}`)
+      resolveFilePath(`${this.componentsDir}/${componentName}`, this.extName)
     );
   }
 
   async getSectionPath(sectionName: string): Promise<string> {
     return (
       (await this.resolveFilePathByType('sections', sectionName)) ||
-      this.resolveFilePath(`${this.sectionsDir}/${sectionName}`)
+      resolveFilePath(`${this.sectionsDir}/${sectionName}`, this.extName)
     );
   }
 
   async getSectionGroupPath(sectionName: string): Promise<string> {
     return (
       (await this.resolveFilePathByType('sections', `${sectionName}.json`)) ||
-      this.resolveFilePath(`${this.sectionsDir}/${sectionName}`, 'json')
+      resolveFilePath(`${this.sectionsDir}/${sectionName}`, 'json')
     );
   }
+}
+
+function resolveFilePath(fileName: string, extName: string): string {
+  return `theme/${fileName}.${extName}`;
+}
+
+function getLiquidFS(getThemeConfig: GetThemeConfig, extName: string): FS {
+  return {
+    /** read a file asynchronously */
+    async readFile(filePath: string): Promise<string> {
+      const resolvedPath = resolveFilePath(filePath, extName);
+      return getThemeConfig(resolvedPath).then(
+        (template) =>
+          template?.file_data ||
+          `<!-- theme template not found: ${resolvedPath} -->`,
+      );
+    },
+    /** check if a file exists asynchronously */
+    async exists(_filePath: string): Promise<boolean> {
+      return true;
+    },
+    /** read a file synchronously */
+    readFileSync(_filePath: string): string {
+      return '';
+    },
+    /** check if a file exists synchronously */
+    existsSync(_filePath: string): boolean {
+      return false;
+    },
+    /** check if file is contained in `root`, always return `true` by default. Warning: not setting this could expose path traversal vulnerabilities. */
+    contains(_root: string, _file: string): boolean {
+      return true;
+    },
+    /** resolve a file against directory, for given `ext` option */
+    resolve(_dir: string, file: string, _ext: string): string {
+      return file;
+    },
+    /** fallback file for lookup failure */
+    fallback(_filePath: string): string | undefined {
+      return;
+    },
+  };
 }
