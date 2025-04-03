@@ -1,40 +1,47 @@
-import {
+import { Tag, TypeGuards } from 'liquidjs';
+
+import type { LiquidSwell } from '..';
+import type {
   Liquid,
-  Tag,
   TagToken,
+  Parser,
   Context,
-  TypeGuards,
+  Emitter,
+  Template,
+  TopLevelToken,
 } from 'liquidjs';
-
-import { LiquidSwell } from '..';
-
-import type { Template, TopLevelToken } from 'liquidjs';
-import type { TagClass } from 'liquidjs/dist/template';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
 // {% javascript %}
 
 export default function bind(_liquidSwell: LiquidSwell): TagClass {
   return class JavascriptTag extends Tag {
-    private templates: Template[] = [];
+    private templates: Template[];
 
     constructor(
       token: TagToken,
       remainTokens: TopLevelToken[],
       liquid: Liquid,
+      parser: Parser,
     ) {
       super(token, remainTokens, liquid);
 
-      while (remainTokens.length) {
-        const token = remainTokens.shift()!;
-        if (TypeGuards.isTagToken(token) && token.name === "endjavascript")
+      this.templates = [];
+
+      while (remainTokens.length > 0) {
+        const token = remainTokens.shift() as TopLevelToken;
+
+        if (TypeGuards.isTagToken(token) && token.name === 'endjavascript') {
           return;
-        this.templates.push(liquid.parser.parseToken(token, remainTokens));
+        }
+
+        this.templates.push(parser.parseToken(token, remainTokens));
       }
 
       throw new Error(`tag ${token.getText()} not closed`);
     }
 
-    *render(ctx: Context): any {
+    *render(ctx: Context, _emitter: Emitter): TagRenderReturn {
       const r = this.liquid.renderer;
       const javascript = yield r.renderTemplates(this.templates, ctx);
 

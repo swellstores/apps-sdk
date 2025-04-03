@@ -1,12 +1,4 @@
-import {
-  Liquid,
-  Tag,
-  TagToken,
-  Context,
-  Hash,
-  ParseStream,
-  evalToken,
-} from 'liquidjs';
+import { Tag, Hash, evalToken } from 'liquidjs';
 
 import {
   SwellStorefrontCollection,
@@ -14,10 +6,20 @@ import {
 } from '../../resources';
 
 import ShopifyPaginate from '@/compatibility/shopify-objects/paginate';
-import { LiquidSwell } from '..';
 
-import type { Emitter, Template, ValueToken, TopLevelToken } from 'liquidjs';
-import type { TagClass } from 'liquidjs/dist/template';
+import type { LiquidSwell } from '..';
+import type {
+  Liquid,
+  TagToken,
+  Parser,
+  Context,
+  ParseStream,
+  Emitter,
+  Template,
+  ValueToken,
+  TopLevelToken,
+} from 'liquidjs';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
 /*
   {% paginate array by page_size %}
@@ -31,13 +33,14 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class PaginateTag extends Tag {
     private collection: ValueToken;
     private pageSize: ValueToken | undefined;
-    private templates: Template[] = [];
+    private templates: Template[];
     private hash: Hash;
 
     constructor(
       token: TagToken,
       remainTokens: TopLevelToken[],
       liquid: Liquid,
+      parser: Parser,
     ) {
       super(token, remainTokens, liquid);
 
@@ -48,15 +51,16 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         throw new Error(`illegal tag: ${token.getText()}`);
       }
 
+      this.templates = [];
       this.collection = collection;
       this.hash = new Hash(this.tokenizer.remaining());
 
-      let p;
-      const stream: ParseStream = this.liquid.parser
+      const stream: ParseStream = parser
         .parseStream(remainTokens)
-        .on('start', () => (p = this.templates))
         .on('tag:endpaginate', () => stream.stop())
-        .on('template', (tpl: Template) => p.push(tpl))
+        .on('template', (tpl: Template) => {
+          this.templates.push(tpl);
+        })
         .on('end', () => {
           throw new Error(`tag ${token.getText()} not closed`);
         });
@@ -64,7 +68,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       stream.start();
     }
 
-    *render(ctx: Context, emitter: Emitter): any {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       const r = this.liquid.renderer;
 
       const collection = yield evalToken(this.collection, ctx);
@@ -72,7 +76,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       const hash = yield this.hash.render(ctx);
 
       if (
-        !isNaN(pageSize) &&
+        !Number.isNaN(pageSize) &&
         collection instanceof SwellStorefrontCollection &&
         collection.limit != pageSize
       ) {

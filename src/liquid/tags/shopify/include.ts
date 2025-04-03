@@ -1,16 +1,16 @@
-import {
+import { Tag, Hash } from 'liquidjs';
+
+import type { LiquidSwell } from '../..';
+import type { QuotedToken } from 'liquidjs/dist/tokens';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
+import type {
   Liquid,
-  Tag,
   TagToken,
   Context,
-  Hash,
+  Parser,
+  Scope,
+  TopLevelToken,
 } from 'liquidjs';
-
-import { LiquidSwell } from '../..';
-
-import type { Scope, TopLevelToken } from 'liquidjs';
-import type { QuotedToken } from 'liquidjs/dist/tokens';
-import type { TagClass } from 'liquidjs/dist/template';
 
 // Deprecated in Shopify, supported for backward compatibility
 // Replaced by {% render %}
@@ -27,6 +27,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       token: TagToken,
       remainTokens: TopLevelToken[],
       liquid: Liquid,
+      _parser: Parser,
     ) {
       super(token, remainTokens, liquid);
       const { tokenizer } = token;
@@ -35,7 +36,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       this.hash = new Hash(tokenizer.remaining());
     }
 
-    *render(ctx: Context): any {
+    *render(ctx: Context): TagRenderReturn {
       const { hash } = this;
 
       const scope = (yield hash.render(ctx)) as Scope;
