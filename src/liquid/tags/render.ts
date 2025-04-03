@@ -1,11 +1,17 @@
 import { assign } from 'lodash-es';
+import { Tag, Hash, evalToken } from 'liquidjs';
 
-import { Liquid, Tag, TagToken, Context, Hash, evalToken } from 'liquidjs';
-
-import { LiquidSwell } from '..';
 import { ForloopDrop, toEnumerable } from '../utils';
 
-import type { ValueToken, TopLevelToken } from 'liquidjs';
+import type { LiquidSwell } from '..';
+import type {
+  Liquid,
+  TagToken,
+  Context,
+  Parser,
+  ValueToken,
+  TopLevelToken,
+} from 'liquidjs';
 import type { QuotedToken, IdentifierToken } from 'liquidjs/dist/tokens';
 import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
@@ -21,16 +27,18 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
     private args: {
       with?: { value: ValueToken; alias?: IdentifierToken['content'] };
       for?: { value: ValueToken; alias?: IdentifierToken['content'] };
-    } = {};
+    };
 
     constructor(
       token: TagToken,
       remainTokens: TopLevelToken[],
       liquid: Liquid,
+      _parser: Parser,
     ) {
       super(token, remainTokens, liquid);
       const tokenizer = this.tokenizer;
 
+      this.args = {};
       this.fileName = (tokenizer.readValue() as QuotedToken)?.content;
 
       while (!tokenizer.end()) {

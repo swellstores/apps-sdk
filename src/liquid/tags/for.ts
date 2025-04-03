@@ -1,20 +1,22 @@
-import {
-  Liquid,
-  Tag,
-  TagToken,
-  Context,
-  Hash,
-  ParseStream,
-  evalToken,
-} from 'liquidjs';
+import { Tag, Hash, evalToken } from 'liquidjs';
 
-import { LiquidSwell } from '..';
 import { ForloopDrop, toEnumerable, isObject } from '../utils';
 
-import type { Emitter, Template, ValueToken, TopLevelToken } from 'liquidjs';
-import type { TagClass } from 'liquidjs/dist/template';
+import type { LiquidSwell } from '..';
+import type {
+  Liquid,
+  TagToken,
+  Parser,
+  Context,
+  Emitter,
+  ParseStream,
+  Template,
+  ValueToken,
+  TopLevelToken,
+} from 'liquidjs';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
-const MODIFIERS = ['offset', 'limit', 'reversed'];
+const MODIFIERS = Object.freeze(['offset', 'limit', 'reversed']);
 
 // Adapted from liquidjs/src/tags/for.ts
 // 1) to use our own toEnumerable implementation for compatibility
@@ -31,6 +33,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       token: TagToken,
       remainTokens: TopLevelToken[],
       liquid: Liquid,
+      parser: Parser,
     ) {
       super(token, remainTokens, liquid);
 
@@ -47,13 +50,21 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       this.templates = [];
       this.elseTemplates = [];
 
-      let p;
-      const stream: ParseStream = this.liquid.parser
+      let p: Template[];
+      const stream: ParseStream = parser
         .parseStream(remainTokens)
-        .on('start', () => (p = this.templates))
-        .on('tag:else', () => (p = this.elseTemplates))
-        .on('tag:endfor', () => stream.stop())
-        .on('template', (tpl: Template) => p.push(tpl))
+        .on('start', () => {
+          p = this.templates;
+        })
+        .on('tag:else', () => {
+          p = this.elseTemplates;
+        })
+        .on('tag:endfor', () => {
+          stream.stop();
+        })
+        .on('template', (tpl: Template) => {
+          p.push(tpl);
+        })
         .on('end', () => {
           throw new Error(`tag ${token.getText()} not closed`);
         });
@@ -61,7 +72,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       stream.start();
     }
 
-    *render(ctx: Context, emitter: Emitter): any {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       const r = this.liquid.renderer;
 
       let collection = yield evalToken(this.collection, ctx);
@@ -86,15 +97,15 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
 
       const modifiers = this.liquid.options.orderedFilterParameters
         ? Object.keys(hash).filter((x) => MODIFIERS.includes(x))
-        : MODIFIERS.filter((x) => (hash as any)[x] !== undefined);
+        : MODIFIERS.filter((x) => hash[x] !== undefined);
 
-      collection = modifiers.reduce((collection, modifier) => {
+      collection = modifiers.reduce((collection: unknown[], modifier) => {
         switch (modifier) {
           case 'offset':
-            return offset(collection, (hash as any)['offset']);
+            return offset(collection, hash['offset']);
 
           case 'limit':
-            return limit(collection, (hash as any)['limit']);
+            return limit(collection, hash['limit']);
 
           case 'reversed':
             return reversed(collection);
@@ -104,10 +115,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
         }
       }, collection);
 
-      ctx.setRegister(
-        continueKey,
-        ((hash as any)['offset'] || 0) + collection.length,
-      );
+      ctx.setRegister(continueKey, (hash['offset'] || 0) + collection.length);
 
       const scope = {
         forloop: new ForloopDrop(
@@ -143,14 +151,14 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
   };
 }
 
-function reversed<T>(arr: Array<T>) {
+function reversed<T>(arr: T[]): T[] {
   return [...arr].reverse();
 }
 
-function offset<T>(arr: Array<T>, count: number) {
+function offset<T>(arr: T[], count: number): T[] {
   return arr.slice(count);
 }
 
-function limit<T>(arr: Array<T>, count: number) {
+function limit<T>(arr: T[], count: number): T[] {
   return arr.slice(0, count);
 }

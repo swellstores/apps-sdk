@@ -1,19 +1,27 @@
-import { Liquid, Tag, TagToken, Context, TypeGuards } from 'liquidjs';
-import { LiquidSwell } from '..';
-import type { Template, TopLevelToken } from 'liquidjs';
-import type { TagClass } from 'liquidjs/dist/template';
+import { Tag } from 'liquidjs';
+
+import type { LiquidSwell } from '..';
+import type {
+  Liquid,
+  TagToken,
+  Context,
+  Parser,
+  TopLevelToken,
+} from 'liquidjs';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
 // {% inline_editable setting: 'heading', value: block.settings.heading %}
 
 export default function bind(_liquidSwell: LiquidSwell): TagClass {
   return class InlineEditableTag extends Tag {
-    private key: string = '';
-    private value: string = '';
+    private key: string;
+    private value: string;
 
     constructor(
       token: TagToken,
       remainTokens: TopLevelToken[],
       liquid: Liquid,
+      _parser: Parser,
     ) {
       super(token, remainTokens, liquid);
 
@@ -28,7 +36,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       this.value = valueArg ? valueArg.split(':')[1].trim() : args[0];
     }
 
-    *render(ctx: Context): Generator<any, string, any> {
+    *render(ctx: Context): TagRenderReturn {
       let renderedValue = yield this.liquid.evalValue(this.value, ctx);
       if (renderedValue.value) {
         renderedValue = renderedValue.value;

@@ -1,17 +1,18 @@
-import {
-  Liquid,
-  Tag,
-  TagToken,
-  Context,
-  Hash,
-  TypeGuards,
-  evalToken,
-} from 'liquidjs';
+import { Tag, Hash, TypeGuards, evalToken } from 'liquidjs';
 
-import { LiquidSwell } from '..';
 import { ThemeForm } from '../form';
 
-import type { Template, TopLevelToken, ValueToken } from 'liquidjs';
+import type { LiquidSwell } from '..';
+import type {
+  Liquid,
+  TagToken,
+  Parser,
+  Context,
+  Emitter,
+  Template,
+  TopLevelToken,
+  ValueToken,
+} from 'liquidjs';
 import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 import type { ThemeFormConfig } from 'types/swell';
@@ -20,13 +21,13 @@ import type { ThemeFormConfig } from 'types/swell';
 // {% form 'form_type', param %}
 // {% form 'form_type', return_to: 'url %}
 
-const IGNORED_SHOPIFY_FORMS = ['new_comment', 'guest_login'];
+const IGNORED_SHOPIFY_FORMS = Object.freeze(['new_comment', 'guest_login']);
 
 export default function bind(liquidSwell: LiquidSwell): TagClass {
   return class FormTag extends Tag {
     private formType: string;
     private formConfig?: ThemeFormConfig;
-    private templates: Template[] = [];
+    private templates: Template[];
     private hash: Hash;
     private arg?: ValueToken;
 
@@ -34,6 +35,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       token: TagToken,
       remainTokens: TopLevelToken[],
       liquid: Liquid,
+      parser: Parser,
     ) {
       super(token, remainTokens, liquid);
 
@@ -44,13 +46,17 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       tokenizer.advance();
 
       this.arg = tokenizer.readValue();
-
+      this.templates = [];
       this.hash = new Hash(this.tokenizer.remaining());
 
-      while (remainTokens.length) {
-        const token = remainTokens.shift()!;
-        if (TypeGuards.isTagToken(token) && token.name === 'endform') return;
-        this.templates.push(liquid.parser.parseToken(token, remainTokens));
+      while (remainTokens.length > 0) {
+        const token = remainTokens.shift() as TopLevelToken;
+
+        if (TypeGuards.isTagToken(token) && token.name === 'endform') {
+          return;
+        }
+
+        this.templates.push(parser.parseToken(token, remainTokens));
       }
 
       if (!this.formConfig && !IGNORED_SHOPIFY_FORMS.includes(this.formType)) {
@@ -60,25 +66,26 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       throw new Error(`tag ${token.getText()} not closed`);
     }
 
-    *render(ctx: Context): TagRenderReturn {
+    *render(ctx: Context, _emitter: Emitter): TagRenderReturn {
       if (!this.formConfig) {
         return `<!-- form '${this.formType}' not found in theme configuration -->`;
       }
 
       const r = this.liquid.renderer;
-      const arg = yield evalToken(this.arg, ctx);
+      const arg: unknown = yield evalToken(this.arg, ctx);
       const hash = yield this.hash.render(ctx);
 
-      const scope = ctx.getAll() as any;
+      const scope = ctx.getAll();
 
       const attrs =
         ' ' +
         Object.entries(hash)
-          .reduce((acc: any, [key, value]: Array<any>) => {
+          .reduce((acc: string[], [key, value]: [string, unknown]) => {
             if (value !== true) {
               // true represents the form type
-              return [...acc, `${key}="${value}"`];
+              acc.push(`${key}="${String(value)}"`);
             }
+
             return acc;
           }, [])
           .join(' ');
@@ -102,9 +109,8 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
           );
 
         if (compatibilityOutput) {
-          compatibilityHtml = yield liquidSwell.renderTemplateString(
-            compatibilityOutput,
-          );
+          compatibilityHtml =
+            yield liquidSwell.renderTemplateString(compatibilityOutput);
         }
 
         const compatibilityParams =
@@ -125,20 +131,18 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       // TODO: params and return_to
       // return_to should be used by default by the server if the middleware doesn't explicitly redirect
 
-      const paramInputs =
-        this.formConfig.params instanceof Array
-          ? yield Promise.all(
-              this.formConfig.params.map(async (param: any) => {
-                const value = await liquidSwell.renderTemplateString(
-                  param.value,
-                  {
-                    value: arg,
-                  },
-                );
-                return `<input type="hidden" name="${param.name}" value="${value}" />`;
-              }),
-            )
-          : [];
+      const paramInputs: string[] = Array.isArray(this.formConfig.params)
+        ? yield Promise.all(
+            this.formConfig.params.map(async (param) => {
+              const value = await liquidSwell.renderTemplateString(
+                param.value,
+                { value: arg },
+              );
+
+              return `<input type="hidden" name="${param.name}" value="${value}" />`;
+            }),
+          )
+        : [];
 
       const returnTo =
         hash.return_to || liquidSwell.theme.globals.request?.path;
