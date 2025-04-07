@@ -161,7 +161,7 @@ export class SwellTheme {
     };
 
     if (this.shopifyCompatibility) {
-      this.shopifyCompatibility.adaptGlobals(globals);
+      this.shopifyCompatibility.initGlobals(globals);
     }
 
     this.setGlobals(globals);
@@ -171,7 +171,11 @@ export class SwellTheme {
     }
   }
 
-  setGlobals(globals: SwellData): void {
+  setGlobals(globals: Partial<ThemeGlobals>): void {
+    if (this.shopifyCompatibility) {
+      this.shopifyCompatibility.adaptGlobals(globals, this.globals);
+    }
+
     this.globals = {
       ...this.globals,
       ...globals,
@@ -185,7 +189,7 @@ export class SwellTheme {
   async getSettingsAndConfigs(): Promise<{
     store: SwellData;
     session: SwellData;
-    menus: Record<string, SwellMenu>;
+    menus: Record<string, SwellMenu | undefined>;
     geo: SwellSettingsGeo;
     configs: ThemeConfigs;
   }> {
@@ -694,7 +698,7 @@ export class SwellTheme {
     return resource;
   }
 
-  resolveMenuSettings() {
+  resolveMenuSettings(): Promise<Record<string, SwellMenu | undefined>> {
     return resolveMenuSettings(this, this.swell.getStorefrontMenus(), {
       currentUrl: this.swell.url.pathname,
     });

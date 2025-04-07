@@ -320,7 +320,7 @@ export interface ThemeGlobals extends SwellData {
   settings: ThemeSettings;
   session: SwellData;
   request: SwellPageRequest;
-  menus?: Record<string, SwellMenu>;
+  menus?: Record<string, SwellMenu | undefined>;
   page: ThemePage;
   cart: SwellStorefrontSingleton | {};
   account: SwellStorefrontSingleton | null;

@@ -14,7 +14,7 @@ export async function resolveMenuSettings(
   theme: SwellTheme,
   menus: SwellMenu[],
   options?: { currentUrl?: string },
-) {
+): Promise<Record<string, SwellMenu | undefined>> {
   const resolvedMenus = await Promise.all(
     menus?.map(async (menu): Promise<SwellMenu> => {
       const item: SwellMenu = {

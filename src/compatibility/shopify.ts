@@ -78,12 +78,10 @@ export class ShopifyCompatibility {
     this.queryParamsMap = this.getQueryParamsMap();
   }
 
-  adaptGlobals(globals: ThemeGlobals) {
-    const { store, request, page, menus } = globals;
+  initGlobals(globals: ThemeGlobals): void {
+    const { request, page } = globals;
 
-    this.pageId = this.getPageType(page?.id);
-
-    globals.shop = this.getShopData(globals);
+    this.pageId = this.getPageType(globals.page?.id);
 
     /*
      * Note: page is used both globally and in content pages
@@ -100,11 +98,46 @@ export class ShopifyCompatibility {
       page_type: page?.id,
     };
 
-    globals.linklists = new ObjectHandlesDrop<SwellMenu>(menus);
     globals.current_page = this.swell.queryParams.page || 1;
     globals.routes = this.getPageRoutes();
-    globals.localization = this.getLocalizationObject(store, request);
-    globals.all_country_option_tags = this.getAllCountryOptionTags(globals.geo);
+  }
+
+  adaptGlobals(
+    globals: Partial<ThemeGlobals>,
+    prevGlobals: ThemeGlobals,
+  ): void {
+    if (globals.page) {
+      this.pageId = this.getPageType(globals.page.id);
+    }
+
+    if (globals.request) {
+      const page = globals.page || prevGlobals.page;
+
+      globals.request = {
+        ...(globals.request || undefined),
+        design_mode: this.swell.isEditor,
+        visual_section_preview: false, // TODO: Add support for visual section preview
+        page_type: page.id,
+      };
+    }
+
+    if (globals.menus) {
+      globals.linklists = new ObjectHandlesDrop<SwellMenu>(globals.menus);
+    }
+
+    if (globals.geo) {
+      globals.all_country_option_tags = this.getAllCountryOptionTags(
+        globals.geo,
+      );
+    }
+
+    if (globals.store) {
+      globals.shop = this.getShopData(globals.store);
+
+      const request = globals.request || prevGlobals.request;
+
+      globals.localization = this.getLocalizationObject(globals.store, request);
+    }
   }
 
   /**
@@ -288,7 +321,7 @@ export class ShopifyCompatibility {
     }
   }
 
-  getShopData({ store }: ThemeGlobals) {
+  getShopData(store: SwellData) {
     if (store) {
       return ShopifyShop(this, store);
     }

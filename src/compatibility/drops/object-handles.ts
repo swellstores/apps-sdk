@@ -3,7 +3,7 @@ import { Drop } from 'liquidjs';
 export default class ObjectHandlesDrop<T> extends Drop {
   #map: Map<string, T>;
 
-  constructor(map?: Record<string, T> | Map<string, T>) {
+  constructor(map?: Record<string, T | undefined> | Map<string, T>) {
     super();
 
     switch (typeof map) {
@@ -13,7 +13,9 @@ export default class ObjectHandlesDrop<T> extends Drop {
           break;
         }
 
-        this.#map = new Map(map instanceof Map ? map : Object.entries(map));
+        this.#map = new Map(
+          map instanceof Map ? map : Object.entries(map as Record<string, T>),
+        );
         break;
       }
 

@@ -289,7 +289,7 @@ export function arrayToObject<
   // T extends Record<keyof T | K, unknown>,
   T extends { [I in keyof T | K]?: T[I] },
   K extends string = 'id',
->(arr: T[], key: K = 'id' as K): Record<string, T> {
+>(arr: T[], key: K = 'id' as K): Record<string, T | undefined> {
   return reduce(
     arr,
     (obj, value) => {
