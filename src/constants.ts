@@ -1,4 +1,4 @@
-import type { SwellData } from 'types/swell';
+import type { SwellData, SwellSettingsGeo } from 'types/swell';
 
 export const FILE_DATA_INCLUDE_QUERY: SwellData = {
   url: '/:themes:configs/{id}/file/data',
@@ -25,7 +25,7 @@ export const FILE_DATA_INCLUDE_QUERY: SwellData = {
   },
 };
 
-export const GEO_DATA: SwellData = {
+export const GEO_DATA: SwellSettingsGeo = {
   countries: [
     {
       id: 'US',
@@ -4396,7 +4396,6 @@ export const GEO_DATA: SwellData = {
   ],
   id: 'geo',
 };
-
 
 export const LANG_TO_COUNTRY_CODES: Record<string, string | undefined> = {
   aa: 'ET',
