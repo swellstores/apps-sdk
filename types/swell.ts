@@ -290,6 +290,7 @@ export interface ThemePageSchema {
     slug?: string;
     label?: string;
     description?: string;
+    $locale?: string;
   };
 }
 
@@ -298,6 +299,7 @@ interface ThemePageAdditionalProps {
   current: number;
   label: string;
   slug?: string;
+  $locale?: string;
 }
 
 export interface ThemeCustomPage extends ThemePageAdditionalProps {
@@ -553,6 +555,7 @@ export interface ThemePageSectionSchema extends ThemeSectionSchema {
 export interface ThemeSectionGroupInfo {
   prop: string;
   label: string;
+  source: string;
 }
 
 export interface ThemePageTemplateSectionConfig {
