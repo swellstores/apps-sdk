@@ -540,6 +540,9 @@ export interface ThemeSettingFieldSchema {
 
   // shopify compatibility
   role?: ShopifySettingRoleSchema;
+
+  // swell field conditions
+  conditions?: Record<string, any>;
 }
 
 export interface ThemeSettingSectionSchema {
