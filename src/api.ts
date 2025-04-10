@@ -281,15 +281,15 @@ export class Swell {
     return menus;
   }
 
-  getStorefrontLocalization() {
-    const { code: currency } = this.storefront.currency.get();
-    const { code: locale } = this.storefront.locale.get();
+  getStorefrontLocalization(): { locale: string; currency: string } {
+    const locale = this.storefront.locale.selected();
+    const currency = this.storefront.currency.selected();
 
-    if (!currency || !locale) {
-      throw new Error('Swell: localization not established');
+    if (!locale || isLikePromise(locale)) {
+      return { locale: 'en-US', currency: 'USD' };
     }
 
-    return { currency, locale };
+    return { locale, currency };
   }
 
   async get<T = SwellData>(
