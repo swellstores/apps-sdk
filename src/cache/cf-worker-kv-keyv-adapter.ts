@@ -19,7 +19,7 @@ export class CFWorkerKVKeyvAdapter {
     return this.get(key) !== undefined;
   }
 
-  async get(key: string) : Promise<any> {
+  async get(key: string): Promise<any> {
     return this.store.get(key);
   }
 

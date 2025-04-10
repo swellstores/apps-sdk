@@ -5,10 +5,25 @@ import {
   type Cache as CacheManager,
 } from 'cache-manager';
 
+import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
+import { resolveAsyncResources } from '../utils';
+
+import type { CFWorkerKV } from 'types/swell';
+
+export const CF_KV_NAMESPACE = 'THEME';
+
 const DEFAULT_OPTIONS: CreateCacheOptions = Object.freeze({
   ttl: 1000 * 60 * 60 * 24, // 1 day
 });
 
+// Value used to indicate null to differentiate between actual null values and unset cache keys
+// Necessary because cache manager always returns null when a value has not been set yet
+const NULL_VALUE = '__NULL__';
+
+/**
+ * Cache supports memory or KV
+ * The KV layer supports namespacing and compression
+ */
 export class Cache {
   private client: CacheManager;
 
@@ -16,7 +31,7 @@ export class Cache {
     options = options || {};
 
     // default cache store is memory-store
-    options.stores = options.stores || [new Keyv()];
+    options.stores = options.stores || buildStores(options.kvStore);
 
     this.client = createCache({
       ...DEFAULT_OPTIONS,
@@ -28,7 +43,32 @@ export class Cache {
     return this.client.wrap(key, fetchFn);
   }
 
-  async get<T>(key: string): Promise<T | null> {
+  // Fetch cache using SWR (stale-while-revalidate)
+  // This will always return the cached value immediately if exists
+  async fetchSWR<T>(key: string, fetchFn: () => T | Promise<T>): Promise<T> {
+    let cacheValue = await this.client.get(key);
+
+    // Update cache asynchronously
+    const promiseValue = Promise.resolve()
+      .then(() => fetchFn())
+      .then(async (value) => {
+        // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
+        const isNull = value === null || value === undefined;
+        const valueResolved = await resolveAsyncResources(value);
+        await this.client.set(key, isNull ? NULL_VALUE : valueResolved);
+        return value;
+      });
+
+    if (cacheValue !== null) {
+      return cacheValue === NULL_VALUE ? null as T : cacheValue as T;
+    }
+
+    const result = await promiseValue;
+
+    return result as T;
+  }
+
+  async get<T>(key: string) : Promise<T | null> {
     return this.client.get(key);
   }
 
@@ -42,10 +82,30 @@ export class Cache {
 
   /**
    * Flushes the entire cache.
-   * Warning: If the cache store is shared among many cache clients,
+   * WARNING: If the cache store is shared among many cache clients,
    *          this will flush entries for other clients.
    */
   async flushAll(): Promise<void> {
     await this.client.clear();
   }
+}
+
+function buildStores(kvStore?: CFWorkerKV) {
+  const stores = [];
+
+  if (kvStore) {
+    stores.push(
+      new Keyv({
+        namespace: CF_KV_NAMESPACE,
+        store: new CFWorkerKVKeyvAdapter(kvStore),
+      }),
+    );
+  } else {
+    // Fall back to memory store
+    // This is not suitable for a large number of clients
+    // as it could kill the process with memory overload
+    stores.push(new Keyv());
+  }
+
+  return stores;
 }

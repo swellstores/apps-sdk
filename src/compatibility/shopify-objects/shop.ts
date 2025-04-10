@@ -33,9 +33,7 @@ export default function ShopifyShop(
     id: store.id,
     metafields: null,
     metaobjects: null,
-    money_format: store.currencies.find(
-      (currency: any) => currency.code === store.currency,
-    ),
+    money_format: moneyFormat,
     money_with_currency_format: {
       ...moneyFormat,
       symbol: `${store.currency} ${moneyFormat?.symbol || ''}`,

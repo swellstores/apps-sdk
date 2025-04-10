@@ -3,18 +3,19 @@ import { Keyv } from 'keyv';
 
 import { Cache } from './cache';
 
-const TTL = 30 * 1000; // 30s
+const TTL = 5 * 1000; // 5s
 
 export class ResourceCache extends Cache {
   constructor(options?: CreateCacheOptions) {
     super({
       stores: buildStores(),
       ttl: TTL,
-    })
+      ...options,
+    });
   }
 }
 
-function buildStores() : Keyv[] {
+function buildStores(): Keyv[] {
   return [
     new Keyv({
       // Disabling serialization allows for pure memo-ization of class instances
