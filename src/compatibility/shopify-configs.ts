@@ -76,7 +76,7 @@ export function convertShopifySettingsPresets(
 
 export function convertShopifySectionSchema(
   sectionSchema: ShopifySectionSchema,
-  locale: string,
+  locale: string = 'en',
 ): ThemeSectionSchemaData {
   const schema: ThemeSectionSchemaData = {
     label: getLocalizedValue(sectionSchema.name, locale),

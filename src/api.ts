@@ -84,6 +84,10 @@ export class Swell {
 
     this.workerEnv = workerEnv;
 
+    console.log(
+      `KV cache: ${this.workerEnv?.THEME ? 'enabled' : 'disabled'}`,
+    );
+
     if (serverHeaders) {
       const { headers, swellHeaders } = Swell.formatHeaders(serverHeaders);
 
@@ -190,23 +194,6 @@ export class Swell {
     return this.getResourceCache().fetch<T>(cacheKey, handler);
   }
 
-  async updateCacheModified(cacheModified: string): Promise<void> {
-    // Clear cache if header changed
-    if (cacheModified) {
-      const cacheKey = '_cache-modified';
-      const prevCacheModified =
-        await this.getResourceCache().get<string>(cacheKey);
-      if (prevCacheModified !== cacheModified) {
-        await this.getRequestCache().flushAll();
-        await this.getResourceCache().set(
-          cacheKey,
-          cacheModified,
-          1000 * 60 * 60 * 24 * 90, // 90 days (forever)
-        );
-      }
-    }
-  }
-
   async getAppSettings(): Promise<SwellData> {
     const settings = await this.get(
       '/:storefronts/{id}/configs/settings/values',
@@ -281,15 +268,15 @@ export class Swell {
     return menus;
   }
 
-  getStorefrontLocalization() {
-    const { code: currency } = this.storefront.currency.get();
-    const { code: locale } = this.storefront.locale.get();
+  getStorefrontLocalization(): { locale: string, currency: string; } {
+    const locale = this.storefront.locale.selected();
+    const currency = this.storefront.currency.selected();
 
-    if (!currency || !locale) {
-      throw new Error('Swell: localization not established');
+    if (!locale || isLikePromise(locale)) {
+      return { locale: 'en-US', currency: 'USD' };
     }
 
-    return { currency, locale };
+    return { locale, currency };
   }
 
   async get<T = SwellData>(
@@ -405,7 +392,7 @@ export class Swell {
 
     return (method: string, url: string, id?: any, data?: any, opt?: any) => {
       if (this.isStorefrontRequestCacheable(method, url, opt)) {
-        return this.getRequestCache().fetch<T>(
+        return this.getRequestCache().fetchSWR<T>(
           getCacheKey('request', [method, url, id, data, opt]),
           () => storefrontRequest<T>(method, url, id, data, opt),
         );
@@ -435,7 +422,7 @@ export class Swell {
   private getResourceCache(): Cache {
     let cache = resourceCaches.get(this.instanceId);
     if (!cache) {
-      cache = new ResourceCache();
+      cache = new ResourceCache({ kvStore: this.workerEnv?.THEME });
       resourceCaches.set(this.instanceId, cache);
     }
     return cache;
@@ -447,26 +434,10 @@ export class Swell {
   private getRequestCache(): Cache {
     let cache = requestCaches.get(this.instanceId);
     if (!cache) {
-      cache = new RequestCache();
+      cache = new RequestCache({ kvStore: this.workerEnv?.THEME });
       requestCaches.set(this.instanceId, cache);
     }
     return cache;
-  }
-
-  private getCacheKey(key: string, args?: unknown[]): string {
-    let cacheKey = `${this.instanceId}:${key}`;
-    if (Array.isArray(args) && args.length > 0) {
-      cacheKey += `_${JSON.stringify(args)}`;
-    }
-
-    // TODO: calculate the number of bytes
-    // 512 bytes, maximum key for KV storage
-    if (cacheKey.length > 512) {
-      // TODO: slice the first 480 bytes instead of the length of the code units
-      cacheKey = `${cacheKey.slice(0, 480)}${md5(cacheKey)}`;
-    }
-
-    return cacheKey;
   }
 }
 

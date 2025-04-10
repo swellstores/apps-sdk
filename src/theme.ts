@@ -617,7 +617,7 @@ export class SwellTheme {
       configs.editor = await shopifyCompatibility().renderSchemaTranslations(
         this,
         configs.editor,
-        (store.currency as string) || 'en-US',
+        (store.locale as string) || 'en-US',
       );
     }
 

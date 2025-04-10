@@ -71,6 +71,18 @@ export class ThemeLoader {
   }
 
   /**
+   * Returns the cache instance for this theme loader.
+   */
+  getCache() {
+    if (!ThemeLoader.cache) {
+      ThemeLoader.cache = new ThemeCache({
+        kvStore: this.swell.workerEnv?.THEME,
+      });
+    }
+    return ThemeLoader.cache;
+  }
+
+  /**
    * Load theme configs from internal data, typically in the editor.
    */
   setConfigs(themeConfigs: Map<string, SwellThemeConfig>) {
@@ -372,12 +384,5 @@ export class ThemeLoader {
           ? true
           : { $ne: true },
     };
-  }
-
-  private getCache() {
-    if (!ThemeLoader.cache) {
-      ThemeLoader.cache = new ThemeCache(this.swell.workerEnv?.THEME);
-    }
-    return ThemeLoader.cache;
   }
 }
