@@ -1,6 +1,4 @@
-import { type CreateCacheOptions } from 'cache-manager';
-
-import { Cache } from './cache';
+import { Cache, type CreateCacheOptions } from './cache';
 
 const TTL = 90 * 24 * 60 * 60 * 1000; // 90 days
 
