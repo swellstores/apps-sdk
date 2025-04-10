@@ -1,7 +1,7 @@
 import { Keyv } from 'keyv';
 import {
   createCache,
-  type CreateCacheOptions,
+  type CreateCacheOptions as OriginalCreateCacheOptions,
   type Cache as CacheManager,
 } from 'cache-manager';
 
@@ -9,6 +9,10 @@ import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
 import { resolveAsyncResources } from '../utils';
 
 import type { CFWorkerKV } from 'types/swell';
+
+export type CreateCacheOptions = OriginalCreateCacheOptions & {
+  kvStore?: CFWorkerKV;
+};
 
 export const CF_KV_NAMESPACE = 'THEME';
 
@@ -46,7 +50,7 @@ export class Cache {
   // Fetch cache using SWR (stale-while-revalidate)
   // This will always return the cached value immediately if exists
   async fetchSWR<T>(key: string, fetchFn: () => T | Promise<T>): Promise<T> {
-    let cacheValue = await this.client.get(key);
+    const cacheValue = await this.client.get(key);
 
     // Update cache asynchronously
     const promiseValue = Promise.resolve()
@@ -60,7 +64,7 @@ export class Cache {
       });
 
     if (cacheValue !== null) {
-      return cacheValue === NULL_VALUE ? null as T : cacheValue as T;
+      return cacheValue === NULL_VALUE ? (null as T) : (cacheValue as T);
     }
 
     const result = await promiseValue;
@@ -68,7 +72,7 @@ export class Cache {
     return result as T;
   }
 
-  async get<T>(key: string) : Promise<T | null> {
+  async get<T>(key: string): Promise<T | null> {
     return this.client.get(key);
   }
 
