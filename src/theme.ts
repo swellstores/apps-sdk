@@ -213,7 +213,7 @@ export class SwellTheme {
             try {
               configValue = JSON.parse(config.file_data);
             } catch (_err) {
-              configValue = null;
+              configValue = {};
             }
             acc[configName] = configValue;
           }
