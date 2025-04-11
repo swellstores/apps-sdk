@@ -376,11 +376,12 @@ export class SwellTheme {
       ? new CartResource(this.swell)
       : new SwellStorefrontSingleton(this.swell, 'cart');
 
-    await cart.id;
-
-    if (!cart?.id) {
-      return {} as StorefrontResource;
+    // Use empty function to enable cart comparison with empty drop in liquid
+    cart._isEmpty = function () {
+      return !this._result?.items?.length;
     }
+
+    await cart.id;
 
     if (this.shopifyCompatibility) {
       const compatProps = ShopifyCart(this.shopifyCompatibility, cart);

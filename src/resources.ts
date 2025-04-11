@@ -105,6 +105,13 @@ export class StorefrontResource<T extends SwellData = SwellData> {
         target[prop] = value;
         return true;
       },
+
+      ownKeys(target): string[] {
+        if (typeof target._isEmpty === 'function') {
+          return target._isEmpty() ? [] : Object.keys(target);
+        }
+        return Object.keys(target);
+      }
     });
   }
 
