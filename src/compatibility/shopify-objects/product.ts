@@ -149,11 +149,29 @@ export default function ShopifyProduct(
       product,
       (product: SwellRecord) => product.prices?.length > 0,
     ),
-    quantity_rule: {
-      min: 1,
-      max: null,
-      increment: 1,
-    },
+    quantity_rule: deferWith(product, (product: SwellRecord) => {
+      let inventory = product.stock_level || 0;
+      if (inventory < 0) {
+        inventory = 0;
+      }
+      const max = !product.stock_status ? null : inventory;
+      return {
+        min: 1,
+        max,
+        increment: 1,
+      };
+    }),
+    inventory_quantity: deferWith(product, (product: any) => {
+      if (!product.stock_status) {
+        return Infinity;
+      }
+
+      let inventory = product.stock_level || 0;
+      if (inventory < 0) {
+        inventory = 0;
+      }
+      return inventory;
+    }),
     requires_selling_plan: false,
     selected_or_first_available_selling_plan_allocation: null,
     selected_or_first_available_variant: deferWith(

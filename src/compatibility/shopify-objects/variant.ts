@@ -49,7 +49,17 @@ export default function ShopifyVariant(
     incoming: false,
     inventory_management: null,
     inventory_policy: null,
-    inventory_quantity: Infinity,
+    inventory_quantity: deferWith(variant, (variant: any) => {
+      if (!variant.stock_status) {
+        return Infinity;
+      }
+
+      let inventory = variant.stock_level || 0;
+      if (inventory < 0) {
+        inventory = 0;
+      }
+      return inventory;
+    }),
     matched: false,
     metafields: null,
     next_incoming_date: null,
