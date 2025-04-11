@@ -225,7 +225,7 @@ export class SwellTheme {
 
     const session = await this.swell.storefront.settings.session();
 
-    this.resolveTranslationLocale(configs.translations);
+    configs.translations = this.resolveTranslationLocale(configs.translations);
 
     await this.setCompatibilityConfigs(configs);
 
@@ -548,12 +548,12 @@ export class SwellTheme {
     return extractSettingsFromForm(form, config);
   }
 
-  resolveTranslationLocale(translationsConfig: ThemeSettings) {
+  resolveTranslationLocale(translationsConfig: ThemeSettings, locale?: string) {
     if (!translationsConfig) {
       return {};
     }
 
-    const { locale } = this.swell.getStorefrontLocalization();
+    locale = locale || this.swell.getStorefrontLocalization().locale;
 
     if (!locale) {
       return translationsConfig;
@@ -565,9 +565,20 @@ export class SwellTheme {
       translationsConfig,
       (acc, value, key) => {
         if (isObject(value)) {
-          acc[key] = this.resolveTranslationLocale(value);
-        } else {
-          if (typeof value === 'string' && value.startsWith('t:')) {
+          if (key === '$locale') {
+            // Assign locale values to the main object
+            for (const localeKey of Object.keys(value)) {
+              const localeValues = value[localeKey];
+              if (isObject(localeValues)) {
+                Object.assign(acc, this.resolveTranslationLocale(localeValues, locale));
+              }
+            }
+          } else {
+            // Continue recursion
+            acc[key] = this.resolveTranslationLocale(value, locale);
+          }
+        } else if (typeof value === 'string') {
+          if (value.startsWith('t:')) {
             // Translate from global config
             const translationKey = value.slice(2);
             const translationParts = translationKey.split('.');
