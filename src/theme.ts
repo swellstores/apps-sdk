@@ -212,7 +212,10 @@ export class SwellTheme {
             let configValue;
             try {
               configValue = JSON.parse(config.file_data);
-            } catch (_err) {
+            } catch (err) {
+              console.error(
+                `Error parsing ${configName} config: ${err}`
+              );
               configValue = {};
             }
             acc[configName] = configValue;
