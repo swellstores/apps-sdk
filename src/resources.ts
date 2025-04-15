@@ -106,12 +106,19 @@ export class StorefrontResource<T extends SwellData = SwellData> {
         return true;
       },
 
-      ownKeys(target): string[] {
-        if (typeof target._isEmpty === 'function') {
-          return target._isEmpty() ? [] : Object.keys(target);
+      ownKeys(target): (string | symbol)[] {
+        if (typeof target._isEmpty === 'function' && target._isEmpty()) {
+          return [];
         }
-        return Object.keys(target);
-      }
+        const allStringProps = Object.getOwnPropertyNames(target);
+        const allSymbolProps = Object.getOwnPropertySymbols(target);
+        const allProps: (string | symbol)[] = [
+          ...allStringProps,
+          ...allSymbolProps,
+        ];
+
+        return allProps;
+      },
     });
   }
 
