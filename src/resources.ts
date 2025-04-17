@@ -377,7 +377,12 @@ export class SwellStorefrontCollection<
       this._result = this._swell
         .getCachedResource(
           'storefront-list',
-          [this._collection, this._query, this._getterHash],
+          [
+            this._collection,
+            this._query,
+            this._swell.queryParams,
+            this._getterHash,
+          ],
           async () => {
             return getter.call(this);
           },
@@ -534,7 +539,13 @@ export class SwellStorefrontRecord<
       this._result = this._swell
         .getCachedResource(
           'storefront-record',
-          [this._collection, this._id, this._query, this._getterHash],
+          [
+            this._collection,
+            this._id,
+            this._query,
+            this._swell.queryParams,
+            this._getterHash,
+          ],
           async () => {
             return getter.call(this);
           },
