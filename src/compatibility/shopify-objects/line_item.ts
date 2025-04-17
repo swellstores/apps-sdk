@@ -62,8 +62,12 @@ export default function ShopifyLineItem(
       ];
     }),
     error_message: null, // N/A
-    final_line_price: item.price_total - item.discount_total,
-    final_price: item.price - item.discount_each,
+    final_line_price: isTrialSubscriptionItem(item)
+      ? 0
+      : item.price_total - item.discount_total,
+    final_price: isTrialSubscriptionItem(item)
+      ? 0
+      : item.price - item.discount_each,
     // May not want to support this
     /* fulfillment: options.order
       ? deferWith(cart, async (cart: any) => {
@@ -88,8 +92,10 @@ export default function ShopifyLineItem(
     line_level_total_discount: item.discount_total, // TODO should be line discount only
     message: null, // N/A
     options_with_values: item.options,
-    original_line_price: item.price * item.quantity,
-    original_price: item.price,
+    original_line_price: isTrialSubscriptionItem(item)
+      ? 0
+      : item.price * item.quantity,
+    original_price: isTrialSubscriptionItem(item) ? 0 : item.price,
     product: deferWith(
       item.product,
       () => item.product && ShopifyProduct(instance, item.product),
@@ -98,7 +104,7 @@ export default function ShopifyLineItem(
     properties: item.metadata,
     quantity: item.quantity,
     requires_shipping: item.delivery === 'shipment',
-    selling_plan_allocation: null, // N/A
+    selling_plan_allocation: resolveSubscription(item),
     sku: deferWith(item.product, (product: any) => product.sku),
     successfully_fulfilled_quantity: item.quantity_delivered,
     tax_lines: item.taxes?.map((tax: any) => {
@@ -220,4 +226,56 @@ async function resolveFulfillment(
     tracking_numbers: trackingNumbers,
     tracking_url: null, // TODO
   });
+}
+
+function isTrialSubscriptionItem(item: StorefrontResource | SwellRecord) {
+  const purchaseOption = item?.purchase_option;
+  if (purchaseOption?.type !== 'subscription') {
+    return false;
+  }
+
+  return purchaseOption.billing_schedule.trial_days > 0;
+}
+
+function resolveSubscription(item: StorefrontResource | SwellRecord) {
+  const purchaseOption = item?.purchase_option;
+  if (purchaseOption?.type !== 'subscription') {
+    return null;
+  }
+
+  const trialDays = purchaseOption.billing_schedule?.trial_days || 0;
+  const trialText =
+    trialDays > 0
+      ? ` (Includes ${trialDays} trial day${trialDays === 1 ? '' : 's'})`
+      : '';
+
+  const intervalCount = purchaseOption.billing_schedule?.interval_count || 1;
+  let intervalText = 'day';
+  switch (purchaseOption.billing_schedule?.interval) {
+    case 'weekly':
+      intervalText = 'wk';
+      break;
+    case 'monthly':
+      intervalText = 'mo';
+      break;
+    case 'yearly':
+      intervalText = 'yr';
+      break;
+    default:
+  }
+
+  const periodText = `${intervalCount > 1 ? intervalCount : ''}${intervalText}`;
+  const text = `${periodText}${trialText}`;
+
+  return {
+    selling_plan: {
+      name: purchaseOption.plan_name,
+      description: purchaseOption.plan_description,
+      plan_id: purchaseOption.plan_id,
+      billing_schedule: purchaseOption.billing_schedule,
+      // provide as separate parts to properly render currency
+      planPriceText: text,
+      planPrice: item.price,
+    },
+  };
 }
