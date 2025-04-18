@@ -54,9 +54,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         liquidSwell.lastSchema = undefined;
 
         if (typeof jsonOutput === 'string') {
-          liquidSwell.lastSchema = JSON.parse(
-            stripComments(jsonOutput),
-          );
+          liquidSwell.lastSchema = JSON.parse(stripComments(jsonOutput));
         }
       } catch {
         liquidSwell.lastSchema = undefined;

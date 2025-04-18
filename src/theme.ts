@@ -937,7 +937,10 @@ export class SwellTheme {
     }
 
     try {
-      return await this.liquidSwell.parseAndRender(template, data);
+      return await this.liquidSwell.parseAndRender(
+        unescapeLiquidSyntax(template),
+        data,
+      );
     } catch (err: any) {
       console.error(err);
       return `<!-- template render error: ${err.message} -->`;
@@ -1914,4 +1917,12 @@ function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {
   } catch (_err) {
     return {} as T;
   }
+}
+
+function replacerUnescape(match: string): string {
+  return match.includes('\\"') ? (JSON.parse(`"${match}"`) as string) : match;
+}
+
+function unescapeLiquidSyntax(template: string): string {
+  return template.replace(/\{\{.*?\}\}/g, replacerUnescape);
 }

@@ -117,7 +117,7 @@ export class LiquidSwell extends Liquid {
     bindFilters(this);
   }
 
-  async parseAndRender(template: string, data: any): Promise<string> {
+  async parseAndRender(template: string, data?: object): Promise<string> {
     return super.parseAndRender(template, data);
   }
 

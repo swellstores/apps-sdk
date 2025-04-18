@@ -105,17 +105,15 @@ export default class CollectionsDrop extends Drop {
     return this.iterator();
   }
 
-  *iterator() {
+  async iterator() {
     if (!this.#categories) {
-      const results = (yield this.#instance.swell.storefront.categories
+      this.#categories = await this.#instance.swell.storefront.categories
         .list()
         .then((res) => {
           return res.results.map((category) =>
             ShopifyCollection(this.#instance, category as SwellRecord),
           );
-        })) as ShopifyResource[];
-
-      this.#categories = results;
+        });
     }
 
     return this.#categories.values();
