@@ -27,7 +27,10 @@ import {
 } from './utils';
 
 import type { FormatInput } from 'swell-js';
-import type { ShopifySectionSchema, ShopifySettingsData } from 'types/shopify';
+import type {
+  ShopifySectionSchema,
+  ShopifySettingsData,
+} from '../types/shopify';
 import type {
   ThemeGlobals,
   ThemeConfigs,
@@ -58,7 +61,8 @@ import type {
   SwellPageRequest,
   ThemePageSchema,
   SwellSettingsGeo,
-} from 'types/swell';
+  ThemeSettingsBlock,
+} from '../types/swell';
 
 export class SwellTheme {
   public swell: Swell;
@@ -213,9 +217,7 @@ export class SwellTheme {
             try {
               configValue = JSON.parse(config.file_data);
             } catch (err) {
-              console.error(
-                `Error parsing ${configName} config: ${err}`
-              );
+              console.error(`Error parsing ${configName} config: ${err}`);
               configValue = {};
             }
             acc[configName] = configValue;
@@ -264,7 +266,17 @@ export class SwellTheme {
     const settings = await this.swell.getCachedResource<ThemeSettings>(
       `theme-settings-resolved:v@${configVersion}`,
       [],
-      () => resolveThemeSettings(this, configs.theme, configs.editor?.settings),
+      () => {
+        if (configs.editor?.settings) {
+          fillDefaultThemeSettings(configs.theme, configs.editor?.settings);
+        }
+
+        return resolveThemeSettings(
+          this,
+          configs.theme,
+          configs.editor?.settings,
+        );
+      },
     );
 
     if (!settings) {
@@ -382,7 +394,7 @@ export class SwellTheme {
     // Use empty function to enable cart comparison with empty drop in liquid
     cart._isEmpty = function () {
       return !this._result?.items?.length;
-    }
+    };
 
     await cart.id;
 
@@ -573,7 +585,10 @@ export class SwellTheme {
             for (const localeKey of Object.keys(value)) {
               const localeValues = value[localeKey];
               if (isObject(localeValues)) {
-                Object.assign(acc, this.resolveTranslationLocale(localeValues, locale));
+                Object.assign(
+                  acc,
+                  this.resolveTranslationLocale(localeValues, locale),
+                );
               }
             }
           } else {
@@ -896,7 +911,19 @@ export class SwellTheme {
       (await this.getThemeConfig(`theme/assets/${filePath}`)) ||
       (await this.getThemeConfig(`assets/${filePath}`));
 
-    return assetConfig?.file?.url || null;
+    const file = assetConfig?.file;
+
+    if (!file) {
+      return null;
+    }
+
+    const fileUrl: string | null = file.url || null;
+
+    if (!fileUrl) {
+      return fileUrl;
+    }
+
+    return fileUrl.endsWith(filePath) ? fileUrl : `${fileUrl}/${filePath}`;
   }
 
   async renderTemplate(
@@ -1157,7 +1184,7 @@ export class SwellTheme {
         : sectionsIds;
 
     const sectionsRendered = await Promise.all(
-      sections.map?.((sectionId) => {
+      sections.map((sectionId) => {
         return this.renderSection(sectionId, pageData);
       }),
     );
@@ -1336,50 +1363,53 @@ export class SwellTheme {
     return schema;
   }
 
-  async resolveSectionDefaultSettings(
+  resolveStaticSectionSettings(
     sectionSchema: ThemeSectionSchema,
     presetSchema?: ThemePresetSchema,
-  ): Promise<SwellData> {
+  ): SwellData {
     const defaults: SwellData = {};
 
     const defaultSchema: ThemePresetSchema =
       presetSchema || sectionSchema?.default || ({} as ThemePresetSchema);
 
     if (sectionSchema?.fields) {
-      sectionSchema.fields.forEach((field: ThemeSettingFieldSchema) => {
-        if (field.default !== undefined) {
-          defaults[field.id as string] = field.default;
+      for (const field of sectionSchema.fields) {
+        if (field.id && field.default !== undefined) {
+          defaults[field.id] = field.default;
         }
-      });
+      }
     }
 
     Object.assign(defaults, defaultSchema.settings, {
       blocks: defaultSchema.blocks,
     });
 
-    if (defaults.blocks instanceof Array) {
-      defaults.blocks = defaults.blocks.map((block: any) => {
-        const blockDefaults: SwellData = {};
+    if (Array.isArray(defaults.blocks)) {
+      defaults.blocks = defaults.blocks.map(
+        (block: ThemeSettingsBlock): ThemeSettingsBlock => {
+          const blockDefaults: SwellData = {};
 
-        const blockSchema = sectionSchema?.blocks?.find(
-          (schema) => schema.type === block.type,
-        );
+          const blockSchema = sectionSchema?.blocks?.find(
+            (schema) => schema.type === block.type,
+          );
 
-        if (blockSchema?.fields) {
-          blockSchema.fields.forEach((field: ThemeSettingFieldSchema) => {
-            if (field.default !== undefined) {
-              blockDefaults[field.id as string] = field.default;
+          if (blockSchema?.fields) {
+            for (const field of blockSchema.fields) {
+              if (field.id && field.default !== undefined) {
+                blockDefaults[field.id] = field.default;
+              }
             }
-          });
-        }
-        return {
-          ...block,
-          settings: {
-            ...blockDefaults,
-            ...(block.settings || undefined),
-          },
-        };
-      });
+          }
+
+          return {
+            ...block,
+            settings: {
+              ...blockDefaults,
+              ...(block.settings || undefined),
+            },
+          };
+        },
+      );
     }
 
     return defaults;
@@ -1703,6 +1733,20 @@ export function resolveSectionSettings(
       blocks,
     },
   };
+}
+
+function fillDefaultThemeSettings(
+  themeSettings: ThemeSettings,
+  editorSchemaSettings: ThemeSettingSectionSchema[],
+): void {
+  for (const section of editorSchemaSettings) {
+    for (const field of section.fields) {
+      if (field.id && !Object.hasOwn(themeSettings, field.id)) {
+        themeSettings[field.id] =
+          typeof field.default !== 'undefined' ? field.default : '';
+      }
+    }
+  }
 }
 
 export function resolveThemeSettings(

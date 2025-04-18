@@ -23,6 +23,7 @@ import * as ShopifyObjects from './shopify-objects';
 import ShopifyShop from './shopify-objects/shop';
 import ShopifyLocalization from './shopify-objects/localization';
 import ObjectHandlesDrop from './drops/object-handles';
+import CollectionsDrop from './drops/collections';
 
 import type {
   ThemeGlobals,
@@ -98,6 +99,7 @@ export class ShopifyCompatibility {
       page_type: page?.id,
     };
 
+    globals.collections = new CollectionsDrop(this);
     globals.current_page = this.swell.queryParams.page || 1;
     globals.routes = this.getPageRoutes();
   }
@@ -126,9 +128,10 @@ export class ShopifyCompatibility {
     }
 
     if (globals.geo) {
-      globals.all_country_option_tags = this.getAllCountryOptionTags(
-        globals.geo,
-      );
+      const countryOptions = this.getAllCountryOptionTags(globals.geo);
+
+      globals.all_country_option_tags = countryOptions;
+      globals.country_option_tags = countryOptions;
     }
 
     if (globals.store) {
@@ -329,7 +332,47 @@ export class ShopifyCompatibility {
   }
 
   getContentForHeader() {
-    return `<script>var Shopify = Shopify || {};</script>`;
+    const { shop, store, request } = this.theme.globals;
+
+    const shopifyTheme = {
+      id: 1,
+      name: store.name as string,
+      schema_name: shop.name as string,
+      schema_version: '1.0.0',
+      theme_store_id: null,
+      role: request.design_mode
+        ? 'development'
+        : request.is_preview
+          ? 'unpublished'
+          : 'main',
+    };
+
+    const injects: string[] = [];
+
+    if (request.design_mode) {
+      injects.push('Shopify.designMode = true;');
+    }
+
+    if (request.is_preview) {
+      injects.push('Shopify.inspectMode = true;');
+    }
+
+    if (request.visual_section_preview) {
+      injects.push('Shopify.visualPreviewMode = true;');
+    }
+
+    return `<script>var Shopify = Shopify || {};
+Shopify.shop = "${shop.domain}";
+Shopify.locale = "${store.locale}";
+Shopify.currency = {"active":"${store.currency}","rate":"1.0"};
+Shopify.country = "${store.country}";
+Shopify.theme = ${JSON.stringify(shopifyTheme)};
+Shopify.theme.handle = "null";
+Shopify.theme.style = {"id":null,"handle":null};
+Shopify.cdnHost = "cdn.swell.io";
+Shopify.routes = Shopify.routes || {};
+Shopify.routes.root = "/";
+${injects.join('\n')}</script>`;
   }
 
   getMenuData(menu: SwellMenu): SwellData {
@@ -576,7 +619,7 @@ export class ShopifyCompatibility {
     return ShopifyLocalization(this, store, request);
   }
 
-  getAdaptedPageUrl(url: string) {
+  getAdaptedPageUrl(url: string): string | undefined {
     if (!url) return;
 
     let pageId;
@@ -657,7 +700,7 @@ export class ShopifyCompatibility {
     }
   }
 
-  getThemeFilePath(type: string, name: string) {
+  getThemeFilePath(type: string, name: string): string {
     switch (type) {
       case 'assets':
         return `assets/${name}`;
@@ -764,16 +807,19 @@ export class ShopifyCompatibility {
     ];
   }
 
-  getAllCountryOptionTags(geoSettings: SwellSettingsGeo) {
-    return geoSettings?.countries
-      ?.map((country) => {
-        if (!country) return;
+  getAllCountryOptionTags(geoSettings: SwellSettingsGeo): string {
+    if (!geoSettings) {
+      return '';
+    }
 
-        const provinces = [
-          ...(geoSettings?.states || [])
-            .filter((state) => state.country === country.id)
-            .map((state) => [state.id, state.name]),
-        ];
+    return geoSettings.countries
+      ?.map((country) => {
+        if (!country) return '';
+
+        const provinces = (geoSettings.states || [])
+          .filter((state) => state.country === country.id)
+          .map((state) => [state.id, state.name]);
+
         const provincesEncoded = JSON.stringify(provinces).replace(
           /"/g,
           '&quot;',

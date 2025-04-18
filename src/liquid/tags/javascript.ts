@@ -41,11 +41,13 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       throw new Error(`tag ${token.getText()} not closed`);
     }
 
-    *render(ctx: Context, _emitter: Emitter): TagRenderReturn {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       const r = this.liquid.renderer;
       const javascript = yield r.renderTemplates(this.templates, ctx);
 
-      return `<script type="text/javascript" data-swell>${javascript}</script>`;
+      emitter.write(
+        `<script type="text/javascript" data-swell>${javascript}</script>`,
+      );
     }
   };
 }

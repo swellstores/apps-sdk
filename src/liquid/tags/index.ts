@@ -1,9 +1,10 @@
-import { each } from 'lodash-es';
-import { LiquidSwell } from '..';
+import type { LiquidSwell } from '..';
 
-import { default as caseTag } from './case';
-import { default as forTag } from './for';
+import assignTag from './assign';
+import caseTag from './case';
+import forTag from './for';
 import form from './form';
+import ifTag from './if';
 import javascript from './javascript';
 import layout from './layout';
 import paginate from './paginate';
@@ -20,9 +21,11 @@ import schema from './shopify/schema';
 import inline_editable from './inline_editable';
 
 export const tags = {
+  assign: assignTag,
   case: caseTag,
   for: forTag,
   form,
+  if: ifTag,
   javascript,
   layout,
   paginate,
@@ -39,6 +42,8 @@ export const tags = {
   inline_editable,
 };
 
-export function bindTags(liquidSwell: LiquidSwell) {
-  each(tags, (bind, tag) => liquidSwell.registerTag(tag, bind(liquidSwell)));
+export function bindTags(liquidSwell: LiquidSwell): void {
+  Object.entries(tags).forEach(([tag, bind]) =>
+    liquidSwell.registerTag(tag, bind(liquidSwell)),
+  );
 }

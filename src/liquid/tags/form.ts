@@ -66,9 +66,12 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       throw new Error(`tag ${token.getText()} not closed`);
     }
 
-    *render(ctx: Context, _emitter: Emitter): TagRenderReturn {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       if (!this.formConfig) {
-        return `<!-- form '${this.formType}' not found in theme configuration -->`;
+        emitter.write(
+          `<!-- form '${this.formType}' not found in theme configuration -->`,
+        );
+        return;
       }
 
       const r = this.liquid.renderer;
@@ -147,7 +150,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       const returnTo =
         hash.return_to || liquidSwell.theme.globals.request?.path;
 
-      return `
+      emitter.write(`
         <form action="${
           this.formConfig.url
         }" method="post" accept-charset="UTF-8" enctype="multipart/form-data"${attrs}>
@@ -161,7 +164,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
           ${compatibilityHtml}
           ${html}
         </form>
-      `;
+      `);
     }
   };
 }

@@ -1,11 +1,15 @@
-import { LiquidSwell } from '..';
 import { paramsToProps } from '../utils';
+
+import type { LiquidSwell } from '..';
+import type { FilterHandler } from 'liquidjs/dist/template';
 
 // {{ product | image_url | image_tag }}
 // TODO: focal point
 
-export default function bind(_liquidSwell: LiquidSwell) {
-  return (imageUrl: string, ...params: any[]) => {
+export default function bind(_liquidSwell: LiquidSwell): FilterHandler {
+  return function filterImageTag(imageUrl: string, ...params: any[]): string {
+    imageUrl = String(imageUrl || '');
+
     let {
       width,
       height,
@@ -20,15 +24,19 @@ export default function bind(_liquidSwell: LiquidSwell) {
     if (width === undefined) {
       width = getSizeFromUrlQuery(imageUrl, 'width');
     }
+
     if (height === undefined) {
       height = getSizeFromUrlQuery(imageUrl, 'height');
     }
+
     if (widths === undefined && typeof width === 'number') {
       widths = generateSmartWidths(width);
     }
-    if (srcset === undefined && Array.isArray(widths)) {
+
+    if (srcset === undefined && Array.isArray(widths) && widths.length > 0) {
       srcset = generateSmartSrcset(imageUrl, widths);
     }
+
     if (loading === null) {
       loading = undefined;
     } else if (preload) {
@@ -46,41 +54,62 @@ export default function bind(_liquidSwell: LiquidSwell) {
     };
 
     return `<img ${Object.entries(imgAttrs)
-      .filter(([_, value]: any) => value !== undefined && value !== null)
-      .map(([key, value]: any) => `${key}="${value}"`)
+      .reduce((acc: string[], [key, value]) => {
+        if (value !== undefined && value !== null) {
+          acc.push(`${key}="${String(value)}"`);
+        }
+
+        return acc;
+      }, [])
       .join(' ')} />`;
   };
 }
 
-function getSizeFromUrlQuery(imageUrl: string, param: string) {
-  const match = imageUrl.match(new RegExp(`${param}=(\\d+)`));
-  if (match) {
+function makeRegexForParam(param: string): RegExp {
+  switch (param) {
+    case 'width':
+      return /width=(\d+)/;
+    case 'height':
+      return /height=(\d+)/;
+    default:
+      return new RegExp(`${param}=(\\d+)`);
+  }
+}
+
+function getSizeFromUrlQuery(imageUrl: string, param: string): number | null {
+  const regex = makeRegexForParam(param);
+  const match = imageUrl.match(regex);
+
+  if (match !== null) {
     return parseInt(match[1]) / 2; // divide by 2 for retina
   }
+
   return null;
 }
 
-function generateSmartWidths(width: number) {
+function generateSmartWidths(width: number): number[] {
   // TODO: see if this actually makes sense
-  const widths = [];
-  let currentWidth = width;
-  while (currentWidth > 256) {
-    currentWidth = Math.round(currentWidth * 0.8);
-    widths.push(currentWidth);
+  const widths: number[] = [];
+
+  while (width > 256) {
+    width = Math.round(width * 0.8);
+    widths.push(width);
   }
+
   return widths;
 }
 
-function generateSmartSrcset(imageUrl: string, widths: number[]) {
+function generateSmartSrcset(imageUrl: string, widths: number[]): string {
   return widths
-    ?.map((w) => {
+    .map((w) => {
       let url = imageUrl;
+
       if (url.includes('?')) {
-        url = url.replace(/width=\d+/, `width=${w}`);
-        url = url.replace(/height=\d+/, '');
+        url = url.replace(/width=\d+/, `width=${w}`).replace(/height=\d+/, '');
       } else {
         url = `${url}?width=${w}`;
       }
+
       return `${url} ${w}w`;
     })
     .join(', ');

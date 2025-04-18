@@ -8,6 +8,7 @@ import type {
   Context,
   Parser,
   TopLevelToken,
+  Emitter,
 } from 'liquidjs';
 import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
@@ -29,31 +30,37 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       this.fileName = (tokenizer.readValue() as QuotedToken)?.content;
     }
 
-    *render(_ctx: Context): TagRenderReturn {
+    *render(_ctx: Context, emitter: Emitter): TagRenderReturn {
       const filePath = yield liquidSwell.getSectionGroupPath(this.fileName);
       const themeConfig = yield liquidSwell.getThemeConfig(filePath);
 
       try {
         const sectionGroup = JSON.parse(themeConfig.file_data);
-        const sectionConfigs =
-          yield liquidSwell.renderPageSections(sectionGroup);
+
+        const sectionConfigs = (yield liquidSwell.renderPageSections(
+          sectionGroup,
+        )) as ThemeSectionConfig[];
+
         const { shopify_compatibility: shopifyCompatibility } =
           liquidSwell.theme.globals;
 
-        return `<div id="swell-section-group__${this.fileName}">${sectionConfigs
-          .map((section: ThemeSectionConfig) => {
-            const id = `${shopifyCompatibility ? 'shopify' : 'swell'}-section-sections--${themeConfig.hash}__${section.id}`;
-            const className = shopifyCompatibility
-              ? `shopify-section shopify-section-group-${this.fileName} section-${section.id}`
-              : `swell-section swell-section-group-${this.fileName} section-${section.id}`;
+        emitter.write(
+          `<div id="swell-section-group__${this.fileName}">${sectionConfigs
+            .map((section) => {
+              const tag = section.tag || 'div';
+              const id = `${shopifyCompatibility ? 'shopify' : 'swell'}-section-sections--${themeConfig.hash}__${section.id}`;
+              const className = shopifyCompatibility
+                ? `shopify-section shopify-section-group-${this.fileName} section-${section.id}`
+                : `swell-section swell-section-group-${this.fileName} section-${section.id}`;
 
-            return `<${section.tag} id="${id}" class="${className} ${section.class || ''}">${
-              section.output
-            }</${section.tag}>`;
-          })
-          .join('')}</div>`;
+              return `<${tag} id="${id}" class="${className} ${section.class || ''}">${
+                section.output
+              }</${tag}>`;
+            })
+            .join('')}</div>`,
+        );
       } catch (_err) {
-        return '';
+        // noop
       }
     }
   };

@@ -382,9 +382,10 @@ function shopifySchemaSettingToSwellSettingField(
     ...setting, // Include swell-specific properties
     id: setting.id,
     label: getLocalizedValue(setting.label, locale),
-    default: setting.default
-      ? getLocalizedValue(setting.default, locale)
-      : undefined,
+    default:
+      typeof setting.default !== 'undefined'
+        ? getLocalizedValue(setting.default, locale)
+        : undefined,
     description: setting.info
       ? getLocalizedValue(setting.info, locale)
       : undefined,
