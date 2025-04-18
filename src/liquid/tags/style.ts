@@ -44,12 +44,14 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       throw new Error(`tag ${token.getText()} not closed`);
     }
 
-    *render(ctx: Context, _emitter: Emitter): TagRenderReturn {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       const r = this.liquid.renderer;
       const css = yield r.renderTemplates(this.templates, ctx);
 
       // This is used to update CSS in real-time from the theme editor without a page refresh
-      return `<style data-swell data-hash="${this.hash}">${css}</style>`;
+      emitter.write(
+        `<style data-swell data-hash="${this.hash}">${css}</style>`,
+      );
     }
   };
 }

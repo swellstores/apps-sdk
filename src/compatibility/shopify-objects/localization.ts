@@ -5,12 +5,12 @@ import { ShopifyResource } from './resource';
 import type { SwellData } from 'types/swell';
 
 export default function ShopifyLocalization(
-  _instance: ShopifyCompatibility,
+  instance: ShopifyCompatibility,
   store: SwellData,
   request: SwellData,
 ) {
   const { currency: storefrontCurrency, locale: storefrontLocale } =
-    _instance.swell.getStorefrontLocalization();
+    instance.swell.getStorefrontLocalization();
 
   const requestCurrency =
     store.currencies.find(

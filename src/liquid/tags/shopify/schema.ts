@@ -51,13 +51,27 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       );
 
       try {
-        const schema = JSON.parse(jsonOutput);
-        liquidSwell.lastSchema = schema;
+        liquidSwell.lastSchema = undefined;
+
+        if (typeof jsonOutput === 'string') {
+          liquidSwell.lastSchema = JSON.parse(
+            stripComments(jsonOutput),
+          );
+        }
       } catch {
         liquidSwell.lastSchema = undefined;
       }
 
-      return ''; // no output
+      // no output
+      return;
     }
   };
+}
+
+function stripComments(json: string): string {
+  // Thanks to json-easy-strip module for the regular expression
+  return json.replace(
+    /\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g,
+    (m, g) => (g ? '' : m),
+  );
 }

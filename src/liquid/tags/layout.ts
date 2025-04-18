@@ -29,10 +29,11 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       this.fileName = (tokenizer.readValue() as QuotedToken)?.content;
     }
 
+    // eslint-disable-next-line require-yield
     *render(_ctx: Context): TagRenderReturn {
       // Layout is actually rendered separately
       liquidSwell.layoutName = this.fileName;
-      return '';
+      return;
     }
   };
 }

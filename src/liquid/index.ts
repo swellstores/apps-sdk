@@ -111,6 +111,7 @@ export class LiquidSwell extends Liquid {
     this.extName = extName;
     this.componentsDir = componentsDir || 'components';
     this.sectionsDir = sectionsDir || 'sections';
+    this.lastSchema = undefined;
 
     bindTags(this);
     bindFilters(this);

@@ -1,19 +1,14 @@
 import { assign } from 'lodash-es';
-import { Tag, Hash, evalToken } from 'liquidjs';
+import { assert, evalToken, RenderTag as LiquidRenderTag } from 'liquidjs';
 
 import { ForloopDrop, toEnumerable } from '../utils';
+import { SwellStorefrontCollection } from '@/resources';
 
 import type { LiquidSwell } from '..';
-import type {
-  Liquid,
-  TagToken,
-  Context,
-  Parser,
-  ValueToken,
-  TopLevelToken,
-} from 'liquidjs';
-import type { QuotedToken, IdentifierToken } from 'liquidjs/dist/tokens';
-import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
+import type { Context, Emitter, Liquid } from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
+import type { SwellThemeConfig } from 'types/swell';
+import type { ParsedFileName } from 'liquidjs/dist/tags/render';
 
 // {% render 'component', variable: value %}
 // {% render 'component' for array as item %}
@@ -21,104 +16,78 @@ import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 // Preferred over { % include % } for rendering components
 
 export default function bind(liquidSwell: LiquidSwell): TagClass {
-  return class RenderTag extends Tag {
-    private fileName: string;
-    private hash: Hash;
-    private args: {
-      with?: { value: ValueToken; alias?: IdentifierToken['content'] };
-      for?: { value: ValueToken; alias?: IdentifierToken['content'] };
-    };
+  return class RenderTag extends LiquidRenderTag {
+    *render(
+      this: any,
+      ctx: Context,
+      emitter: Emitter,
+    ): Generator<unknown, void, unknown> {
+      const { liquid, hash } = this;
+      const filepath = (yield renderFilePath(
+        this['file'],
+        ctx,
+        liquid,
+      )) as string;
+      assert(filepath, () => `illegal file path "${filepath}"`);
 
-    constructor(
-      token: TagToken,
-      remainTokens: TopLevelToken[],
-      liquid: Liquid,
-      _parser: Parser,
-    ) {
-      super(token, remainTokens, liquid);
-      const tokenizer = this.tokenizer;
-
-      this.args = {};
-      this.fileName = (tokenizer.readValue() as QuotedToken)?.content;
-
-      while (!tokenizer.end()) {
-        const begin = tokenizer.p;
-        const keyword = tokenizer.readIdentifier();
-        if (keyword.content === 'with' || keyword.content === 'for') {
-          tokenizer.skipBlank();
-          // can be normal key/value pair, like "with: true"
-          if (tokenizer.peek() !== ':') {
-            const value = tokenizer.readValue();
-            // can be normal key, like "with,"
-            if (value) {
-              const beforeAs = tokenizer.p;
-              const asStr = tokenizer.readIdentifier();
-              let alias;
-              if (asStr.content === 'as') alias = tokenizer.readIdentifier();
-              else tokenizer.p = beforeAs;
-
-              this.args[keyword.content] = {
-                value,
-                alias: alias && alias.content,
-              };
-              tokenizer.skipBlank();
-              if (tokenizer.peek() === ',') tokenizer.advance();
-              continue; // matched!
-            }
-          }
-        }
-        /**
-         * restore cursor if with/for not matched
-         */
-        tokenizer.p = begin;
-        break;
-      }
-
-      this.hash = new Hash(tokenizer.remaining());
-    }
-
-    *render(ctx: Context): TagRenderReturn {
-      const { hash } = this;
-
-      const themeConfig = yield liquidSwell.getThemeConfig(
-        yield liquidSwell.getComponentPath(this.fileName),
-      );
+      const themeConfig = (yield liquidSwell
+        .getComponentPath(filepath)
+        .then((fileName) =>
+          liquidSwell.getThemeConfig(fileName),
+        )) as SwellThemeConfig;
 
       const childCtx = ctx.spawn();
-      const scope = childCtx.bottom() as { [key: string]: any };
+      const scope = childCtx.bottom() as any;
       assign(scope, yield hash.render(ctx));
 
       // Append section from parent scope if present
       const parentSection = yield ctx._get(['section']);
       if (parentSection) assign(scope, { section: parentSection });
 
-      let output = '';
-
-      if (this.args['with']) {
-        const { value, alias } = this.args['with'];
-        const aliasName = alias || this.fileName;
+      if (this['with']) {
+        const { value, alias } = this['with'];
+        const aliasName = alias || filepath;
         scope[aliasName] = yield evalToken(value, ctx);
       }
 
-      if (this.args['for']) {
-        const { value, alias } = this.args['for'];
-        const collection = toEnumerable(yield evalToken(value, ctx));
+      if (this['for']) {
+        const { value, alias } = this['for'];
+        let collection: any = yield evalToken(value, ctx);
+
+        if (collection instanceof SwellStorefrontCollection) {
+          yield collection._get();
+          collection = [...collection];
+        } else if (!Array.isArray(collection)) {
+          collection = toEnumerable(collection);
+        }
+
         scope['forloop'] = new ForloopDrop(
           collection.length,
           value.getText(),
           alias as string,
         );
+
         for (const item of collection) {
           scope[alias as string] = item;
-          output += yield liquidSwell.renderTemplate(themeConfig, scope);
+          const output = yield liquidSwell.renderTemplate(themeConfig, scope);
+          emitter.write(output);
 
           (scope['forloop'] as ForloopDrop).next();
         }
       } else {
-        output += yield liquidSwell.renderTemplate(themeConfig, scope);
+        const output = yield liquidSwell.renderTemplate(themeConfig, scope);
+        emitter.write(output);
       }
-
-      return output;
     }
   };
+}
+
+export function* renderFilePath(
+  file: ParsedFileName,
+  ctx: Context,
+  liquid: Liquid,
+): IterableIterator<unknown> {
+  if (typeof file === 'string') return file;
+  if (Array.isArray(file)) return liquid.renderer.renderTemplates(file, ctx);
+  return yield evalToken(file, ctx);
 }

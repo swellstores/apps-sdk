@@ -1,30 +1,57 @@
-import { LiquidSwell } from '..';
-import { toArray, toValue, stringify, isComparable, isTruthy } from '../utils';
+import { SwellStorefrontCollection } from '@/resources';
+
+import {
+  toArray,
+  toValue,
+  stringify,
+  isComparable,
+  isTruthy,
+  isIterable,
+} from '../utils';
+
+import type { Context } from 'liquidjs';
+import type { FilterHandler, FilterImpl } from 'liquidjs/dist/template';
+import type { LiquidSwell } from '..';
 
 // {% assign specials = collection.products | where: 'special', true %}
 
-export default function bind(_liquidSwell: LiquidSwell) {
-  return function* where<T extends object>(
-    this: any,
-    arr: T[],
+export default function bind(_liquidSwell: LiquidSwell): FilterHandler {
+  return function* filterWhere(
+    this: FilterImpl,
+    arr: unknown,
     property: string,
-    expected?: any,
+    expected?: unknown,
   ): IterableIterator<unknown> {
-    const values: unknown[] = [];
-    arr = toArray(toValue(arr));
-    for (const item of arr) {
-      values.push(
-        yield this.context._getFromScope(
-          item,
-          stringify(property).replace(/\?$/, '').split('.'),
-          false,
-        ),
-      );
+    const results: unknown[] = [];
+
+    if (arr instanceof SwellStorefrontCollection) {
+      yield arr._get();
     }
-    return arr.filter((_, i) => {
-      if (expected === undefined) return isTruthy(values[i], this.context);
-      if (isComparable(expected)) return expected.equals(values[i]);
-      return values[i] === expected;
-    });
+
+    const list = isIterable(arr) ? arr : toArray(toValue(arr));
+
+    for (const item of list) {
+      const value = yield this.context._getFromScope(
+        item,
+        stringify(property).replace(/\?$/, '').split('.'),
+        false,
+      );
+
+      if (filterValue(value, expected, this.context)) {
+        results.push(item);
+      }
+    }
+
+    return results;
   };
+}
+
+function filterValue(
+  value: unknown,
+  expected: unknown,
+  context: Context,
+): boolean {
+  if (expected === undefined) return isTruthy(value, context);
+  if (isComparable(expected)) return expected.equals(value);
+  return value === expected;
 }

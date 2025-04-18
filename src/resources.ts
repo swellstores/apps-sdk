@@ -1,9 +1,10 @@
 import { cloneDeep } from 'lodash-es';
 
-import { Swell } from './api';
-import { ShopifyCompatibility } from './compatibility/shopify';
 import { md5, resolveAsyncResources, stringifyQueryParams } from './utils';
+import { isLikePromise } from './liquid/utils';
 
+import type { Swell } from './api';
+import type { ShopifyCompatibility } from './compatibility/shopify';
 import type {
   SwellData,
   SwellRecord,
@@ -12,7 +13,6 @@ import type {
   SwellCollectionPages,
   StorefrontResourceGetter,
 } from '../types/swell';
-import { isLikePromise } from './liquid/utils';
 
 export const MAX_QUERY_PAGE_LIMIT = 100;
 export const DEFAULT_QUERY_PAGE_LIMIT = 15;
@@ -57,7 +57,10 @@ export class StorefrontResource<T extends SwellData = SwellData> {
         }
 
         // Return functions and props starting with _ directly
-        if (typeof instance[prop] === 'function' || prop.startsWith?.('_')) {
+        if (
+          typeof instance[prop] === 'function' ||
+          (typeof prop === 'string' && prop.startsWith('_'))
+        ) {
           return instance[prop];
         }
 
@@ -71,6 +74,8 @@ export class StorefrontResource<T extends SwellData = SwellData> {
               return 'undefined';
             }
           }
+
+          return instance[prop as any];
         }
 
         // Get resource result if not yet fetched
@@ -238,6 +243,10 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     this._compatibilityProps = props;
   }
 
+  [Symbol.toPrimitive](_type: string): unknown {
+    return this._id;
+  }
+
   getCompatibilityProp<
     T extends keyof StorefrontResource['_compatibilityProps'],
   >(prop: T): StorefrontResource['_compatibilityProps'][T] {
@@ -398,7 +407,7 @@ export class SwellStorefrontCollection<
 
           return result;
         })
-        .catch((err: any) => {
+        .catch((err) => {
           console.log(err);
           return null;
         }) as unknown as T;
@@ -411,10 +420,8 @@ export class SwellStorefrontCollection<
     return this.iterator();
   }
 
-  *iterator() {
-    for (const result of this.results || []) {
-      yield result;
-    }
+  iterator() {
+    return (this.results || []).values();
   }
 
   _clone(newProps?: SwellData): SwellStorefrontCollection<T> {

@@ -1,20 +1,11 @@
-import { Tag, Hash, evalToken } from 'liquidjs';
+import { evalToken, ForTag as LiquidForTag } from 'liquidjs';
 
-import { ForloopDrop, toEnumerable, isObject } from '../utils';
+import { SwellStorefrontCollection } from '@/resources';
+import { ForloopDrop, toEnumerable } from '../utils';
 
 import type { LiquidSwell } from '..';
-import type {
-  Liquid,
-  TagToken,
-  Parser,
-  Context,
-  Emitter,
-  ParseStream,
-  Template,
-  ValueToken,
-  TopLevelToken,
-} from 'liquidjs';
-import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
+import type { Context, Emitter } from 'liquidjs';
+import type { TagClass, Template } from 'liquidjs/dist/template';
 
 const MODIFIERS = Object.freeze(['offset', 'limit', 'reversed']);
 
@@ -22,65 +13,20 @@ const MODIFIERS = Object.freeze(['offset', 'limit', 'reversed']);
 // 1) to use our own toEnumerable implementation for compatibility
 
 export default function bind(_liquidSwell: LiquidSwell): TagClass {
-  return class ForTag extends Tag {
-    variable: string;
-    collection: ValueToken;
-    hash: Hash;
-    templates: Template[];
-    elseTemplates: Template[];
-
-    constructor(
-      token: TagToken,
-      remainTokens: TopLevelToken[],
-      liquid: Liquid,
-      parser: Parser,
-    ) {
-      super(token, remainTokens, liquid);
-
-      const variable = this.tokenizer.readIdentifier();
-      const inStr = this.tokenizer.readIdentifier();
-      const collection = this.tokenizer.readValue();
-      if (!variable.size() || inStr.content !== 'in' || !collection) {
-        throw new Error(`illegal tag: ${token.getText()}`);
-      }
-
-      this.variable = variable.content;
-      this.collection = collection;
-      this.hash = new Hash(this.tokenizer.remaining());
-      this.templates = [];
-      this.elseTemplates = [];
-
-      let p: Template[];
-      const stream: ParseStream = parser
-        .parseStream(remainTokens)
-        .on('start', () => {
-          p = this.templates;
-        })
-        .on('tag:else', () => {
-          p = this.elseTemplates;
-        })
-        .on('tag:endfor', () => {
-          stream.stop();
-        })
-        .on('template', (tpl: Template) => {
-          p.push(tpl);
-        })
-        .on('end', () => {
-          throw new Error(`tag ${token.getText()} not closed`);
-        });
-
-      stream.start();
-    }
-
-    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
+  return class ForTag extends LiquidForTag {
+    *render(
+      ctx: Context,
+      emitter: Emitter,
+    ): Generator<unknown, void | string, Template[]> {
       const r = this.liquid.renderer;
 
-      let collection = yield evalToken(this.collection, ctx);
+      let collection: any = yield evalToken(this.collection, ctx);
 
       // Get swell collection if needed
-      if (!collection?._result && collection?._get) {
+      if (collection instanceof SwellStorefrontCollection) {
         yield collection._get();
-      } else if (!(collection instanceof Array)) {
+        collection = [...collection];
+      } else if (!Array.isArray(collection)) {
         collection = toEnumerable(collection);
       }
 
@@ -92,7 +38,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       const continueKey =
         'continue-' + this.variable + '-' + this.collection.getText();
       ctx.push({ continue: ctx.getRegister(continueKey) });
-      const hash = yield this.hash.render(ctx);
+      const hash: any = yield this.hash.render(ctx);
       ctx.pop();
 
       const modifiers = this.liquid.options.orderedFilterParameters
@@ -117,7 +63,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
 
       ctx.setRegister(continueKey, (hash['offset'] || 0) + collection.length);
 
-      const scope = {
+      const scope: { forloop: ForloopDrop; [key: string]: unknown } = {
         forloop: new ForloopDrop(
           collection.length,
           this.collection.getText(),
@@ -127,25 +73,15 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
 
       ctx.push(scope);
 
-      let index = 0;
       for (const item of collection) {
-        if (isObject(item)) {
-          // index is expected by some shopify templates
-          item.index = index++;
-        }
-
-        (scope as any)[this.variable] = item;
+        scope[this.variable] = item;
+        ctx.continueCalled = ctx.breakCalled = false;
         yield r.renderTemplates(this.templates, ctx, emitter);
-
-        if ((emitter as any)['break']) {
-          (emitter as any)['break'] = false;
-          break;
-        }
-
-        (emitter as any)['continue'] = false;
-
+        if (ctx.breakCalled) break;
         scope.forloop.next();
       }
+
+      ctx.continueCalled = ctx.breakCalled = false;
       ctx.pop();
     }
   };

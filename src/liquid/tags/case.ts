@@ -12,7 +12,11 @@ import type {
   Context,
   ParseStream,
 } from 'liquidjs';
-import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
+import type {
+  TagClass,
+  Arguments,
+  TagRenderReturn,
+} from 'liquidjs/dist/template';
 
 /*
 {% case variable %}
@@ -95,7 +99,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       stream.start();
     }
 
-    *render(ctx: Context, _emitter: Emitter): TagRenderReturn {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       const r = this.liquid.renderer;
       const target = toValue(yield this.value.value(ctx, ctx.opts.lenientIf));
       let branchHit = false;
@@ -120,7 +124,25 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         output += yield r.renderTemplates(this.elseTemplates, ctx);
       }
 
-      return output;
+      if (output) {
+        emitter.write(output);
+      }
+
+      return;
+    }
+
+    public *arguments(): Arguments {
+      yield this.value;
+      yield* this.branches.flatMap((b) => b.values);
+    }
+
+    // eslint-disable-next-line require-yield
+    public *children(): Generator<unknown, Template[]> {
+      const templates = this.branches.flatMap((b) => b.templates);
+      if (this.elseTemplates) {
+        templates.push(...this.elseTemplates);
+      }
+      return templates;
     }
   };
 }

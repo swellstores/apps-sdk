@@ -1,16 +1,10 @@
-import { Tag, Hash } from 'liquidjs';
+import { assert, IncludeTag as LiquidIncludeTag } from 'liquidjs';
+
+import { renderFilePath } from '../render';
 
 import type { LiquidSwell } from '../..';
-import type { QuotedToken } from 'liquidjs/dist/tokens';
-import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
-import type {
-  Liquid,
-  TagToken,
-  Context,
-  Parser,
-  Scope,
-  TopLevelToken,
-} from 'liquidjs';
+import type { TagClass } from 'liquidjs/dist/template';
+import type { Context, Scope, Emitter } from 'liquidjs';
 
 // Deprecated in Shopify, supported for backward compatibility
 // Replaced by {% render %}
@@ -18,41 +12,38 @@ import type {
 // {% include 'component' %}
 
 export default function bind(liquidSwell: LiquidSwell): TagClass {
-  return class IncludeTag extends Tag {
-    private fileName: string;
-    private hash: Hash;
-
-    // Implementation adapted from liquidjs/src/tags/include.ts
-    constructor(
-      token: TagToken,
-      remainTokens: TopLevelToken[],
-      liquid: Liquid,
-      _parser: Parser,
-    ) {
-      super(token, remainTokens, liquid);
-      const { tokenizer } = token;
-      this.fileName = (tokenizer.readValue() as QuotedToken)?.content;
-
-      this.hash = new Hash(tokenizer.remaining());
-    }
-
-    *render(ctx: Context): TagRenderReturn {
+  return class IncludeTag extends LiquidIncludeTag {
+    *render(
+      this: any,
+      ctx: Context,
+      emitter: Emitter,
+    ): Generator<unknown, void, unknown> {
       const { hash } = this;
+
+      const filepath = (yield renderFilePath(
+        this['file'],
+        ctx,
+        this.liquid,
+      )) as string;
+
+      assert(filepath, () => `illegal file path "${filepath}"`);
+
+      const saved = ctx.saveRegister('blocks', 'blockMode');
+      ctx.setRegister('blocks', {});
+      ctx.setRegister('blockMode', 0);
 
       const scope = (yield hash.render(ctx)) as Scope;
       ctx.push(scope);
 
-      const themeConfig = yield liquidSwell.getThemeConfig(
-        yield liquidSwell.getComponentPath(this.fileName),
-      );
-      const output = yield liquidSwell.renderTemplate(
-        themeConfig,
-        scope as { [key: string]: any },
-      );
+      const output = yield liquidSwell
+        .getComponentPath(filepath)
+        .then((path) => liquidSwell.getThemeConfig(path))
+        .then((themeConfig) => liquidSwell.renderTemplate(themeConfig, scope));
+
+      emitter.write(output);
 
       ctx.pop();
-
-      return output;
+      ctx.restoreRegister(saved);
     }
   };
 }

@@ -1,4 +1,3 @@
-import { Swell, SwellStorefrontRecord, SwellStorefrontCollection } from '@/api';
 import { ShopifyCompatibility } from '@/compatibility/shopify';
 import type { ThemeFont } from '@/liquid/font';
 import type { ThemeForm } from '@/liquid/form';
@@ -63,22 +62,6 @@ export function adaptShopifyMenuData(
       ShopifyLink(instance, shopifyLinkList, item),
     ),
   };
-}
-
-// TODO: remove this once backend is implemented for "all"
-class AllCategoryResource extends SwellStorefrontRecord {
-  constructor(swell: Swell) {
-    super(swell, 'categories', 'all', {}, async () => {
-      const category = {
-        id: 'all',
-        slug: 'all',
-        name: 'Products',
-        products: new SwellStorefrontCollection(swell, 'products'),
-      };
-
-      return category;
-    });
-  }
 }
 
 export function adaptShopifyFontData(

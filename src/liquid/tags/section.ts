@@ -7,9 +7,11 @@ import type {
   Context,
   Parser,
   TopLevelToken,
+  Emitter,
 } from 'liquidjs';
 import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
+import type { SwellThemeConfig } from '../../../types/swell';
 
 // {% section 'name' %}
 
@@ -28,24 +30,63 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       this.fileName = (tokenizer.readValue() as QuotedToken)?.content;
     }
 
-    *render(_ctx: Context): TagRenderReturn {
-      const filePath = yield liquidSwell.getSectionPath(this.fileName);
-      const themeConfig = yield liquidSwell.getThemeConfig(filePath);
+    *render(_ctx: Context, emitter: Emitter): TagRenderReturn {
+      const filePath = (yield liquidSwell.getSectionPath(
+        this.fileName,
+      )) as string;
+
+      const themeConfig = (yield liquidSwell.getThemeConfig(
+        filePath,
+      )) as SwellThemeConfig | null;
 
       if (!themeConfig) {
         console.error(`Section not found: ${filePath}`);
         return;
       }
 
-      const sectionSchema =
-        yield liquidSwell.theme.getTemplateSchema(themeConfig);
+      let schema: any;
+      let settings: any;
 
-      const defaultSettings =
-        yield liquidSwell.theme.resolveSectionDefaultSettings(sectionSchema);
+      const output = (yield liquidSwell.theme
+        .getTemplateSchema(themeConfig)
+        .then((sectionSchema) => {
+          if (!sectionSchema) {
+            console.error(`Section schema not found: ${filePath}`);
+            return '';
+          }
 
-      return yield liquidSwell.renderTemplate(themeConfig, {
-        section: defaultSettings,
-      });
+          schema = sectionSchema;
+
+          const defaultSettings =
+            liquidSwell.theme.resolveStaticSectionSettings(sectionSchema);
+
+          settings = defaultSettings;
+
+          return liquidSwell.renderTemplate(themeConfig, {
+            section: {
+              id: this.fileName,
+              settings: { ...defaultSettings, blocks: undefined },
+              blocks: defaultSettings.blocks,
+            },
+          });
+        })) as string;
+
+      if (output) {
+        const { shopify_compatibility: shopifyCompatibility } =
+          liquidSwell.theme.globals;
+
+        const tag = schema.tag || 'div';
+
+        const id = `${shopifyCompatibility ? 'shopify' : 'swell'}-section-${settings.id || this.fileName}`;
+
+        const className = shopifyCompatibility
+          ? 'shopify-section'
+          : 'swell-section';
+
+        emitter.write(
+          `<${tag} id="${id}" class="${className} ${schema.class || ''}">${output}</${tag}>`,
+        );
+      }
     }
   };
 }

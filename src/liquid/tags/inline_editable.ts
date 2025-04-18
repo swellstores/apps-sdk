@@ -7,6 +7,7 @@ import type {
   Context,
   Parser,
   TopLevelToken,
+  Emitter,
 } from 'liquidjs';
 import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
 
@@ -36,12 +37,16 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       this.value = valueArg ? valueArg.split(':')[1].trim() : args[0];
     }
 
-    *render(ctx: Context): TagRenderReturn {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       let renderedValue = yield this.liquid.evalValue(this.value, ctx);
+
       if (renderedValue.value) {
         renderedValue = renderedValue.value;
       }
-      return `<span data-swell-inline-editable="${this.key}">${renderedValue}</span>`;
+
+      emitter.write(
+        `<span data-swell-inline-editable="${this.key}">${renderedValue}</span>`,
+      );
     }
   };
 }
