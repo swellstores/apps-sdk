@@ -1,8 +1,7 @@
 import { assign } from 'lodash-es';
 import { assert, evalToken, RenderTag as LiquidRenderTag } from 'liquidjs';
 
-import { ForloopDrop, toEnumerable } from '../utils';
-import { SwellStorefrontCollection } from '@/resources';
+import { ForloopDrop, resolveEnumerable } from '../utils';
 
 import type { LiquidSwell } from '..';
 import type { Context, Emitter, Liquid } from 'liquidjs';
@@ -53,13 +52,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       if (this['for']) {
         const { value, alias } = this['for'];
         let collection: any = yield evalToken(value, ctx);
-
-        if (collection instanceof SwellStorefrontCollection) {
-          yield collection._get();
-          collection = [...collection];
-        } else if (!Array.isArray(collection)) {
-          collection = toEnumerable(collection);
-        }
+        collection = yield resolveEnumerable(collection);
 
         scope['forloop'] = new ForloopDrop(
           collection.length,

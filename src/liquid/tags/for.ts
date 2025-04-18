@@ -1,7 +1,6 @@
 import { evalToken, ForTag as LiquidForTag } from 'liquidjs';
 
-import { SwellStorefrontCollection } from '@/resources';
-import { ForloopDrop, toEnumerable } from '../utils';
+import { ForloopDrop, resolveEnumerable } from '../utils';
 
 import type { LiquidSwell } from '..';
 import type { Context, Emitter } from 'liquidjs';
@@ -21,14 +20,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       const r = this.liquid.renderer;
 
       let collection: any = yield evalToken(this.collection, ctx);
-
-      // Get swell collection if needed
-      if (collection instanceof SwellStorefrontCollection) {
-        yield collection._get();
-        collection = [...collection];
-      } else if (!Array.isArray(collection)) {
-        collection = toEnumerable(collection);
-      }
+      collection = yield resolveEnumerable(collection);
 
       if (!collection.length) {
         yield r.renderTemplates(this.elseTemplates, ctx, emitter);

@@ -1,13 +1,4 @@
-import { SwellStorefrontCollection } from '@/resources';
-
-import {
-  toArray,
-  toValue,
-  stringify,
-  isComparable,
-  isTruthy,
-  isIterable,
-} from '../utils';
+import { stringify, isComparable, isTruthy, resolveEnumerable } from '../utils';
 
 import type { Context } from 'liquidjs';
 import type { FilterHandler, FilterImpl } from 'liquidjs/dist/template';
@@ -24,11 +15,7 @@ export default function bind(_liquidSwell: LiquidSwell): FilterHandler {
   ): IterableIterator<unknown> {
     const results: unknown[] = [];
 
-    if (arr instanceof SwellStorefrontCollection) {
-      yield arr._get();
-    }
-
-    const list = isIterable(arr) ? arr : toArray(toValue(arr));
+    const list = yield resolveEnumerable(arr);
 
     for (const item of list) {
       const value = yield this.context._getFromScope(

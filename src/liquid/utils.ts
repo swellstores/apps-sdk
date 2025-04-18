@@ -1,6 +1,6 @@
 import { Context, Drop } from 'liquidjs';
 
-import { StorefrontResource } from '../resources';
+import { StorefrontResource, SwellStorefrontCollection } from '../resources';
 
 // Note: has to refactor this to use class props instead of methods for some reason
 // The class methods weren't working in our implementation
@@ -146,6 +146,26 @@ export function toEnumerable<T>(val: unknown): T[] {
       return acc;
     }, []); //map((key) => [key, val[key]]);
   return [];
+}
+
+export async function resolveEnumerable<T>(val: unknown): Promise<T[]> {
+  if (val instanceof SwellStorefrontCollection) {
+    await val._get();
+    return [...val] as T[];
+  } else if (val instanceof Drop && Symbol.iterator in val) {
+    const iterFn = val[Symbol.iterator];
+
+    if (typeof iterFn === 'function') {
+      const iter = (await iterFn.call(val)) as ArrayIterator<T>;
+      return [...iter] as T[];
+    }
+  }
+
+  if (!Array.isArray(val)) {
+    return toEnumerable(val);
+  }
+
+  return val as T[];
 }
 
 export function stringify(value: unknown): string {
