@@ -3,10 +3,10 @@ import { StorefrontResource } from '../../resources';
 import { ShopifyCompatibility } from '../shopify';
 
 import { ShopifyResource, defer, deferWith } from './resource';
-import ShopifyProduct from './product';
+import ShopifyProduct, { getSelectedVariantOptionValues } from './product';
 import ShopifyMedia from './media';
 
-import type { SwellRecord } from 'types/swell';
+import type { SwellData, SwellRecord } from 'types/swell';
 
 export default function ShopifyVariant(
   instance: ShopifyCompatibility,
@@ -64,13 +64,20 @@ export default function ShopifyVariant(
     metafields: null,
     next_incoming_date: null,
     options: getOptions(product, variant),
+    selected_option_values: deferWith(
+      [product, variant],
+      (product: any, variant: any) =>
+        getSelectedVariantOptionValues(
+          product,
+          variant,
+          instance.swell.queryParams,
+        ),
+    ),
     option1: getOptionByIndex(product, variant, 0), // Deprecated by Shopify
     option2: getOptionByIndex(product, variant, 1), // Deprecated by Shopify
     option3: getOptionByIndex(product, variant, 2), // Deprecated by Shopify
-    price: defer(() =>
-      variant.price !== null && variant.price !== undefined
-        ? variant.price
-        : product.price,
+    price: deferWith([product, variant], (product: any, variant: any) =>
+      getVariantPrice(product, variant, instance.swell.queryParams),
     ),
     product: deferWith(product, (product: any) => {
       return ShopifyProduct(instance, product, depth + 1);
@@ -124,6 +131,7 @@ function getOptions(product: any, variant: any) {
   });
 }
 
+// deprecated
 function getOptionByIndex(product: any, variant: any, index: number) {
   return deferWith([product, variant], (product: any, variant: any) => {
     const optionValuesById = product.options?.reduce(
@@ -142,4 +150,41 @@ function getOptionByIndex(product: any, variant: any, index: number) {
       optionValuesById[variant.option_value_ids[index]]
     );
   });
+}
+
+// calculate additional price from selected non-variant options
+function getVariantPrice(product: any, variant: any, queryParams: SwellData) {
+  const { option_values: queryOptionValues = '' } = queryParams;
+  const optionValues = queryOptionValues.split(',');
+
+  const addPrice = product.options?.reduce((acc: any, option: any) => {
+    if (
+      option.variant || // skip variant options
+      !option.active ||
+      !option.values ||
+      option.values.length <= 0
+    ) {
+      return acc;
+    }
+
+    if (option.input_type !== 'select') {
+      return acc;
+    }
+
+    // only non-variant options
+    for (const value of option.values) {
+      if (optionValues.includes(value.id)) {
+        return acc + (value.price || 0);
+      }
+    }
+
+    return acc + (option.values[0].price || 0);
+  }, 0);
+
+  let price = product.price;
+  if (variant.price !== null && variant.price !== undefined) {
+    price = variant.price;
+  }
+
+  return price + (addPrice || 0);
 }

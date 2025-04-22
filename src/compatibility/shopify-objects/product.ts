@@ -51,6 +51,7 @@ export default function ShopifyProduct(
       (product: SwellRecord) =>
         product.images?.[0] && ShopifyMedia(instance, product.images[0]),
     ),
+    // not used
     first_available_variant: deferWith(product, (product: SwellRecord) =>
       // it returns first variant with empty query
       getSelectedVariant(product, {}),
@@ -60,6 +61,7 @@ export default function ShopifyProduct(
       (product: SwellRecord) => product.type === 'giftcard',
     ),
     handle: defer(() => product.slug),
+    // indicates that product has any options
     has_only_default_variant: deferWith(
       product,
       (product: SwellRecord) => !product.options?.length,
@@ -79,6 +81,10 @@ export default function ShopifyProduct(
         ?.map((option: any) => option.active && option.name)
         .filter(Boolean),
     ),
+    // all options values including non-variant
+    selected_option_values: deferWith(product, (product: SwellRecord) =>
+      getSelectedOptionValues(product, instance.swell.queryParams),
+    ),
     options_by_name: deferWith(product, (product: SwellRecord) =>
       product.options?.reduce((acc: any, option: any, index: number) => {
         if (option.active) {
@@ -86,6 +92,7 @@ export default function ShopifyProduct(
             name: option.name,
             position: index + 1,
             selected_value: null,
+            variant_option: option.variant,
             values: option.values?.map((value: any) =>
               ShopifyProductOption({
                 available: true,
@@ -95,6 +102,7 @@ export default function ShopifyProduct(
                 selected: false,
                 swatch: null,
                 variant: null,
+                addPrice: value.price,
               }),
             ),
           };
@@ -112,6 +120,7 @@ export default function ShopifyProduct(
           name: option.name,
           position: index + 1,
           selected_value: null,
+          variant_option: option.variant,
           values: option.values?.map((value: any) =>
             ShopifyProductOption({
               available: true,
@@ -120,13 +129,16 @@ export default function ShopifyProduct(
               product_url: null,
               selected: optionValues.includes(value.id),
               swatch: null,
-              variant: null,
+              variant,
+              addPrice: value.price,
             }),
           ),
         };
       });
     }),
-    price: deferWith(product, (product: SwellRecord) => product.price),
+    price: deferWith(product, (product: SwellRecord) =>
+      calculateAddOptionsPrice(product, instance.swell.queryParams),
+    ),
     price_max: deferWith<number, SwellRecord>(product, (product) =>
       product.variants?.results?.reduce(
         (max: number, variant: any) => Math.max(max, variant.price),
@@ -227,6 +239,7 @@ function getSelectedVariant(product: SwellRecord, queryParams: SwellData) {
   } else if (queryOptionValues) {
     const optionValues = queryOptionValues.split(',');
 
+    // non-variant options are skipped
     selectedVariant = variants.find((variant: any) =>
       variant.option_value_ids.every((optionValueId: string) =>
         optionValues.includes(optionValueId),
@@ -243,4 +256,74 @@ function getAvailableVariants(product: SwellRecord) {
     (variant: any) =>
       variant.stock_status === 'in_stock' || !variant.stock_status,
   );
+}
+
+// calculate additional price from selected options
+function calculateAddOptionsPrice(product: any, queryParams: SwellData) {
+  const { option_values: queryOptionValues = '' } = queryParams;
+  const optionValues = queryOptionValues.split(',');
+
+  const addPrice = product.options?.reduce((acc: any, option: any) => {
+    if (!option.active || !option.values || option.values.length <= 0) {
+      return acc;
+    }
+
+    if (option.input_type !== 'select') {
+      return acc;
+    }
+
+    for (const value of option.values) {
+      if (optionValues.includes(value.id)) {
+        return acc + (value.price || 0);
+      }
+    }
+
+    return acc + (option.values[0].price || 0);
+  }, 0);
+
+  return product.price + (addPrice || 0);
+}
+
+function getSelectedOptionValues(product: any, queryParams: SwellData) {
+  const variant = getSelectedVariant(product, queryParams);
+  return getSelectedVariantOptionValues(product, variant, queryParams);
+}
+
+// collect all option values including non-variant. Select first by default
+export function getSelectedVariantOptionValues(
+  product: any,
+  variant: any,
+  queryParams: SwellData,
+) {
+  const { option_values: queryOptionValues = '' } = queryParams;
+  const optionValues = queryOptionValues.split(',');
+
+  const selectedValues = variant ? [...(variant.option_value_ids || [])] : [];
+  const values: string[] = [];
+  for (const option of product.options || []) {
+    if (
+      option.active &&
+      option.values?.length > 0 &&
+      option.input_type === 'select'
+    ) {
+      let selectedByVariantId = '';
+      let selectedByOptionId = '';
+      for (const value of option.values) {
+        if (selectedValues.includes(value.id)) {
+          selectedByVariantId = value.id;
+          break;
+        }
+
+        if (optionValues.includes(value.id)) {
+          selectedByOptionId = value.id;
+        }
+      }
+
+      values.push(
+        selectedByVariantId || selectedByOptionId || option.values[0].id,
+      );
+    }
+  }
+
+  return values;
 }
