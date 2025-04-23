@@ -352,7 +352,9 @@ export class Swell {
     let storefrontContext = {} as SwellData;
     if (this.swellHeaders?.['storefront-context']) {
       try {
-        storefrontContext = JSON.parse(this.swellHeaders['storefront-context']);
+        storefrontContext = JSON.parse(
+          decodeURIComponent(this.swellHeaders['storefront-context']),
+        );
       } catch (error) {
         console.error('Failed to parse swell-storefront-context. Ignoring...');
       }

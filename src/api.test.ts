@@ -95,7 +95,9 @@ describe('Swell', () => {
         serverHeaders: {
           'swell-public-key': 'publickey',
           'swell-store-id': 'test',
-          'swell-storefront-context': JSON.stringify(context),
+          'swell-storefront-context': encodeURIComponent(
+            JSON.stringify(context),
+          ),
         },
         url: new URL('https://storefront.app'),
       });
