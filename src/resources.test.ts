@@ -126,7 +126,9 @@ describe('SwellStorefrontSingleton', () => {
       const swell = new Swell({
         serverHeaders: {
           ...defaultServerHeaders,
-          'swell-storefront-context': JSON.stringify({ cart }),
+          'swell-storefront-context': encodeURIComponent(
+            JSON.stringify({ cart }),
+          ),
         },
         url: new URL('https://storefront.app'),
       });
