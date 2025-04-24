@@ -189,8 +189,7 @@ export class Swell {
     args: unknown[],
     handler: () => T | Promise<T>,
   ): Promise<T | undefined> {
-    const requestId = this.swellHeaders['request-id'];
-    const cacheKey = getCacheKey(key, [requestId, args]);
+    const cacheKey = getCacheKey(key, [this.instanceId, args]);
     return this.getResourceCache().fetch<T>(cacheKey, handler);
   }
 
@@ -395,7 +394,7 @@ export class Swell {
     return (method: string, url: string, id?: any, data?: any, opt?: any) => {
       if (this.isStorefrontRequestCacheable(method, url, opt)) {
         return this.getRequestCache().fetchSWR<T>(
-          getCacheKey('request', [method, url, id, data, opt]),
+          getCacheKey('request', [this.instanceId, method, url, id, data, opt]),
           () => storefrontRequest<T>(method, url, id, data, opt),
         );
       }
