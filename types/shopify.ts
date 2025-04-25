@@ -200,11 +200,3 @@ export interface ShopifyQueryParams {
 }
 
 export type ShopifyQueryParamsMap = ShopifyQueryParams[];
-
-export interface ShopifyLocalizationSection {
-  [key: string]: string | ShopifyLocalizationSection;
-}
-
-export interface ShopifyLocalizationConfig {
-  [key: string]: ShopifyLocalizationSection;
-}

@@ -327,7 +327,7 @@ export interface ThemeGlobals extends SwellData {
   customer?: SwellStorefrontSingleton | null;
   geo: SwellSettingsGeo;
   configs: ThemeConfigs;
-  translations: Record<string, unknown>;
+  language: Record<string, unknown>;
   canonical_url: string;
   shopify_compatibility: boolean;
   [key: string]: any;
@@ -337,7 +337,7 @@ export interface ThemeConfigs {
   editor: ThemeEditorSchema;
   theme: ThemeSettings;
   presets: ThemePresetSchema[];
-  translations: ThemeSettings;
+  language: ThemeSettings;
   [key: string]: any;
 
   // Shopify compatibility
@@ -359,6 +359,14 @@ export interface ThemeResources {
     cart?: ThemeResourceFactory;
   };
   records?: Record<string, ThemeLookupResourceFactory>;
+}
+
+export interface ThemeLocaleSection {
+  [key: string]: string | ThemeLocaleSection;
+}
+
+export interface ThemeLocaleConfig {
+  [key: string]: ThemeLocaleSection;
 }
 
 export interface ThemeEditorSchema {

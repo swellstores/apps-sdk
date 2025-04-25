@@ -38,6 +38,7 @@ import type {
   ThemeResources,
   ThemeFormConfig,
   ThemeFormErrorMessages,
+  ThemeLocaleConfig,
   ThemePresetSchema,
   ThemeSectionGroup,
   ThemeSectionGroupInfo,
@@ -158,7 +159,7 @@ export class SwellTheme {
       customer,
       geo,
       configs,
-      translations: configs?.translations,
+      language: configs?.language,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
       // Flag to enable Shopify compatibility in sections and tags/filters
       shopify_compatibility: Boolean(settings.shopify_compatibility),
@@ -207,7 +208,7 @@ export class SwellTheme {
     const configs: ThemeConfigs = {
       theme: {},
       editor: {},
-      translations: {},
+      language: {},
       presets: [],
       ...Array.from(settingConfigs.values()).reduce(
         (acc, config) => {
@@ -230,7 +231,20 @@ export class SwellTheme {
 
     const session = await this.swell.storefront.settings.session();
 
-    configs.translations = this.resolveTranslationLocale(configs.translations);
+    // Maintain backward compatibility for a few theme versions
+    // TODO: remove this in the near future
+    if (configs.translations) {
+      configs.language = configs.translations;
+    }
+
+    if (Object.keys(configs.language).length) {
+      configs.language = this.resolveTranslationLocale(configs.language);
+    } else {
+      const { locale } = this.swell.getStorefrontLocalization();
+      configs.language = await this.getLocaleConfig(
+        locale,
+      );
+    }
 
     await this.setCompatibilityConfigs(configs);
 
@@ -563,21 +577,21 @@ export class SwellTheme {
     return extractSettingsFromForm(form, config);
   }
 
-  resolveTranslationLocale(translationsConfig: ThemeSettings, locale?: string) {
-    if (!translationsConfig) {
+  resolveTranslationLocale(languageConfig: ThemeSettings, locale?: string) {
+    if (!languageConfig) {
       return {};
     }
 
     locale = locale || this.swell.getStorefrontLocalization().locale;
 
     if (!locale) {
-      return translationsConfig;
+      return languageConfig;
     }
 
     const localeShortCode = locale.split('-')[0];
 
     return reduce(
-      translationsConfig,
+      languageConfig,
       (acc, value, key) => {
         if (isObject(value)) {
           if (key === '$locale') {
@@ -591,7 +605,7 @@ export class SwellTheme {
                 );
               }
             }
-          } else {
+          } else if (key[0] !== '$') {
             // Continue recursion
             acc[key] = this.resolveTranslationLocale(value, locale);
           }
@@ -602,7 +616,7 @@ export class SwellTheme {
             const translationParts = translationKey.split('.');
             const translationEnd = translationParts.pop();
             const translationPath = translationParts.join('.');
-            const translationConfigGlobal = this.globals.translations;
+            const translationConfigGlobal = this.globals.language;
 
             acc[key] =
               get(
@@ -618,8 +632,8 @@ export class SwellTheme {
           } else {
             // Translate from local config
             acc[key] =
-              get(translationsConfig, `$locale.${locale}.${key}`) ||
-              get(translationsConfig, `$locale.${localeShortCode}.${key}`) ||
+              get(languageConfig, `$locale.${locale}.${key}`) ||
+              get(languageConfig, `$locale.${localeShortCode}.${key}`) ||
               value;
           }
         }
@@ -663,15 +677,6 @@ export class SwellTheme {
       );
     }
 
-    if (!Object.keys(configs.translations).length) {
-      const { locale } = this.swell.getStorefrontLocalization();
-
-      configs.translations = await shopifyCompatibility().getLocaleConfig(
-        this,
-        locale,
-      );
-    }
-
     // Make sure compatibility instance and config setting are resolved
     if (configs.theme.shopify_compatibility) {
       shopifyCompatibility();
@@ -685,6 +690,52 @@ export class SwellTheme {
       return;
     }
     this.shopifyCompatibility.adaptPageData(pageData);
+  }
+
+  async getLocaleConfig(
+    localeCode = 'en',
+    suffix = '.json',
+  ): Promise<ThemeLocaleConfig> {
+    const allLocaleConfigs = await this.getThemeConfigsByPath(
+      'theme/locales/',
+      suffix,
+    );
+
+    let localeConfig: SwellThemeConfig | null =
+      allLocaleConfigs.get(`theme/locales/${localeCode}${suffix}`) ?? null;
+
+    if (!localeConfig) {
+      // Fall back to short code locale
+      const localeShortCode = localeCode.split('-')[0];
+
+      localeConfig =
+        allLocaleConfigs.get(`theme/locales/${localeShortCode}${suffix}`) ??
+        null;
+
+      if (!localeConfig) {
+        // Fall back to default locale
+        const defaultLocale = `.default${suffix}`;
+
+        for (const config of allLocaleConfigs.values()) {
+          if (config?.file_path?.endsWith(defaultLocale)) {
+            localeConfig = config;
+            break;
+          }
+        }
+      }
+    }
+
+    if (localeConfig) {
+      localeConfig = await this.getThemeConfig(localeConfig.file_path);
+
+      try {
+        return JSON.parse(localeConfig?.file_data || '');
+      } catch {
+        // noop
+      }
+    }
+
+    return {};
   }
 
   resolveLookupSetting(
@@ -1609,7 +1660,7 @@ export class SwellTheme {
     data?: unknown,
     fallback?: string,
   ): Promise<string> {
-    const langObject = this.globals.translations;
+    const langObject = this.globals.language;
     const localeCode = this.globals.request?.locale;
 
     return this.renderTranslationValue(
