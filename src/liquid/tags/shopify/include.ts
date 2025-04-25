@@ -1,4 +1,4 @@
-import { assert, IncludeTag as LiquidIncludeTag } from 'liquidjs';
+import { assert, evalToken, IncludeTag as LiquidIncludeTag } from 'liquidjs';
 
 import { renderFilePath } from '../render';
 
@@ -33,7 +33,12 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       ctx.setRegister('blockMode', 0);
 
       const scope = (yield hash.render(ctx)) as Scope;
-      ctx.push(scope);
+
+      if (this.withVar) {
+        (scope as any)[filepath] = yield evalToken(this.withVar, ctx);
+      }
+
+      ctx.push(ctx.opts.jekyllInclude ? { include: scope } : scope);
 
       const output = yield liquidSwell
         .getComponentPath(filepath)

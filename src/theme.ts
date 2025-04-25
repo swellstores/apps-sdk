@@ -1338,7 +1338,15 @@ export class SwellTheme {
       if (this.shopifyCompatibility) {
         // Extract {% schema %} from liquid files for Shopify compatibility
         this.liquidSwell.lastSchema = undefined;
-        await this.renderTemplate(resolvedConfig);
+
+        // Get only the schema tag from the template,
+        // as other tags may need data for rendering
+        const schemaConfig: SwellThemeConfig = {
+          ...resolvedConfig,
+          file_data: extractSchemaTag(resolvedConfig.file_data),
+        };
+
+        await this.renderTemplate(schemaConfig);
 
         const lastSchema = (this.liquidSwell.lastSchema ||
           {}) as ShopifySectionSchema;
@@ -1925,4 +1933,16 @@ function replacerUnescape(match: string): string {
 
 function unescapeLiquidSyntax(template: string): string {
   return template.replace(/\{\{.*?\}\}/g, replacerUnescape);
+}
+
+function extractSchemaTag(template: string): string {
+  const list = template.match(
+    /\{%-?\s*schema\s*-?%\}(.*)\{%-?\s*endschema\s*-?%\}/s,
+  );
+
+  if (list === null) {
+    return template;
+  }
+
+  return list[0];
 }

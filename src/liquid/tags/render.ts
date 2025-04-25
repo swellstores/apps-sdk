@@ -80,7 +80,21 @@ export function* renderFilePath(
   ctx: Context,
   liquid: Liquid,
 ): IterableIterator<unknown> {
-  if (typeof file === 'string') return file;
-  if (Array.isArray(file)) return liquid.renderer.renderTemplates(file, ctx);
+  switch (typeof file) {
+    case 'string':
+      return file;
+
+    case 'object': {
+      if (Array.isArray(file)) {
+        return liquid.renderer.renderTemplates(file, ctx);
+      }
+
+      break;
+    }
+
+    default:
+      break;
+  }
+
   return yield evalToken(file, ctx);
 }

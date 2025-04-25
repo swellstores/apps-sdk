@@ -8,6 +8,7 @@ import {
   getLayoutSectionGroups,
   schemaToEasyblocksProps,
   schemaToEasyblocksValue,
+  toEasyblocksFieldId,
 } from './utils';
 
 import type {
@@ -170,7 +171,7 @@ function getEditorSchemaComponentProps(
     (acc, settingGroup) => {
       for (const field of settingGroup.fields || []) {
         acc.push({
-          prop: field.id as string,
+          prop: toEasyblocksFieldId(field.id),
           label: field.label,
           optional: true,
           group: settingGroup.label,
@@ -200,7 +201,7 @@ function getAllSectionComponents(
         ...(section.fields || []).reduce<ExternalSchemaProp[]>((acc, field) => {
           if (field.id && field.type) {
             acc.push({
-              prop: field.id,
+              prop: toEasyblocksFieldId(field.id),
               label: field.label,
               optional: true,
               ...schemaToEasyblocksProps(field),
@@ -305,7 +306,7 @@ function getAllSectionComponents(
             (acc, field) => {
               if (field.id && field.type) {
                 acc.push({
-                  prop: field.id,
+                  prop: toEasyblocksFieldId(field.id),
                   label: field.label,
                   optional: true,
                   ...schemaToEasyblocksProps(field),
@@ -615,7 +616,7 @@ export function getEasyblocksPagePropsWithConfigs(
       id: 'swell_color_scheme_group',
       label: 'Swell color scheme',
       schema: fields.map<ExternalSchemaProp>((field) => ({
-        prop: field.id as string,
+        prop: toEasyblocksFieldId(field.id),
         label: field.label,
         optional: true,
         ...schemaToEasyblocksProps({
