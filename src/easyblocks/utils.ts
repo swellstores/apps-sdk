@@ -546,3 +546,19 @@ export function getSectionSettingsFromProps(
     }),
   };
 }
+
+export function toEasyblocksFieldId(fieldId?: string): string {
+  if (!fieldId) {
+    return fieldId as string;
+  }
+
+  return fieldId.replace(/\./g, '·');
+}
+
+export function toSchemaFieldId(fieldId?: string): string {
+  if (!fieldId) {
+    return fieldId as string;
+  }
+
+  return fieldId.replace(/·/g, '.');
+}

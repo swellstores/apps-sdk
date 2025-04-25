@@ -23,6 +23,7 @@ import type {
   ThemeSettingsBlock,
 } from 'types/swell';
 import { isLikePromise } from '@/liquid/utils';
+import { toSchemaFieldId } from '@/easyblocks/utils';
 
 export * from './md5';
 
@@ -549,7 +550,7 @@ export function extractSettingsFromForm(
   return Object.entries(form).reduce<ThemeSettings>(
     (acc, [formKey, formValue]) => {
       if (formValue?.value !== null && formValue?.value !== undefined) {
-        acc[formKey] = formValue?.value;
+        acc[toSchemaFieldId(formKey)] = formValue?.value;
       }
       return acc;
     },
