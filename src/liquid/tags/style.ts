@@ -47,11 +47,18 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
     *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       const r = this.liquid.renderer;
       const css = yield r.renderTemplates(this.templates, ctx);
+      // add section id to hash if presents
+      const contextEnvironments = ctx?.environments as {
+        section: { id: string };
+      };
+      const styleSectionId = contextEnvironments?.section?.id || '';
+      let hash = this.hash;
+      if (styleSectionId) {
+        hash = md5(`${hash}${styleSectionId}`);
+      }
 
       // This is used to update CSS in real-time from the theme editor without a page refresh
-      emitter.write(
-        `<style data-swell data-hash="${this.hash}">${css}</style>`,
-      );
+      emitter.write(`<style data-swell data-hash="${hash}">${css}</style>`);
     }
   };
 }
