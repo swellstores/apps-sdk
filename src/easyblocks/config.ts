@@ -1,3 +1,4 @@
+import JSON5 from 'json5';
 import { reduce } from 'lodash-es';
 
 import { SECTION_GROUP_CONTENT, getSectionGroupProp } from '../utils';
@@ -82,7 +83,7 @@ export async function getEasyblocksPageTemplate<T>(
       return templateConfig.file_data;
     }
 
-    return JSON.parse(templateConfig.file_data) as T;
+    return JSON5.parse<T>(templateConfig.file_data);
   }
 }
 
@@ -367,7 +368,7 @@ function getLayoutSectionGroupTemplateValues(
         sectionGroup.sectionConfigs.map<NoCodeComponentEntry>(
           ({ section, settings, schema }) => ({
             _id: `SectionGroup__${section.type}_${getRandomId()}`,
-            _component: `${section.type}`,
+            _component: section.type,
             ...reduce(
               settings?.section.settings,
               (acc, value, key) => {
@@ -634,6 +635,11 @@ export function getEasyblocksPagePropsWithConfigs(
     });
   }
 
+  const componentSet = new Set<string>();
+  for (const component of components) {
+    componentSet.add(component.id);
+  }
+
   const templates: InternalTemplate[] = [
     // TODO: add templates for all other components (sections) with preset setting defaults
     {
@@ -647,10 +653,11 @@ export function getEasyblocksPagePropsWithConfigs(
           {
             _id: 'swell_page',
             _component: 'swell_page',
-            ContentSections: pageSections.map<NoCodeComponentEntry>(
-              ({ section, settings, schema }) => ({
+            ContentSections: pageSections
+              .filter((config) => componentSet.has(config.section.type))
+              .map<NoCodeComponentEntry>(({ section, settings, schema }) => ({
                 _id: prepareSectionId(section.id),
-                _component: `${section.type}`,
+                _component: section.type,
                 custom_css: settings?.section?.custom_css || '',
                 disabled: settings?.section?.disabled || false,
                 $locale: settings?.section?.settings?.$locale as string,
@@ -697,8 +704,7 @@ export function getEasyblocksPagePropsWithConfigs(
                       ),
                     }
                   : undefined),
-              }),
-            ),
+              })),
             ...getLayoutSectionGroupTemplateValues(layoutSectionGroups),
           },
         ],

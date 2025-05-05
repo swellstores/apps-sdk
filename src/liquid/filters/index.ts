@@ -1,5 +1,3 @@
-import { each } from 'lodash-es';
-
 import asset_url from './asset_url';
 import brightness_difference from './brightness_difference';
 import color_brightness from './color_brightness';
@@ -110,17 +108,16 @@ export const filters = {
 };
 
 export function bindFilters(liquidSwell: LiquidSwell): void {
-  each(filters, (handler, tag) => {
+  for (const [tag, handler] of Object.entries(filters)) {
     if (typeof handler === 'function') {
       liquidSwell.registerFilter(tag, handler(liquidSwell));
     } else if (typeof handler.bind === 'function') {
-      const { bind, resolve } = handler;
       liquidSwell.registerFilter(
         tag,
-        bindWithResolvedProps(liquidSwell, bind, resolve),
+        bindWithResolvedProps(liquidSwell, handler.bind, handler.resolve),
       );
     }
-  });
+  }
 }
 
 // Resolve specific nested props

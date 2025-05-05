@@ -1,3 +1,4 @@
+import JSON5 from 'json5';
 import { get, each, find, reduce, cloneDeep } from 'lodash-es';
 
 import {
@@ -214,9 +215,9 @@ export class SwellTheme {
         (acc, config) => {
           const configName = String(config?.name || '').split('.')[0];
           if (configName) {
-            let configValue;
+            let configValue: unknown;
             try {
-              configValue = JSON.parse(config.file_data);
+              configValue = JSON5.parse<unknown>(config.file_data);
             } catch (err) {
               console.error(`Error parsing ${configName} config: ${err}`);
               configValue = {};
@@ -237,13 +238,11 @@ export class SwellTheme {
       configs.language = configs.translations;
     }
 
-    if (Object.keys(configs.language).length) {
+    if (Object.keys(configs.language).length > 0) {
       configs.language = this.resolveTranslationLocale(configs.language);
     } else {
       const { locale } = this.swell.getStorefrontLocalization();
-      configs.language = await this.getLocaleConfig(
-        locale,
-      );
+      configs.language = await this.getLocaleConfig(locale);
     }
 
     await this.setCompatibilityConfigs(configs);
@@ -332,11 +331,12 @@ export class SwellTheme {
 
       let pageSchema: ThemePageSchema | undefined;
       try {
-        pageSchema = JSON.parse(
-          templateConfig?.file_data || '',
-        ) as ThemePageSchema;
-      } catch {
+        pageSchema = JSON5.parse<ThemePageSchema>(
+          templateConfig?.file_data || '{}',
+        );
+      } catch (err) {
         // noop
+        console.warn(err);
       }
 
       if (pageSchema?.page) {
@@ -717,7 +717,7 @@ export class SwellTheme {
         const defaultLocale = `.default${suffix}`;
 
         for (const config of allLocaleConfigs.values()) {
-          if (config?.file_path?.endsWith(defaultLocale)) {
+          if (config.file_path?.endsWith(defaultLocale)) {
             localeConfig = config;
             break;
           }
@@ -729,9 +729,10 @@ export class SwellTheme {
       localeConfig = await this.getThemeConfig(localeConfig.file_path);
 
       try {
-        return JSON.parse(localeConfig?.file_data || '');
-      } catch {
+        return JSON5.parse<ThemeLocaleConfig>(localeConfig?.file_data || '{}');
+      } catch (err) {
         // noop
+        console.warn(err);
       }
     }
 
@@ -981,17 +982,16 @@ export class SwellTheme {
     config: SwellThemeConfig | null,
     data?: SwellData,
   ): Promise<string> {
-    const template = config?.file_data || null;
+    let template = config?.file_data || null;
 
     if (config === null || template === null) {
       return '';
     }
 
+    template = unescapeLiquidSyntax(template);
+
     try {
-      return await this.liquidSwell.parseAndRender(
-        unescapeLiquidSyntax(template),
-        data,
-      );
+      return await this.liquidSwell.parseAndRender(template, data);
     } catch (err: any) {
       console.error(err);
       return `<!-- template render error: ${err.message} -->`;
@@ -1023,10 +1023,11 @@ export class SwellTheme {
     if (config?.file_path?.endsWith('.json')) {
       try {
         result =
-          (JSON.parse(config.file_data) as Partial<ThemeSectionSchema>) ||
+          JSON5.parse<Partial<ThemeSectionSchema>>(config.file_data) ||
           undefined;
-      } catch {
+      } catch (err) {
         // noop
+        console.warn(err);
         return undefined;
       }
     } else if (config?.file_path?.endsWith('.liquid')) {
@@ -1111,7 +1112,7 @@ export class SwellTheme {
 
     if (config?.file_path?.endsWith('.json')) {
       try {
-        return JSON.parse(content);
+        return JSON5.parse<ThemePageTemplateConfig>(content);
       } catch (err) {
         console.log(
           'Unable to render theme template',
@@ -1416,9 +1417,10 @@ export class SwellTheme {
       }
     } else if (resolvedConfig.file_data) {
       try {
-        schema = JSON.parse(resolvedConfig?.file_data) || undefined;
-      } catch {
+        schema = JSON5.parse(resolvedConfig?.file_data) || undefined;
+      } catch (err) {
         // noop
+        console.warn(err);
       }
     }
 
@@ -1972,8 +1974,9 @@ export function findEditorSetting(
 
 function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {
   try {
-    return JSON.parse(config?.file_data || '{}') as T;
-  } catch (_err) {
+    return JSON5.parse<T>(config?.file_data || '{}');
+  } catch (err) {
+    console.warn(err);
     return {} as T;
   }
 }

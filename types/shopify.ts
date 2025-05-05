@@ -200,3 +200,49 @@ export interface ShopifyQueryParams {
 }
 
 export type ShopifyQueryParamsMap = ShopifyQueryParams[];
+
+export interface ShopifyLocale {
+  endonym_name: string;
+  iso_code: string;
+  name: string;
+  primary: boolean;
+  root_url: string;
+}
+
+export interface ShopifyCurrency {
+  iso_code: string;
+  name: string;
+  symbol: string;
+}
+
+export interface ShopifyMarket {
+  handle: string;
+  id: number;
+  metafields: Record<string, unknown>;
+}
+
+export interface ShopifyCountry {
+  available_languages: ShopifyLocale[];
+  continent:
+    | 'Africa'
+    | 'Asia'
+    | 'Central America'
+    | 'Europe'
+    | 'North America'
+    | 'Oceania'
+    | 'South America';
+  currency: ShopifyCurrency;
+  iso_code: string;
+  market: ShopifyMarket;
+  name: string;
+  'popular?': boolean;
+  unit_system: 'imperial' | 'metric';
+}
+
+export interface ShopifyLocalization {
+  available_countries: ShopifyCountry[];
+  available_languages: ShopifyLocale[];
+  country: ShopifyCountry;
+  language: ShopifyLocale;
+  market: ShopifyMarket;
+}

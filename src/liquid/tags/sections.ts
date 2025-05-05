@@ -1,4 +1,5 @@
 import { Tag } from 'liquidjs';
+import JSON5 from 'json5';
 
 import type { LiquidSwell } from '..';
 import type { ThemeSectionConfig } from 'types/swell';
@@ -35,7 +36,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       const themeConfig = yield liquidSwell.getThemeConfig(filePath);
 
       try {
-        const sectionGroup = JSON.parse(themeConfig.file_data);
+        const sectionGroup = JSON5.parse(themeConfig.file_data);
 
         const sectionConfigs = (yield liquidSwell.renderPageSections(
           sectionGroup,
@@ -59,8 +60,9 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
             })
             .join('')}</div>`,
         );
-      } catch (_err) {
+      } catch (err) {
         // noop
+        console.warn(err);
       }
     }
   };

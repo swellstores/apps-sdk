@@ -1,0 +1,51 @@
+import { Tag, TypeGuards } from 'liquidjs';
+
+import type { LiquidSwell } from '..';
+import type {
+  Liquid,
+  TagToken,
+  Parser,
+  Context,
+  Emitter,
+  Template,
+  TopLevelToken,
+} from 'liquidjs';
+import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
+
+// {% stylesheet %}
+
+export default function bind(_liquidSwell: LiquidSwell): TagClass {
+  return class StyleSheetTag extends Tag {
+    private templates: Template[];
+
+    constructor(
+      token: TagToken,
+      remainTokens: TopLevelToken[],
+      liquid: Liquid,
+      parser: Parser,
+    ) {
+      super(token, remainTokens, liquid);
+
+      this.templates = [];
+
+      while (remainTokens.length > 0) {
+        const token = remainTokens.shift() as TopLevelToken;
+
+        if (TypeGuards.isTagToken(token) && token.name === 'endstylesheet') {
+          return;
+        }
+
+        this.templates.push(parser.parseToken(token, remainTokens));
+      }
+
+      throw new Error(`tag ${token.getText()} not closed`);
+    }
+
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
+      const r = this.liquid.renderer;
+      const stylesheet = yield r.renderTemplates(this.templates, ctx);
+
+      emitter.write(`<style data-swell>${stylesheet}</style>`);
+    }
+  };
+}

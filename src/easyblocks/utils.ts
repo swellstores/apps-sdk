@@ -1,3 +1,5 @@
+import JSON5 from 'json5';
+
 import type { ShopifySectionSchema } from 'types/shopify';
 
 import type {
@@ -141,14 +143,15 @@ export async function getLayoutSectionGroups(
   for (const config of layoutSectionGroupConfigs) {
     let sectionGroup;
     try {
-      sectionGroup = JSON.parse(config.file_data) as ThemeSectionGroup;
+      sectionGroup = JSON5.parse<ThemeSectionGroup>(config.file_data);
       // Convert name to label if shopify format
       if (sectionGroup?.name) {
         sectionGroup.label = sectionGroup.name;
         delete sectionGroup.name;
       }
-    } catch {
+    } catch (err) {
       // noop
+      console.warn(err);
     }
 
     // Must have a type property
@@ -207,11 +210,12 @@ async function renderTemplateSchema(
     }
   } else if (config?.file_data) {
     try {
-      schema = (JSON.parse(config?.file_data) || undefined) as
-        | ThemeSectionSchemaData
-        | undefined;
-    } catch {
+      schema =
+        JSON5.parse<ThemeSectionSchemaData | undefined>(config?.file_data) ||
+        undefined;
+    } catch (err) {
       // noop
+      console.warn(err);
     }
   }
 
@@ -411,7 +415,7 @@ export function schemaToEasyblocksProps(
     case 'image':
       typeProps = {
         type: 'swell_image',
-        defaultValue: '', // Easyblocks requires an empty string for image fields
+        defaultValue: null,
       };
       break;
 

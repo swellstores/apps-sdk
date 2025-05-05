@@ -12,6 +12,7 @@ import render from './render';
 import section from './section';
 import sections from './sections';
 import style from './style';
+import stylesheet from './stylesheet';
 
 // Shopify compatibility only
 import include from './shopify/include';
@@ -37,6 +38,7 @@ export const tags = {
   // Shopify compatibility only
   include,
   schema,
+  stylesheet,
 
   // Swell only
   inline_editable,

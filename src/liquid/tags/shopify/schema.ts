@@ -1,6 +1,7 @@
 import { Tag } from 'liquidjs';
+import JSON5 from 'json5';
 
-import { LiquidSwell } from '../..';
+import type { LiquidSwell } from '../..';
 import type {
   Liquid,
   TagToken,
@@ -54,9 +55,10 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         liquidSwell.lastSchema = undefined;
 
         if (typeof jsonOutput === 'string') {
-          liquidSwell.lastSchema = JSON.parse(stripComments(jsonOutput));
+          liquidSwell.lastSchema = JSON5.parse(jsonOutput);
         }
-      } catch {
+      } catch (err) {
+        console.warn(err);
         liquidSwell.lastSchema = undefined;
       }
 
@@ -64,12 +66,4 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       return;
     }
   };
-}
-
-function stripComments(json: string): string {
-  // Thanks to json-easy-strip module for the regular expression
-  return json.replace(
-    /\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g,
-    (m, g) => (g ? '' : m),
-  );
 }
