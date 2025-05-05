@@ -27,14 +27,17 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       this.tokenizer.assert(this.key, 'expected variable name');
 
       this.tokenizer.skipBlank();
-
-      if (this.tokenizer.peek() !== '=') {
-        // Skip
-        return;
-      }
-
       this.tokenizer.advance();
-      this.value = new Value(this.tokenizer.readFilteredValue(), this.liquid);
+
+      try {
+        this.value = new Value(this.tokenizer.readFilteredValue(), this.liquid);
+      } catch (e) {
+        // Ignore the error and continue
+        console.warn(
+          `Liquid "assign" tag: ${e instanceof Error ? e.stack : String(e)}`,
+        );
+        this.value = undefined;
+      }
     }
 
     *render(ctx: Context): Generator<unknown, void, unknown> {

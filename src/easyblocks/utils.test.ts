@@ -953,7 +953,7 @@ describe('easyblocks/utils', () => {
 
       expect(result).toEqual({
         description: undefined,
-        defaultValue: '',
+        defaultValue: null,
         isLabelHidden: true,
         layout: 'column',
         params: { type: 'image', label: 'Test field' },

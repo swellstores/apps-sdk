@@ -43,6 +43,7 @@
     "cache-manager": "^6.3.2",
     "color": "^4.2.3",
     "country-flag-icons": "1.5.18",
+    "json5": "^2.2.3",
     "keyv": "^5.2.3",
     "liquidjs": "^10.21.0",
     "lodash": "^4.17.21",

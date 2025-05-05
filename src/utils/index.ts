@@ -1,5 +1,6 @@
 import qs from 'qs';
 import { cloneDeep, reduce } from 'lodash-es';
+import JSON5 from 'json5';
 
 import {
   StorefrontResource,
@@ -11,6 +12,7 @@ import { LANG_TO_COUNTRY_CODES } from '../constants';
 
 import type {
   SwellData,
+  SwellLocale,
   SwellThemeConfig,
   ThemeLayoutSectionGroupConfig,
   ThemePageSectionSchema,
@@ -176,14 +178,15 @@ export async function getLayoutSectionGroups(
   for (const config of sectionGroupConfigs) {
     let sectionGroup;
     try {
-      sectionGroup = JSON.parse(config.file_data) as ThemeSectionGroup;
+      sectionGroup = JSON5.parse<ThemeSectionGroup>(config.file_data);
       // Convert name to label if shopify format
       if (sectionGroup?.name) {
         sectionGroup.label = sectionGroup.name;
         delete sectionGroup.name;
       }
-    } catch {
+    } catch (err) {
       // noop
+      console.warn(err);
     }
 
     // Must have a type property
@@ -302,21 +305,28 @@ export function arrayToObject<
 }
 
 export function getCountryCodeFromLocale(locale: string): string {
-  const split = locale.toUpperCase().split(/-|_/);
-  const lang = split.shift() as string;
-  const country = split.pop();
-  let code = '';
+  const split = locale.split(/-|_/);
+  const country = split.pop()?.toUpperCase();
+  const lang = split.join('-');
 
-  if (country) code = country;
-  if (!country) code = LANG_TO_COUNTRY_CODES[lang.toLowerCase()] || '';
+  const code = country ? country : LANG_TO_COUNTRY_CODES[lang] || '';
 
   return code.toLowerCase();
+}
+
+export function isLikeSwellLocale(value: unknown): value is SwellLocale {
+  return (
+    isObject(value) &&
+    Object.hasOwn(value, 'code') &&
+    Object.hasOwn(value, 'name') &&
+    Object.hasOwn(value, 'fallback')
+  );
 }
 
 export function forEachKeyDeep(
   obj: Record<string, unknown>,
   fn: (key: string, value: unknown) => boolean | void,
-) {
+): void {
   if (typeof obj !== 'object' || obj === null) {
     return;
   }
@@ -350,7 +360,7 @@ export function findCircularReferences(value: object): unknown[] {
   return Array.from(references);
 }
 
-export function removeCircularReferences(value: object) {
+export function removeCircularReferences(value: object): object {
   if (!value) {
     return value;
   }
@@ -405,7 +415,7 @@ export async function resolveAsyncResources(
   response: unknown,
   resolveStorefrontResources: boolean = true,
   resolveWithResourceMetadata: boolean = false,
-) {
+): Promise<unknown> {
   let result = response;
   let nextResolveStorefrontResources = resolveStorefrontResources;
 

@@ -126,6 +126,12 @@ export interface SwellSettingsGeo {
   timezones: SwellSettingsGeoTimezone[];
 }
 
+export interface SwellLocale {
+  code: string;
+  name: string;
+  fallback?: string | null;
+}
+
 export interface SwellPageRequest {
   host: string;
   origin: string;
