@@ -181,7 +181,20 @@ export class StorefrontResource<T extends SwellData = SwellData> {
   }
 
   _setGetter(getter: StorefrontResourceGetter<T>): void {
-    this._getter = getter;
+    if (this._swell) {
+      // Use loading handler for editor indicator
+      this._getter = async (...args) => {
+        this._swell.isLoading(true);
+        const result = await getter.call(
+          this as unknown as SwellStorefrontResource<T>,
+          ...args,
+        );
+        this._swell.isLoading(false);
+        return result;
+      };
+    } else {
+      this._getter = getter;
+    }
     this._getterHash = md5(getter.toString());
   }
 
