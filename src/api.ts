@@ -59,6 +59,8 @@ export class Swell {
 
   public storefront_url?: string;
 
+  private resourceLoadingIndicator?: (loading: boolean) => void;
+
   constructor(params: SwellApiParams) {
     const {
       url,
@@ -84,9 +86,9 @@ export class Swell {
 
     this.workerEnv = workerEnv;
 
-    console.log(
-      `KV cache: ${this.workerEnv?.THEME ? 'enabled' : 'disabled'}`,
-    );
+    this.resourceLoadingIndicator = params.resourceLoadingIndicator;
+
+    console.log(`KV cache: ${this.workerEnv?.THEME ? 'enabled' : 'disabled'}`);
 
     if (serverHeaders) {
       const { headers, swellHeaders } = Swell.formatHeaders(serverHeaders);
@@ -267,7 +269,7 @@ export class Swell {
     return menus;
   }
 
-  getStorefrontLocalization(): { locale: string, currency: string; } {
+  getStorefrontLocalization(): { locale: string; currency: string } {
     const locale = this.storefront.locale.selected();
     const currency = this.storefront.currency.selected();
 
@@ -300,6 +302,15 @@ export class Swell {
     ...args: Parameters<SwellBackendAPI['delete']>
   ): Promise<T | undefined> {
     return this.backend?.delete(...args);
+  }
+
+  /**
+   * Sets a loading handler to be called when a storefront resource is loading.
+   */
+  public isLoading(loading: boolean = true) {
+    if (this.resourceLoadingIndicator) {
+      this.resourceLoadingIndicator(loading);
+    }
   }
 
   private getStorefrontInstance(params: SwellApiParams) {

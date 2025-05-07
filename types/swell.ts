@@ -35,6 +35,7 @@ export interface SwellApiParams {
     options: object | undefined,
     swell: Swell,
   ) => void;
+  resourceLoadingIndicator?: (isLoading: boolean) => void;
   [key: string]: unknown;
 }
 
