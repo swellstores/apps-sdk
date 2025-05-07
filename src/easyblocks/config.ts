@@ -493,7 +493,7 @@ function getAllSectionComponentTemplates(
             ...reduce(
               block.fields,
               (acc, field) => {
-                if (field.id && field.default !== undefined) {
+                if (field.id) {
                   acc[field.id] = schemaToEasyblocksValue(
                     block.fields,
                     field.id,
