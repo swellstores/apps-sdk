@@ -4,9 +4,6 @@ import { reduce } from 'lodash-es';
 import { SECTION_GROUP_CONTENT, getSectionGroupProp } from '../utils';
 
 import {
-  getAllSections,
-  getPageSections,
-  getLayoutSectionGroups,
   schemaToEasyblocksProps,
   schemaToEasyblocksValue,
   toEasyblocksFieldId,
@@ -32,7 +29,6 @@ import type {
   ThemePageSectionSchema,
   ThemeSectionConfig,
   ThemeSectionEnabledDisabled,
-  ThemeSectionGroup,
   ThemeSettingFieldSchema,
 } from 'types/swell';
 
@@ -41,31 +37,6 @@ import type {
 // as the Swell Theme Editor has its own logic for sections/blocks.
 // noInline=true disables the Easyblocks SelectionFrameController.
 const NO_INLINE = true;
-
-export async function getEasyblocksPropsFromThemeConfigs(
-  theme: SwellTheme,
-  themeConfigs: SwellThemeConfig[],
-  pageId: string,
-) {
-  const pageTemplate = await getEasyblocksPageTemplate<ThemeSectionGroup>(
-    theme,
-    pageId,
-  );
-
-  const allSections = await getAllSections(theme, themeConfigs);
-  const pageSections = await getPageSections(
-    theme,
-    pageTemplate as ThemeSectionGroup,
-  );
-  const layoutSectionGroups = await getLayoutSectionGroups(theme, themeConfigs);
-
-  return {
-    pageTemplate,
-    allSections,
-    pageSections,
-    layoutSectionGroups,
-  };
-}
 
 export async function getEasyblocksPageTemplate<T>(
   theme: SwellTheme,
@@ -83,7 +54,11 @@ export async function getEasyblocksPageTemplate<T>(
       return templateConfig.file_data;
     }
 
-    return JSON5.parse<T>(templateConfig.file_data);
+    try {
+      return JSON5.parse<T>(templateConfig.file_data) as T;
+    } catch {
+      return templateConfig.file_data;
+    }
   }
 }
 

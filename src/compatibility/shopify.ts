@@ -11,6 +11,7 @@ import {
   convertShopifySettingsData,
   convertShopifySettingsPresets,
   convertShopifySectionSchema,
+  convertShopifySectionGroup,
 } from './shopify-configs';
 import { shopifyFontToThemeFront } from './shopify-fonts';
 import {
@@ -29,8 +30,9 @@ import type {
   ThemeGlobals,
   ThemeSettings,
   ThemePresetSchema,
-  ThemeEditorSchema,
+  ThemeEditorConfigSchema,
   ThemeSectionSchemaData,
+  ThemeSectionGroup,
   ThemeLocaleConfig,
   SwellData,
   SwellMenu,
@@ -42,6 +44,7 @@ import type {
   ShopifySettingsData,
   ShopifySettingsSchema,
   ShopifySectionSchema,
+  ShopifySectionGroup,
   ShopifyPageResourceMap,
   ShopifyObjectResourceMap,
   ShopifyFormResourceMap,
@@ -395,7 +398,9 @@ ${injects.join('\n')}</script>`;
     return convertShopifySettingsPresets(settingsData);
   }
 
-  getEditorConfig(settingsSchema: ShopifySettingsSchema): ThemeEditorSchema {
+  getEditorConfig(
+    settingsSchema: ShopifySettingsSchema,
+  ): ThemeEditorConfigSchema {
     const { locale } = this.swell.getStorefrontLocalization();
     return convertShopifySettingsSchema(settingsSchema, locale);
   }
@@ -405,6 +410,11 @@ ${injects.join('\n')}</script>`;
   ): ThemeSectionSchemaData {
     const { locale } = this.swell.getStorefrontLocalization();
     return convertShopifySectionSchema(sectionSchema, locale);
+  }
+
+  getSectionGroup(sectionGroup: ShopifySectionGroup): ThemeSectionGroup {
+    const { locale } = this.swell.getStorefrontLocalization();
+    return convertShopifySectionGroup(sectionGroup, locale);
   }
 
   async getEditorLocaleConfig(

@@ -88,6 +88,9 @@ export class SwellTheme {
   public formData: Record<string, ThemeForm> = {};
   public globalData: SwellData = {};
 
+  // Swell-native theme settings if not using Shopify compatibility
+  public themeSettingFilePath = 'theme/config/theme.json';
+
   constructor(
     swell: Swell,
     options: {
@@ -669,6 +672,7 @@ export class SwellTheme {
       configs.theme = shopifyCompatibility().getThemeConfig(
         configs.settings_data,
       );
+      this.themeSettingFilePath = 'theme/config/settings_data.json';
     }
 
     if (!Object.keys(configs.presets).length && configs.settings_data) {
@@ -1025,6 +1029,18 @@ export class SwellTheme {
         result =
           JSON5.parse<Partial<ThemeSectionSchema>>(config.file_data) ||
           undefined;
+
+        if (this.shopifyCompatibility) {
+          result = this.shopifyCompatibility.getSectionConfigSchema(
+            result as ShopifySectionSchema,
+          );
+
+          result = await this.shopifyCompatibility.renderSchemaTranslations(
+            this,
+            result,
+            this.globals.store?.locale as string,
+          );
+        }
       } catch (err) {
         // noop
         console.warn(err);
@@ -1227,6 +1243,40 @@ export class SwellTheme {
     }
 
     return pageConfig;
+  }
+
+  getShopify1HomePageSectionGroup(): ThemeSectionGroup {
+    // Special case: Shopify 1.0 index page has section data in global theme settings
+    const themeSettings = this.globals.configs.theme || {};
+
+    return {
+      sections: themeSettings.sections || {},
+      // Section order is handled by `content_for_index`
+      // If undefined or empty we'll use natural attribute order
+      order: themeSettings.content_for_index || [],
+    };
+  }
+
+  async getShopify1HomePageSections(
+    resolveSettings: boolean = true,
+  ): Promise<ThemeSectionConfig[]> {
+    const sectionGroup = this.getShopify1HomePageSectionGroup();
+    return this.getPageSections(sectionGroup, resolveSettings);
+  }
+
+  async renderShopify1HomePage(pageContent: string): Promise<string> {
+    const sectionGroup = this.getShopify1HomePageSectionGroup();
+    const contentForIndex = await this.renderPageSections(sectionGroup);
+    return this.renderTemplateString(pageContent, {
+      content_for_index: contentForIndex,
+    });
+  }
+
+  isShopify1HomePage(
+    pageId: string,
+    pageContent: unknown,
+  ): pageContent is string {
+    return Boolean(pageId === 'index' && typeof pageContent === 'string');
   }
 
   async renderAllSections(
@@ -1506,7 +1556,7 @@ export class SwellTheme {
   }
 
   /**
-   * Get a list of section groups for a page.
+   * Get a list of sections and section groups in a page layout.
    *
    * Basically we should get these section groups: `header`, `content` and `footer`.
    * For now, section groups are searched for using regex in the page layout.
@@ -1537,38 +1587,28 @@ export class SwellTheme {
       return [];
     }
 
-    const localeConfig = await this.getThemeConfig(
-      'theme/locales/en.default.schema.json',
-    );
-
-    const localeSchema = parseJsonConfig(localeConfig);
-
     const layoutData = layoutConfig.file_data;
+
     const iterator = layoutData.matchAll(
       /\bsections '(\w.*?)'|(\bcontent_for_layout\b)/gm,
     );
-    const sections: ThemeSectionGroupInfo[] = [];
 
+    const sections: ThemeSectionGroupInfo[] = [];
     for (const match of iterator) {
       if (match[1]) {
-        // section group
-        const sectionFileName = match[1];
+        // Layout section group
+        const sectionFileName = match[1] || match[2];
+        const sectionSchema = await this.getSectionSchema(sectionFileName);
+        const sectionName = sectionSchema?.label || sectionFileName;
 
+        // Layout section group
         const sectionConfig = await this.getThemeTemplateConfigByType(
           'sections',
           `${sectionFileName}.json`,
         );
-
-        const sectionSchema = parseJsonConfig<ThemeSectionGroup>(sectionConfig);
-
-        let sectionName = sectionSchema.name;
-        if (typeof sectionName === 'string' && sectionName.startsWith('t:')) {
-          sectionName = get(localeSchema, sectionName.slice(2));
-        }
-
         sections.push({
           prop: getSectionGroupProp(sectionFileName),
-          label: sectionName || sectionFileName,
+          label: sectionName,
           source: sectionConfig?.file_path as string,
         });
       } else if (match[2]) {

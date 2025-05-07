@@ -111,7 +111,20 @@ export type ShopifySettingsSchema = ShopifySettingSection[];
 
 export interface ShopifySettingsData {
   current: Record<string, any> | string;
-  presets: Record<string, Record<string, any>>;
+  presets: Record<string, ShopifySettingsDataPreset>;
+}
+
+export interface ShopifySettingsDataPreset {
+  [key: string]: any;
+  sections?: Record<string, ShopifySettingsDataPresetSection>;
+  content_for_index?: string[];
+}
+
+export interface ShopifySettingsDataPresetSection {
+  type: string;
+  settings: Record<string, any>;
+  blocks?: Record<string, Record<string, any>>;
+  block_order?: string[];
 }
 
 export interface ShopifySectionBlockSchema {
@@ -138,7 +151,7 @@ export interface ShopifySectionGroupItem {
   blocks: Record<string, ShopifySectionBlockSchema>;
 }
 
-export interface ShopifySectionGroupSchema {
+export interface ShopifySectionGroup {
   name: string;
   type: string;
   sections: Record<string, ShopifySectionGroupItem>;

@@ -2,6 +2,7 @@ import { isObject } from '@/utils';
 
 import type {
   ShopifySectionBlockSchema,
+  ShopifySectionGroup,
   ShopifySectionPresetSchema,
   ShopifySectionSchema,
   ShopifySettingSchema,
@@ -12,9 +13,10 @@ import type {
 
 import type {
   ThemeBlockSchema,
-  ThemeEditorSchema,
+  ThemeEditorConfigSchema,
   ThemePresetSchema,
   ThemeSectionSchemaData,
+  ThemeSectionGroup,
   ThemeSettingFieldSchema,
   ThemeSettings,
   ThemeSettingSectionSchema,
@@ -23,8 +25,8 @@ import type {
 export function convertShopifySettingsSchema(
   settingsSchema: ShopifySettingsSchema,
   locale: string,
-): ThemeEditorSchema {
-  const editor: ThemeEditorSchema = {
+): ThemeEditorConfigSchema {
+  const editor: ThemeEditorConfigSchema = {
     settings: [],
   };
 
@@ -101,6 +103,20 @@ export function convertShopifySectionSchema(
   };
 
   return schema;
+}
+
+export function convertShopifySectionGroup(
+  sectionGroup: ShopifySectionGroup,
+  locale: string = 'en',
+): ThemeSectionGroup {
+  const group: ThemeSectionGroup = {
+    label: getLocalizedValue(sectionGroup.name, locale),
+    type: sectionGroup.type,
+    order: sectionGroup.order,
+    sections: sectionGroup.sections,
+  };
+
+  return group;
 }
 
 function shopifySchemaBlockToSwellBlockSchema(
