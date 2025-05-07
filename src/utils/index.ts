@@ -179,11 +179,6 @@ export async function getLayoutSectionGroups(
     let sectionGroup;
     try {
       sectionGroup = JSON5.parse<ThemeSectionGroup>(config.file_data);
-      // Convert name to label if shopify format
-      if (sectionGroup?.name) {
-        sectionGroup.label = sectionGroup.name;
-        delete sectionGroup.name;
-      }
     } catch (err) {
       // noop
       console.warn(err);
@@ -213,13 +208,15 @@ export async function getPageSections(
   sectionGroup: ThemeSectionGroup,
   getSchema: (type: string) => Promise<Partial<ThemeSectionSchema> | undefined>,
 ): Promise<ThemeSectionConfig[]> {
-  const order = Array.isArray(sectionGroup?.order)
-    ? sectionGroup.order
-    : Object.keys(sectionGroup?.sections || {});
+  // Use specified order or if undefined/empty use natural order
+  const order =
+    Array.isArray(sectionGroup?.order) && sectionGroup.order.length > 0
+      ? sectionGroup.order
+      : Object.keys(sectionGroup?.sections || {});
 
   const pageSections: ThemeSectionConfig[] = [];
   for (const key of order) {
-    const section: ThemeSection = sectionGroup.sections[key];
+    const section: ThemeSection = sectionGroup.sections?.[key];
 
     if (!section) {
       continue;

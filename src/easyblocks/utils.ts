@@ -1,6 +1,6 @@
 import JSON5 from 'json5';
 
-import type { ShopifySectionSchema } from 'types/shopify';
+import type { ShopifySectionSchema, ShopifySectionGroup } from 'types/shopify';
 
 import type {
   SwellThemeConfig,
@@ -144,10 +144,11 @@ export async function getLayoutSectionGroups(
     let sectionGroup;
     try {
       sectionGroup = JSON5.parse<ThemeSectionGroup>(config.file_data);
-      // Convert name to label if shopify format
-      if (sectionGroup?.name) {
-        sectionGroup.label = sectionGroup.name;
-        delete sectionGroup.name;
+
+      if (theme.shopifyCompatibility) {
+        sectionGroup = theme.shopifyCompatibility.getSectionGroup(
+          sectionGroup as ShopifySectionGroup,
+        );
       }
     } catch (err) {
       // noop
@@ -213,6 +214,12 @@ async function renderTemplateSchema(
       schema =
         JSON5.parse<ThemeSectionSchemaData | undefined>(config?.file_data) ||
         undefined;
+
+      if (theme.shopifyCompatibility) {
+        schema = theme.shopifyCompatibility.getSectionConfigSchema(
+          schema as unknown as ShopifySectionSchema,
+        );
+      }
     } catch (err) {
       // noop
       console.warn(err);

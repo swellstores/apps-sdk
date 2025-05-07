@@ -341,15 +341,24 @@ export interface ThemeGlobals extends SwellData {
 }
 
 export interface ThemeConfigs {
-  editor: ThemeEditorSchema;
+  editor: ThemeEditorConfigSchema;
   theme: ThemeSettings;
-  presets: ThemePresetSchema[];
+  presets: ThemePresetConfigSchema[];
   language: ThemeSettings;
   [key: string]: any;
 
   // Shopify compatibility
   settings_schema?: ShopifySettingsSchema;
   settings_data?: ShopifySettingsData;
+}
+
+export interface ThemeEditorConfigSchema {
+  settings?: ThemeSettingSectionSchema[];
+}
+
+export interface ThemePresetConfigSchema {
+  label: string;
+  settings?: ThemeSettings;
 }
 
 export interface ThemeResourceFactory {
@@ -376,11 +385,6 @@ export interface ThemeLocaleConfig {
   [key: string]: ThemeLocaleSection;
 }
 
-export interface ThemeEditorSchema {
-  settings?: ThemeSettingSectionSchema[];
-  menus?: any; // TODO menu schema?
-}
-
 export interface ThemeSection {
   id?: string;
   type: string;
@@ -394,7 +398,6 @@ export interface ThemeSection {
 interface ThemeSectionGroupBase {
   id?: string;
   type?: string;
-  name?: string;
   label?: string;
   order?: string[];
 }
