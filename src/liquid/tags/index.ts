@@ -2,6 +2,7 @@ import type { LiquidSwell } from '..';
 
 import assignTag from './assign';
 import caseTag from './case';
+import comment from './comment';
 import forTag from './for';
 import form from './form';
 import ifTag from './if';
@@ -24,6 +25,7 @@ import inline_editable from './inline_editable';
 export const tags = {
   assign: assignTag,
   case: caseTag,
+  comment,
   for: forTag,
   form,
   if: ifTag,

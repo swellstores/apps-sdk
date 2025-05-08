@@ -856,7 +856,7 @@ export class SwellTheme {
   }
 
   async getAllThemeConfigs(): Promise<Map<string, SwellThemeConfig>> {
-    if (!this.themeConfigs) {
+    if (this.themeConfigs === null) {
       const configs = await this.themeLoader.loadTheme();
 
       const configsByPath = new Map<string, SwellThemeConfig>();
@@ -1905,6 +1905,10 @@ export function resolveThemeSettings(
 
           return;
         }
+
+        case 'color':
+          settings[key] = ThemeColor.get(value as any);
+          return;
 
         default:
           break;
