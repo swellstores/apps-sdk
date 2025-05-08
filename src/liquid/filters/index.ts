@@ -37,11 +37,13 @@ import translate from './translate';
 import where from './where';
 
 // Shopify compatibility only
+import asset_img_url from './shopify/asset_img_url';
 import hex_to_rgba from './shopify/hex_to_rgba';
 import item_count_for_variant from './shopify/item_count_for_variant';
 import payment_button from './shopify/payment_button';
 import payment_terms from './shopify/payment_terms';
 import placeholder_svg_tag from './shopify/placeholder_svg_tag';
+import shopify_asset_url from './shopify/shopify_asset_url';
 
 // Swell only
 import inline_editable from './inline_editable';
@@ -97,11 +99,13 @@ export const filters = {
   where,
 
   // Shopify compatibility only
+  asset_img_url,
   hex_to_rgba,
   item_count_for_variant,
   payment_button,
   payment_terms,
   placeholder_svg_tag,
+  shopify_asset_url,
 
   // Swell only
   inline_editable,

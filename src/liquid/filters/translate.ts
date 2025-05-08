@@ -8,9 +8,10 @@ import type { LiquidSwell } from '..';
 export default function bind(liquidSwell: LiquidSwell): FilterHandler {
   return async function filterTranslate(
     key: string,
-    params?: any[],
+    params?: string[],
   ): Promise<string> {
     const props = params && paramsToProps(params);
-    return await liquidSwell.renderTranslation(key, props);
+    const str = await liquidSwell.renderTranslation(key, props);
+    return str.replace(/(?!\\)"/g, '&#34;').replace(/(?!\\)'/g, '&#39;');
   };
 }

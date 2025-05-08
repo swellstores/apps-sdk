@@ -1,4 +1,5 @@
 import Color from 'color';
+import { Drop } from 'liquidjs';
 
 export type ColorParam =
   | Color
@@ -7,7 +8,7 @@ export type ColorParam =
   | number
   | Record<string, unknown>;
 
-export class ThemeColor {
+export class ThemeColor extends Drop {
   public color: Color;
   public colorValues: ColorParam;
   public red: number;
@@ -15,6 +16,8 @@ export class ThemeColor {
   public blue: number;
 
   constructor(value: ThemeColor | string) {
+    super();
+
     try {
       this.color = isThemeColorLike(value)
         ? typeof value.color.object === 'function' // ensure we have this required method
@@ -50,6 +53,10 @@ export class ThemeColor {
 
   toString(): string {
     return this.color.string();
+  }
+
+  valueOf(): string {
+    return this.toString();
   }
 
   lighten(percent: number): string {

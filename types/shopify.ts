@@ -259,3 +259,102 @@ export interface ShopifyLocalization {
   language: ShopifyLocale;
   market: ShopifyMarket;
 }
+
+export interface ShopifyFocalPoint {
+  x: number;
+  y: number;
+}
+
+export interface ShopifyImagePresentation {
+  focal_point: ShopifyFocalPoint;
+}
+
+export interface ShopifyImage {
+  id: number;
+  src: string;
+  alt: string;
+  media_type: string;
+  preview_image?: ShopifyImage;
+  presentation?: ShopifyImagePresentation;
+  aspect_ratio: number;
+  'attached_to_variant?'?: boolean;
+  width: number;
+  height: number;
+  position: number;
+  product_id?: number;
+  variants: object[];
+}
+
+export interface ShopifyAddress {
+  id: number;
+  address1: string;
+  address2?: string;
+  city: string;
+  company?: string;
+  country: ShopifyCountry;
+  country_code: string;
+  first_name: string | null;
+  last_name: string | null;
+  name: string;
+  phone: string;
+  province: string;
+  province_code: string;
+  street: string;
+  summary: string;
+  url: string;
+  zip: string;
+}
+
+export interface ShopifyBrand {
+  colors: object;
+  cover_image: ShopifyImage;
+  favicon_url: ShopifyImage;
+  logo: ShopifyImage;
+  metafields: Record<string, unknown>;
+  short_description: string;
+  slogan: string;
+  square_logo: ShopifyImage;
+}
+
+export interface ShopifyShop {
+  accepts_gift_cards: boolean;
+  address: ShopifyAddress;
+  brand: ShopifyBrand;
+  collections_count: number;
+  currency: string;
+  customer_accounts_enabled: boolean;
+  customer_accounts_optional: boolean;
+  description: string;
+  domain: string;
+  email: string;
+  enabled_currencies: ShopifyCurrency[];
+  /** @deprecated */
+  enabled_locales: ShopifyLocale[];
+  enabled_payment_types: string[];
+  id: number;
+  /** @deprecated */
+  locale: string;
+  metafields: Record<string, unknown>;
+  /** @deprecated */
+  metaobjects: Record<string, unknown>;
+  money_format: string;
+  money_with_currency_format: string;
+  name: string;
+  password_message: string;
+  permanent_domain: string;
+  phone: string;
+  policies: object[];
+  privacy_policy: object | null;
+  products_count: number;
+  published_locales: ShopifyLocale[];
+  refund_policy: object | null;
+  secure_url: string;
+  shipping_policy: object | null;
+  subscription_policy: object | null;
+  /** @deprecated */
+  taxes_included: boolean;
+  terms_of_service: object | null;
+  types: string[];
+  url: string;
+  vendors: string[];
+}
