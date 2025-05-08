@@ -18,7 +18,7 @@ export default function ShopifyShop(
 ): DeferredShopifyShop {
   const currency = store.currencies.find(
     (currency: any) => currency.code === store.currency,
-  );
+  ) ?? { code: 'USD', symbol: '$', name: 'US Dollar' };
 
   return {
     accepts_gift_cards: true, // TODO
