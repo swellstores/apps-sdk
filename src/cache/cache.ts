@@ -16,8 +16,11 @@ export type CreateCacheOptions = OriginalCreateCacheOptions & {
 
 export const CF_KV_NAMESPACE = 'THEME';
 
+const DEFAULT_TTL = 5 * 1000; // 5s
+const DEFAULT_SWR_TTL = 1000 * 60 * 60 * 24 * 7; // 1 week
+
 const DEFAULT_OPTIONS: CreateCacheOptions = Object.freeze({
-  ttl: 1000 * 60 * 60 * 24, // 1 day
+  ttl: DEFAULT_TTL,
 });
 
 // Value used to indicate null to differentiate between actual null values and unset cache keys
@@ -49,7 +52,11 @@ export class Cache {
 
   // Fetch cache using SWR (stale-while-revalidate)
   // This will always return the cached value immediately if exists
-  async fetchSWR<T>(key: string, fetchFn: () => T | Promise<T>): Promise<T> {
+  async fetchSWR<T>(
+    key: string,
+    fetchFn: () => T | Promise<T>,
+    ttl: number = DEFAULT_SWR_TTL,
+  ): Promise<T> {
     const cacheValue = await this.client.get(key);
 
     // Update cache asynchronously
@@ -59,7 +66,7 @@ export class Cache {
         // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
         const isNull = value === null || value === undefined;
         const valueResolved = await resolveAsyncResources(value);
-        await this.client.set(key, isNull ? NULL_VALUE : valueResolved);
+        await this.client.set(key, isNull ? NULL_VALUE : valueResolved, ttl);
         return value;
       });
 
