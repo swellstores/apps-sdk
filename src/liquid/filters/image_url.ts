@@ -14,12 +14,14 @@ async function getImageObjectFromInput(input: unknown): Promise<unknown> {
       return input.images[0];
     }
 
-    return (
-      input.image ||
-      // Shopify specific
-      input.preview_image ||
-      ''
-    );
+    if (input.image) {
+      return input.image;
+    }
+
+    // Shopify specific
+    if (input.preview_image) {
+      return input.preview_image;
+    }
   }
 
   return input;
