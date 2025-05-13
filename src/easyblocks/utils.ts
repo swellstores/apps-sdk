@@ -330,6 +330,7 @@ export function schemaToEasyblocksProps(
 
     case 'basic_html':
     case 'rich_text':
+    case 'rich_text_pre_heading':
     case 'rich_html':
     case 'markdown':
       typeProps = {
