@@ -312,6 +312,12 @@ function shopifySchemaSettingToSwellSettingField(
       };
       break;
 
+    case 'inline_richtext_pre_heading':
+      swellProps = {
+        type: 'rich_text_pre_heading',
+      };
+      break;
+
     case 'link_list':
       swellProps = {
         type: 'menu',

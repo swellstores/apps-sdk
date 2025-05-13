@@ -28,6 +28,7 @@ export type ShopifySpecializedInputType =
   | 'html'
   | 'image_picker'
   | 'inline_richtext'
+  | 'inline_richtext_pre_heading'
   | 'link_list'
   | 'liquid'
   | 'page'
