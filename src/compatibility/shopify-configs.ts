@@ -9,6 +9,7 @@ import type {
   ShopifySettingsData,
   ShopifySettingSection,
   ShopifySettingsSchema,
+  PlatformCustomizations,
 } from 'types/shopify';
 
 import type {
@@ -51,20 +52,33 @@ export function convertShopifySettingsSchema(
 export function convertShopifySettingsData(
   settingsData: ShopifySettingsData,
 ): ThemeSettings {
+  const settingsCustomizations = settingsData.platform_customizations as
+    | PlatformCustomizations
+    | undefined;
+  const customCss = settingsCustomizations?.custom_css || [];
+
   // Current may refer to a preset
   if (
     typeof settingsData.current === 'string' &&
     settingsData.presets?.[settingsData.current]
   ) {
-    return settingsData.presets[settingsData.current];
+    return {
+      ...settingsData.presets[settingsData.current],
+      custom_css: customCss,
+    };
   }
 
   if (typeof settingsData.current === 'object') {
     // Shopify's current settings in the first object
-    return settingsData.current || {};
+    return {
+      ...(settingsData.current || {}),
+      custom_css: customCss,
+    };
   }
 
-  return {};
+  return {
+    custom_css: customCss,
+  };
 }
 
 export function convertShopifySettingsPresets(
@@ -401,7 +415,7 @@ function shopifySchemaSettingToSwellSettingField(
   }
 
   return {
-    ...setting, // Include swell-specific properties
+    ...setting,
     id: setting.id,
     label: getLocalizedValue(setting.label, locale),
     default:

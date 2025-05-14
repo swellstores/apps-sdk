@@ -98,6 +98,9 @@ describe('SwellTheme', () => {
           field4: 'old4',
         },
         presets: {},
+        platform_customizations: {
+          custom_css: [],
+        },
       };
 
       const settings = theme.updateSettings(form, config);
@@ -110,6 +113,9 @@ describe('SwellTheme', () => {
           field4: 'old4',
         },
         presets: {},
+        platform_customizations: {
+          custom_css: [],
+        },
       });
     });
 
@@ -138,6 +144,9 @@ describe('SwellTheme', () => {
             field4: 'old4',
           },
         },
+        platform_customizations: {
+          custom_css: [],
+        },
       };
 
       const settings = theme.updateSettings(form, config);
@@ -151,6 +160,9 @@ describe('SwellTheme', () => {
             field3: 'old3',
             field4: 'old4',
           },
+        },
+        platform_customizations: {
+          custom_css: [],
         },
       });
     });

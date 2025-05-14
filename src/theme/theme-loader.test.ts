@@ -32,7 +32,13 @@ describe('#loadThemeFromManifest', () => {
       url: new URL('https://storefront.app'),
     });
 
+    jest.spyOn(swell, 'get').mockImplementation(async () => null);
+
     loader = new ThemeLoader(swell);
+
+    jest
+      .spyOn(loader.getCache(), 'fetchSWR')
+      .mockImplementation(async () => null);
 
     // Reset the theme cache.
     await loader.getCache().flushAll();
@@ -60,7 +66,7 @@ describe('#loadThemeFromManifest', () => {
       }
     });
 
-    const theme = await loader.loadThemeFromManifest();
+    const theme = await loader.loadTheme();
 
     expect(theme).toEqual(configs);
 
@@ -96,7 +102,7 @@ describe('#loadThemeFromManifest', () => {
       loader.getCache().set('config:b', configs[1]),
     ]);
 
-    const theme = await loader.loadThemeFromManifest();
+    const theme = await loader.loadTheme();
     expect(theme).toEqual(configs);
   });
 
@@ -122,7 +128,7 @@ describe('#loadThemeFromManifest', () => {
       }
     });
 
-    const theme = await loader.loadThemeFromManifest();
+    const theme = await loader.loadTheme();
 
     expect(theme).toEqual(configs);
 
@@ -182,7 +188,13 @@ describe('#preloadTheme', () => {
       url: new URL('https://storefront.app'),
     });
 
+    jest.spyOn(swell, 'get').mockImplementation(async () => null);
+
     loader = new ThemeLoader(swell);
+
+    jest
+      .spyOn(loader.getCache(), 'fetchSWR')
+      .mockImplementation(async () => null);
 
     // Reset the theme cache.
     await loader.getCache().flushAll();
