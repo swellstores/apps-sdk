@@ -9,7 +9,11 @@ const tsconfig = JSON.parse(
 export default {
   clearMocks: true,
   moduleFileExtensions: ['ts', 'js'],
-  moduleNameMapper: pathsToModuleNameMapper(tsconfig.compilerOptions.paths),
+  moduleNameMapper: {
+    ...pathsToModuleNameMapper(tsconfig.compilerOptions.paths),
+    '^swell-js$': '<rootDir>/src/__mocks__/swell-js.js',
+    '^swell-js/(.*)$': '<rootDir>/src/__mocks__/swell-js/$1',
+  },
   modulePaths: [tsconfig.compilerOptions.baseUrl],
   restoreMocks: true,
   roots: ['<rootDir>/src'],

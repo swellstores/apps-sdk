@@ -113,6 +113,7 @@ export type ShopifySettingsSchema = ShopifySettingSection[];
 export interface ShopifySettingsData {
   current: Record<string, any> | string;
   presets: Record<string, ShopifySettingsDataPreset>;
+  platform_customizations: PlatformCustomizations;
 }
 
 export interface ShopifySettingsDataPreset {
@@ -171,6 +172,10 @@ export interface ShopifySectionSchema {
   blocks?: ShopifySectionBlockSchema[];
   presets?: ShopifySectionPresetSchema[];
   default?: ShopifySectionPresetSchema;
+}
+
+export interface PlatformCustomizations {
+  custom_css?: string[];
 }
 
 export interface ShopifyPageResource {

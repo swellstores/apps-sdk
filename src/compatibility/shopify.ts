@@ -183,11 +183,33 @@ export class ShopifyCompatibility {
   ) {
     const { current, presets } = config;
 
+    const customCssValue = form.custom_css?.value;
+    const customCssArray =
+      typeof customCssValue === 'string'
+        ? [customCssValue]
+        : Array.isArray(customCssValue)
+          ? customCssValue
+          : [];
+
+    // If current is undefined, return empty object with platform customizations
+    if (typeof current === 'undefined') {
+      return {
+        current: {},
+        presets: presets || {},
+        platform_customizations: {
+          custom_css: customCssArray,
+        },
+      };
+    }
+
     // `current` can be a preset object
     if (typeof current === 'object' && current) {
       return {
         current: extractSettingsFromForm(form, current),
         presets,
+        platform_customizations: {
+          custom_css: customCssArray,
+        },
       };
     }
 
@@ -205,6 +227,9 @@ export class ShopifyCompatibility {
       presets: {
         ...presets,
         [current]: extractSettingsFromForm(form, preset),
+      },
+      platform_customizations: {
+        custom_css: customCssArray,
       },
     };
   }
