@@ -59,6 +59,12 @@ export class Cache {
   ): Promise<T> {
     const cacheValue = await this.client.get(key);
 
+    console.log('Cache.fetchSWR', {
+      key,
+      ttl,
+      cacheValue: Boolean(cacheValue),
+    });
+
     // Update cache asynchronously
     const promiseValue = Promise.resolve()
       .then(() => fetchFn())

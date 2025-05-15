@@ -406,7 +406,10 @@ export class Swell {
       if (this.isStorefrontRequestCacheable(method, url, opt)) {
         return this.getRequestCache().fetchSWR<T>(
           getCacheKey('request', [this.instanceId, method, url, id, data, opt]),
-          () => storefrontRequest<T>(method, url, id, data, opt),
+          () => {
+            console.log('Storefront request', { method, url, id, data });
+            return storefrontRequest<T>(method, url, id, data, opt);
+          },
         );
       }
 
