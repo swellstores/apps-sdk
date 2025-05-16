@@ -62,7 +62,7 @@ export class Cache {
     console.log('Cache.fetchSWR', {
       key,
       ttl,
-      cacheValue: Boolean(cacheValue),
+      cacheValue,
     });
 
     // Update cache asynchronously
@@ -75,7 +75,7 @@ export class Cache {
         console.log('Cache.fetchSWR result', {
           key,
           value: Boolean(value),
-          valueResolved: Boolean(valueResolved),
+          valueResolved,
         });
         await this.client.set(key, isNull ? NULL_VALUE : valueResolved, ttl);
         return value;

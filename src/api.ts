@@ -192,7 +192,7 @@ export class Swell {
     handler: () => T | Promise<T>,
   ): Promise<T | undefined> {
     const cacheKey = getCacheKey(key, [this.instanceId, args]);
-    return this.getResourceCache().fetchSWR<T>(cacheKey, handler);
+    return this.getResourceCache().fetch<T>(cacheKey, handler);
   }
 
   async getAppSettings(): Promise<SwellData> {
