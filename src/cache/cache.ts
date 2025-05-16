@@ -63,12 +63,6 @@ export class Cache {
   ): Promise<T> {
     const cacheValue = await this.client.get(key);
 
-    console.log('Cache.fetchSWR', {
-      key,
-      ttl,
-      cacheValue,
-    });
-
     // Update cache asynchronously
     const promiseValue = Promise.resolve()
       .then(() => fetchFn())
@@ -76,18 +70,12 @@ export class Cache {
         // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
         const isNull = value === null || value === undefined;
         const valueResolved = await resolveAsyncResources(value);
-        console.log('Cache.fetchSWR result', {
-          key,
-          value: Boolean(value),
-          valueResolved,
-        });
         await this.client.set(key, isNull ? NULL_VALUE : valueResolved, ttl);
         return value;
       });
 
     // Make the worker wait until the promise is resolved if possible
     if (this.workerCtx?.waitUntil) {
-      console.log('Cache.fetchSWR waitUntil', { key })
       this.workerCtx.waitUntil(promiseValue);
     }
 
