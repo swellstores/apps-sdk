@@ -217,7 +217,7 @@ export class SwellTheme {
       ...Array.from(settingConfigs.values()).reduce(
         (acc, config) => {
           const configName = String(config?.name || '').split('.')[0];
-          if (configName) {
+          if (configName && config?.file_data) {
             let configValue: unknown;
             try {
               configValue = JSON5.parse<unknown>(config.file_data);
