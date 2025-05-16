@@ -72,6 +72,11 @@ export class Cache {
         // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
         const isNull = value === null || value === undefined;
         const valueResolved = await resolveAsyncResources(value);
+        console.log('Cache.fetchSWR result', {
+          key,
+          value: Boolean(value),
+          valueResolved: Boolean(valueResolved),
+        });
         await this.client.set(key, isNull ? NULL_VALUE : valueResolved, ttl);
         return value;
       });
