@@ -27,6 +27,7 @@ export interface SwellApiParams {
   serverHeaders?: Headers | Record<string, string | undefined>; // Required on the server
   queryParams?: URLSearchParams | Record<string, string | undefined>;
   workerEnv?: CFThemeEnv;
+  workerCtx?: CFWorkerContext;
   isEditor?: boolean;
   getCookie?: (name: string) => string | undefined;
   setCookie?: (
@@ -795,4 +796,9 @@ export interface CFWorkerKV {
 
 export interface CFThemeEnv {
   THEME?: CFWorkerKV;
+}
+
+export interface CFWorkerContext {
+  waitUntil(promise: Promise<any>): void;
+  passThroughOnException(): void;
 }

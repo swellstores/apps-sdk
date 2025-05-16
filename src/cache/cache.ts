@@ -8,10 +8,11 @@ import {
 import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
 import { resolveAsyncResources } from '../utils';
 
-import type { CFWorkerKV } from 'types/swell';
+import type { CFWorkerKV, CFWorkerContext } from 'types/swell';
 
 export type CreateCacheOptions = OriginalCreateCacheOptions & {
   kvStore?: CFWorkerKV;
+  workerCtx?: CFWorkerContext;
 };
 
 export const CF_KV_NAMESPACE = 'THEME';
@@ -33,9 +34,12 @@ const NULL_VALUE = '__NULL__';
  */
 export class Cache {
   private client: CacheManager;
+  private workerCtx?: CFWorkerContext;
 
   constructor(options?: CreateCacheOptions) {
     options = options || {};
+
+    this.workerCtx = options.workerCtx;
 
     // default cache store is memory-store
     options.stores = options.stores || buildStores(options.kvStore);
@@ -80,6 +84,12 @@ export class Cache {
         await this.client.set(key, isNull ? NULL_VALUE : valueResolved, ttl);
         return value;
       });
+
+    // Make the worker wait until the promise is resolved if possible
+    if (this.workerCtx?.waitUntil) {
+      console.log('Cache.fetchSWR waitUntil', { key })
+      this.workerCtx.waitUntil(promiseValue);
+    }
 
     if (cacheValue !== null) {
       return cacheValue === NULL_VALUE ? (null as T) : (cacheValue as T);

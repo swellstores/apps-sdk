@@ -11,6 +11,7 @@ import type {
   SwellMenu,
   SwellData,
   CFThemeEnv,
+  CFWorkerContext,
   SwellAppShopifyCompatibilityConfig,
 } from '../types/swell';
 import { isLikePromise } from './liquid/utils';
@@ -27,6 +28,7 @@ export class Swell {
   public headers: Record<string, string | undefined>;
   public swellHeaders: Record<string, string | undefined>;
   public queryParams: qs.ParsedQs;
+  public workerCtx?: CFWorkerContext;
   public workerEnv?: CFThemeEnv;
 
   // Represents the swell.json app config
@@ -71,6 +73,7 @@ export class Swell {
       serverHeaders,
       queryParams,
       workerEnv,
+      workerCtx,
       ...clientProps
     } = params;
 
@@ -84,6 +87,7 @@ export class Swell {
       queryParams || this.url.searchParams,
     );
 
+    this.workerCtx = workerCtx;
     this.workerEnv = workerEnv;
 
     this.resourceLoadingIndicator = params.resourceLoadingIndicator;
@@ -192,7 +196,7 @@ export class Swell {
     handler: () => T | Promise<T>,
   ): Promise<T | undefined> {
     const cacheKey = getCacheKey(key, [this.instanceId, args]);
-    return this.getResourceCache().fetch<T>(cacheKey, handler);
+    return this.getResourceCache().fetchSWR<T>(cacheKey, handler);
   }
 
   async getAppSettings(): Promise<SwellData> {
@@ -437,7 +441,10 @@ export class Swell {
   private getResourceCache(): Cache {
     let cache = resourceCaches.get(this.instanceId);
     if (!cache) {
-      cache = new ResourceCache({ kvStore: this.workerEnv?.THEME });
+      cache = new ResourceCache({
+        kvStore: this.workerEnv?.THEME,
+        workerCtx: this.workerCtx
+      });
       resourceCaches.set(this.instanceId, cache);
     }
     return cache;
@@ -449,7 +456,10 @@ export class Swell {
   private getRequestCache(): Cache {
     let cache = requestCaches.get(this.instanceId);
     if (!cache) {
-      cache = new RequestCache({ kvStore: this.workerEnv?.THEME });
+      cache = new RequestCache({
+        kvStore: this.workerEnv?.THEME,
+        workerCtx: this.workerCtx
+      });
       requestCaches.set(this.instanceId, cache);
     }
     return cache;
