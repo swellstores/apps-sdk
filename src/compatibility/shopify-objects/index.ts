@@ -1,4 +1,4 @@
-import { ShopifyCompatibility } from '@/compatibility/shopify';
+import type { ShopifyCompatibility } from '@/compatibility/shopify';
 import type { ThemeFont } from '@/liquid/font';
 import type { ThemeForm } from '@/liquid/form';
 

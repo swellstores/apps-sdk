@@ -269,6 +269,10 @@ export type StorefrontResourceGetter<T extends SwellData = SwellData> = (
   this: SwellStorefrontResource<T>,
 ) => Promise<T | null> | T | null;
 
+export type StorefrontCollectionGetter<
+  T extends SwellCollection = SwellCollection,
+> = (this: SwellStorefrontCollection<T>) => Promise<T | null> | T | null;
+
 export interface ThemeSettings {
   [key: string]: any;
 }

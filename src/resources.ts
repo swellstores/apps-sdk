@@ -12,6 +12,7 @@ import type {
   InferSwellCollection,
   SwellCollectionPages,
   StorefrontResourceGetter,
+  StorefrontCollectionGetter,
 } from '../types/swell';
 
 export const MAX_QUERY_PAGE_LIMIT = 100;
@@ -343,9 +344,9 @@ export class SwellStorefrontCollection<
     swell: Swell,
     collection: string,
     query: SwellData = {},
-    getter?: StorefrontResourceGetter<T>,
+    getter?: StorefrontCollectionGetter<T>,
   ) {
-    super(swell, collection, getter);
+    super(swell, collection, getter as StorefrontResourceGetter<T>);
 
     this._query = this._initQuery(query);
 

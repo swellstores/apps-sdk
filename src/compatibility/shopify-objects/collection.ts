@@ -10,7 +10,7 @@ import ShopifyFilter from './filter';
 import type { SwellCollection, SwellRecord } from 'types/swell';
 
 interface ShopifyProductCollection {
-  products?: SwellStorefrontCollection;
+  products?: SwellStorefrontCollection | SwellCollection;
 }
 
 export default function ShopifyCollection(
@@ -24,20 +24,37 @@ export default function ShopifyCollection(
   const productResults = deferWith(
     category,
     (category: ShopifyProductCollection) => {
-      return (
-        category.products?._cloneWithCompatibilityResult((products) => {
+      if (category.products) {
+        if (category.products instanceof SwellStorefrontCollection) {
+          return (
+            category.products?._cloneWithCompatibilityResult((products) => {
+              return {
+                ...products,
+                results: products?.results?.map((product) =>
+                  ShopifyProduct(instance, product),
+                ),
+              };
+            }) ?? null
+          );
+        }
+
+        if (Array.isArray(category.products?.results)) {
           return {
-            results: products?.results?.map((product) =>
-              ShopifyProduct(instance, product),
+            ...category.products,
+            results: category.products.results.map(
+              (product) =>
+                ShopifyProduct(instance, product) as unknown as SwellRecord,
             ),
           };
-        }) ?? null
-      );
+        }
+      }
+
+      return null;
     },
   );
 
   async function productsResolved(): Promise<
-    SwellCollection | null | undefined
+    SwellCollection<SwellRecord> | null | undefined
   > {
     const resolved = await productResults.resolve();
 

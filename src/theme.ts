@@ -745,7 +745,7 @@ export class SwellTheme {
 
   resolveLookupSetting(
     setting: ThemeSettingFieldSchema,
-    value: any,
+    value: unknown,
   ): SwellData | SwellStorefrontRecord | SwellStorefrontCollection | null {
     if (value instanceof StorefrontResource) {
       return value;
@@ -755,13 +755,13 @@ export class SwellTheme {
 
     if (collection) {
       if (setting.multiple) {
-        if (value instanceof Array) {
+        if (Array.isArray(value)) {
           return value.map((id: string) =>
             this.resolveLookupResource(collection, id),
           );
         }
       } else if (value !== '' && value !== null && value !== undefined) {
-        return this.resolveLookupResource(collection, value);
+        return this.resolveLookupResource(collection, value as string);
       }
     }
 
@@ -894,7 +894,7 @@ export class SwellTheme {
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
-    if (this.themeConfigs) {
+    if (this.themeConfigs !== null) {
       return this.themeConfigs.get(filePath) ?? null;
     }
 

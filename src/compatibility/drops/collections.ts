@@ -1,27 +1,36 @@
 import { Drop } from 'liquidjs';
 
+import { isObject } from '@/utils';
+import { isLikePromise } from '@/liquid/utils';
 import { SwellStorefrontRecord, SwellStorefrontCollection } from '@/resources';
 
-import { ShopifyCollection, ShopifyResource } from '../shopify-objects';
+import {
+  ShopifyCollection,
+  ShopifyProduct,
+  ShopifyResource,
+} from '../shopify-objects';
 
-import type { Swell } from '@/api';
 import type { ShopifyCompatibility } from '../shopify';
-import type { SwellData, SwellRecord } from '../../../types/swell';
+import type {
+  SwellCollection,
+  SwellData,
+  SwellRecord,
+} from '../../../types/swell';
 
 // TODO: remove this once backend is implemented for "all"
 class AllCategoryResource<
   T extends SwellData = SwellRecord,
 > extends SwellStorefrontRecord<T> {
-  constructor(swell: Swell) {
-    super(swell, 'categories', 'all', {}, () => {
-      const category = {
+  constructor(instance: ShopifyCompatibility) {
+    super(instance.swell, 'categories', 'all', {}, () => {
+      const category: SwellData = {
         id: 'all',
         slug: 'all',
         name: 'Products',
-        products: new SwellStorefrontCollection(swell, 'products'),
-      } as unknown as T;
+        products: new SwellStorefrontProducts(instance, { $variants: true }),
+      };
 
-      return category;
+      return category as T;
     });
   }
 }
@@ -48,8 +57,10 @@ export default class CollectionsDrop extends Drop {
           if (resource === undefined) {
             resource = ShopifyCollection(
               this.#instance,
-              new AllCategoryResource(this.#instance.swell),
+              new AllCategoryResource(this.#instance),
             );
+
+            this.#map.set(key, resource);
           }
 
           return resource;
@@ -62,6 +73,10 @@ export default class CollectionsDrop extends Drop {
         if (key !== null) {
           const obj = key as Record<string, unknown>;
           const id = (obj.handle || obj.id || obj._id) as string;
+
+          if (isLikePromise(id)) {
+            return id.then((id) => this.getCollection(id as string));
+          }
 
           return this.getCollection(id);
         }
@@ -80,8 +95,10 @@ export default class CollectionsDrop extends Drop {
     if (resource === undefined) {
       resource = ShopifyCollection(
         this.#instance,
-        new SwellStorefrontRecord(this.#instance.swell, 'categories', slug),
+        new SwellStorefrontCategory(this.#instance, slug),
       );
+
+      this.#map.set(slug, resource);
     }
 
     return resource;
@@ -111,11 +128,60 @@ export default class CollectionsDrop extends Drop {
         .list()
         .then((res) => {
           return res.results.map((category) =>
-            ShopifyCollection(this.#instance, category as SwellRecord),
+            ShopifyCollection(
+              this.#instance,
+              new SwellStorefrontCategory(this.#instance, category.slug),
+            ),
           );
         });
     }
 
     return this.#categories.values();
+  }
+}
+
+class SwellStorefrontCategory extends SwellStorefrontRecord<SwellData> {
+  constructor(instance: ShopifyCompatibility, id: string, query?: SwellData) {
+    super(instance.swell, 'categories', id, query, async () => {
+      const category = new SwellStorefrontRecord(
+        instance.swell,
+        'categories',
+        id,
+        query,
+      );
+
+      const record = await category.resolve();
+
+      if (isObject(record) && record.id) {
+        record.products = new SwellStorefrontProducts(instance, {
+          category: record.id,
+          $variants: true,
+        });
+      }
+
+      return record;
+    });
+  }
+}
+
+class SwellStorefrontProducts extends SwellStorefrontCollection<
+  SwellCollection<SwellRecord>
+> {
+  constructor(instance: ShopifyCompatibility, query?: SwellData) {
+    super(instance.swell, 'products', query, async function () {
+      const result = await this._defaultGetter().call(this);
+
+      if (!result) {
+        return result;
+      }
+
+      return {
+        ...result,
+        results: result.results.map(
+          (product) =>
+            ShopifyProduct(instance, product) as unknown as SwellRecord,
+        ),
+      };
+    });
   }
 }

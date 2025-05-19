@@ -11,12 +11,12 @@ import type {
 import type { SwellData, SwellRecord } from 'types/swell';
 
 export class ShopifyResource {
-  props: Record<string, unknown>;
+  props: Record<string | symbol, unknown>;
   stringProp?: string;
   linkProps?: string[];
 
   constructor(
-    props: Record<string, any>,
+    props: Record<string | symbol, any>,
     stringProp?: string,
     linkProps?: string[],
   ) {
@@ -25,7 +25,7 @@ export class ShopifyResource {
     this.linkProps = linkProps;
 
     return new Proxy(props, {
-      get(target, prop: string) {
+      get(target, prop: string | symbol, receiver) {
         const instance = target;
 
         switch (prop) {
@@ -49,6 +49,12 @@ export class ShopifyResource {
             }
 
             break;
+          }
+
+          case Symbol.toPrimitive: {
+            return () => {
+              return this.get?.(instance, stringProp || 'handle', receiver);
+            };
           }
 
           default:
