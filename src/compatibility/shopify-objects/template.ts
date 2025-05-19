@@ -8,9 +8,12 @@ export default function ShopifyTemplate(
   _instance: ShopifyCompatibility,
   template: SwellData,
 ) {
-  return new ShopifyResource({
-    directory: template.path,
-    name: template.name,
-    suffix: template.alt_name,
-  }, 'name');
+  return new ShopifyResource(
+    {
+      directory: template.path,
+      name: template.name,
+      suffix: template.alt_name,
+    },
+    'name',
+  );
 }
