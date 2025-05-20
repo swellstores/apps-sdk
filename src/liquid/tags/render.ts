@@ -33,7 +33,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         .getComponentPath(filepath)
         .then((fileName) =>
           liquidSwell.getThemeConfig(fileName),
-        )) as SwellThemeConfig;
+      )) as SwellThemeConfig;
 
       const childCtx = ctx.spawn();
       const scope = childCtx.bottom() as any;

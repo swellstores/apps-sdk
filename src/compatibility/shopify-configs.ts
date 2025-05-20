@@ -249,7 +249,7 @@ function shopifySchemaSettingToSwellSettingField(
     case 'article':
       swellProps = {
         type: 'lookup',
-        collection: 'content/blogs',
+        collection: 'content/blogs:posts',
         titleField: 'title',
       };
       break;
@@ -271,6 +271,28 @@ function shopifySchemaSettingToSwellSettingField(
     case 'collection_list':
       swellProps = {
         type: 'category_lookup',
+        multiple: true,
+        limit: setting.limit,
+      };
+      break;
+
+    case 'page':
+      swellProps = {
+        type: 'lookup',
+        collection: 'content/pages',
+        titleField: 'title',
+      };
+      break;
+
+    case 'product':
+      swellProps = {
+        type: 'product_lookup',
+      };
+      break;
+
+    case 'product_list':
+      swellProps = {
+        type: 'product_lookup',
         multiple: true,
         limit: setting.limit,
       };
@@ -341,28 +363,6 @@ function shopifySchemaSettingToSwellSettingField(
     case 'liquid':
       swellProps = {
         type: 'liquid',
-      };
-      break;
-
-    case 'page':
-      swellProps = {
-        type: 'lookup',
-        collection: 'content/pages',
-        titleField: 'title',
-      };
-      break;
-
-    case 'product':
-      swellProps = {
-        type: 'product_lookup',
-      };
-      break;
-
-    case 'product_list':
-      swellProps = {
-        type: 'product_lookup',
-        multiple: true,
-        limit: setting.limit,
       };
       break;
 
