@@ -115,9 +115,17 @@ export interface SwellSettingsGeoState extends SwellSettingsGeoItem {
   country: string;
 }
 
-export type SwellSettingsGeoTimezone = SwellSettingsGeoItem;
+export interface SwellSettingsStoreCurrency extends SwellSettingsGeoItem {
+  code: string;
+}
+
+export interface SwellSettingsStoreLocale extends SwellSettingsGeoItem {
+  code: string;
+}
+
 export type SwellSettingsGeoCurrency = SwellSettingsGeoItem;
 export type SwellSettingsGeoLocale = SwellSettingsGeoItem;
+export type SwellSettingsGeoTimezone = SwellSettingsGeoItem;
 
 export interface SwellSettingsGeo {
   id: 'geo';
@@ -328,7 +336,7 @@ export interface ThemeSwellPage
 export type ThemePage = ThemeSwellPage | ThemeCustomPage;
 
 export interface ThemeGlobals extends SwellData {
-  store: SwellData;
+  store: ThemeStore;
   settings: ThemeSettings;
   session: SwellData;
   request: SwellPageRequest;
@@ -343,6 +351,20 @@ export interface ThemeGlobals extends SwellData {
   canonical_url: string;
   shopify_compatibility: boolean;
   [key: string]: any;
+}
+
+export interface ThemeStore {
+  id: string;
+  name: string;
+  currency: string;
+  currencies?: SwellSettingsStoreCurrency[];
+  country: string;
+  locale: string;
+  locales?: SwellSettingsStoreLocale[];
+  support_email: string;
+  support_phone?: string;
+  public_key: string;
+  url: string;
 }
 
 export interface ThemeConfigs {

@@ -34,6 +34,7 @@ import type {
 } from '../types/shopify';
 import type {
   ThemeGlobals,
+  ThemeStore,
   ThemeConfigs,
   ThemeSettings,
   ThemeResources,
@@ -196,7 +197,7 @@ export class SwellTheme {
   }
 
   async getSettingsAndConfigs(): Promise<{
-    store: SwellData;
+    store: ThemeStore;
     session: SwellData;
     menus: Record<string, SwellMenu | undefined>;
     geo: SwellSettingsGeo;
@@ -254,7 +255,7 @@ export class SwellTheme {
     const menus = await this.resolveMenuSettings();
 
     return {
-      store: storefrontSettings?.store,
+      store: storefrontSettings?.store as ThemeStore,
       session,
       menus,
       geo,
