@@ -466,7 +466,6 @@ export type ThemeSettingAliasInputType =
   | 'text'
   | 'textarea'
   | 'rich_text'
-  | 'rich_text_pre_heading'
   | 'asset'
   | 'phone'
   | 'email'
