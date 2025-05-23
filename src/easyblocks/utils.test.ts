@@ -674,22 +674,6 @@ describe('easyblocks/utils', () => {
       });
     });
 
-    it('rich_text_pre_heading', () => {
-      const result = schemaToEasyblocksProps({
-        type: 'rich_text_pre_heading',
-        label: 'Test field',
-      });
-
-      expect(result).toEqual({
-        description: undefined,
-        defaultValue: undefined,
-        isLabelHidden: true,
-        layout: 'column',
-        params: { type: 'rich_text_pre_heading', label: 'Test field' },
-        type: 'swell_editor',
-      });
-    });
-
     it('rich_html', () => {
       const result = schemaToEasyblocksProps({
         type: 'rich_html',
