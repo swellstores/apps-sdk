@@ -116,7 +116,7 @@ function getOptions(product: any, variant: any) {
   return deferWith([product, variant], (product: any, variant: any) => {
     const optionValuesById = product.options?.reduce(
       (acc: any, option: any) => {
-        for (const value of option.values) {
+        for (const value of option.values || []) {
           if (!acc[value.id]) {
             acc[value.id] = value.name;
           }
@@ -136,7 +136,7 @@ function getOptionByIndex(product: any, variant: any, index: number) {
   return deferWith([product, variant], (product: any, variant: any) => {
     const optionValuesById = product.options?.reduce(
       (acc: any, option: any) => {
-        for (const value of option.values) {
+        for (const value of option.values || []) {
           if (!acc[value.id]) {
             acc[value.id] = value.name;
           }
