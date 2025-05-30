@@ -1,64 +1,65 @@
-import { StorefrontResource } from '../../resources';
-
-import { ShopifyCompatibility } from '../shopify';
-
+import { StorefrontResource, cloneStorefrontResource } from '@/resources';
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyImage from './image';
 
+import type { ShopifyCompatibility } from '../shopify';
 import type { SwellRecord } from 'types/swell';
+import type { ShopifyArticle } from 'types/shopify';
 
 export default function ShopifyArticle(
   instance: ShopifyCompatibility,
   blog: StorefrontResource | SwellRecord,
   blogCategory?: StorefrontResource | SwellRecord,
-) {
+): ShopifyResource<ShopifyArticle> {
   if (blog instanceof ShopifyResource) {
-    return blog.clone();
+    return blog.clone() as ShopifyResource<ShopifyArticle>;
+  }
+
+  if (blog instanceof StorefrontResource) {
+    blog = cloneStorefrontResource(blog);
   }
 
   if (blogCategory) {
+    if (blogCategory instanceof StorefrontResource) {
+      blogCategory = cloneStorefrontResource(blogCategory);
+    }
+
     blog.category = blogCategory;
   }
 
-  return new ShopifyResource({
-    author: deferWith(
-      blog,
-      (blog: any) => blog.author?.name || blog.author?.email,
-    ),
-    content: deferWith(blog, (blog: any) => blog.content),
+  return new ShopifyResource<ShopifyArticle>({
+    author: deferWith(blog, (blog) => blog.author?.name || blog.author?.email),
+    content: defer(() => blog.content),
     created_at: defer(() => blog.date_created),
     excerpt: defer(() => blog.summary),
-    excerpt_or_content: defer(() => blog.summary || blog.content),
+    excerpt_or_content: deferWith(blog, (blog) => blog.summary || blog.content),
     handle: defer(() => blog.slug),
-    id: deferWith(blog, (blog: any) => blog.id),
-    image: deferWith(
-      blog,
-      (blog: any) => blog.image && ShopifyImage(instance, blog.image),
+    id: defer(() => blog.id),
+    image: deferWith(blog, (blog) =>
+      blog.image ? ShopifyImage(instance, blog.image) : undefined,
     ),
-    metafields: null,
+    metafields: {},
     published_at: deferWith(
       blog,
-      (blog: any) => blog.date_published || blog.date_created,
+      (blog) => blog.date_published || blog.date_created,
     ),
-    tags: deferWith(blog, (blog: any) => blog.tags),
-    template_suffix: null, // TODO
-    title: deferWith(blog, (blog: any) => blog.title),
+    tags: defer(() => blog.tags),
+    template_suffix: undefined, // TODO
+    title: defer(() => blog.title),
     updated_at: deferWith(
       blog,
-      (blog: any) => blog.date_updated || blog.date_created,
+      (blog) => blog.date_updated || blog.date_created,
     ),
-    url: deferWith(
-      [blog, blog.category],
-      (blog: any, blogCategory: any) =>
-        blogCategory && `/blogs/${blogCategory?.slug}/${blog.slug}`,
+    url: deferWith([blog, blog.category], (blog, blogCategory) =>
+      blogCategory ? `/blogs/${blogCategory?.slug}/${blog.slug}` : '',
     ),
     user: defer(() => blog.author),
 
     // Comments not supported
-    comment_post_url: null,
-    comments: null,
-    comments_count: null,
+    comment_post_url: '',
+    comments: [],
+    comments_count: 0,
     'comments_enabled?': false,
-    moderated: false,
+    'moderated?': false,
   });
 }

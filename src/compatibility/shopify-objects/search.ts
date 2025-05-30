@@ -1,8 +1,9 @@
-import { ShopifyCompatibility } from '../shopify';
-import { StorefrontResource } from '../../resources';
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 import ShopifyFilter from './filter';
+
+import type { StorefrontResource } from '@/resources';
+import type { ShopifyCompatibility } from '../shopify';
 
 export default function ShopifySearch(
   instance: ShopifyCompatibility,
@@ -12,7 +13,7 @@ export default function ShopifySearch(
     return search.clone();
   }
 
-  const productResults = deferWith(search, (search: any) => {
+  const productResults = deferWith(search, (search) => {
     return (
       search.products?._cloneWithCompatibilityResult((products: any) => {
         return {
@@ -29,7 +30,7 @@ export default function ShopifySearch(
   return new ShopifyResource({
     default_sort_by: deferWith(
       search,
-      (search: any) => search.sort_options?.[0].value,
+      (search) => search.sort_options?.[0].value,
     ),
     filters: defer(async () => {
       const products = await productResults.resolve();
@@ -39,13 +40,13 @@ export default function ShopifySearch(
         ) || []
       );
     }),
-    performed: deferWith(search, (search: any) => search.performed),
+    performed: defer(() => search.performed),
     results: productResults,
     results_count: defer(
       async () => (await productResults.resolve())?.count || 0,
     ),
     sort_by: defer(() => search.sort),
-    sort_options: deferWith(search, (search: any) => search.sort_options),
+    sort_options: defer(() => search.sort_options),
     terms: defer(() => search.query),
     types: ['product'],
   });

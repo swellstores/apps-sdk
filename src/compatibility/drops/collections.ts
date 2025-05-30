@@ -16,6 +16,7 @@ import type {
   SwellData,
   SwellRecord,
 } from '../../../types/swell';
+import type { ShopifyCollection as ShopifyCollectionType } from 'types/shopify';
 
 // TODO: remove this once backend is implemented for "all"
 class AllCategoryResource<
@@ -37,9 +38,9 @@ class AllCategoryResource<
 
 export default class CollectionsDrop extends Drop {
   #instance: ShopifyCompatibility;
-  #categories?: ShopifyResource[];
+  #categories?: ShopifyResource<ShopifyCollectionType>[];
   #size: number;
-  #map: Map<string, ShopifyResource>;
+  #map: Map<string, ShopifyResource<ShopifyCollectionType>>;
 
   constructor(instance: ShopifyCompatibility) {
     super();
@@ -89,7 +90,7 @@ export default class CollectionsDrop extends Drop {
     }
   }
 
-  getCollection(slug: string): ShopifyResource {
+  getCollection(slug: string): ShopifyResource<ShopifyCollectionType> {
     let resource = this.#map.get(slug);
 
     if (resource === undefined) {

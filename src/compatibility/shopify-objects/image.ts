@@ -1,48 +1,42 @@
-import { StorefrontResource } from '../../resources';
-
-import { ShopifyCompatibility } from '../shopify';
-
 import { ShopifyResource, defer, deferWith } from './resource';
 
+import type { ShopifyCompatibility } from '../shopify';
+import type { StorefrontResource } from '@/resources';
 import type { SwellData, SwellRecord } from 'types/swell';
+import type { ShopifyImage } from 'types/shopify';
+
+interface ShopifyImageOptions {
+  media_type?: 'image';
+  position?: number;
+  product_id?: number;
+}
 
 export default function ShopifyImage(
   _instance: ShopifyCompatibility,
   image: SwellData,
+  options: ShopifyImageOptions = {},
   product?: StorefrontResource | SwellRecord,
   variant?: StorefrontResource | SwellRecord, // TODO
-) {
+): ShopifyResource<ShopifyImage> {
   if (image instanceof ShopifyResource) {
-    return image.clone();
+    return image.clone() as ShopifyResource<ShopifyImage>;
   }
 
-  return new ShopifyResource({
-    alt: deferWith(image, (image: any) => image.alt || product?.name),
-    aspect_ratio: 1,
-    'attached_to_variant?': true,
-    height: defer(() => image.height),
-    id: deferWith(image, (image: any) => image.file?.id),
-    media_type: 'image',
-    position: null,
-    presentation: { focal_point: null }, // x, y
-    preview_image: defer(() => image.file),
-    product_id: defer(() => product?.id),
-    src: deferWith(
-      image,
-      async (image: any) => image.file && ShopifyImageSrc(image.file),
+  return new ShopifyResource<ShopifyImage>({
+    alt: deferWith(image, (image) => image.alt || product?.name),
+    aspect_ratio: deferWith(image, (image) =>
+      image.width && image.height ? image.width / image.height : 1,
     ),
-    variants: null, // TODO
+    'attached_to_variant?': Boolean(variant),
+    height: defer(() => image.height),
+    id: deferWith(image, (image) => image.file?.id),
+    media_type: options.media_type,
+    position: options.position ?? undefined,
+    // presentation: { focal_point: { x: 0, y: 0 } },
+    preview_image: undefined,
+    product_id: options.product_id ?? undefined,
+    src: deferWith(image, (image) => image.file?.url),
+    variants: undefined, // TODO
     width: defer(() => image.width),
   });
-}
-
-export function ShopifyImageSrc(file: SwellData) {
-  return new ShopifyResource(
-    {
-      url: file.url,
-      width: file.width,
-      height: file.height,
-    },
-    'url',
-  );
 }

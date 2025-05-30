@@ -1,25 +1,26 @@
 import { isObject } from 'lodash-es';
 
-import { stringifyQueryParams } from '../../utils';
-
-import { ShopifyCompatibility } from '../shopify';
+import { stringifyQueryParams } from '@/utils';
 
 import { ShopifyResource } from './resource';
 
+import type { ShopifyCompatibility } from '../shopify';
 import type {
   QueryParams,
   SwellProductFilter,
   SwellProductFilterOption,
 } from 'types/swell';
+import type { ShopifyFilter, ShopifyFilterValue } from 'types/shopify';
 
 export default function ShopifyFilter(
   instance: ShopifyCompatibility,
   filter: SwellProductFilter,
-) {
+): ShopifyResource<ShopifyFilter> {
   const isRange = filter.type === 'range';
   const isBoolean = filter.type === 'boolean';
+  const isList = !isRange && !isBoolean;
 
-  return new ShopifyResource({
+  return new ShopifyResource<ShopifyFilter>({
     active_values: !isRange
       ? filter.active_options?.map((option) =>
           ShopifyFilterValue(instance, option, filter),
@@ -42,7 +43,7 @@ export default function ShopifyFilter(
       : undefined,
     operator: isRange ? 'AND' : 'OR',
     param_name: filter.param_name,
-    presentation: 'text', // TODO: image, swatch
+    presentation: isList ? 'text' : undefined, // TODO: image, swatch
     range_max: filter.range_max,
     true_value: isBoolean
       ? ShopifyFilterValue(
@@ -51,14 +52,13 @@ export default function ShopifyFilter(
           filter,
         )
       : undefined,
-    type:
-      filter.id === 'price' ? 'price_range' : isBoolean ? 'boolean' : 'list',
+    type: isRange ? 'price_range' : isBoolean ? 'boolean' : 'list',
     url_to_remove: removeFilterFromUrl(instance, `filter_${filter.id}`, true),
-    values:
-      filter.id !== 'price' &&
-      filter.options?.map((option) =>
-        ShopifyFilterValue(instance, option, filter),
-      ),
+    values: !isRange
+      ? filter.options?.map((option) =>
+          ShopifyFilterValue(instance, option, filter),
+        )
+      : undefined,
   });
 }
 
@@ -67,18 +67,18 @@ export function ShopifyFilterValue(
   filterOption: SwellProductFilterOption,
   filter: SwellProductFilter,
   paramSuffix?: string,
-) {
+): ShopifyResource<ShopifyFilterValue> {
   const paramName = paramSuffix
     ? `${filter.param_name}[${paramSuffix}]`
     : filter.param_name;
 
-  return new ShopifyResource({
-    active: filterOption.active,
-    count: filterOption.count,
-    image: null, // TODO when we support images in options
-    label: filterOption.label,
+  return new ShopifyResource<ShopifyFilterValue>({
+    active: filterOption.active ?? false,
+    count: filterOption.count ?? 0,
+    image: undefined, // TODO when we support images in options
+    label: filterOption.label ?? '',
     param_name: paramName,
-    swatch: null, // TODO when we support swatches
+    swatch: undefined, // TODO when we support swatches
     url_to_add: addFilterValueToUrl(
       instance,
       paramName,
@@ -89,7 +89,12 @@ export function ShopifyFilterValue(
       filter.param_name,
       filterOption.value as string,
     ),
-    value: filterOptionValue(instance, filterOption, filter, paramSuffix),
+    value: filterOptionValue(
+      instance,
+      filterOption,
+      filter,
+      paramSuffix,
+    ) as string,
   });
 }
 
@@ -134,7 +139,7 @@ function removeFilterFromUrl(
   instance: ShopifyCompatibility,
   paramName: string,
   isRange: boolean = false,
-) {
+): string {
   const { queryParams } = instance.swell;
 
   const queryString = stringifyQueryParams({
@@ -153,7 +158,7 @@ function removeFilterValueFromUrl(
   instance: ShopifyCompatibility,
   paramName: string,
   value: string,
-) {
+): string {
   const { queryParams } = instance.swell;
 
   const queryString = stringifyQueryParams({
@@ -171,7 +176,7 @@ function addFilterValueToUrl(
   instance: ShopifyCompatibility,
   paramName: string,
   value: string,
-) {
+): string {
   const { queryParams } = instance.swell;
 
   const queryString = stringifyQueryParams({
@@ -190,7 +195,7 @@ function addFilterValueToUrl(
 function urlWithQueryString(
   instance: ShopifyCompatibility,
   queryString: string,
-) {
+): string {
   const { url } = instance.swell;
   return `${url.pathname}${queryString ? `?${queryString}` : ''}`;
 }

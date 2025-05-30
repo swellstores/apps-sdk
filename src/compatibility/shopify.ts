@@ -725,7 +725,7 @@ ${injects.join('\n')}</script>`;
               object: shopifyObject as (
                 shopify: ShopifyCompatibility,
                 value: StorefrontResource<SwellData>,
-              ) => ShopifyResource,
+              ) => ShopifyResource<SwellData>,
             };
           }),
         });
@@ -753,7 +753,7 @@ ${injects.join('\n')}</script>`;
           object: shopifyObject as (
             shopify: ShopifyCompatibility,
             value: StorefrontResource<SwellData>,
-          ) => ShopifyResource,
+          ) => ShopifyResource<SwellData>,
         });
       },
       new Map() as ShopifyObjectResourceMap,
