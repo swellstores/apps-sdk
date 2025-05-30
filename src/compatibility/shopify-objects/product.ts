@@ -8,6 +8,7 @@ import ShopifyImage from './image';
 import ShopifyMedia from './media';
 
 import type { SwellData, SwellRecord } from 'types/swell';
+import { isObject } from '@/utils';
 
 export default function ShopifyProduct(
   instance: ShopifyCompatibility,
@@ -326,4 +327,13 @@ export function getSelectedVariantOptionValues(
   }
 
   return values;
+}
+
+export function isLikeShopifyProduct(
+  value: unknown,
+): value is typeof ShopifyProduct {
+  return (
+    isObject(value) &&
+    Object.hasOwn(value, 'selected_or_first_available_variant')
+  );
 }

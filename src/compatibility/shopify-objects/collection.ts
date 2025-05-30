@@ -3,7 +3,7 @@ import { StorefrontResource, SwellStorefrontCollection } from '../../resources';
 import { ShopifyCompatibility } from '../shopify';
 
 import { ShopifyResource, defer, deferWith } from './resource';
-import ShopifyProduct from './product';
+import ShopifyProduct, { isLikeShopifyProduct } from './product';
 import ShopifyImage from './image';
 import ShopifyFilter from './filter';
 
@@ -124,10 +124,9 @@ export default function ShopifyCollection(
     products: defer(async () => {
       const results = (await productsResolved())?.results;
       return results?.map((product) => {
-        if (product.selected_or_first_available_variant) {
-          return product;
-        }
-        return ShopifyProduct(instance, product);
+        return isLikeShopifyProduct(product)
+          ? product
+          : ShopifyProduct(instance, product);
       });
     }),
     products_count: defer(
