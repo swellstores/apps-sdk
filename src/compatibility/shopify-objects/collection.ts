@@ -123,7 +123,12 @@ export default function ShopifyCollection(
     previous_product: null,
     products: defer(async () => {
       const results = (await productsResolved())?.results;
-      return results?.map((product) => ShopifyProduct(instance, product));
+      return results?.map((product) => {
+        if (product.selected_or_first_available_variant) {
+          return product;
+        }
+        return ShopifyProduct(instance, product);
+      });
     }),
     products_count: defer(
       async () => (await productsResolved())?.results?.length || 0,
