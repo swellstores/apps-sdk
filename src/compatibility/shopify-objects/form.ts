@@ -1,6 +1,8 @@
-import { ShopifyCompatibility } from '../shopify';
-import { ThemeForm } from '../../liquid/form';
 import { ShopifyResource } from './resource';
+
+import type { ThemeForm } from '@/liquid/form';
+import type { ShopifyCompatibility } from '../shopify';
+import type { ShopifyFormObject } from 'types/shopify';
 
 const SHOPIFY_FORMS = {
   account_login: {
@@ -13,16 +15,16 @@ const SHOPIFY_FORMS = {
 export default function ShopifyForm(
   _instance: ShopifyCompatibility,
   form: ThemeForm,
-): ShopifyResource {
+): ShopifyResource<ShopifyFormObject> {
   if (form instanceof ShopifyResource) {
-    return form.clone();
+    return form.clone() as ShopifyResource<ShopifyFormObject>;
   }
 
   const shopifyForm = (SHOPIFY_FORMS as any)[form.id];
 
-  return new ShopifyResource({
+  return new ShopifyResource<ShopifyFormObject>({
     ...(shopifyForm?.params?.(form) || undefined),
-    errors: form.errors && new ShopifyFormErrors(form.errors),
+    errors: form.errors ? new ShopifyFormErrors(form.errors) : undefined,
     'posted_successfully?': form.success,
   });
 }
@@ -69,7 +71,7 @@ export class ShopifyFormErrors {
   public translated_fields: ShopifyFormErrorArrayByType;
 
   constructor(errors: any) {
-    this.errors = Array.from(errors as any).map(
+    this.errors = Array.from(errors).map(
       (error: any) => new ShopifyFormError(error),
     );
 
@@ -85,7 +87,7 @@ export class ShopifyFormErrors {
 
     return new Proxy(this.errors as any, {
       get: (target, prop) => {
-        const instance = target as any;
+        const instance = target;
 
         if (prop === 'toJSON') {
           return this.errors;
@@ -130,7 +132,7 @@ export class ShopifyFormErrorArrayByType {
 
     return new Proxy(values, {
       get: (target, prop) => {
-        const instance = target as any;
+        const instance = target;
 
         if (prop === 'toJSON') {
           return values;

@@ -443,7 +443,7 @@ export class Swell {
     if (!cache) {
       cache = new ResourceCache({
         kvStore: this.workerEnv?.THEME,
-        workerCtx: this.workerCtx
+        workerCtx: this.workerCtx,
       });
       resourceCaches.set(this.instanceId, cache);
     }
@@ -458,7 +458,7 @@ export class Swell {
     if (!cache) {
       cache = new RequestCache({
         kvStore: this.workerEnv?.THEME,
-        workerCtx: this.workerCtx
+        workerCtx: this.workerCtx,
       });
       requestCaches.set(this.instanceId, cache);
     }

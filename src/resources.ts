@@ -36,7 +36,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 
   _getProxy(): StorefrontResource<T> {
     return new Proxy(this, {
-      get(target, prop: any): any {
+      get(target, prop: string): unknown {
         const instance = target;
 
         switch (prop) {
@@ -76,7 +76,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
             }
           }
 
-          return instance[prop as any];
+          return instance[prop];
         }
 
         // Get resource result if not yet fetched
@@ -98,7 +98,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
             .then(() => {
               return instance._getCollectionResultOrProp(instance, prop);
             })
-            .catch((err: any) => {
+            .catch((err: unknown) => {
               console.log(err);
               return null;
             });
@@ -107,7 +107,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
         return instance._getCollectionResultOrProp(instance, prop);
       },
 
-      set(target, prop: any, value: any): boolean {
+      set(target, prop: string, value: unknown): boolean {
         target[prop] = value;
         return true;
       },
@@ -131,7 +131,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
   _getCollectionResultOrProp(
     instance: StorefrontResource<T>,
     prop: string | number,
-  ) {
+  ): unknown {
     if (instance._result && Array.isArray(instance._result.results)) {
       const record =
         instance._result.results.find(
@@ -162,7 +162,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
       );
 
       return Promise.resolve()
-        .then(() => getter())
+        .then(getter)
         .then((result) => {
           this._result = result;
 
@@ -201,7 +201,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 
   async _resolve() {
     if (this._result === undefined) {
-      return this._get();
+      this._result = this._get() as unknown as T;
     }
 
     return this._result;
@@ -215,15 +215,12 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     resolveStorefrontResources: boolean = true,
     resourceMetadata: boolean = false,
   ) {
-    const combined = {};
-
     const result = await this._resolve();
     if (result === null) {
       return null;
     }
 
-    Object.assign(combined, result);
-    Object.assign(combined, this._compatibilityProps);
+    const combined = Object.assign({}, result, this._compatibilityProps);
 
     return resolveAsyncResources(
       combined,
@@ -237,10 +234,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
       return null;
     }
 
-    const combined = {};
-
-    Object.assign(combined, this._result);
-    Object.assign(combined, this._compatibilityProps);
+    const combined = Object.assign({}, this._result, this._compatibilityProps);
 
     return combined;
   }
@@ -266,6 +260,32 @@ export class StorefrontResource<T extends SwellData = SwellData> {
   >(prop: T): StorefrontResource['_compatibilityProps'][T] {
     return this._compatibilityProps[prop];
   }
+}
+
+/**
+ * Clone the resource without compatibility properties.
+ *
+ * Compatibility properties cause a bug with hanging promises when we retrieve properties from `StorefrontResource`.
+ * This is due to the cyclic retrieval of properties in `StorefrontResource`.
+ *
+ * First we request a property from `_compatibilityProps`,
+ * and then `_compatibilityProps` requests a property from `StorefrontResource` via a deferred handler.
+ */
+export function cloneStorefrontResource<T extends SwellData = SwellData>(
+  input: StorefrontResource<T>,
+): StorefrontResource<T> {
+  const resourceName = input._resourceName as string;
+  const clone = new StorefrontResource(input._getter);
+
+  Object.defineProperty(clone.constructor, 'name', {
+    value: resourceName,
+  });
+
+  Object.defineProperty(clone, '_resourceName', {
+    value: resourceName,
+  });
+
+  return clone;
 }
 
 export class SwellStorefrontResource<
@@ -329,7 +349,7 @@ export class SwellStorefrontResource<
 }
 
 export class SwellStorefrontCollection<
-  T extends SwellCollection = SwellCollection,
+  T extends SwellCollection<SwellData> = SwellCollection<SwellData>,
 > extends SwellStorefrontResource<T> {
   public length: number = 0;
   public results?: InferSwellCollection<T>[];
@@ -389,13 +409,17 @@ export class SwellStorefrontCollection<
   }
 
   async _get(query: SwellData = {}): Promise<T | null | undefined> {
+    const { currency, locale } = this._swell.getStorefrontLocalization();
+
     this._query = {
       ...this._query,
       ...query,
+      $currency: currency,
+      $locale: locale,
     };
 
     if (this._getter) {
-      const getter = this._getter;
+      const getter = this._getter.bind(this);
 
       this._result = this._swell
         .getCachedResource(
@@ -406,9 +430,7 @@ export class SwellStorefrontCollection<
             this._swell.queryParams,
             this._getterHash,
           ],
-          async () => {
-            return getter.call(this);
-          },
+          getter,
         )
         .then((result?: T | null) => {
           this._result = result;
@@ -465,9 +487,9 @@ export class SwellStorefrontCollection<
     return cloned;
   }
 
-  _cloneWithCompatibilityResult(
-    compatibilityGetter: (result: T) => SwellData,
-  ): SwellStorefrontCollection<T> {
+  _cloneWithCompatibilityResult<
+    R extends SwellCollection<SwellData> = SwellCollection<SwellData>,
+  >(compatibilityGetter: (result: T) => R): SwellStorefrontCollection<R> {
     const originalGetter = this._getter;
 
     const cloned = this._clone({
@@ -500,7 +522,7 @@ export class SwellStorefrontCollection<
       }
     }
 
-    return cloned;
+    return cloned as unknown as SwellStorefrontCollection<R>;
   }
 }
 
@@ -555,7 +577,7 @@ export class SwellStorefrontRecord<
     };
 
     if (this._getter) {
-      const getter = this._getter;
+      const getter = this._getter.bind(this);
 
       this._result = this._swell
         .getCachedResource(
@@ -567,9 +589,7 @@ export class SwellStorefrontRecord<
             this._swell.queryParams,
             this._getterHash,
           ],
-          async () => {
-            return getter.call(this);
-          },
+          getter,
         )
         .then((result?: T | null) => {
           this._result = result;
@@ -580,7 +600,7 @@ export class SwellStorefrontRecord<
 
           return result;
         })
-        .catch((err: any) => {
+        .catch((err: unknown) => {
           console.log(err);
           return null;
         }) as unknown as T;
@@ -634,10 +654,10 @@ export class SwellStorefrontSingleton<
 
   async _get() {
     if (this._getter) {
-      const getter = this._getter;
+      const getter = this._getter.bind(this);
 
       this._result = Promise.resolve()
-        .then(() => getter.call(this))
+        .then(getter)
         .then((result?: T | null) => {
           this._result = result;
 
@@ -647,7 +667,7 @@ export class SwellStorefrontSingleton<
 
           return result;
         })
-        .catch((err: any) => {
+        .catch((err: unknown) => {
           console.log(err);
           return null;
         }) as unknown as T;

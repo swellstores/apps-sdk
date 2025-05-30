@@ -2,7 +2,7 @@ import { ShopifyResource, deferWith } from './resource';
 import ShopifyProduct from './product';
 
 import type { ShopifyCompatibility } from '../shopify';
-import type { SwellData } from 'types/swell';
+import type { SwellData, SwellRecord } from 'types/swell';
 
 export default function ShopifyRecommendations(
   instance: ShopifyCompatibility,
@@ -13,12 +13,13 @@ export default function ShopifyRecommendations(
   }
 
   return new ShopifyResource({
-    products: deferWith(product, (product: any) => {
-      return (product?.recommendations || []).map((recommendation: any) =>
-        ShopifyProduct(instance, recommendation),
+    products: deferWith(product, (product) => {
+      return (product?.recommendations || []).map(
+        (recommendation: SwellRecord) =>
+          ShopifyProduct(instance, recommendation),
       );
     }),
-    products_count: deferWith(product, (product: any) => {
+    products_count: deferWith(product, (product: SwellData) => {
       return product?.recommendations?.length || 0;
     }),
     performed: true,

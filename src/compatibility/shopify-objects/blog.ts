@@ -1,71 +1,69 @@
-import { StorefrontResource } from '../../resources';
-
-import { ShopifyCompatibility } from '../shopify';
-
+import { StorefrontResource, cloneStorefrontResource } from '@/resources';
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyArticle from './article';
 
-import type { SwellRecord } from 'types/swell';
+import type { ShopifyCompatibility } from '../shopify';
+import type { SwellData, SwellRecord } from 'types/swell';
+import type { ShopifyBlog } from 'types/shopify';
 
 export default function ShopifyBlog(
   instance: ShopifyCompatibility,
   blogCategory: StorefrontResource | SwellRecord,
-) {
+): ShopifyResource<ShopifyBlog> {
   if (blogCategory instanceof ShopifyResource) {
-    return blogCategory.clone();
+    return blogCategory.clone() as ShopifyResource<ShopifyBlog>;
   }
 
-  const allTags = deferWith(blogCategory.blogs, (blogs: any) =>
-    blogs?.results?.reduce((acc: string[], blog: any) => {
-      for (const tag of blog.tags || []) {
-        if (!acc.includes(tag)) {
-          acc.push(tag);
-        }
-      }
-      return acc;
-    }, []),
-  );
+  if (blogCategory instanceof StorefrontResource) {
+    blogCategory = cloneStorefrontResource(blogCategory);
+  }
 
-  return new ShopifyResource({
+  const allTags = deferWith(blogCategory.blogs, (blogs) => {
+    const set: Set<string> = blogs?.results?.reduce(
+      (set: Set<string>, blog: SwellData) => {
+        for (const tag of blog.tags || []) {
+          set.add(tag);
+        }
+
+        return set;
+      },
+      new Set(),
+    );
+
+    return Array.from(set.values());
+  });
+
+  return new ShopifyResource<ShopifyBlog>({
     all_tags: allTags,
-    articles: deferWith(blogCategory, (blogCategory: any) => {
+    articles: deferWith(blogCategory, (blogCategory: SwellRecord) => {
       return (
-        blogCategory.blogs?._cloneWithCompatibilityResult((blogs: any) => {
-          return {
-            results: blogs?.results?.map((blog: any) =>
-              ShopifyArticle(instance, blog, blogCategory),
-            ),
-          };
-        }) || []
+        blogCategory.blogs?._cloneWithCompatibilityResult(
+          (blogs: SwellData) => {
+            return {
+              results: blogs?.results?.map((blog: SwellRecord) =>
+                ShopifyArticle(instance, blog, blogCategory),
+              ),
+            };
+          },
+        ) || []
       );
     }),
-    articles_count: deferWith(
-      blogCategory.blogs,
-      (blogs: any) => blogs?.count || 0,
-    ),
+    articles_count: deferWith(blogCategory.blogs, (blogs) => blogs?.count || 0),
     handle: defer(() => blogCategory.slug),
-    id: deferWith(blogCategory, (blogCategory: any) => blogCategory.id),
-    metafields: null,
-    next_article: null, // TODO
-    previous_article: null, // TODO
+    id: defer(() => blogCategory.id),
+    metafields: {},
+    next_article: undefined, // TODO
+    previous_article: undefined, // TODO
     tags: allTags, // TODO: this should only apply to articles in the current view
-    template_suffix: null, // TODO
-    title: deferWith(blogCategory, (blogCategory: any) => blogCategory.title),
+    template_suffix: undefined, // TODO
+    title: defer(() => blogCategory.title),
     url: deferWith(
       blogCategory,
-      (blogCategory: any) => `/blogs/${blogCategory.slug}`,
-    ),
-    featured_image: deferWith(
-      blogCategory,
-      (blogCategory: any) => blogCategory.image,
-    ),
-    content: deferWith(
-      blogCategory,
-      (blogCategory: any) => blogCategory.content,
+      (blogCategory) => `/blogs/${blogCategory.slug}`,
     ),
 
     // Not supported
     'comments_enabled?': false,
-    moderated: false,
+    'moderated?': false,
   });
 }

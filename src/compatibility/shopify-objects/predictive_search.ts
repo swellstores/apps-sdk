@@ -1,7 +1,9 @@
-import { ShopifyCompatibility } from '../shopify';
-import { StorefrontResource } from '../../resources';
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
+
+import type { StorefrontResource } from '@/resources';
+import type { ShopifyCompatibility } from '../shopify';
+import type { SwellCollection, SwellRecord } from 'types/swell';
 
 export default function ShopifyPredictiveSearch(
   instance: ShopifyCompatibility,
@@ -12,7 +14,7 @@ export default function ShopifyPredictiveSearch(
   }
 
   return new ShopifyResource({
-    performed: deferWith(search, (search: any) => search.performed),
+    performed: defer(() => search.performed),
     resources: ShopifyPredictiveSearchResources(instance, search),
     terms: defer(() => search.query),
     types: ['product'],
@@ -28,12 +30,15 @@ function ShopifyPredictiveSearchResources(
   }
 
   return new ShopifyResource({
-    products: deferWith(search.products, (products: any) => {
-      return products?.results?.map((product: any) => {
-        const shopifyProduct = ShopifyProduct(instance, product) as any;
-        shopifyProduct.object_type = 'product';
-        return shopifyProduct;
-      });
-    }),
+    products: deferWith(
+      search.products,
+      (products: SwellCollection<SwellRecord>) => {
+        return products?.results?.map((product) => {
+          const shopifyProduct = ShopifyProduct(instance, product) as any;
+          shopifyProduct.object_type = 'product';
+          return shopifyProduct;
+        });
+      },
+    ),
   });
 }

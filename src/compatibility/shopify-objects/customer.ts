@@ -1,74 +1,80 @@
-import { StorefrontResource } from '../../resources';
+import { StorefrontResource, cloneStorefrontResource } from '@/resources';
 
-import { ShopifyCompatibility } from '../shopify';
-
-import {
-  ShopifyResource,
-  defer,
-  deferWith,
-  deferSwellCollectionWithShopifyResults,
-} from './resource';
+import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyAddress from './address';
 import ShopifyOrder from './order';
+import ShopifyMoney from './money';
 
+import type { ShopifyCompatibility } from '../shopify';
 import type { SwellRecord } from 'types/swell';
+import type { ShopifyCustomer } from 'types/shopify';
 
 export default function ShopifyCustomer(
   instance: ShopifyCompatibility,
   account: StorefrontResource | SwellRecord,
-): ShopifyResource {
+): ShopifyResource<ShopifyCustomer> {
   if (account instanceof ShopifyResource) {
-    return account.clone();
+    return account.clone() as ShopifyResource<ShopifyCustomer>;
   }
 
-  return new ShopifyResource({
+  if (account instanceof StorefrontResource) {
+    account = cloneStorefrontResource(account);
+  }
+
+  return new ShopifyResource<ShopifyCustomer>({
     accepts_marketing: defer(() => account.email_optin),
-    addresses: deferSwellCollectionWithShopifyResults(
-      instance,
-      account,
-      'addresses',
-      ShopifyAddress,
+    addresses: deferWith(account.addresses, (addresses) =>
+      addresses.results.map((address: SwellRecord) =>
+        ShopifyAddress(instance, address),
+      ),
     ),
-    addresses_count: deferWith<any, any>(
+    addresses_count: deferWith(
       account.addresses,
       (addresses) => addresses.count || 0,
     ),
     'b2b?': deferWith(account, () => account.type === 'business'),
     company_available_locations: [], // TODO
-    current_company: null, // TODO
-    current_location: null, // TODO
-    default_address: deferWith(
-      account,
-      (account: any) =>
-        ShopifyAddress(instance, account.shipping || account.billing || {}, account),
+    company_available_locations_count: 0,
+    current_company: undefined, // TODO
+    current_location: undefined, // TODO
+    default_address: deferWith(account, (account: SwellRecord) =>
+      ShopifyAddress(
+        instance,
+        account.shipping || account.billing || {},
+        account,
+      ),
     ),
-    email: deferWith(account, (account: any) => account.email),
-    first_name: deferWith(account, (account: any) => account.first_name),
+    email: defer(() => account.email),
+    first_name: defer(() => account.first_name),
     has_account: true, // TODO: return something from the swell api to indicate when password exists
     'has_avatar?': false, // N/A
-    id: deferWith(account, (account: any) => account.id),
-    last_name: deferWith(account, (account: any) => account.last_name),
+    id: defer(() => account.id),
+    last_name: defer(() => account.last_name),
     last_order: defer(() => resolveLastOrder(instance, account)),
-    name: deferWith(account, (account: any) => account.name),
-    orders: deferSwellCollectionWithShopifyResults(
-      instance,
-      account,
-      'orders',
-      ShopifyOrder,
+    name: defer(() => account.name),
+    orders: deferWith(account.orders, (orders) =>
+      orders.results.map((order: SwellRecord) => ShopifyOrder(instance, order)),
     ),
     orders_count: defer(() => account.order_count),
+    payment_methods: [],
     phone: deferWith(
       account,
-      (account: any) =>
+      (account) =>
         account.phone || account.shipping?.phone || account.billing?.phone,
     ),
-    tags: deferWith(account, (account: any) => account.tags || [account.group]), // TODO: replace with segments in future
+    store_credit_account: deferWith(account, (account) => ({
+      balance: ShopifyMoney(instance, Number(account.balance)),
+    })),
+    tags: deferWith(account, (account) => account.tags || [account.group]), // TODO: replace with segments in future
     tax_exempt: defer(() => account.tax_exempt),
     total_spent: defer(() => account.order_value),
   });
 }
 
-async function resolveLastOrder(instance: ShopifyCompatibility, account: StorefrontResource | SwellRecord) {
+async function resolveLastOrder(
+  instance: ShopifyCompatibility,
+  account: StorefrontResource | SwellRecord,
+) {
   const accountId = await account.id;
 
   const lastOrder = await instance.swell.getCachedResource(

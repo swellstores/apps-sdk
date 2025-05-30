@@ -1,18 +1,20 @@
-import { ShopifyCompatibility } from '../shopify';
-import { ThemeFont } from '../../liquid/font';
 import { ShopifyResource } from './resource';
+
+import type { ThemeFont } from '@/liquid/font';
+import type { ShopifyCompatibility } from '../shopify';
+import type { ShopifyFont } from 'types/shopify';
 
 export default function ShopifyFont(
   _instance: ShopifyCompatibility,
   font: ThemeFont,
-): ShopifyResource {
+): ShopifyResource<ShopifyFont> {
   if (font instanceof ShopifyResource) {
-    return font.clone();
+    return font.clone() as ShopifyResource<ShopifyFont>;
   }
 
-  return new ShopifyResource({
-    baseline_ratio: null, // TODO
-    fallback_families: font.fallback_families,
+  return new ShopifyResource<ShopifyFont>({
+    baseline_ratio: 1, // TODO
+    fallback_families: font.fallback_families || 'sans-serif',
     family: font.family,
     style: font.style,
     'system?': font.system,

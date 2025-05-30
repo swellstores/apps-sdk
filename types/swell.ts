@@ -134,6 +134,16 @@ export interface SwellLocale {
   fallback?: string | null;
 }
 
+export interface SwellCurrency {
+  code: string;
+  decimals: number;
+  name: string;
+  priced: boolean;
+  rate: number;
+  symbol: string;
+  type: string;
+}
+
 export interface SwellPageRequest {
   host: string;
   origin: string;
@@ -185,7 +195,7 @@ export interface SwellRecord {
   $currency?: SwellCurrencyProp;
 }
 
-export interface SwellCollection<T = SwellRecord> {
+export interface SwellCollection<T extends SwellData = SwellRecord> {
   page: number;
   count: number;
   results: T[];
@@ -270,7 +280,7 @@ export type StorefrontResourceGetter<T extends SwellData = SwellData> = (
 ) => Promise<T | null> | T | null;
 
 export type StorefrontCollectionGetter<
-  T extends SwellCollection = SwellCollection,
+  T extends SwellCollection<SwellData> = SwellCollection<SwellData>,
 > = (this: SwellStorefrontCollection<T>) => Promise<T | null> | T | null;
 
 export interface ThemeSettings {

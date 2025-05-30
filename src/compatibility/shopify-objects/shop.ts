@@ -1,26 +1,18 @@
-import { defer, DeferredShopifyResource } from './resource';
+import { ShopifyResource, defer } from './resource';
 import { ShopifyCompatibility } from '../shopify';
 
 import type { SwellData } from 'types/swell';
 import type { ShopifyAddress, ShopifyBrand, ShopifyShop } from 'types/shopify';
 
-type DeferredShopifyShop = Omit<
-  ShopifyShop,
-  'collections_count' | 'products_count'
-> & {
-  collections_count: DeferredShopifyResource<number>;
-  products_count: DeferredShopifyResource<number>;
-};
-
 export default function ShopifyShop(
   instance: ShopifyCompatibility,
   store: SwellData,
-): DeferredShopifyShop {
+): ShopifyResource<ShopifyShop> {
   const currency = store.currencies.find(
     (currency: any) => currency.code === store.currency,
-  ) ?? { code: 'USD', symbol: '$', name: 'US Dollar' };
+  ) ?? { code: 'USD', symbol: '$', name: 'US Dollar', decimals: 2 };
 
-  return {
+  return new ShopifyResource<ShopifyShop>({
     accepts_gift_cards: true, // TODO
     address: {} as ShopifyAddress, // TODO
     brand: {} as ShopifyBrand, // TODO
@@ -69,11 +61,11 @@ export default function ShopifyShop(
     vendors: [], // TODO: product vendors
 
     policies: [], // TODO
-    privacy_policy: null, // TODO
-    refund_policy: null, // TODO
-    shipping_policy: null, // TODO
-    subscription_policy: null, // TODO
-    terms_of_service: null, // TODO
+    privacy_policy: undefined, // TODO
+    refund_policy: undefined, // TODO
+    shipping_policy: undefined, // TODO
+    subscription_policy: undefined, // TODO
+    terms_of_service: undefined, // TODO
     taxes_included: false,
     products_count: defer<number>(async () => {
       const { count } = await instance.swell.storefront.products.list({
@@ -82,5 +74,5 @@ export default function ShopifyShop(
 
       return count;
     }),
-  };
+  });
 }

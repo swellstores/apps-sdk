@@ -1,7 +1,8 @@
-import { ShopifyCompatibility } from '../shopify';
-import { SwellStorefrontPagination } from '../../resources';
-import { ShopifyResource } from './resource';
 import { stringifyQueryParams } from '@/utils';
+import { ShopifyResource } from './resource';
+
+import type { SwellStorefrontPagination } from '@/resources';
+import type { ShopifyCompatibility } from '../shopify';
 
 export default function ShopifyPaginate(
   instance: ShopifyCompatibility,

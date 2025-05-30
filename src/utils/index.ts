@@ -8,7 +8,7 @@ import {
   SwellStorefrontRecord,
 } from '../resources';
 import { ShopifyResource } from '../compatibility/shopify-objects/resource';
-import { LANG_TO_COUNTRY_CODES } from '../constants';
+import { LANG_TO_COUNTRY_CODES, CURRENCY_COUNTRIES } from '../constants';
 
 import type {
   SwellData,
@@ -309,6 +309,26 @@ export function getCountryCodeFromLocale(locale: string): string {
   const code = country ? country : LANG_TO_COUNTRY_CODES[lang] || '';
 
   return code.toLowerCase();
+}
+
+export function getCountryByCurrency(
+  currencyCode: keyof typeof CURRENCY_COUNTRIES,
+) {
+  if (currencyCode in CURRENCY_COUNTRIES) {
+    return CURRENCY_COUNTRIES[currencyCode];
+  }
+
+  return null;
+}
+
+export function getCurrencyByCountry(countryCode: string): string {
+  for (const [currency, country] of Object.entries(CURRENCY_COUNTRIES)) {
+    if (country.iso === countryCode) {
+      return currency;
+    }
+  }
+
+  return '';
 }
 
 export function isLikeSwellLocale(value: unknown): value is SwellLocale {

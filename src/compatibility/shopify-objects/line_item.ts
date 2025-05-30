@@ -1,21 +1,27 @@
-import { StorefrontResource } from '../../resources';
-
-import { ShopifyCompatibility } from '../shopify';
-
 import { ShopifyResource, deferWith } from './resource';
 import ShopifyImage from './image';
 import ShopifyProduct from './product';
 import ShopifyVariant from './variant';
 
+import type { StorefrontResource } from '@/resources';
+import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
+import type {
+  ShopifyLineItem,
+  ShopifySellingPlanAllocation,
+} from 'types/shopify';
 
 export default function ShopifyLineItem(
   instance: ShopifyCompatibility,
   item: StorefrontResource | SwellRecord,
   cart: StorefrontResource | SwellRecord,
   options: SwellData = {},
-) {
-  return new ShopifyResource({
+): ShopifyResource<ShopifyLineItem> {
+  if (item instanceof ShopifyResource) {
+    return item.clone() as ShopifyResource<ShopifyLineItem>;
+  }
+
+  return new ShopifyResource<ShopifyLineItem>({
     ...item,
     discount_allocations: item.discounts?.map((discount: any) => {
       const cartDiscount = cart.discounts?.find(
@@ -61,7 +67,7 @@ export default function ShopifyLineItem(
         },
       ];
     }),
-    error_message: null, // N/A
+    error_message: undefined, // N/A
     final_line_price: isTrialSubscriptionItem(item)
       ? 0
       : item.price_total - item.discount_total,
@@ -80,9 +86,12 @@ export default function ShopifyLineItem(
     id: item.id,
     image: deferWith(
       [item.product, item.variant],
-      (product: any, variant: any) =>
-        product?.images?.[0] &&
-        ShopifyImage(instance, product.images?.[0], product, variant),
+      (product: SwellRecord, variant: SwellRecord) => {
+        const image = product?.images?.[0];
+        return image
+          ? ShopifyImage(instance, image, {}, product, variant)
+          : undefined;
+      },
     ),
     item_components: item.bundle_items?.map((bundleItem: any) =>
       ShopifyLineItem(instance, bundleItem, cart, { ...options, bundle: true }),
@@ -90,7 +99,7 @@ export default function ShopifyLineItem(
     key: item.id, // Good enough
     line_level_discount_allocations: [], // TODO
     line_level_total_discount: item.discount_total, // TODO should be line discount only
-    message: null, // N/A
+    message: undefined, // N/A
     options_with_values: item.options,
     original_line_price: isTrialSubscriptionItem(item)
       ? 0
@@ -119,36 +128,43 @@ export default function ShopifyLineItem(
     taxable: item.tax_total > 0,
     title: deferWith(
       [item.product, item.variant],
-      (product: any, variant: any) =>
+      (product, variant) =>
         `${product?.name || item.product_id}${
           variant?.name ? ` - ${variant.name}` : ''
         }`,
     ),
     // unit_price // only available in germany and france
     // unit_price_measurement // only available in germany and france
-    url: deferWith(item.product, (product: any) => `/products/${product.slug}`), // TODO: use page mapping
-    url_to_remove: null, // TODO
-    variant: deferWith([item.product, item.variant], () =>
-      item.variant
-        ? ShopifyVariant(instance, item.variant, item.product)
-        : ShopifyProduct(instance, item.product),
-    ),
-    vendor: null,
-    discounts: null, // Deprecated by Shopify
+    url: deferWith(item.product, (product) => `/products/${product.slug}`), // TODO: use page mapping
+    url_to_remove: '', // TODO
+    variant: deferWith([item.product, item.variant], () => {
+      let { variant } = item;
+
+      if (!variant) {
+        variant = item.product;
+      }
+
+      return ShopifyVariant(instance, variant, item.product);
+    }),
+    vendor: undefined,
+    discounts: [], // Deprecated by Shopify
     line_price: item.price_total,
     price: item.price,
     total_discount: item.discount_total,
   });
 }
 
-export function countItemQuantity(items: any[], quantityField = 'quantity') {
+export function countItemQuantity(
+  items: SwellData[],
+  quantityField = 'quantity',
+) {
   return items?.reduce((sum, item) => sum + item[quantityField], 0) || 0;
 }
 
 async function resolveFulfillment(
   instance: ShopifyCompatibility,
-  order: any,
-  item: any,
+  order: SwellData,
+  item: SwellData,
 ) {
   const shipments = await instance.swell.getCachedResource(
     `shipments-${order.id}`,
@@ -217,14 +233,14 @@ async function resolveFulfillment(
 
   return new ShopifyResource({
     created_at: shipments[0].date_created,
-    fulfillment_line_items: shippedLineItems.map((lineItem: any) =>
-      ShopifyLineItem(instance, lineItem, order),
+    fulfillment_line_items: shippedLineItems.map((lineItem: SwellRecord) =>
+      ShopifyLineItem(instance, lineItem, order as SwellRecord),
     ),
     item_count: countItemQuantity(shippedLineItems),
     tracking_company: carrierName,
     tracking_number: trackingNumbers[0],
     tracking_numbers: trackingNumbers,
-    tracking_url: null, // TODO
+    tracking_url: '', // TODO
   });
 }
 
@@ -237,10 +253,12 @@ function isTrialSubscriptionItem(item: StorefrontResource | SwellRecord) {
   return purchaseOption.billing_schedule.trial_days > 0;
 }
 
-function resolveSubscription(item: StorefrontResource | SwellRecord) {
+function resolveSubscription(
+  item: StorefrontResource | SwellRecord,
+): ShopifySellingPlanAllocation | undefined {
   const purchaseOption = item?.purchase_option;
   if (purchaseOption?.type !== 'subscription') {
-    return null;
+    return undefined;
   }
 
   const trialDays = purchaseOption.billing_schedule?.trial_days || 0;
@@ -268,14 +286,27 @@ function resolveSubscription(item: StorefrontResource | SwellRecord) {
   const text = `${periodText}${trialText}`;
 
   return {
+    checkout_charge_amount: item.price,
+    compare_at_price: item.price,
+    per_delivery_price: item.price,
+    price: item.price,
+    price_adjustments: [],
+    remaining_balance_charge_amount: 0,
+    selling_plan_group_id: purchaseOption.plan_id,
     selling_plan: {
+      id: 0,
+      group_id: purchaseOption.plan_id,
       name: purchaseOption.plan_name,
       description: purchaseOption.plan_description,
-      plan_id: purchaseOption.plan_id,
-      billing_schedule: purchaseOption.billing_schedule,
+      // billing_schedule: purchaseOption.billing_schedule,
+      options: [],
       // provide as separate parts to properly render currency
-      planPriceText: text,
-      planPrice: item.price,
+      // planPriceText: text,
+      checkout_charge: { value: item.price, value_type: 'price' },
+      recurring_deliveries: item.delivery === 'shipment',
+      price_adjustments: [],
+      selected: false,
     },
+    unit_price: undefined,
   };
 }
