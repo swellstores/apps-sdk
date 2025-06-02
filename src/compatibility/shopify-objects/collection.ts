@@ -11,10 +11,7 @@ import ShopifyFilter from './filter';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
-import type {
-  ShopifyCollection,
-  ShopifyProduct as ShopifyProductType,
-} from 'types/shopify';
+import type { ShopifyCollection } from 'types/shopify';
 
 interface ShopifyProductCollection {
   products?: SwellStorefrontCollection | SwellCollection;
@@ -32,67 +29,16 @@ export default function ShopifyCollection(
     category = cloneStorefrontResource(category);
   }
 
-  const productResults = deferWith<
-    | SwellStorefrontCollection<
-        SwellCollection<ShopifyResource<ShopifyProductType>>
-      >
-    | SwellCollection<ShopifyResource<ShopifyProductType>>
-    | null,
-    ShopifyProductCollection
-  >(category, (category) => {
-    if (category.products) {
-      if (category.products instanceof SwellStorefrontCollection) {
-        return category.products._cloneWithCompatibilityResult<
-          SwellCollection<ShopifyResource<ShopifyProductType>>
-        >((products) => {
-          return {
-            ...products,
-            results: products.results.map(
-              (product) =>
-                ShopifyProduct(
-                  instance,
-                  product as SwellRecord,
-                ) as ShopifyResource<ShopifyProductType>,
-            ),
-          };
-        });
-      }
-
-      if (Array.isArray(category.products?.results)) {
-        return {
-          ...category.products,
-          results: category.products.results.map(
-            (product) =>
-              ShopifyProduct(
-                instance,
-                product,
-              ) as ShopifyResource<ShopifyProductType>,
-          ),
-        };
-      }
-    }
-
-    return null;
-  });
-
-  async function productsResolved(): Promise<
-    SwellCollection<ShopifyResource<ShopifyProductType>> | null | undefined
-  > {
-    const resolved = await productResults.resolve();
-
-    if (resolved && '_resolve' in resolved) {
-      return resolved._resolve();
-    }
-
-    return resolved;
-  }
+  const resolveProducts = makeProductsCollectionResolve(category, (product) =>
+    ShopifyProduct(instance, product as SwellRecord),
+  );
 
   return new ShopifyResource<ShopifyCollection>({
     all_products_count: defer(
-      async () => (await productsResolved())?.count || 0,
+      async () => (await resolveProducts())?.count || 0,
     ),
     all_tags: defer(async () => {
-      const resolved = await productsResolved();
+      const resolved = await resolveProducts();
 
       if (!resolved) {
         return [];
@@ -115,7 +61,7 @@ export default function ShopifyCollection(
       return Array.from(set.values());
     }),
     all_types: defer(async () => {
-      const products = await productsResolved();
+      const products = await resolveProducts();
 
       if (!products?.results) {
         return [];
@@ -145,11 +91,10 @@ export default function ShopifyCollection(
     featured_image: deferWith(category, (category) =>
       getFirstImage(instance, category),
     ),
-    filters: defer(
-      async () =>
-        ((await productsResolved()) as any)?.filter_options?.map(
-          (filter: any) => ShopifyFilter(instance, filter),
-        ) || [],
+    filters: defer(async () =>
+      ((await resolveProducts())?.filter_options ?? []).map((filter) =>
+        ShopifyFilter(instance, filter),
+      ),
     ),
     handle: defer(() => category.slug),
     id: defer(() => category.id),
@@ -158,14 +103,14 @@ export default function ShopifyCollection(
     next_product: undefined,
     previous_product: undefined,
     products: defer(async () => {
-      return (await productsResolved())?.results ?? [];
+      return (await resolveProducts())?.results ?? [];
     }),
     products_count: defer(
-      async () => (await productsResolved())?.results?.length || 0,
+      async () => (await resolveProducts())?.results?.length || 0,
     ),
     published_at: deferWith(
       category,
-      (category) => category.updated_at || category.created_at,
+      (category) => category.date_updated || category.date_created,
     ),
     sort_by: defer(() => category.sort),
     sort_options: defer(() => category.sort_options),
@@ -200,4 +145,50 @@ function convertToShopifySorting(value: string) {
     default:
       return 'manual';
   }
+}
+
+export function makeProductsCollectionResolve<T extends SwellData>(
+  object: StorefrontResource | SwellRecord,
+  mapper: (product: SwellData) => T,
+): () => Promise<SwellCollection<T> | null | undefined> {
+  const productResults = deferWith<
+    SwellStorefrontCollection<SwellCollection<T>> | SwellCollection<T> | null,
+    ShopifyProductCollection
+  >(object, (object) => {
+    if (object.products) {
+      if (object.products instanceof SwellStorefrontCollection) {
+        return object.products._cloneWithCompatibilityResult<
+          SwellCollection<T>
+        >((products) => {
+          return {
+            ...products,
+            results: products.results.map(mapper),
+          };
+        });
+      }
+
+      if (Array.isArray(object.products?.results)) {
+        return {
+          ...object.products,
+          results: object.products.results.map(mapper),
+        };
+      }
+    }
+
+    return null;
+  });
+
+  async function resolveProducts(): Promise<
+    SwellCollection<T> | null | undefined
+  > {
+    const resolved = await productResults.resolve();
+
+    if (resolved && '_resolve' in resolved) {
+      return resolved._resolve();
+    }
+
+    return resolved;
+  }
+
+  return resolveProducts;
 }

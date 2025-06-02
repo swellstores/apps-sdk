@@ -1,50 +1,40 @@
 import { ShopifyResource, defer, deferWith } from './resource';
+import { makeProductsCollectionResolve } from './collection';
 import ShopifyProduct from './product';
 import ShopifyFilter from './filter';
 
 import type { StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
+import type { ShopifySearch } from 'types/shopify';
+import type { SwellRecord } from 'types/swell';
 
 export default function ShopifySearch(
   instance: ShopifyCompatibility,
   search: StorefrontResource,
-) {
+): ShopifyResource<ShopifySearch> {
   if (search instanceof ShopifyResource) {
-    return search.clone();
+    return search.clone() as ShopifyResource<ShopifySearch>;
   }
 
-  const productResults = deferWith(search, (search) => {
-    return (
-      search.products?._cloneWithCompatibilityResult((products: any) => {
-        return {
-          results: products?.results?.map((product: any) => {
-            const shopifyProduct = ShopifyProduct(instance, product) as any;
-            shopifyProduct.object_type = 'product';
-            return shopifyProduct;
-          }),
-        };
-      }) || []
-    );
+  const resolveProducts = makeProductsCollectionResolve(search, (product) => {
+    const shopifyProduct = ShopifyProduct(instance, product as SwellRecord);
+    (shopifyProduct as any).object_type = 'product';
+    return shopifyProduct;
   });
 
-  return new ShopifyResource({
+  return new ShopifyResource<ShopifySearch>({
     default_sort_by: deferWith(
       search,
       (search) => search.sort_options?.[0].value,
     ),
     filters: defer(async () => {
-      const products = await productResults.resolve();
-      return (
-        (await products?.filter_options)?.map((filter: any) =>
-          ShopifyFilter(instance, filter),
-        ) || []
+      return ((await resolveProducts())?.filter_options ?? []).map((filter) =>
+        ShopifyFilter(instance, filter),
       );
     }),
     performed: defer(() => search.performed),
-    results: productResults,
-    results_count: defer(
-      async () => (await productResults.resolve())?.count || 0,
-    ),
+    results: defer(async () => (await resolveProducts())?.results ?? []),
+    results_count: defer(async () => (await resolveProducts())?.count || 0),
     sort_by: defer(() => search.sort),
     sort_options: defer(() => search.sort_options),
     terms: defer(() => search.query),
