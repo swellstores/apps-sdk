@@ -3,7 +3,7 @@ import { ShopifyResource, defer, deferWith } from './resource';
 import type { ShopifyCompatibility } from '../shopify';
 import type { StorefrontResource } from '@/resources';
 import type { SwellData, SwellRecord } from 'types/swell';
-import type { ShopifyImage } from 'types/shopify';
+import type { ShopifyImage, ShopifyImageSrc } from 'types/shopify';
 
 interface ShopifyImageOptions {
   media_type?: 'image';
@@ -35,8 +35,22 @@ export default function ShopifyImage(
     // presentation: { focal_point: { x: 0, y: 0 } },
     preview_image: undefined,
     product_id: options.product_id ?? undefined,
-    src: deferWith(image, (image) => image.file?.url),
+    src: deferWith(image, (image) =>
+      ShopifyImageSrc(image.file ?? { url: '', width: 0, height: 0 }),
+    ),
     variants: undefined, // TODO
     width: defer(() => image.width),
   });
+}
+
+function ShopifyImageSrc(file: SwellData): ShopifyResource<ShopifyImageSrc> {
+  // TODO: convert to Drop
+  return new ShopifyResource<ShopifyImageSrc>(
+    {
+      url: file.url,
+      width: file.width,
+      height: file.height,
+    },
+    'url',
+  );
 }
