@@ -1165,3 +1165,79 @@ export interface ShopifyPageObject {
   title: string;
   url: string;
 }
+
+export interface ShopifyTemplate {
+  directory?: string;
+  name:
+    | '404'
+    | 'article'
+    | 'blog'
+    | 'cart'
+    | 'collection'
+    | 'list-collections'
+    | 'customers/account'
+    | 'customers/activate_account'
+    | 'customers/addresses'
+    | 'customers/login'
+    | 'customers/order'
+    | 'customers/register'
+    | 'customers/reset_password'
+    | 'gift_card'
+    | 'index'
+    | 'page'
+    | 'password'
+    | 'product'
+    | 'search';
+  suffix?: string;
+}
+
+export interface ShopifySearch {
+  default_sort_by: string;
+  filters: ShopifyFilter[];
+  performed: boolean;
+  results: object[];
+  results_count: number;
+  sort_by?: string;
+  sort_options: ShopifySortOption[];
+  terms: string;
+  types: Array<'article' | 'page' | 'product'>;
+}
+
+export interface ShopifyRecommendations {
+  intent?: string;
+  'performed?': boolean;
+  products: ShopifyProduct[];
+  products_count: number;
+}
+
+export interface ShopifyPredictiveSearchResources {
+  articles: ShopifyArticle[];
+  collections: ShopifyCollection[];
+  pages: ShopifyPageObject[];
+  products: ShopifyProduct[];
+}
+
+export interface ShopifyPredictiveSearch {
+  performed: boolean;
+  resources: ShopifyPredictiveSearchResources;
+  terms: string;
+  types: Array<'article' | 'collection' | 'page' | 'product'>;
+}
+
+export interface ShopifyPart {
+  is_link: boolean;
+  title: string;
+  url?: string;
+}
+
+export interface ShopifyPaginate {
+  current_offset: number;
+  current_page: number;
+  items: number;
+  next?: ShopifyPart;
+  page_param: string;
+  page_size: number;
+  pages: number;
+  parts: ShopifyPart[];
+  previous?: ShopifyPart;
+}

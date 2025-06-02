@@ -7,6 +7,8 @@ import type { StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
 import type {
+  ShopifyDiscountAllocation,
+  ShopifyFulfillment,
   ShopifyLineItem,
   ShopifySellingPlanAllocation,
 } from 'types/shopify';
@@ -21,52 +23,11 @@ export default function ShopifyLineItem(
     return item.clone() as ShopifyResource<ShopifyLineItem>;
   }
 
+  const discountAllocations = getDiscountAllocations(cart, item);
+
   return new ShopifyResource<ShopifyLineItem>({
-    ...item,
-    discount_allocations: item.discounts?.map((discount: any) => {
-      const cartDiscount = cart.discounts?.find(
-        (cartDiscount: any) => cartDiscount.id === discount.id,
-      );
-
-      const discountSourceName =
-        (cartDiscount?.source_id === cart.coupon_id
-          ? cart.coupon?.name
-          : cart.promotions?.results?.find(
-              (promo: any) => cartDiscount?.source_id === promo.id,
-            )?.name) || cartDiscount?.source_id;
-
-      return [
-        {
-          amount: discount.amount,
-          discount_application: cartDiscount && {
-            target_selection:
-              cartDiscount.type === 'order'
-                ? 'all'
-                : ['shipment', 'product'].includes(cartDiscount.type)
-                  ? 'entitled'
-                  : 'explicit',
-            target_type:
-              cartDiscount.type === 'shipment' ? 'shipping_line' : 'line_item',
-            title: discountSourceName,
-            total_allocated_amount: cartDiscount.amount,
-            type:
-              cartDiscount.type === 'promo'
-                ? 'automatic'
-                : cartDiscount.type === 'coupon'
-                  ? 'discount_code'
-                  : 'manual',
-            value:
-              cartDiscount.rule?.value_type === 'fixed'
-                ? cartDiscount.rule?.value_fixed
-                : cartDiscount.rule?.value_percent,
-            value_type:
-              cartDiscount.rule?.value_type === 'fixed'
-                ? 'fixed_amount'
-                : 'percentage',
-          },
-        },
-      ];
-    }),
+    discounts: [], // Deprecated by Shopify
+    discount_allocations: discountAllocations,
     error_message: undefined, // N/A
     final_line_price: isTrialSubscriptionItem(item)
       ? 0
@@ -93,31 +54,41 @@ export default function ShopifyLineItem(
           : undefined;
       },
     ),
-    item_components: item.bundle_items?.map((bundleItem: any) =>
-      ShopifyLineItem(instance, bundleItem, cart, { ...options, bundle: true }),
+    item_components: (item.bundle_items ?? []).map((bundleItem: SwellRecord) =>
+      ShopifyLineItem(instance, bundleItem, cart, {
+        ...options,
+        bundle: true,
+      }),
     ),
     key: item.id, // Good enough
-    line_level_discount_allocations: [], // TODO
+    line_level_discount_allocations: discountAllocations, // TODO
     line_level_total_discount: item.discount_total, // TODO should be line discount only
+    line_price: item.price_total,
     message: undefined, // N/A
-    options_with_values: item.options,
+    options_with_values: (item.options ?? []).map((option: SwellData) => ({
+      name: option.name,
+      value: option.value,
+    })),
     original_line_price: isTrialSubscriptionItem(item)
       ? 0
       : item.price * item.quantity,
     original_price: isTrialSubscriptionItem(item) ? 0 : item.price,
+    price: item.price,
     product: deferWith(
       item.product,
       () => item.product && ShopifyProduct(instance, item.product),
     ),
     product_id: item.product_id,
-    properties: item.metadata,
+    properties: item.metadata ?? {},
     quantity: item.quantity,
     requires_shipping: item.delivery === 'shipment',
     selling_plan_allocation: resolveSubscription(item),
-    sku: deferWith(item.product, (product: any) => product.sku),
+    sku: deferWith(item.product, (product) => product.sku),
     successfully_fulfilled_quantity: item.quantity_delivered,
-    tax_lines: item.taxes?.map((tax: any) => {
-      const cartTax = cart.taxes?.find((cartTax: any) => cartTax.id === tax.id);
+    tax_lines: (item.taxes ?? []).map((tax: SwellData) => {
+      const cartTax = cart.taxes?.find(
+        (cartTax: SwellData) => cartTax.id === tax.id,
+      );
       return {
         price: tax.amount,
         rate: (cartTax?.rate || 0) / 100,
@@ -133,8 +104,9 @@ export default function ShopifyLineItem(
           variant?.name ? ` - ${variant.name}` : ''
         }`,
     ),
-    // unit_price // only available in germany and france
-    // unit_price_measurement // only available in germany and france
+    total_discount: item.discount_total,
+    unit_price: undefined, // only available in germany and france
+    unit_price_measurement: undefined, // only available in germany and france
     url: deferWith(item.product, (product) => `/products/${product.slug}`), // TODO: use page mapping
     url_to_remove: '', // TODO
     variant: deferWith([item.product, item.variant], () => {
@@ -147,10 +119,6 @@ export default function ShopifyLineItem(
       return ShopifyVariant(instance, variant, item.product);
     }),
     vendor: undefined,
-    discounts: [], // Deprecated by Shopify
-    line_price: item.price_total,
-    price: item.price,
-    total_discount: item.discount_total,
   });
 }
 
@@ -165,7 +133,7 @@ async function resolveFulfillment(
   instance: ShopifyCompatibility,
   order: SwellData,
   item: SwellData,
-) {
+): Promise<ShopifyResource<ShopifyFulfillment> | undefined> {
   const shipments = await instance.swell.getCachedResource(
     `shipments-${order.id}`,
     [],
@@ -188,7 +156,7 @@ async function resolveFulfillment(
   );
 
   if (!shipments) {
-    return null;
+    return undefined;
   }
 
   const trackingNumbers: string[] = [];
@@ -228,10 +196,10 @@ async function resolveFulfillment(
   }
 
   if (shippedLineItems.length === 0) {
-    return null;
+    return undefined;
   }
 
-  return new ShopifyResource({
+  return new ShopifyResource<ShopifyFulfillment>({
     created_at: shipments[0].date_created,
     fulfillment_line_items: shippedLineItems.map((lineItem: SwellRecord) =>
       ShopifyLineItem(instance, lineItem, order as SwellRecord),
@@ -309,4 +277,58 @@ function resolveSubscription(
     },
     unit_price: undefined,
   };
+}
+
+function getDiscountAllocations(
+  cart: StorefrontResource | SwellRecord,
+  item: StorefrontResource | SwellRecord,
+): ShopifyDiscountAllocation[] {
+  if (!Array.isArray(item.discounts)) {
+    return [];
+  }
+
+  return item.discounts.map(
+    (discount: SwellRecord): ShopifyDiscountAllocation => {
+      const cartDiscount: SwellRecord = cart.discounts?.find(
+        (cartDiscount: SwellRecord) => cartDiscount.id === discount.id,
+      );
+
+      const discountSourceName =
+        (cartDiscount?.source_id === cart.coupon_id
+          ? cart.coupon?.name
+          : cart.promotions?.results?.find(
+              (promo: any) => cartDiscount?.source_id === promo.id,
+            )?.name) || cartDiscount?.source_id;
+
+      return {
+        amount: discount.amount,
+        discount_application: cartDiscount && {
+          target_selection:
+            cartDiscount.type === 'order'
+              ? 'all'
+              : ['shipment', 'product'].includes(cartDiscount.type)
+                ? 'entitled'
+                : 'explicit',
+          target_type:
+            cartDiscount.type === 'shipment' ? 'shipping_line' : 'line_item',
+          title: discountSourceName,
+          total_allocated_amount: cartDiscount.amount,
+          type:
+            cartDiscount.type === 'promo'
+              ? 'automatic'
+              : cartDiscount.type === 'coupon'
+                ? 'discount_code'
+                : 'manual',
+          value:
+            cartDiscount.rule?.value_type === 'fixed'
+              ? cartDiscount.rule?.value_fixed
+              : cartDiscount.rule?.value_percent,
+          value_type:
+            cartDiscount.rule?.value_type === 'fixed'
+              ? 'fixed_amount'
+              : 'percentage',
+        },
+      };
+    },
+  );
 }

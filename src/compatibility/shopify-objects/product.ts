@@ -16,10 +16,21 @@ import type {
 export default function ShopifyProduct(
   instance: ShopifyCompatibility,
   product: StorefrontResource | SwellRecord,
+): ShopifyResource<ShopifyProduct>;
+
+export default function ShopifyProduct(
+  instance: ShopifyCompatibility,
+  product: StorefrontResource | SwellRecord,
+  depth: number,
+): ShopifyResource<ShopifyProduct> | null;
+
+export default function ShopifyProduct(
+  instance: ShopifyCompatibility,
+  product: StorefrontResource | SwellRecord,
   depth: number = 0,
 ): ShopifyResource<ShopifyProduct> | null {
   if (product instanceof ShopifyResource) {
-    return product.clone();
+    return product.clone() as ShopifyResource<ShopifyProduct>;
   }
 
   if (product instanceof StorefrontResource) {

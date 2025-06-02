@@ -201,7 +201,9 @@ export interface SwellCollection<T extends SwellData = SwellRecord> {
   results: T[];
   page_count: number;
   limit: number;
-  pages: SwellCollectionPages;
+  pages?: SwellCollectionPages;
+  // Proxima
+  filter_options?: SwellProductFilter[];
 }
 
 export type InferSwellCollection<T> =
