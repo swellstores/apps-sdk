@@ -277,10 +277,16 @@ export interface ShopifyImagePresentation {
   focal_point: ShopifyFocalPoint;
 }
 
+export interface ShopifyImageSrc {
+  url: string;
+  width: number;
+  height: number;
+}
+
 export interface ShopifyImage {
   id: number;
-  src: string;
   alt: string;
+  src: ShopifyImageSrc;
   media_type?: 'image';
   preview_image?: ShopifyImage;
   presentation?: ShopifyImagePresentation;

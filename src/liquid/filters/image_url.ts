@@ -37,9 +37,14 @@ async function getImageSrcFromObject(input: unknown): Promise<unknown> {
       return input.file.url;
     }
 
-    if (isLikePromise(input.src)) {
-      // Shopify specific
-      const image = await input.src;
+    // Shopify specific
+    let image: unknown = input.src;
+
+    if (isObject(image)) {
+      if (isLikePromise(image)) {
+        image = await image;
+      }
+
       return isObject(image) ? image.url : '';
     }
 
