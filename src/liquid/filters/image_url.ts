@@ -43,7 +43,9 @@ async function getImageSrcFromObject(input: unknown): Promise<unknown> {
       return isObject(image) ? image.url : '';
     }
 
-    return '';
+    if (input.src) {
+      return input.src;
+    }
   }
 
   return input;
