@@ -6,8 +6,9 @@ await build(
     entryPoints: ['src/index.ts'],
     outfile: 'dist/index.$formatExtension',
     bundle: true,
+    // Minification breaks sourcemap
+    minify: false,
     sourcemap: true,
-    minify: true,
     platform: 'node',
     packages: 'external',
     target: ['esnext'],
