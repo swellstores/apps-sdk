@@ -7,7 +7,9 @@ import type { StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
 import type {
+  ShopifyDiscount,
   ShopifyDiscountAllocation,
+  ShopifyDiscountApplication,
   ShopifyFulfillment,
   ShopifyLineItem,
   ShopifySellingPlanAllocation,
@@ -26,7 +28,8 @@ export default function ShopifyLineItem(
   const discountAllocations = getDiscountAllocations(cart, item);
 
   return new ShopifyResource<ShopifyLineItem>({
-    discounts: [], // Deprecated by Shopify
+    // Deprecated by Shopify
+    discounts: getDeprecatedDiscounts(cart, item),
     discount_allocations: discountAllocations,
     error_message: undefined, // N/A
     final_line_price: isTrialSubscriptionItem(item)
@@ -279,6 +282,34 @@ function resolveSubscription(
   };
 }
 
+function findCartDiscount(
+  cart: StorefrontResource | SwellRecord,
+  discountId: string,
+): SwellRecord | undefined {
+  return cart.discounts?.find(
+    (cartDiscount: SwellRecord) => cartDiscount.id === discountId,
+  );
+}
+
+function getDiscountSourceName(
+  cart: StorefrontResource | SwellRecord,
+  cartDiscount?: SwellRecord,
+): string {
+  if (!cartDiscount?.source_id) {
+    return '';
+  }
+
+  if (cartDiscount.source_id === cart.coupon_id) {
+    return cart.coupon?.name || cartDiscount.source_id;
+  }
+
+  const promo = cart.promotions?.results?.find(
+    (promo: SwellRecord) => cartDiscount.source_id === promo.id,
+  );
+
+  return promo?.name || cartDiscount.source_id;
+}
+
 function getDiscountAllocations(
   cart: StorefrontResource | SwellRecord,
   item: StorefrontResource | SwellRecord,
@@ -289,46 +320,71 @@ function getDiscountAllocations(
 
   return item.discounts.map(
     (discount: SwellRecord): ShopifyDiscountAllocation => {
-      const cartDiscount: SwellRecord = cart.discounts?.find(
-        (cartDiscount: SwellRecord) => cartDiscount.id === discount.id,
-      );
-
-      const discountSourceName =
-        (cartDiscount?.source_id === cart.coupon_id
-          ? cart.coupon?.name
-          : cart.promotions?.results?.find(
-              (promo: any) => cartDiscount?.source_id === promo.id,
-            )?.name) || cartDiscount?.source_id;
+      const cartDiscount = findCartDiscount(cart, discount.id);
+      const discountSourceName = getDiscountSourceName(cart, cartDiscount);
 
       return {
         amount: discount.amount,
-        discount_application: cartDiscount && {
-          target_selection:
-            cartDiscount.type === 'order'
-              ? 'all'
-              : ['shipment', 'product'].includes(cartDiscount.type)
-                ? 'entitled'
-                : 'explicit',
-          target_type:
-            cartDiscount.type === 'shipment' ? 'shipping_line' : 'line_item',
-          title: discountSourceName,
-          total_allocated_amount: cartDiscount.amount,
-          type:
-            cartDiscount.type === 'promo'
-              ? 'automatic'
-              : cartDiscount.type === 'coupon'
-                ? 'discount_code'
-                : 'manual',
-          value:
-            cartDiscount.rule?.value_type === 'fixed'
-              ? cartDiscount.rule?.value_fixed
-              : cartDiscount.rule?.value_percent,
-          value_type:
-            cartDiscount.rule?.value_type === 'fixed'
-              ? 'fixed_amount'
-              : 'percentage',
-        },
+        discount_application: cartDiscount
+          ? {
+              target_selection:
+                cartDiscount.type === 'order'
+                  ? 'all'
+                  : ['shipment', 'product'].includes(cartDiscount.type)
+                    ? 'entitled'
+                    : 'explicit',
+              target_type:
+                cartDiscount.type === 'shipment'
+                  ? 'shipping_line'
+                  : 'line_item',
+              title: discountSourceName,
+              total_allocated_amount: cartDiscount.amount,
+              type:
+                cartDiscount.type === 'promo'
+                  ? 'automatic'
+                  : cartDiscount.type === 'coupon'
+                    ? 'discount_code'
+                    : 'manual',
+              value:
+                cartDiscount.rule?.value_type === 'fixed'
+                  ? cartDiscount.rule.value_fixed
+                  : cartDiscount.rule?.value_percent,
+              value_type:
+                cartDiscount.rule?.value_type === 'fixed'
+                  ? 'fixed_amount'
+                  : 'percentage',
+            }
+          : ({} as ShopifyDiscountApplication),
       };
     },
   );
+}
+
+function getDeprecatedDiscounts(
+  cart: StorefrontResource | SwellRecord,
+  item: StorefrontResource | SwellRecord,
+): ShopifyDiscount[] {
+  if (!Array.isArray(item.discounts)) {
+    return [];
+  }
+
+  return item.discounts.map((discount: SwellRecord): ShopifyDiscount => {
+    const cartDiscount = findCartDiscount(cart, discount.id);
+    const discountSourceName = getDiscountSourceName(cart, cartDiscount);
+
+    return {
+      amount: discount.amount,
+      code: discountSourceName,
+      savings: -discount.amount,
+      title: discountSourceName,
+      total_amount: discount.amount,
+      total_savings: -discount.amount,
+      type:
+        cartDiscount?.type === 'shipment'
+          ? 'ShippingDiscount'
+          : cartDiscount?.rule?.value_type === 'fixed'
+            ? 'FixedAmountDiscount'
+            : 'PercentageDiscount',
+    };
+  });
 }
