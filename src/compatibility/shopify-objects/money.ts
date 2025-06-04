@@ -8,14 +8,15 @@ import type { ShopifyMoney } from 'types/shopify';
 export default function ShopifyMoney(
   instance: ShopifyCompatibility,
   value: number,
+  currencyCode?: string,
 ): ShopifyMoney {
-  const code = instance.theme.globals.store.currency;
+  const code = currencyCode || instance.theme.globals.store.currency;
   const currency = getSwellCurrency(instance, code);
 
   // For currencies without decimal places, two zeros are added.
   const decimals = currency.decimals || 2;
 
-  return new MoneyDrop(value * decimals, decimals, {
+  return new MoneyDrop(value, decimals, {
     iso_code: currency.code,
     name: currency.name,
     symbol: currency.symbol,
