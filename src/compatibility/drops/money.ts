@@ -12,10 +12,10 @@ export default class MoneyDrop extends Drop implements ShopifyMoney {
   }
 
   valueOf() {
-    return this.value;
+    return this.value * 10 ** this.decimals;
   }
 
   toFloat() {
-    return this.value / this.decimals;
+    return this.value;
   }
 }
