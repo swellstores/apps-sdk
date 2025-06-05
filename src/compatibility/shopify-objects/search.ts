@@ -1,12 +1,12 @@
 import { ShopifyResource, defer, deferWith } from './resource';
 import { makeProductsCollectionResolve } from './collection';
-import ShopifyProduct from './product';
 import ShopifyFilter from './filter';
 
 import type { StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { ShopifySearch } from 'types/shopify';
 import type { SwellRecord } from 'types/swell';
+import SwellProduct from './product_swell';
 
 export default function ShopifySearch(
   instance: ShopifyCompatibility,
@@ -17,7 +17,7 @@ export default function ShopifySearch(
   }
 
   const resolveProducts = makeProductsCollectionResolve(search, (product) => {
-    const shopifyProduct = ShopifyProduct(instance, product as SwellRecord);
+    const shopifyProduct = SwellProduct(instance, product as SwellRecord);
     (shopifyProduct as any).object_type = 'product';
     return shopifyProduct;
   });

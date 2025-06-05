@@ -4,11 +4,7 @@ import { isObject } from '@/utils';
 import { isLikePromise } from '@/liquid/utils';
 import { SwellStorefrontRecord, SwellStorefrontCollection } from '@/resources';
 
-import {
-  ShopifyCollection,
-  ShopifyProduct,
-  ShopifyResource,
-} from '../shopify-objects';
+import { ShopifyCollection, ShopifyResource } from '../shopify-objects';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type {
@@ -17,6 +13,7 @@ import type {
   SwellRecord,
 } from '../../../types/swell';
 import type { ShopifyCollection as ShopifyCollectionType } from 'types/shopify';
+import SwellProduct from '../shopify-objects/product_swell';
 
 // TODO: remove this once backend is implemented for "all"
 class AllCategoryResource<
@@ -180,7 +177,7 @@ class SwellStorefrontProducts extends SwellStorefrontCollection<
         ...result,
         results: result.results.map(
           (product) =>
-            ShopifyProduct(instance, product) as unknown as SwellRecord,
+            SwellProduct(instance, product) as unknown as SwellRecord,
         ),
       };
     });

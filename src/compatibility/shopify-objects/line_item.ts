@@ -1,6 +1,5 @@
 import { ShopifyResource, deferWith } from './resource';
 import ShopifyImage from './image';
-import ShopifyProduct from './product';
 import ShopifyVariant from './variant';
 
 import type { StorefrontResource } from '@/resources';
@@ -14,6 +13,7 @@ import type {
   ShopifyLineItem,
   ShopifySellingPlanAllocation,
 } from 'types/shopify';
+import SwellProduct from './product_swell';
 
 export default function ShopifyLineItem(
   instance: ShopifyCompatibility,
@@ -79,7 +79,7 @@ export default function ShopifyLineItem(
     price: item.price,
     product: deferWith(
       item.product,
-      () => item.product && ShopifyProduct(instance, item.product),
+      () => item.product && SwellProduct(instance, item.product),
     ),
     product_id: item.product_id,
     properties: item.metadata ?? {},

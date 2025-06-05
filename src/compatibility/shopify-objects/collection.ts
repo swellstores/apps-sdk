@@ -5,13 +5,13 @@ import {
 } from '@/resources';
 
 import { ShopifyResource, defer, deferWith } from './resource';
-import ShopifyProduct from './product';
 import ShopifyImage from './image';
 import ShopifyFilter from './filter';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyCollection } from 'types/shopify';
+import SwellProduct from './product_swell';
 
 interface ShopifyProductCollection {
   products?: SwellStorefrontCollection | SwellCollection;
@@ -30,7 +30,7 @@ export default function ShopifyCollection(
   }
 
   const resolveProducts = makeProductsCollectionResolve(category, (product) =>
-    ShopifyProduct(instance, product as SwellRecord),
+    SwellProduct(instance, product as SwellRecord),
   );
 
   return new ShopifyResource<ShopifyCollection>({

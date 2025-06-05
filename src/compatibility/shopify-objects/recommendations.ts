@@ -1,9 +1,9 @@
 import { ShopifyResource, deferWith } from './resource';
-import ShopifyProduct from './product';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyRecommendations } from 'types/shopify';
+import SwellProduct from './product_swell';
 
 export default function ShopifyRecommendations(
   instance: ShopifyCompatibility,
@@ -16,8 +16,7 @@ export default function ShopifyRecommendations(
   return new ShopifyResource<ShopifyRecommendations>({
     products: deferWith(product, (product) => {
       return (product?.recommendations || []).map(
-        (recommendation: SwellRecord) =>
-          ShopifyProduct(instance, recommendation),
+        (recommendation: SwellRecord) => SwellProduct(instance, recommendation),
       );
     }),
     products_count: deferWith(product, (product: SwellData) => {
