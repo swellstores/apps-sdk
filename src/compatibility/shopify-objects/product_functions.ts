@@ -1,0 +1,126 @@
+import type { SwellData, SwellRecord } from 'types/swell';
+import type {
+  SwellStorefrontProduct,
+  SwellStorefrontProductOption,
+  SwellStorefrontVariant,
+} from 'types/swell_product';
+
+function getAvailableVariants(product: SwellStorefrontProduct) {
+  // Using slice() to avoid mutating the original array with reverse()
+  return (product.variants?.results?.slice()?.reverse() || []).filter(
+    (variant: SwellStorefrontVariant) =>
+      variant.stock_status === 'in_stock' || !variant.stock_status,
+  );
+}
+
+export function getSelectedVariant(
+  product: SwellStorefrontProduct,
+  queryParams: SwellData,
+): SwellStorefrontVariant | undefined {
+  const { variant: queryVariant, option_values: queryOptionValues } =
+    queryParams;
+  const variants = getAvailableVariants(product);
+
+  let selectedVariant = undefined;
+
+  if (queryVariant) {
+    selectedVariant = variants.find(
+      (variant: SwellStorefrontVariant) => variant.id === queryVariant,
+    );
+  } else if (queryOptionValues) {
+    const optionValues = queryOptionValues.split(',');
+
+    // non-variant options are skipped
+    selectedVariant = variants.find((variant: SwellStorefrontVariant) =>
+      variant.option_value_ids.every((optionValueId: string) =>
+        optionValues.includes(optionValueId),
+      ),
+    );
+  }
+
+  return selectedVariant || variants?.[0] || undefined;
+}
+
+// calculate additional price from selected options
+export function calculateAddOptionsPrice(
+  product: SwellStorefrontProduct,
+  queryParams: SwellData,
+) {
+  const { option_values = '' } = queryParams;
+  const queryOptionValues = option_values as string;
+  const optionValues = queryOptionValues.split(',');
+
+  const addPrice = product.options?.reduce(
+    (acc: number, option: SwellStorefrontProductOption) => {
+      if (!option.active || !option.values || option.values.length <= 0) {
+        return acc;
+      }
+
+      if (option.input_type !== 'select') {
+        return acc;
+      }
+
+      for (const value of option.values) {
+        if (optionValues.includes(value.id)) {
+          return acc + (value.price || 0);
+        }
+      }
+
+      return acc + (option.values[0].price || 0);
+    },
+    0,
+  );
+
+  return product.price + (addPrice || 0);
+}
+
+export function getSelectedOptionValues(
+  product: SwellStorefrontProduct,
+  queryParams: SwellData,
+) {
+  const variant = getSelectedVariant(product, queryParams);
+  if (!variant) {
+    return [];
+  }
+  return getSelectedVariantOptionValues(product, variant, queryParams);
+}
+
+// collect all option values including non-variant. Select first by default
+export function getSelectedVariantOptionValues(
+  product: SwellStorefrontProduct,
+  variant: SwellStorefrontVariant,
+  queryParams: SwellData,
+) {
+  const { option_values = '' } = queryParams;
+  const queryOptionValues = option_values as string;
+  const optionValues = queryOptionValues.split(',');
+
+  const selectedValues = variant ? [...(variant.option_value_ids || [])] : [];
+  const values: string[] = [];
+  for (const option of product.options || []) {
+    if (
+      option.active &&
+      option.values?.length > 0 &&
+      option.input_type === 'select'
+    ) {
+      let selectedByVariantId = '';
+      let selectedByOptionId = '';
+      for (const value of option.values) {
+        if (selectedValues.includes(value.id)) {
+          selectedByVariantId = value.id;
+          break;
+        }
+
+        if (optionValues.includes(value.id)) {
+          selectedByOptionId = value.id;
+        }
+      }
+
+      values.push(
+        selectedByVariantId || selectedByOptionId || option.values[0].id,
+      );
+    }
+  }
+
+  return values;
+}

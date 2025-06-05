@@ -6,7 +6,8 @@ import {
   deferWith,
   defer,
 } from './resource';
-import ShopifyProduct, { getSelectedVariantOptionValues } from './product';
+import ShopifyProduct from './product';
+import { getSelectedVariantOptionValues } from './product_functions';
 import ShopifyMedia from './media';
 import ShopifyImage from './image';
 
@@ -18,6 +19,10 @@ import type {
   ShopifyQuantityPriceBreak,
   ShopifyVariant,
 } from 'types/shopify';
+import type {
+  SwellStorefrontProduct,
+  SwellStorefrontVariant,
+} from 'types/swell_product';
 
 export default function ShopifyVariant(
   instance: ShopifyCompatibility,
@@ -87,12 +92,14 @@ export default function ShopifyVariant(
     next_incoming_date: undefined,
     options: getOptions(product, variant),
     // @ts-expect-error: move this to swell product class
-    selected_option_values: deferWith([product, variant], (product, variant) =>
-      getSelectedVariantOptionValues(
-        product,
-        variant,
-        instance.swell.queryParams,
-      ),
+    selected_option_values: deferWith(
+      [product, variant],
+      (product: SwellStorefrontProduct, variant) =>
+        getSelectedVariantOptionValues(
+          product,
+          variant,
+          instance.swell.queryParams,
+        ),
     ),
     option1: getOptionByIndex(product, variant, 0), // Deprecated by Shopify
     option2: getOptionByIndex(product, variant, 1), // Deprecated by Shopify
