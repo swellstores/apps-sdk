@@ -1,5 +1,5 @@
 {
-  "name": "swell-apps-sdk-dev",
+  "name": "@swell/apps-sdk",
   "type": "module",
   "version": "1.0.123",
   "description": "Swell SDK for building isomorphic apps.",
