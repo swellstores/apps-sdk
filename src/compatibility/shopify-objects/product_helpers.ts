@@ -124,3 +124,45 @@ export function getSelectedVariantOptionValues(
 
   return values;
 }
+
+// calculate additional price from selected non-variant options
+export function getVariantPrice(
+  product: SwellStorefrontProduct,
+  variant: SwellStorefrontVariant,
+  queryParams: SwellData,
+) {
+  const { option_values = '' } = queryParams;
+  const queryOptionValues = option_values as string;
+  const optionValues = queryOptionValues.split(',');
+
+  const addPrice = product.options?.reduce((acc: number, option) => {
+    if (
+      option.variant || // skip variant options
+      !option.active ||
+      !option.values ||
+      option.values.length <= 0
+    ) {
+      return acc;
+    }
+
+    if (option.input_type !== 'select') {
+      return acc;
+    }
+
+    // only non-variant options
+    for (const value of option.values) {
+      if (optionValues.includes(value.id)) {
+        return acc + (value.price || 0);
+      }
+    }
+
+    return acc + (option.values[0].price || 0);
+  }, 0);
+
+  let price = product.price;
+  if (variant.price !== null && variant.price !== undefined) {
+    price = variant.price;
+  }
+
+  return price + (addPrice || 0);
+}

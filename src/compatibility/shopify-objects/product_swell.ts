@@ -10,7 +10,9 @@ import { getShopifyProductProps } from './product';
 import {
   calculateAddOptionsPrice,
   getSelectedOptionValues,
-} from './product_functions';
+  getSelectedVariant,
+} from './product_helpers';
+import SwellVariant from './variant_swell';
 
 export default function SwellProduct(
   instance: ShopifyCompatibility,
@@ -43,7 +45,7 @@ export default function SwellProduct(
 
   const storefrontProduct = product as unknown as SwellStorefrontProduct;
   const shopifyProps = instance.shopifyCompatibilityConfig
-    ? getShopifyProductProps(instance, storefrontProduct, depth)
+    ? getShopifyProductProps(instance, storefrontProduct, SwellVariant, depth)
     : {};
 
   // @ts-expect-error TODO
@@ -62,9 +64,11 @@ function getSwellProductProps(
   product: SwellStorefrontProduct,
 ) {
   return {
+    // add options price
     price: deferWith(product, (product: SwellStorefrontProduct) =>
       calculateAddOptionsPrice(product, instance.swell.queryParams),
     ),
+    // prepare selected options
     selected_option_values: deferWith(
       product,
       (product: SwellStorefrontProduct) =>

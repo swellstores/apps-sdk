@@ -11,16 +11,10 @@ import type {
   ShopifyProduct,
   ShopifyProductOption,
   ShopifyProductOptionValue,
+  ShopifyVariant as ShopifyVariantType,
 } from 'types/shopify';
-import type {
-  SwellStorefrontProduct,
-  SwellStorefrontVariant,
-} from 'types/swell_product';
-import {
-  calculateAddOptionsPrice,
-  getSelectedOptionValues,
-  getSelectedVariant,
-} from './product_functions';
+import type { SwellStorefrontProduct } from 'types/swell_product';
+import { getSelectedVariant } from './product_helpers';
 
 export default function ShopifyProduct(
   instance: ShopifyCompatibility,
@@ -55,6 +49,7 @@ export default function ShopifyProduct(
     getShopifyProductProps(
       instance,
       product as unknown as SwellStorefrontProduct,
+      ShopifyVariant,
       depth,
     ),
   );
@@ -67,6 +62,12 @@ export function ShopifyProductOptionValue(values: ShopifyProductOptionValue) {
 export function getShopifyProductProps(
   instance: ShopifyCompatibility,
   product: SwellStorefrontProduct,
+  variantTypeConvertor: (
+    instance: ShopifyCompatibility,
+    variant: any,
+    product: any,
+    depth: number,
+  ) => ShopifyResource<any>,
   depth: number = 0,
 ) {
   const compareAtPrice = defer<number>(() => product.orig_price);
@@ -99,7 +100,12 @@ export function getShopifyProductProps(
       (product: SwellStorefrontProduct) => {
         // it returns first variant with empty query
         const variant = getSelectedVariant(product, {});
-        return ShopifyVariant(instance, variant || product, product, depth + 1);
+        return variantTypeConvertor(
+          instance,
+          variant || product,
+          product,
+          depth + 1,
+        );
       },
     ),
     'gift_card?': deferWith(product, (product) => product.type === 'giftcard'),
@@ -142,12 +148,6 @@ export function getShopifyProductProps(
         .filter((option: SwellData) => option.active && option.name)
         .map((option: SwellData) => option.name);
     }),
-    // all options values including non-variant
-    selected_option_values: deferWith(
-      product,
-      (product: SwellStorefrontProduct) =>
-        getSelectedOptionValues(product, instance.swell.queryParams),
-    ),
     options_by_name: deferWith(product, (product) => {
       if (!Array.isArray(product.options)) {
         return {};
@@ -214,20 +214,21 @@ export function getShopifyProductProps(
                 product_url: undefined,
                 selected: optionValues.includes(value.id),
                 swatch: undefined,
-                variant: ShopifyVariant(
+                variant: variantTypeConvertor(
                   instance,
                   variant || product,
                   product,
                   depth + 1,
-                ),
+                ) as ShopifyResource<ShopifyVariantType>,
                 // addPrice: value.price,
               }),
             ),
           };
         });
     }),
-    price: deferWith(product, (product: SwellStorefrontProduct) =>
-      calculateAddOptionsPrice(product, instance.swell.queryParams),
+    price: deferWith(
+      product,
+      (product: SwellStorefrontProduct) => product.price,
     ),
     price_max: deferWith<number, SwellRecord>(product, (product) =>
       product.variants?.results?.reduce(
@@ -285,7 +286,7 @@ export function getShopifyProductProps(
         const variant =
           getSelectedVariant(product, instance.swell.queryParams) || product;
 
-        return ShopifyVariant(instance, variant, product, depth + 1);
+        return variantTypeConvertor(instance, variant, product, depth + 1);
       },
     ),
     selected_selling_plan: undefined,
@@ -304,7 +305,7 @@ export function getShopifyProductProps(
       // Note variants must be in the same order as options
       const variants = product.variants.results
         .map((variant: SwellRecord) =>
-          ShopifyVariant(instance, variant, product, depth + 1),
+          variantTypeConvertor(instance, variant, product, depth + 1),
         )
         .reverse();
 

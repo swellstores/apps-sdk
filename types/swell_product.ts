@@ -1,9 +1,25 @@
-import type { ShopifyProduct } from './shopify';
+import type { ShopifyProduct, ShopifyVariant } from './shopify';
+import type { SwellData } from './swell';
+
+export interface SwellStorefrontVariantPrice {
+  account_group?: string;
+  quantity_min: number;
+  price: number;
+}
 
 export interface SwellStorefrontVariant {
   id: string;
   stock_status?: string;
   option_value_ids: string[];
+  images: SwellData[];
+  orig_price: number;
+  stock_level?: number;
+  price: number;
+  name: string;
+  weight: number;
+  weight_unit: string;
+  sku: string;
+  prices?: SwellStorefrontVariantPrice[];
 }
 
 export interface SwellStorefrontProductOptionValue {
@@ -16,6 +32,7 @@ export interface SwellStorefrontProductOption {
   active: boolean;
   name: string;
   input_type: string;
+  variant: boolean;
   values: SwellStorefrontProductOptionValue[];
 }
 
@@ -32,6 +49,10 @@ export interface SwellStorefrontProduct {
   tags: string[];
   // always empty there
   option_value_ids: string[];
+  images: SwellData[];
+  delivery: string;
+  sku?: string;
+  url: string;
   variants: {
     results: SwellStorefrontVariant[];
   };
@@ -40,5 +61,9 @@ export interface SwellStorefrontProduct {
 
 // Omit<SwellStorefrontProduct, 'id' | 'slug' | 'orig_price' | 'variants'>
 export interface SwellProduct extends ShopifyProduct {
+  selected_option_values: string[];
+}
+
+export interface SwellVariant extends ShopifyVariant {
   selected_option_values: string[];
 }
