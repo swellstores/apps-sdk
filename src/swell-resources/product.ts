@@ -1,18 +1,20 @@
 import { StorefrontResource, cloneStorefrontResource } from '@/resources';
 
-import { ShopifyResource, deferWith } from './resource';
+import {
+  ShopifyResource,
+  deferWith,
+} from '../compatibility/shopify-objects/resource';
 
-import type { ShopifyCompatibility } from '../shopify';
+import type { ShopifyCompatibility } from '../compatibility/shopify';
 import type { SwellRecord } from 'types/swell';
 
 import type { SwellProduct, SwellStorefrontProduct } from 'types/swell_product';
-import { getShopifyProductProps } from './product';
+import { getShopifyProductProps } from '../compatibility/shopify-objects/product';
 import {
   calculateAddOptionsPrice,
   getSelectedOptionValues,
-  getSelectedVariant,
 } from './product_helpers';
-import SwellVariant from './variant_swell';
+import SwellVariant from './variant';
 
 export default function SwellProduct(
   instance: ShopifyCompatibility,
@@ -44,6 +46,7 @@ export default function SwellProduct(
   }
 
   const storefrontProduct = product as unknown as SwellStorefrontProduct;
+  console.log('THIS=', product);
   const shopifyProps = instance.shopifyCompatibilityConfig
     ? getShopifyProductProps(instance, storefrontProduct, SwellVariant, depth)
     : {};

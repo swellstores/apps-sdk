@@ -1,8 +1,11 @@
 import { StorefrontResource, cloneStorefrontResource } from '@/resources';
 
-import { ShopifyResource, deferWith } from './resource';
+import {
+  ShopifyResource,
+  deferWith,
+} from '../compatibility/shopify-objects/resource';
 
-import type { ShopifyCompatibility } from '../shopify';
+import type { ShopifyCompatibility } from '../compatibility/shopify';
 import type { SwellRecord } from 'types/swell';
 
 import type {
@@ -14,8 +17,8 @@ import {
   getSelectedVariantOptionValues,
   getVariantPrice,
 } from './product_helpers';
-import { getShopifyVariantProps } from './variant';
-import SwellProduct from './product_swell';
+import { getShopifyVariantProps } from '../compatibility/shopify-objects/variant';
+import SwellProduct from './product';
 
 export default function SwellVariant(
   instance: ShopifyCompatibility,

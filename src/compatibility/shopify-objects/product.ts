@@ -14,7 +14,7 @@ import type {
   ShopifyVariant as ShopifyVariantType,
 } from 'types/shopify';
 import type { SwellStorefrontProduct } from 'types/swell_product';
-import { getSelectedVariant } from './product_helpers';
+import { getSelectedVariant } from '../../swell-resources/product_helpers';
 
 export default function ShopifyProduct(
   instance: ShopifyCompatibility,

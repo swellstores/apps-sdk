@@ -3,7 +3,7 @@ import { ShopifyResource, deferWith } from './resource';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyRecommendations } from 'types/shopify';
-import SwellProduct from './product_swell';
+import SwellProduct from '@/swell-resources/product';
 
 export default function ShopifyRecommendations(
   instance: ShopifyCompatibility,

@@ -1,4 +1,4 @@
-import type { SwellData, SwellRecord } from 'types/swell';
+import type { SwellData } from 'types/swell';
 import type {
   SwellStorefrontProduct,
   SwellStorefrontProductOption,
@@ -17,8 +17,8 @@ export function getSelectedVariant(
   product: SwellStorefrontProduct,
   queryParams: SwellData,
 ): SwellStorefrontVariant | undefined {
-  const { variant: queryVariant, option_values: queryOptionValues } =
-    queryParams;
+  const { variant: queryVariant, option_values } = queryParams;
+  const queryOptionValues = option_values as string;
   const variants = getAvailableVariants(product);
 
   let selectedVariant = undefined;

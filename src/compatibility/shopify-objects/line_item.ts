@@ -13,7 +13,7 @@ import type {
   ShopifyLineItem,
   ShopifySellingPlanAllocation,
 } from 'types/shopify';
-import SwellProduct from './product_swell';
+import SwellProduct from '@/swell-resources/product';
 
 export default function ShopifyLineItem(
   instance: ShopifyCompatibility,

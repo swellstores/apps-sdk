@@ -21,7 +21,7 @@ import ShopifyPage from './page';
 import { DeferredShopifyResource, ShopifyResource } from './resource';
 import ShopifySearch from './search';
 import ShopifyVariant from './variant';
-import SwellProduct from './product_swell';
+import SwellProduct from '@/swell-resources/product';
 
 import type { SwellMenu, SwellData } from '../../../types/swell';
 
