@@ -594,6 +594,7 @@ export interface ThemeSectionGroupInfo {
   prop: string;
   label: string;
   source: string;
+  group: boolean;
 }
 
 export interface ThemePageTemplateSectionConfig {

@@ -12,6 +12,7 @@ import { ShopifyCompatibility } from './compatibility/shopify';
 import ShopifyTemplate from './compatibility/shopify-objects/template';
 import ShopifyCart from './compatibility/shopify-objects/cart';
 import ShopifyCustomer from './compatibility/shopify-objects/customer';
+import RenderDrop from './compatibility/drops/render';
 import { GEO_DATA } from './constants';
 import { LiquidSwell, ThemeColor, ThemeFont, ThemeForm } from './liquid';
 import { resolveMenuSettings } from './menus';
@@ -90,6 +91,8 @@ export class SwellTheme {
 
   // Swell-native theme settings if not using Shopify compatibility
   public themeSettingFilePath = 'theme/config/theme.json';
+
+  private pageSectionGroups: ThemeSectionGroupInfo[] | null = null;
 
   constructor(
     swell: Swell,
@@ -1367,9 +1370,11 @@ export class SwellTheme {
     return '';
   }
 
-  async renderLayout(data?: SwellData): Promise<string> {
-    if (this.liquidSwell.layoutName) {
-      return this.renderLayoutTemplate(this.liquidSwell.layoutName, data);
+  async renderLayout(layoutName?: string, data?: SwellData): Promise<string> {
+    layoutName = layoutName || this.liquidSwell.layoutName;
+
+    if (layoutName) {
+      return this.renderLayoutTemplate(layoutName, data);
     } else {
       // Render content directly when layout is `none`
       return data?.content_for_layout || '';
@@ -1555,15 +1560,36 @@ export class SwellTheme {
     return sectionConfigs;
   }
 
+  async addPageSection(sectionFileName: string, group: boolean): Promise<void> {
+    if (this.pageSectionGroups === null) {
+      return;
+    }
+
+    const { pageSectionGroups } = this;
+    const sectionSchema = await this.getSectionSchema(sectionFileName);
+    const sectionName = sectionSchema?.label || sectionFileName;
+
+    let sourcePath = '';
+
+    if (group) {
+      const sectionConfig = await this.getThemeTemplateConfigByType(
+        'sections',
+        `${sectionFileName}.json`,
+      );
+
+      sourcePath = sectionConfig?.file_path ?? '';
+    }
+
+    pageSectionGroups.push({
+      prop: getSectionGroupProp(sectionFileName),
+      label: sectionName,
+      source: sourcePath,
+      group,
+    });
+  }
+
   /**
    * Get a list of sections and section groups in a page layout.
-   *
-   * Basically we should get these section groups: `header`, `content` and `footer`.
-   * For now, section groups are searched for using regex in the page layout.
-   * There may be cases where section groups can be nested in other files,
-   * in which case they will not be visible to this function.
-   *
-   * In the future, we may use a dummy page renderer and thus extract all section groups.
    */
   async getPageSectionGroups(pageId: string): Promise<ThemeSectionGroupInfo[]> {
     const pageConfig = await this.getThemeTemplateConfigByType(
@@ -1576,58 +1602,42 @@ export class SwellTheme {
     }
 
     const pageSchema = parseJsonConfig<ThemePageSchema>(pageConfig);
-    const pageLayout = pageSchema.layout || 'theme';
+    const pageLayout = pageSchema.layout || '';
 
-    const layoutConfig = await this.getThemeTemplateConfigByType(
-      'layouts',
-      `${pageLayout}.liquid`,
-    );
+    const pageSectionGroups: ThemeSectionGroupInfo[] = [];
+    this.pageSectionGroups = pageSectionGroups;
 
-    if (layoutConfig === null) {
-      return [];
-    }
-
-    const layoutData = layoutConfig.file_data;
-
-    const iterator = layoutData.matchAll(
-      /\bsections '(\w.*?)'|(\bcontent_for_layout\b)/gm,
-    );
-
-    const sections: ThemeSectionGroupInfo[] = [];
-    for (const match of iterator) {
-      if (match[1]) {
-        // Layout section group
-        const sectionFileName = match[1] || match[2];
-        const sectionSchema = await this.getSectionSchema(sectionFileName);
-        const sectionName = sectionSchema?.label || sectionFileName;
-
-        // Layout section group
-        const sectionConfig = await this.getThemeTemplateConfigByType(
-          'sections',
-          `${sectionFileName}.json`,
-        );
-        sections.push({
-          prop: getSectionGroupProp(sectionFileName),
-          label: sectionName,
-          source: sectionConfig?.file_path as string,
-        });
-      } else if (match[2]) {
-        // content_for_layout
-        sections.push({
+    await this.renderLayout(pageLayout, {
+      content_for_layout: new RenderDrop(() => {
+        pageSectionGroups.push({
           prop: SECTION_GROUP_CONTENT,
           label: 'Template',
           source: pageConfig.file_path,
+          group: true,
         });
-      }
-    }
 
-    return sections;
+        return '';
+      }),
+    });
+
+    this.pageSectionGroups = null;
+
+    return pageSectionGroups;
   }
 
   async getLayoutSectionGroups(
+    sectionGroups: ThemeSectionGroupInfo[],
     resolveSettings: boolean = true,
   ): Promise<ThemeLayoutSectionGroupConfig[]> {
-    const configs = await this.getThemeConfigsByPath('theme/sections/');
+    const configs = new Map<string, SwellThemeConfig>();
+
+    for (const sectionGroup of sectionGroups) {
+      const config = await this.getThemeConfig(sectionGroup.source);
+
+      if (config) {
+        configs.set(config.file_path, config);
+      }
+    }
 
     // TODO: de-dupe with getAllSections
     const layoutSectionGroups = await getLayoutSectionGroups(
