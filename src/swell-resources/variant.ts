@@ -9,7 +9,7 @@ import type { ShopifyCompatibility } from '../compatibility/shopify';
 import type { SwellRecord } from 'types/swell';
 
 import type {
-  SwellVariant,
+  SwellShopifyVariant,
   SwellStorefrontProduct,
   SwellStorefrontVariant,
 } from 'types/swell_product';
@@ -18,16 +18,16 @@ import {
   getVariantPrice,
 } from './product_helpers';
 import { getShopifyVariantProps } from '../compatibility/shopify-objects/variant';
-import SwellProduct from './product';
+import SwellShopifyProduct from './product';
 
-export default function SwellVariant(
+export default function SwellShopifyVariant(
   instance: ShopifyCompatibility,
   variant: StorefrontResource | SwellRecord,
   productIn?: StorefrontResource | SwellRecord,
   depth: number = 0,
-): ShopifyResource<SwellVariant> {
+): ShopifyResource<SwellShopifyVariant> {
   if (variant instanceof ShopifyResource) {
-    return variant.clone() as ShopifyResource<SwellVariant>;
+    return variant.clone() as ShopifyResource<SwellShopifyVariant>;
   }
 
   if (variant instanceof StorefrontResource) {
@@ -38,18 +38,15 @@ export default function SwellVariant(
 
   const storefrontProduct = product as unknown as SwellStorefrontProduct;
   const storefrontVariant = variant as unknown as SwellStorefrontVariant;
-  const shopifyProps = instance.shopifyCompatibilityConfig
-    ? getShopifyVariantProps(
-        instance,
-        storefrontVariant,
-        storefrontProduct,
-        SwellProduct,
-        depth,
-      )
-    : {};
+  const shopifyProps = getShopifyVariantProps(
+    instance,
+    storefrontVariant,
+    storefrontProduct,
+    SwellShopifyProduct,
+    depth,
+  );
 
-  // @ts-expect-error TODO
-  return new ShopifyResource<SwellVariant>({
+  return new ShopifyResource<SwellShopifyVariant>({
     // raw swell properties
     ...storefrontVariant,
     // shopify properties

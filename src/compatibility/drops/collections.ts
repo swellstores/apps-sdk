@@ -13,7 +13,7 @@ import type {
   SwellRecord,
 } from '../../../types/swell';
 import type { ShopifyCollection as ShopifyCollectionType } from 'types/shopify';
-import SwellProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/swell-resources/product';
 
 // TODO: remove this once backend is implemented for "all"
 class AllCategoryResource<
@@ -177,7 +177,7 @@ class SwellStorefrontProducts extends SwellStorefrontCollection<
         ...result,
         results: result.results.map(
           (product) =>
-            SwellProduct(instance, product) as unknown as SwellRecord,
+            SwellShopifyProduct(instance, product) as unknown as SwellRecord,
         ),
       };
     });

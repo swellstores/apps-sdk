@@ -13,7 +13,7 @@ import type {
   ShopifyLineItem,
   ShopifySellingPlanAllocation,
 } from 'types/shopify';
-import SwellProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/swell-resources/product';
 
 export default function ShopifyLineItem(
   instance: ShopifyCompatibility,
@@ -79,7 +79,7 @@ export default function ShopifyLineItem(
     price: item.price,
     product: deferWith(
       item.product,
-      () => item.product && SwellProduct(instance, item.product),
+      () => item.product && SwellShopifyProduct(instance, item.product),
     ),
     product_id: item.product_id,
     properties: item.metadata ?? {},

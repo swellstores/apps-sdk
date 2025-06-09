@@ -21,7 +21,7 @@ import ShopifyPage from './page';
 import { DeferredShopifyResource, ShopifyResource } from './resource';
 import ShopifySearch from './search';
 import ShopifyVariant from './variant';
-import SwellProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/swell-resources/product';
 
 import type { SwellMenu, SwellData } from '../../../types/swell';
 
@@ -46,7 +46,7 @@ export {
   ShopifyLocalization,
   ShopifySearch,
   ShopifyVariant,
-  SwellProduct,
+  SwellShopifyProduct,
 };
 
 export function adaptShopifyMenuData(

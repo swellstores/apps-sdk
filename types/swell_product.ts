@@ -60,10 +60,10 @@ export interface SwellStorefrontProduct {
 }
 
 // Omit<SwellStorefrontProduct, 'id' | 'slug' | 'orig_price' | 'variants'>
-export interface SwellProduct extends ShopifyProduct {
+export interface SwellShopifyProduct extends ShopifyProduct {
   selected_option_values: string[];
 }
 
-export interface SwellVariant extends ShopifyVariant {
+export interface SwellShopifyVariant extends ShopifyVariant {
   selected_option_values: string[];
 }

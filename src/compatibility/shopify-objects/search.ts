@@ -6,7 +6,7 @@ import type { StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { ShopifySearch } from 'types/shopify';
 import type { SwellRecord } from 'types/swell';
-import SwellProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/swell-resources/product';
 
 export default function ShopifySearch(
   instance: ShopifyCompatibility,
@@ -17,7 +17,10 @@ export default function ShopifySearch(
   }
 
   const resolveProducts = makeProductsCollectionResolve(search, (product) => {
-    const shopifyProduct = SwellProduct(instance, product as SwellRecord);
+    const shopifyProduct = SwellShopifyProduct(
+      instance,
+      product as SwellRecord,
+    );
     (shopifyProduct as any).object_type = 'product';
     return shopifyProduct;
   });

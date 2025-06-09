@@ -11,7 +11,7 @@ import ShopifyFilter from './filter';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyCollection } from 'types/shopify';
-import SwellProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/swell-resources/product';
 
 interface ShopifyProductCollection {
   products?: SwellStorefrontCollection | SwellCollection;
@@ -30,7 +30,7 @@ export default function ShopifyCollection(
   }
 
   const resolveProducts = makeProductsCollectionResolve(category, (product) =>
-    SwellProduct(instance, product as SwellRecord),
+    SwellShopifyProduct(instance, product as SwellRecord),
   );
 
   return new ShopifyResource<ShopifyCollection>({

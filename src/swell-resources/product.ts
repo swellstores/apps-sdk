@@ -8,32 +8,35 @@ import {
 import type { ShopifyCompatibility } from '../compatibility/shopify';
 import type { SwellRecord } from 'types/swell';
 
-import type { SwellProduct, SwellStorefrontProduct } from 'types/swell_product';
+import type {
+  SwellShopifyProduct,
+  SwellStorefrontProduct,
+} from 'types/swell_product';
 import { getShopifyProductProps } from '../compatibility/shopify-objects/product';
 import {
   calculateAddOptionsPrice,
   getSelectedOptionValues,
 } from './product_helpers';
-import SwellVariant from './variant';
+import SwellShopifyVariant from './variant';
 
-export default function SwellProduct(
+export default function SwellShopifyProduct(
   instance: ShopifyCompatibility,
   product: StorefrontResource | SwellRecord,
-): ShopifyResource<SwellProduct>;
+): ShopifyResource<SwellShopifyProduct>;
 
-export default function SwellProduct(
+export default function SwellShopifyProduct(
   instance: ShopifyCompatibility,
   product: StorefrontResource | SwellRecord,
   depth: number,
-): ShopifyResource<SwellProduct> | null;
+): ShopifyResource<SwellShopifyProduct> | null;
 
-export default function SwellProduct(
+export default function SwellShopifyProduct(
   instance: ShopifyCompatibility,
   product: StorefrontResource | SwellRecord,
   depth: number = 0,
-): ShopifyResource<SwellProduct> | null {
+): ShopifyResource<SwellShopifyProduct> | null {
   if (product instanceof ShopifyResource) {
-    return product.clone() as ShopifyResource<SwellProduct>;
+    return product.clone() as ShopifyResource<SwellShopifyProduct>;
   }
 
   if (product instanceof StorefrontResource) {
@@ -47,12 +50,14 @@ export default function SwellProduct(
 
   const storefrontProduct = product as unknown as SwellStorefrontProduct;
   console.log('THIS=', product);
-  const shopifyProps = instance.shopifyCompatibilityConfig
-    ? getShopifyProductProps(instance, storefrontProduct, SwellVariant, depth)
-    : {};
+  const shopifyProps = getShopifyProductProps(
+    instance,
+    storefrontProduct,
+    SwellShopifyVariant,
+    depth,
+  );
 
-  // @ts-expect-error TODO
-  return new ShopifyResource<SwellProduct>({
+  return new ShopifyResource<SwellShopifyProduct>({
     // raw swell properties
     ...storefrontProduct,
     // shopify properties
