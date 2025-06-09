@@ -6,7 +6,7 @@ import type { StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { ShopifySearch } from 'types/shopify';
 import type { SwellRecord } from 'types/swell';
-import SwellShopifyProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/compatibility/shopify-objects/product_swell';
 
 export default function ShopifySearch(
   instance: ShopifyCompatibility,

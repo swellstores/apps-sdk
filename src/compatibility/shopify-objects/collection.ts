@@ -11,7 +11,7 @@ import ShopifyFilter from './filter';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyCollection } from 'types/shopify';
-import SwellShopifyProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/compatibility/shopify-objects/product_swell';
 
 interface ShopifyProductCollection {
   products?: SwellStorefrontCollection | SwellCollection;

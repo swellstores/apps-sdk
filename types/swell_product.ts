@@ -20,6 +20,7 @@ export interface SwellStorefrontVariant {
   weight_unit: string;
   sku: string;
   prices?: SwellStorefrontVariantPrice[];
+  selected_option_values?: string[];
 }
 
 export interface SwellStorefrontProductOptionValue {
@@ -53,6 +54,7 @@ export interface SwellStorefrontProduct {
   delivery: string;
   sku?: string;
   url: string;
+  selected_option_values?: string[];
   variants: {
     results: SwellStorefrontVariant[];
   };

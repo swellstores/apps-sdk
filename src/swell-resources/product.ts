@@ -1,86 +1,71 @@
-import { StorefrontResource, cloneStorefrontResource } from '@/resources';
-
-import {
-  ShopifyResource,
-  deferWith,
-} from '../compatibility/shopify-objects/resource';
-
-import type { ShopifyCompatibility } from '../compatibility/shopify';
-import type { SwellRecord } from 'types/swell';
-
+import type { Swell } from '@/api';
+import { StorefrontResource } from '@/resources';
+import type { SwellData, SwellRecord } from 'types/swell';
 import type {
-  SwellShopifyProduct,
   SwellStorefrontProduct,
+  SwellStorefrontVariant,
 } from 'types/swell_product';
-import { getShopifyProductProps } from '../compatibility/shopify-objects/product';
 import {
   calculateAddOptionsPrice,
   getSelectedOptionValues,
+  getSelectedVariantOptionValues,
+  getVariantPrice,
 } from './product_helpers';
-import SwellShopifyVariant from './variant';
 
-export default function SwellShopifyProduct(
-  instance: ShopifyCompatibility,
-  product: StorefrontResource | SwellRecord,
-): ShopifyResource<SwellShopifyProduct>;
-
-export default function SwellShopifyProduct(
-  instance: ShopifyCompatibility,
-  product: StorefrontResource | SwellRecord,
-  depth: number,
-): ShopifyResource<SwellShopifyProduct> | null;
-
-export default function SwellShopifyProduct(
-  instance: ShopifyCompatibility,
-  product: StorefrontResource | SwellRecord,
-  depth: number = 0,
-): ShopifyResource<SwellShopifyProduct> | null {
-  if (product instanceof ShopifyResource) {
-    return product.clone() as ShopifyResource<SwellShopifyProduct>;
+function transformSwellVariant(
+  params: SwellData,
+  product: SwellStorefrontProduct,
+  variant: SwellStorefrontVariant,
+) {
+  if (!product) {
+    return product;
   }
 
-  if (product instanceof StorefrontResource) {
-    product = cloneStorefrontResource(product);
+  variant.price = getVariantPrice(product, variant, params);
+  variant.selected_option_values = getSelectedVariantOptionValues(
+    product,
+    variant,
+    params,
+  );
+
+  return variant;
+}
+
+export function transformSwellProduct(
+  params: SwellData,
+  product?: SwellStorefrontProduct | null,
+) {
+  if (!product) {
+    return product;
   }
 
-  // TODO: find a better way to prevent infinite loop
-  if (depth > 1) {
-    return null;
+  product.price = calculateAddOptionsPrice(product, params);
+  product.selected_option_values = getSelectedOptionValues(product, params);
+
+  if (Array.isArray(product.variants?.results)) {
+    product.variants.results.forEach((variant) =>
+      transformSwellVariant(params, product, variant),
+    );
+  }
+
+  return product;
+}
+
+export default function SwellProduct(
+  swell: Swell,
+  product: StorefrontResource | SwellRecord,
+) {
+  if (!product) {
+    return product;
   }
 
   const storefrontProduct = product as unknown as SwellStorefrontProduct;
-  console.log('THIS=', product);
-  const shopifyProps = getShopifyProductProps(
-    instance,
-    storefrontProduct,
-    SwellShopifyVariant,
-    depth,
-  );
 
-  return new ShopifyResource<SwellShopifyProduct>({
+  const swellProduct = {
     // raw swell properties
     ...storefrontProduct,
-    // shopify properties
-    ...shopifyProps,
-    // swell specific properties
-    ...getSwellProductProps(instance, storefrontProduct),
-  });
-}
-
-function getSwellProductProps(
-  instance: ShopifyCompatibility,
-  product: SwellStorefrontProduct,
-) {
-  return {
-    // add options price
-    price: deferWith(product, (product: SwellStorefrontProduct) =>
-      calculateAddOptionsPrice(product, instance.swell.queryParams),
-    ),
-    // prepare selected options
-    selected_option_values: deferWith(
-      product,
-      (product: SwellStorefrontProduct) =>
-        getSelectedOptionValues(product, instance.swell.queryParams),
-    ),
   };
+
+  // swell specific properties
+  return transformSwellProduct(swell.queryParams, swellProduct);
 }

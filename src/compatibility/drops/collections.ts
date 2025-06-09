@@ -13,7 +13,7 @@ import type {
   SwellRecord,
 } from '../../../types/swell';
 import type { ShopifyCollection as ShopifyCollectionType } from 'types/shopify';
-import SwellShopifyProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/compatibility/shopify-objects/product_swell';
 
 // TODO: remove this once backend is implemented for "all"
 class AllCategoryResource<

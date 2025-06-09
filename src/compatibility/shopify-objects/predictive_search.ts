@@ -7,7 +7,7 @@ import type {
   ShopifyPredictiveSearch,
   ShopifyPredictiveSearchResources,
 } from 'types/shopify';
-import SwellShopifyProduct from '@/swell-resources/product';
+import SwellShopifyProduct from '@/compatibility/shopify-objects/product_swell';
 
 export default function ShopifyPredictiveSearch(
   instance: ShopifyCompatibility,
