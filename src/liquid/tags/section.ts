@@ -11,7 +11,11 @@ import type {
 } from 'liquidjs';
 import type { QuotedToken } from 'liquidjs/dist/tokens';
 import type { TagClass, TagRenderReturn } from 'liquidjs/dist/template';
-import type { SwellThemeConfig } from '../../../types/swell';
+import type {
+  SwellData,
+  SwellThemeConfig,
+  ThemeSectionSchema,
+} from '../../../types/swell';
 
 // {% section 'name' %}
 
@@ -44,8 +48,8 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         return;
       }
 
-      let schema: any;
-      let settings: any;
+      let schema: ThemeSectionSchema | undefined;
+      let settings: SwellData | undefined;
 
       const output = (yield liquidSwell.theme
         .getTemplateSchema(themeConfig)
@@ -71,7 +75,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
           });
         })) as string;
 
-      if (output) {
+      if (output && schema && settings) {
         const { shopify_compatibility: shopifyCompatibility } =
           liquidSwell.theme.globals;
 
@@ -86,6 +90,9 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         emitter.write(
           `<${tag} id="${id}" class="${className} ${schema.class || ''}">${output}</${tag}>`,
         );
+
+        // TODO: if we decide to support static sections
+        // yield liquidSwell.theme.addPageSection(this.fileName, false);
       }
     }
   };

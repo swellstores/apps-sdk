@@ -2,7 +2,11 @@ import { Tag } from 'liquidjs';
 import JSON5 from 'json5';
 
 import type { LiquidSwell } from '..';
-import type { ThemeSectionConfig } from 'types/swell';
+import type {
+  SwellThemeConfig,
+  ThemeSectionConfig,
+  ThemeSectionGroup,
+} from 'types/swell';
 import type {
   Liquid,
   TagToken,
@@ -32,11 +36,18 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
     }
 
     *render(_ctx: Context, emitter: Emitter): TagRenderReturn {
-      const filePath = yield liquidSwell.getSectionGroupPath(this.fileName);
-      const themeConfig = yield liquidSwell.getThemeConfig(filePath);
+      const filePath = (yield liquidSwell.getSectionGroupPath(
+        this.fileName,
+      )) as string;
+
+      const themeConfig = (yield liquidSwell.getThemeConfig(
+        filePath,
+      )) as SwellThemeConfig;
 
       try {
-        const sectionGroup = JSON5.parse(themeConfig.file_data);
+        const sectionGroup = JSON5.parse<ThemeSectionGroup>(
+          themeConfig.file_data,
+        );
 
         const sectionConfigs = (yield liquidSwell.renderPageSections(
           sectionGroup,
@@ -60,6 +71,8 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
             })
             .join('')}</div>`,
         );
+
+        yield liquidSwell.theme.addPageSection(this.fileName, true);
       } catch (err) {
         // noop
         console.warn(err);

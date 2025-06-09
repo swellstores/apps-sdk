@@ -55,7 +55,7 @@ export async function getEasyblocksPageTemplate<T>(
     }
 
     try {
-      return JSON5.parse<T>(templateConfig.file_data) as T;
+      return JSON5.parse<T>(templateConfig.file_data);
     } catch {
       return templateConfig.file_data;
     }
@@ -628,7 +628,7 @@ export function getEasyblocksPagePropsWithConfigs(
           {
             _id: 'swell_page',
             _component: 'swell_page',
-            ContentSections: pageSections
+            [SECTION_GROUP_CONTENT]: pageSections
               .filter((config) => componentSet.has(config.section.type))
               .map<NoCodeComponentEntry>(({ section, settings, schema }) => ({
                 _id: prepareSectionId(section.id),
