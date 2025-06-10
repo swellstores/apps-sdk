@@ -19,7 +19,11 @@ export default function ShopifyBlog(
   }
 
   const allTags = deferWith(blogCategory.blogs, (blogs) => {
-    const set: Set<string> = blogs?.results?.reduce(
+    if (!Array.isArray(blogs?.results)) {
+      return [];
+    }
+
+    const set: Set<string> = blogs.results.reduce(
       (set: Set<string>, blog: SwellData) => {
         for (const tag of blog.tags || []) {
           set.add(tag);
