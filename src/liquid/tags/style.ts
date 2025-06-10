@@ -28,13 +28,14 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
     ) {
       super(token, remainTokens, liquid);
 
-      this.hash = md5(token.input);
       this.templates = [];
+      const tagBegin = token.begin;
 
       while (remainTokens.length > 0) {
         const token = remainTokens.shift() as TopLevelToken;
 
         if (TypeGuards.isTagToken(token) && token.name === 'endstyle') {
+          this.hash = md5(token.input.slice(tagBegin, token.end));
           return;
         }
 
