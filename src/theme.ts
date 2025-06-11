@@ -1151,17 +1151,48 @@ export class SwellTheme {
       name,
     );
 
-    if (templateConfig) {
-      const content = await this.renderThemeTemplate(
-        templateConfig.file_path,
-        data,
-      );
-      return typeof content === 'string'
-        ? content
-        : `<!-- invalid layout: ${name}--> {{ content_for_layout }}`;
+    if (!templateConfig) {
+      throw new Error(`Layout template not found: ${name}`);
     }
 
-    throw new Error(`Layout template not found: ${name}`);
+    let content = await this.renderThemeTemplate(
+      templateConfig.file_path,
+      data,
+    );
+
+    if (typeof content !== 'string') {
+      return `<!-- invalid layout: ${name}--> {{ content_for_layout }}`;
+    }
+
+    // Inject custom css
+    if (!this.globals.request.is_editor) {
+      let customCss = (this.globals.settings.custom_css || '') as
+        | string
+        | string[];
+
+      if (Array.isArray(customCss)) {
+        customCss = customCss.join('\n').trim();
+      }
+
+      if (customCss) {
+        let pos = -1;
+        let match = null;
+        const regex = /<\/body\s*?>/gi;
+
+        // Get last occurrence of </body> tag in the content
+        while ((match = regex.exec(content)) !== null) {
+          pos = match.index;
+        }
+
+        if (pos !== -1) {
+          content = `${content.slice(0, pos)}
+<style>${customCss}</style>
+${content.slice(pos)}`;
+        }
+      }
+    }
+
+    return content;
   }
 
   async renderPageTemplate(
