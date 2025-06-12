@@ -45,6 +45,7 @@ import payment_button from './shopify/payment_button';
 import payment_terms from './shopify/payment_terms';
 import placeholder_svg_tag from './shopify/placeholder_svg_tag';
 import shopify_asset_url from './shopify/shopify_asset_url';
+import structured_data from './shopify/structured_data';
 
 // Swell only
 import inline_editable from './inline_editable';
@@ -108,6 +109,7 @@ export const filters = {
   payment_terms,
   placeholder_svg_tag,
   shopify_asset_url,
+  structured_data,
 
   // Swell only
   inline_editable,

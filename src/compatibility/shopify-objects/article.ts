@@ -63,3 +63,16 @@ export default function ShopifyArticle(
     'moderated?': false,
   });
 }
+
+export function isLikeShopifyArticle(value: unknown): value is ShopifyArticle {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.hasOwn(value, 'title') &&
+    Object.hasOwn(value, 'content') &&
+    Object.hasOwn(value, 'comments') &&
+    Object.hasOwn(value, 'moderated?') &&
+    Object.hasOwn(value, 'published_at') &&
+    Object.hasOwn(value, 'excerpt_or_content')
+  );
+}

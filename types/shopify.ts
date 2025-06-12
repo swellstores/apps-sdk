@@ -540,7 +540,7 @@ export interface ShopifyProduct {
   'quantity_price_breaks_configured?': boolean;
   requires_selling_plan: boolean;
   selected_or_first_available_selling_plan_allocation?: ShopifySellingPlanAllocation;
-  selected_or_first_available_variant: ShopifyVariant;
+  selected_or_first_available_variant?: ShopifyVariant;
   selected_selling_plan?: ShopifySellingPlan;
   selected_selling_plan_allocation?: ShopifySellingPlanAllocation;
   selected_variant?: ShopifyVariant;
