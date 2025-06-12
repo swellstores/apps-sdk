@@ -1,6 +1,7 @@
 import { Context, Drop } from 'liquidjs';
 
 import { StorefrontResource, SwellStorefrontCollection } from '../resources';
+import { DeferredShopifyResource } from '@/compatibility/shopify-objects/resource';
 
 // Note: has to refactor this to use class props instead of methods for some reason
 // The class methods weren't working in our implementation
@@ -240,31 +241,40 @@ export async function jsonStringifyAsync(
   );
 }
 
-async function resolveAllKeys(
+export async function resolveAllKeys(
   value: unknown,
   references: WeakSet<object> = new WeakSet(),
 ) {
   await forEachKeyDeep(value as Record<string, unknown>, async (key, value) => {
     if (!isObject(value)) {
-      return;
+      return true;
     }
     const val = value[key];
     if (isLikePromise(val)) {
       value[key] = await val;
       await resolveAllKeys(value[key], references);
     } else if (isObject(val)) {
+      if (val instanceof DeferredShopifyResource) {
+        value[key] = await val.resolve();
+        await resolveAllKeys(value[key], references);
+        return true;
+      }
+
       if (references.has(val)) {
         // Ignore circular reference
         return false;
       }
+
       references.add(val);
     }
+
+    return true;
   });
 }
 
 async function forEachKeyDeep(
   obj: Record<string, unknown>,
-  fn: (key: string, value: Record<string, unknown>) => Promise<unknown>,
+  fn: (key: string, value: Record<string, unknown>) => Promise<boolean>,
 ) {
   if (!isObject(obj)) {
     return;

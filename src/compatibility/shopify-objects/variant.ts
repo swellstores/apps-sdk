@@ -87,12 +87,14 @@ export default function ShopifyVariant(
     next_incoming_date: undefined,
     options: getOptions(product, variant),
     // @ts-expect-error: move this to swell product class
-    selected_option_values: deferWith([product, variant], (product, variant) =>
-      getSelectedVariantOptionValues(
-        product,
-        variant,
-        instance.swell.queryParams,
-      ),
+    selected_option_values: deferWith(
+      [product, variant],
+      (product: SwellRecord, variant: SwellRecord) =>
+        getSelectedVariantOptionValues(
+          product,
+          variant,
+          instance.swell.queryParams,
+        ),
     ),
     option1: getOptionByIndex(product, variant, 0), // Deprecated by Shopify
     option2: getOptionByIndex(product, variant, 1), // Deprecated by Shopify

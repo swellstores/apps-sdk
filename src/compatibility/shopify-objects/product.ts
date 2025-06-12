@@ -69,7 +69,10 @@ export default function ShopifyProduct(
     first_available_variant: deferWith(product, (product: SwellRecord) => {
       // it returns first variant with empty query
       const variant = getSelectedVariant(product, {});
-      return ShopifyVariant(instance, variant || product, product, depth + 1);
+
+      return variant
+        ? ShopifyVariant(instance, variant, product, depth + 1)
+        : undefined;
     }),
     'gift_card?': deferWith(product, (product) => product.type === 'giftcard'),
     handle: defer(() => product.slug),
@@ -112,7 +115,7 @@ export default function ShopifyProduct(
     }),
     // all options values including non-variant
     // @ts-expect-error: move this to swell product class
-    selected_option_values: deferWith(product, (product) =>
+    selected_option_values: deferWith(product, (product: SwellRecord) =>
       getSelectedOptionValues(product, instance.swell.queryParams),
     ),
     options_by_name: deferWith(product, (product) => {
@@ -125,7 +128,7 @@ export default function ShopifyProduct(
       return product.options.reduce(
         (
           acc: Record<string, ShopifyProductOption | undefined>,
-          option: any,
+          option: SwellData,
         ) => {
           if (option.active && option.name) {
             acc[option.name.toLowerCase()] = {
@@ -134,10 +137,10 @@ export default function ShopifyProduct(
               selected_value: undefined,
               // variant_option: option.variant,
               values:
-                option.values?.map((value: any) =>
+                option.values?.map((value: SwellRecord) =>
                   ShopifyProductOptionValue({
                     available: true,
-                    id: value.id,
+                    id: value.id as unknown as number,
                     name: value.name,
                     product_url: undefined,
                     selected: false,
@@ -166,16 +169,16 @@ export default function ShopifyProduct(
 
         return product.options
           .filter((option) => option.active && option.name)
-          .map((option: any, index: number) => {
+          .map((option: SwellData, index: number) => {
             return {
               name: option.name,
               position: index + 1,
               selected_value: undefined,
               // variant_option: option.variant,
-              values: option.values?.map((value: any) =>
+              values: option.values?.map((value: SwellRecord) =>
                 ShopifyProductOptionValue({
                   available: true,
-                  id: value.id,
+                  id: value.id as unknown as number,
                   name: value.name,
                   product_url: undefined,
                   selected: optionValues.includes(value.id),
@@ -196,23 +199,35 @@ export default function ShopifyProduct(
     price: deferWith(product, (product) =>
       calculateAddOptionsPrice(product, instance.swell.queryParams),
     ),
-    price_max: deferWith<number, SwellRecord>(product, (product) =>
-      product.variants?.results?.reduce(
-        (max: number, variant: any) => Math.max(max, variant.price),
+    price_max: deferWith<number, SwellRecord>(product, (product) => {
+      if (!Array.isArray(product.variants?.results)) {
+        return product.price;
+      }
+
+      return product.variants.results.reduce(
+        (max: number, variant: SwellRecord) => Math.max(max, variant.price),
         0,
-      ),
-    ),
-    price_min: deferWith<number, SwellRecord>(product, (product) =>
-      product.variants?.results?.reduce(
-        (min: number, variant: any) => Math.min(min, variant.price),
+      );
+    }),
+    price_min: deferWith<number, SwellRecord>(product, (product) => {
+      if (!Array.isArray(product.variants?.results)) {
+        return product.price;
+      }
+
+      return product.variants.results.reduce(
+        (min: number, variant: SwellRecord) => Math.min(min, variant.price),
         Infinity,
-      ),
-    ),
-    price_varies: deferWith<boolean, SwellRecord>(product, (product) =>
-      product.variants?.results?.some(
-        (variant: any) => variant.price !== product.price,
-      ),
-    ),
+      );
+    }),
+    price_varies: deferWith<boolean, SwellRecord>(product, (product) => {
+      if (!Array.isArray(product.variants?.results)) {
+        return false;
+      }
+
+      return product.variants.results.some(
+        (variant: SwellRecord) => variant.price !== product.price,
+      );
+    }),
     published_at: deferWith(
       product,
       (product) => product.date_updated || product.date_created,
@@ -249,13 +264,11 @@ export default function ShopifyProduct(
     selected_or_first_available_variant: deferWith(
       product,
       (product: SwellRecord) => {
-        let variant = getSelectedVariant(product, instance.swell.queryParams);
+        const variant = getSelectedVariant(product, instance.swell.queryParams);
 
-        if (!variant) {
-          variant = product;
-        }
-
-        return ShopifyVariant(instance, variant, product, depth + 1);
+        return variant
+          ? ShopifyVariant(instance, variant, product, depth + 1)
+          : undefined;
       },
     ),
     selected_selling_plan: undefined,
@@ -279,6 +292,9 @@ export default function ShopifyProduct(
         .reverse();
 
       return variants;
+    }),
+    variants_count: deferWith(product, (product) => {
+      return product.variants?.count || 0;
     }),
     vendor: undefined,
   });
@@ -350,15 +366,15 @@ function calculateAddOptionsPrice(product: any, queryParams: SwellData) {
   return product.price + (addPrice || 0);
 }
 
-function getSelectedOptionValues(product: any, queryParams: SwellData) {
+function getSelectedOptionValues(product: SwellRecord, queryParams: SwellData) {
   const variant = getSelectedVariant(product, queryParams);
   return getSelectedVariantOptionValues(product, variant, queryParams);
 }
 
 // collect all option values including non-variant. Select first by default
 export function getSelectedVariantOptionValues(
-  product: any,
-  variant: any,
+  product: SwellRecord,
+  variant: SwellRecord | undefined,
   queryParams: SwellData,
 ) {
   const { option_values: queryOptionValues = '' } = queryParams;
@@ -392,4 +408,15 @@ export function getSelectedVariantOptionValues(
   }
 
   return values;
+}
+
+export function isLikeShopifyProduct(value: unknown): value is ShopifyProduct {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    Object.hasOwn(value, 'variants') &&
+    Object.hasOwn(value, 'gift_card?') &&
+    Object.hasOwn(value, 'price_varies') &&
+    Object.hasOwn(value, 'has_only_default_variant')
+  );
 }
