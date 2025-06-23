@@ -6,12 +6,12 @@ import {
   deferWith,
   defer,
 } from './resource';
-import ShopifyProduct, { getSelectedVariantOptionValues } from './product';
+import ShopifyProduct from './product';
 import ShopifyMedia from './media';
 import ShopifyImage from './image';
 
 import type { ShopifyCompatibility } from '../shopify';
-import type { SwellData, SwellRecord } from 'types/swell';
+import type { SwellRecord } from 'types/swell';
 import type {
   ShopifyProduct as ShopifyProductType,
   ShopifyProductOptionValue,
@@ -29,13 +29,18 @@ export default function ShopifyVariant(
     return variant.clone() as ShopifyResource<ShopifyVariant>;
   }
 
+  let swellVariant = {};
   if (variant instanceof StorefrontResource) {
     variant = cloneStorefrontResource(variant);
+  } else {
+    // variant is a resolved object with swell variant properies
+    swellVariant = { ...variant };
   }
 
   const product = productIn || variant.product || {};
 
   return new ShopifyResource<ShopifyVariant>({
+    ...swellVariant,
     available: deferWith(variant, (variant) =>
       Boolean(variant.stock_status === 'in_stock' || !variant.stock_status),
     ),
@@ -86,22 +91,17 @@ export default function ShopifyVariant(
     metafields: {},
     next_incoming_date: undefined,
     options: getOptions(product, variant),
-    // @ts-expect-error: move this to swell product class
-    selected_option_values: deferWith(
-      [product, variant],
-      (product: SwellRecord, variant: SwellRecord) =>
-        getSelectedVariantOptionValues(
-          product,
-          variant,
-          instance.swell.queryParams,
-        ),
-    ),
     option1: getOptionByIndex(product, variant, 0), // Deprecated by Shopify
     option2: getOptionByIndex(product, variant, 1), // Deprecated by Shopify
     option3: getOptionByIndex(product, variant, 2), // Deprecated by Shopify
-    price: deferWith([product, variant], (product, variant) =>
-      getVariantPrice(product, variant, instance.swell.queryParams),
-    ),
+    price: deferWith([product, variant], (product, variant) => {
+      let price = product.price;
+      if (variant.price !== null && variant.price !== undefined) {
+        price = variant.price;
+      }
+
+      return price;
+    }),
     product: deferWith(product, (product: SwellRecord) => {
       return ShopifyProduct(
         instance,
@@ -207,41 +207,4 @@ function getOptionByIndex(
       return value ? optionValuesById[value] : undefined;
     },
   );
-}
-
-// calculate additional price from selected non-variant options
-function getVariantPrice(product: any, variant: any, queryParams: SwellData) {
-  const { option_values: queryOptionValues = '' } = queryParams;
-  const optionValues = queryOptionValues.split(',');
-
-  const addPrice = product.options?.reduce((acc: any, option: any) => {
-    if (
-      option.variant || // skip variant options
-      !option.active ||
-      !option.values ||
-      option.values.length <= 0
-    ) {
-      return acc;
-    }
-
-    if (option.input_type !== 'select') {
-      return acc;
-    }
-
-    // only non-variant options
-    for (const value of option.values) {
-      if (optionValues.includes(value.id)) {
-        return acc + (value.price || 0);
-      }
-    }
-
-    return acc + (option.values[0].price || 0);
-  }, 0);
-
-  let price = product.price;
-  if (variant.price !== null && variant.price !== undefined) {
-    price = variant.price;
-  }
-
-  return price + (addPrice || 0);
 }
