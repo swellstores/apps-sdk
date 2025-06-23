@@ -155,6 +155,11 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     return instance[prop];
   }
 
+  // add additional properties to the loaded result
+  _transformResult(result?: T | null) {
+    return result;
+  }
+
   async _get(..._args: unknown[]): Promise<T | null | undefined> {
     if (this._getter) {
       const getter = this._getter.bind(
@@ -163,6 +168,9 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 
       return Promise.resolve()
         .then(getter)
+        .then((result) => {
+          return this._transformResult(result);
+        })
         .then((result) => {
           this._result = result;
 
@@ -276,6 +284,10 @@ export function cloneStorefrontResource<T extends SwellData = SwellData>(
 ): StorefrontResource<T> {
   const resourceName = input._resourceName as string;
   const clone = new StorefrontResource(input._getter);
+
+  // clone query parameters and result transformation function
+  clone._params = input._params as SwellData;
+  clone._transformResult = input._transformResult.bind(clone);
 
   Object.defineProperty(clone.constructor, 'name', {
     value: resourceName,
@@ -530,6 +542,7 @@ export class SwellStorefrontRecord<
   T extends SwellData = SwellRecord,
 > extends SwellStorefrontResource<T> {
   public _id: string;
+  public _params: SwellData;
 
   constructor(
     swell: Swell,
@@ -542,6 +555,7 @@ export class SwellStorefrontRecord<
 
     this._id = id;
     this._query = query;
+    this._params = {};
 
     if (!getter) {
       this._setGetter(this._defaultGetter());
@@ -591,6 +605,9 @@ export class SwellStorefrontRecord<
           ],
           getter,
         )
+        .then((result?: T | null) => {
+          return this._transformResult(result);
+        })
         .then((result?: T | null) => {
           this._result = result;
 
