@@ -22,7 +22,7 @@ export default function ShopifyPage(
       page,
       (page) => page.date_published || page.date_created,
     ),
-    template_suffix: undefined, // TODO
+    template_suffix: defer(() => page.theme_template),
     title: deferWith(page, (page) => page.title || page.name), // Due to deprecated name field
     url: deferWith(page, (page) => `/pages/${page.slug}`),
   });

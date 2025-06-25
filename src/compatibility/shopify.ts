@@ -79,23 +79,13 @@ export class ShopifyCompatibility {
   }
 
   initGlobals(globals: ThemeGlobals): void {
-    const { request, page } = globals;
-
-    this.pageId = this.getPageType(globals.page?.id);
-
-    /*
-     * Note: page is used both globally and in content pages
-     * https://shopify.dev/docs/api/liquid/objects/page
-     */
-    globals.page = {
-      ...(page || undefined),
-    };
+    const { request } = globals;
 
     globals.request = {
       ...(request || undefined),
       design_mode: this.swell.isEditor,
       visual_section_preview: false, // TODO: Add support for visual section preview
-      page_type: page?.id,
+      page_type: '',
     };
 
     globals.collections = new CollectionsDrop(this);
@@ -109,6 +99,9 @@ export class ShopifyCompatibility {
   ): void {
     if (globals.page) {
       this.pageId = this.getPageType(globals.page.id);
+
+      const request = globals.request || prevGlobals.request;
+      request.page_type = globals.page.id;
     }
 
     if (globals.request) {

@@ -271,7 +271,7 @@ export default function ShopifyProduct(
     selected_variant: undefined,
     selling_plan_groups: [],
     tags: defer(() => product.tags),
-    template_suffix: undefined,
+    template_suffix: defer(() => product.theme_template),
     title: defer(() => product.name),
     type: defer(() => product.type),
     url: deferWith(product, (product) => `/products/${product.slug}`), // TODO: pass theme settings to get this correctly

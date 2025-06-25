@@ -41,12 +41,14 @@ const NO_INLINE = true;
 export async function getEasyblocksPageTemplate<T>(
   theme: SwellTheme,
   pageId: string,
+  altTemplate?: string,
 ): Promise<T | string | undefined> {
   let templateConfig: SwellThemeConfig | null = null;
 
   templateConfig = await theme.getThemeTemplateConfigByType(
     'templates',
     pageId,
+    altTemplate,
   );
 
   if (templateConfig) {

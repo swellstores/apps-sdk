@@ -78,7 +78,7 @@ export class SwellTheme {
   public themeLoader: ThemeLoader;
   public themeConfigs: Map<string, SwellThemeConfig> | null = null;
 
-  public page?: ThemeSettings;
+  public page?: ThemePage;
   public pageId: string | undefined;
   public shopifyCompatibility: ShopifyCompatibility | null = null;
   public shopifyCompatibilityClass: typeof ShopifyCompatibility =
@@ -140,18 +140,14 @@ export class SwellTheme {
     );
   }
 
-  async initGlobals(pageId: string): Promise<void> {
-    this.pageId = pageId;
-
+  async initGlobals(): Promise<void> {
     await this.themeLoader.init(this.themeConfigs || undefined);
 
     const { store, session, menus, geo, configs } =
       await this.getSettingsAndConfigs();
 
-    const { settings, request, page, cart, account, customer } =
-      await this.resolvePageData(store, configs, pageId);
-
-    this.page = page;
+    const { settings, request, cart, account, customer } =
+      await this.resolvePageData(store, configs);
 
     const globals: ThemeGlobals = {
       ...this.globalData,
@@ -160,7 +156,7 @@ export class SwellTheme {
       session,
       request,
       menus,
-      page,
+      page: {} as ThemePage,
       cart,
       account,
       customer,
@@ -196,6 +192,55 @@ export class SwellTheme {
     this.liquidSwell.options.globals = {
       ...this.globals,
     };
+  }
+
+  async initPageGlobals(pageId: string, altTemplate?: string): Promise<void> {
+    this.pageId = pageId;
+
+    const swellPage = this.props.pages?.find(
+      (page: ThemeSettings) => page.id === pageId,
+    );
+
+    const page = {
+      ...swellPage,
+      current: Number(this.swell.queryParams.page) || 1,
+      url: this.swell.url.pathname,
+      custom: !swellPage,
+      slug: undefined,
+      description: undefined,
+      $locale: undefined,
+    } as ThemePage;
+
+    if (pageId) {
+      const templateConfig = await this.getThemeTemplateConfigByType(
+        'templates',
+        pageId,
+        altTemplate,
+      );
+
+      let pageSchema: ThemePageSchema | undefined;
+      try {
+        pageSchema = JSON5.parse<ThemePageSchema>(
+          templateConfig?.file_data || '{}',
+        );
+      } catch (err) {
+        // noop
+        console.warn(err);
+      }
+
+      if (pageSchema?.page) {
+        const { slug, label, description, $locale } = pageSchema.page;
+
+        page.slug = slug;
+        page.label = label || page.label;
+        page.description = description;
+        page.$locale = $locale;
+      }
+    }
+
+    this.page = page;
+
+    this.setGlobals({ page });
   }
 
   async getSettingsAndConfigs(): Promise<{
@@ -268,11 +313,9 @@ export class SwellTheme {
   async resolvePageData(
     store: SwellData,
     configs: ThemeConfigs,
-    pageId?: string,
   ): Promise<{
     settings: ThemeSettings;
     request: SwellPageRequest;
-    page: ThemePage;
     cart: SwellStorefrontSingleton | {};
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
@@ -315,46 +358,6 @@ export class SwellTheme {
       is_preview: this.swell.isPreview,
     };
 
-    const swellPage = this.props.pages?.find(
-      (page: ThemeSettings) => page.id === pageId,
-    );
-
-    const page = {
-      ...swellPage,
-      current: Number(this.swell.queryParams.page) || 1,
-      url: this.swell.url.pathname,
-      custom: !swellPage,
-      slug: undefined,
-      description: undefined,
-      $locale: undefined,
-    } as ThemePage;
-
-    if (pageId) {
-      const templateConfig = await this.getThemeTemplateConfigByType(
-        'templates',
-        pageId,
-      );
-
-      let pageSchema: ThemePageSchema | undefined;
-      try {
-        pageSchema = JSON5.parse<ThemePageSchema>(
-          templateConfig?.file_data || '{}',
-        );
-      } catch (err) {
-        // noop
-        console.warn(err);
-      }
-
-      if (pageSchema?.page) {
-        const { slug, label, description, $locale } = pageSchema.page;
-
-        page.slug = slug;
-        page.label = label || page.label;
-        page.description = description;
-        page.$locale = $locale;
-      }
-    }
-
     const [cart, account] = await Promise.all([
       this.fetchSingletonResourceCached<StorefrontResource | {}>(
         'cart',
@@ -382,7 +385,6 @@ export class SwellTheme {
     return {
       settings,
       request,
-      page,
       cart,
       account: account as SwellStorefrontSingleton,
       customer: customer as SwellStorefrontSingleton, // Shopify only
@@ -883,17 +885,17 @@ export class SwellTheme {
     await this.themeLoader.preloadTheme(version, configs);
   }
 
-  getPageConfigPath(pageId: string): string | null {
+  getPageConfigPath(pageId: string, altTemplate?: string): string | null {
     if (this.shopifyCompatibility) {
       const configPath = this.shopifyCompatibility.getThemeFilePath(
         'templates',
         pageId,
       );
 
-      return `theme/${configPath}.json`;
+      return `${withSuffix(`theme/${configPath}`, altTemplate)}.json`;
     }
 
-    return `theme/templates/${pageId}.json`;
+    return `${withSuffix(`theme/templates/${pageId}`, altTemplate)}.json`;
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
@@ -942,13 +944,14 @@ export class SwellTheme {
   async getThemeTemplateConfigByType(
     type: string,
     name: string,
+    suffix?: string,
   ): Promise<SwellThemeConfig | null> {
-    const templatesByPriority = [`${type}/${name}`];
+    const templatesByPriority = [withSuffix(`${type}/${name}`, suffix)];
 
     if (this.shopifyCompatibility) {
-      templatesByPriority.push(
-        this.shopifyCompatibility.getThemeFilePath(type, name),
-      );
+      const path = this.shopifyCompatibility.getThemeFilePath(type, name);
+
+      templatesByPriority.push(withSuffix(path, suffix));
     }
 
     for (const filePath of templatesByPriority) {
@@ -1205,7 +1208,8 @@ ${content.slice(pos)}`;
     if (altTemplateId) {
       templateConfig = await this.getThemeTemplateConfigByType(
         'templates',
-        `${name}.${altTemplateId}`,
+        name,
+        altTemplateId,
       );
     }
 
@@ -1622,10 +1626,14 @@ ${content.slice(pos)}`;
   /**
    * Get a list of sections and section groups in a page layout.
    */
-  async getPageSectionGroups(pageId: string): Promise<ThemeSectionGroupInfo[]> {
+  async getPageSectionGroups(
+    pageId: string,
+    altTemplate?: string,
+  ): Promise<ThemeSectionGroupInfo[]> {
     const pageConfig = await this.getThemeTemplateConfigByType(
       'templates',
       pageId,
+      altTemplate,
     );
 
     if (pageConfig === null) {
@@ -2084,4 +2092,8 @@ function extractSchemaTag(template: string): string {
   }
 
   return list[0];
+}
+
+function withSuffix(path: string, suffix?: string) {
+  return suffix ? `${path}.${suffix}` : path;
 }

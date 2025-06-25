@@ -44,7 +44,7 @@ export default function ShopifyArticle(
       (blog) => blog.date_published || blog.date_created,
     ),
     tags: defer(() => blog.tags),
-    template_suffix: undefined, // TODO
+    template_suffix: defer(() => blog.theme_template),
     title: defer(() => blog.title),
     updated_at: deferWith(
       blog,
