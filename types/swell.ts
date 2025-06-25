@@ -95,6 +95,7 @@ export interface SwellAppStorefrontThemeProps {
   provider: 'app';
   pages: Array<SwellAppStorefrontThemePage>;
   resources?: SwellAppStorefrontThemeResources;
+  template_collections?: Record<string, string>;
 }
 
 export interface SwellAppStorefrontThemeResources {

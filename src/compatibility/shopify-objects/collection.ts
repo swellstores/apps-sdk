@@ -115,7 +115,7 @@ export default function ShopifyCollection(
     sort_by: defer(() => category.sort),
     sort_options: defer(() => category.sort_options),
     tags: [],
-    template_suffix: undefined,
+    template_suffix: defer(() => category.theme_template),
     title: defer(() => category.name),
     url: deferWith(category, (category) => `/collections/${category.slug}`),
   });

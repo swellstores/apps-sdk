@@ -59,7 +59,7 @@ export default function ShopifyBlog(
     next_article: undefined, // TODO
     previous_article: undefined, // TODO
     tags: allTags, // TODO: this should only apply to articles in the current view
-    template_suffix: undefined, // TODO
+    template_suffix: defer(() => blogCategory.theme_template),
     title: defer(() => blogCategory.title),
     url: deferWith(
       blogCategory,
