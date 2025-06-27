@@ -42,10 +42,7 @@ export default function ShopifyCart(
     }),
     items_subtotal_price: defer(() => cart.sub_total),
     note: defer(() => cart.comments),
-    original_total_price: deferWith(
-      cart,
-      (cart) => cart.sub_total + cart.item_discount,
-    ),
+    original_total_price: deferWith(cart, (cart) => cart.capture_total),
     requires_shipping: defer(() => Boolean(cart.shipment_delivery)),
     taxes_included: defer(() => Boolean(cart.item_tax_included)),
     total_discount: defer(() => cart.discount_total),

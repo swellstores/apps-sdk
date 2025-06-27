@@ -1,95 +1,83 @@
 // Functions to calculate product properties
 
-import type { SwellData, SwellRecord } from 'types/swell';
-import type { PartialSwellProduct, PartialSwellVariant } from './swell_types';
-
-// calculate additional price from selected options
-export function calculateAddOptionsPrice(
-  product: PartialSwellProduct,
-  queryParams: SwellData,
-) {
-  const { option_values = '' } = queryParams;
-  const queryOptionValues = option_values as string;
-  const optionValues = queryOptionValues.split(',');
-
-  const addPrice = product.options?.reduce((acc: number, option) => {
-    if (!option.active || !option.values || option.values.length <= 0) {
-      return acc;
-    }
-
-    if (option.input_type !== 'select') {
-      return acc;
-    }
-
-    for (const value of option.values) {
-      if (optionValues.includes(value.id)) {
-        return acc + (value.price || 0);
-      }
-    }
-
-    return acc + (option.values[0].price || 0);
-  }, 0);
-
-  return product.price + (addPrice || 0);
-}
-
-// calculate additional price from selected non-variant options
-export function calculateAddOptionsVariantPrice(
-  product: PartialSwellProduct,
-  variant: PartialSwellVariant,
-  queryParams: SwellData,
-) {
-  const { option_values = '' } = queryParams;
-  const queryOptionValues = option_values as string;
-  const optionValues = queryOptionValues.split(',');
-
-  const addPrice = product.options?.reduce((acc: number, option) => {
-    if (
-      option.variant || // skip variant options
-      !option.active ||
-      !option.values ||
-      option.values.length <= 0
-    ) {
-      return acc;
-    }
-
-    if (option.input_type !== 'select') {
-      return acc;
-    }
-
-    // only non-variant options
-    for (const value of option.values) {
-      if (optionValues.includes(value.id)) {
-        return acc + (value.price || 0);
-      }
-    }
-
-    return acc + (option.values[0].price || 0);
-  }, 0);
-
-  let price = product.price;
-  if (variant.price !== null && variant.price !== undefined) {
-    price = variant.price;
-  }
-
-  return price + (addPrice || 0);
-}
+import type { SwellData } from 'types/swell';
+import type {
+  SwellProduct,
+  SwellProductOption,
+  SwellProductOptionValue,
+  SwellProductPurchaseOptions,
+  SwellProductPurchaseOptionSubscription,
+  SwellVariant,
+} from './swell_types';
 
 // get available variants
-function getAvailableVariants(product: PartialSwellProduct) {
+export function getAvailableVariants(product: SwellProduct) {
   return (product.variants?.results?.slice()?.reverse() || []).filter(
-    (variant: PartialSwellVariant) =>
+    (variant: SwellVariant) =>
       variant.stock_status === 'in_stock' || !variant.stock_status,
   );
 }
 
-// get selected variant from options
-function getSelectedSwellVariant(
-  product: PartialSwellProduct,
+export function isOptionValueAvailable(
+  option: SwellProductOption,
+  value: SwellProductOptionValue,
+  product: SwellProduct,
+  availableVariants?: SwellVariant[],
+) {
+  if (!option.variant) {
+    return true;
+  }
+
+  const hasVariants = product.variants?.results.length > 0;
+
+  if (!hasVariants) {
+    return true;
+  }
+
+  const variants = availableVariants || getAvailableVariants(product);
+  // An option value is considered available
+  // if there is at least one available variant that includes this value.
+  return variants.some((variant: SwellVariant) =>
+    variant.option_value_ids.includes(value.id),
+  );
+}
+
+export function isOptionValueSelected(
+  option: SwellProductOption,
+  value: SwellProductOptionValue,
+  product: SwellProduct,
   queryParams: SwellData,
-): PartialSwellVariant | undefined {
-  const { variant: queryVariant, option_values } = queryParams;
-  const queryOptionValues = option_values as string;
+  selectedVariant?: SwellVariant,
+) {
+  let variant;
+
+  if (option.variant) {
+    variant = selectedVariant || getSelectedVariant(product, queryParams);
+  }
+
+  const selectedOptionValues = getSelectedVariantOptionValues(
+    product,
+    queryParams,
+    variant,
+  );
+
+  return selectedOptionValues.includes(value.id);
+}
+
+// get selected variant from options
+export function getSelectedVariant(
+  product: SwellProduct,
+  queryParams: SwellData,
+): SwellVariant | undefined {
+  const {
+    variant: queryVariant,
+    option_values: queryOptionValues,
+    selected_option_value: selectedOptionValue,
+  } = queryParams as {
+    variant?: string;
+    option_values?: string;
+    selected_option_value?: string;
+  };
   const variants = getAvailableVariants(product);
 
   let selectedVariant = undefined;
@@ -100,73 +88,152 @@ function getSelectedSwellVariant(
     const optionValues = queryOptionValues.split(',');
 
     // non-variant options are skipped
-    selectedVariant = variants.find((variant) =>
-      variant.option_value_ids.every((optionValueId: string) =>
+    selectedVariant = variants.find((variant) => {
+      if (variant.option_value_ids.length !== optionValues.length) {
+        return false;
+      }
+
+      return variant.option_value_ids.every((optionValueId: string) =>
         optionValues.includes(optionValueId),
-      ),
-    );
+      );
+    });
+
+    if (!selectedVariant && selectedOptionValue) {
+      selectedVariant = variants.filter((variant) =>
+        variant.option_value_ids.includes(selectedOptionValue),
+      )[0];
+    }
   }
 
   return selectedVariant || variants?.[0] || undefined;
 }
 
-// get selected variant from options
-export function getSelectedVariant(
-  product: SwellRecord,
-  queryParams: SwellData,
-): PartialSwellVariant | undefined {
-  return getSelectedSwellVariant(
-    product as unknown as PartialSwellProduct,
-    queryParams,
-  );
-}
-
-// collect all option values including non-variant for currently selected variant
-export function getSelectedOptionValues(
-  product: PartialSwellProduct,
-  queryParams: SwellData,
-) {
-  const variant = getSelectedSwellVariant(product, queryParams);
-  return getSelectedVariantOptionValues(product, variant, queryParams);
-}
-
-// collect all option values including non-variant. Select first by default
+// collect all option values including non-variant
 export function getSelectedVariantOptionValues(
-  product: PartialSwellProduct,
-  variant: PartialSwellVariant | undefined,
+  product: SwellProduct,
   queryParams: SwellData,
+  variant?: SwellVariant,
 ) {
-  const { option_values = '' } = queryParams;
-  const queryOptionValues = option_values as string;
-  const optionValues = queryOptionValues.split(',');
-
-  const selectedValues = variant ? [...(variant.option_value_ids || [])] : [];
-  const values: string[] = [];
-  for (const option of product.options || []) {
-    if (
-      option.active &&
-      option.values &&
-      option.values.length > 0 &&
-      option.input_type === 'select'
-    ) {
-      let selectedByVariantId = '';
-      let selectedByOptionId = '';
-      for (const value of option.values) {
-        if (selectedValues.includes(value.id)) {
-          selectedByVariantId = value.id;
-          break;
-        }
-
-        if (optionValues.includes(value.id)) {
-          selectedByOptionId = value.id;
-        }
-      }
-
-      values.push(
-        selectedByVariantId || selectedByOptionId || option.values[0].id,
-      );
-    }
+  if (variant) {
+    return variant.option_value_ids;
   }
 
-  return values;
+  const { option_values: queryOptionValues = '' } = queryParams as {
+    option_values?: string;
+  };
+  const optionValues = queryOptionValues.split(',');
+
+  return (product.options || []).reduce((acc, option) => {
+    if (!option.values) {
+      return acc;
+    }
+
+    const hasOptionValues = option.values.length > 0;
+
+    if (!option.active || !hasOptionValues) {
+      return acc;
+    }
+
+    const value = option.values.find((value) =>
+      optionValues.includes(value.id),
+    );
+
+    if (value) {
+      acc.push(value.id);
+    }
+
+    return acc;
+  }, [] as string[]);
+}
+
+export function getPurchaseOptions(
+  product: SwellProduct,
+  queryParams: SwellData,
+) {
+  if (!product?.purchase_options) {
+    return null;
+  }
+
+  const { standard, subscription } = product.purchase_options;
+  const selectedPurchaseOptionType = getSelectedPurchaseOptionType(
+    product,
+    queryParams,
+  );
+
+  const purchaseOptions: SwellProductPurchaseOptions = {};
+
+  if (standard) {
+    purchaseOptions.standard = {
+      ...standard,
+      selected: selectedPurchaseOptionType === 'standard',
+    };
+  }
+
+  if (subscription) {
+    const selectedPlan = getSelectedSubscriptionPurchaseOptionPlan(
+      selectedPurchaseOptionType,
+      subscription,
+      queryParams,
+    );
+
+    purchaseOptions.subscription = {
+      ...subscription,
+      selected: selectedPurchaseOptionType === 'subscription',
+      plans: subscription.plans.map((plan) => ({
+        ...plan,
+        selected: selectedPlan ? plan.id === selectedPlan.id : false,
+      })),
+    };
+  }
+
+  return Object.keys(purchaseOptions).length > 0 ? purchaseOptions : null;
+}
+
+function getSelectedPurchaseOptionType(
+  product: SwellProduct,
+  queryParams: SwellData,
+) {
+  const { purchase_options: purchaseOptions } = product;
+
+  if (!purchaseOptions) {
+    return null;
+  }
+
+  const { purchase_option: purchaseOption } = queryParams as {
+    purchase_option?: {
+      type: string;
+    };
+  };
+  const purchaseOptionType = purchaseOption?.type;
+
+  if (purchaseOptionType && purchaseOptionType in purchaseOptions) {
+    return purchaseOptionType;
+  }
+
+  return purchaseOptions.standard ? 'standard' : 'subscription';
+}
+
+function getSelectedSubscriptionPurchaseOptionPlan(
+  selectedPurchaseOptionType: string | null,
+  subscriptionPurchaseOption: SwellProductPurchaseOptionSubscription,
+  queryParams: SwellData,
+) {
+  if (selectedPurchaseOptionType !== 'subscription') {
+    return null;
+  }
+
+  const { purchase_option: purchaseOption } = queryParams as {
+    purchase_option?: {
+      plan_id?: string;
+    };
+  };
+  let selectedPlan = null;
+
+  if (purchaseOption?.plan_id) {
+    selectedPlan = subscriptionPurchaseOption.plans.find(
+      (plan) => plan.id === purchaseOption.plan_id,
+    );
+  }
+
+  return selectedPlan || subscriptionPurchaseOption.plans[0];
 }

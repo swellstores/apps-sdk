@@ -8,11 +8,22 @@ import ShopifyMedia from './media';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
 import type {
+  SwellProduct,
+  SwellProductOption,
+  SwellProductOptionValue,
+  SwellVariant,
+} from '@/resources/swell_types';
+import type {
   ShopifyProduct,
   ShopifyProductOption,
   ShopifyProductOptionValue,
 } from 'types/shopify';
-import { getSelectedVariant } from '@/resources/product_helpers';
+import {
+  getSelectedVariant,
+  getAvailableVariants,
+  isOptionValueAvailable,
+  isOptionValueSelected,
+} from '@/resources/product_helpers';
 
 export default function ShopifyProduct(
   instance: ShopifyCompatibility,
@@ -67,7 +78,7 @@ export default function ShopifyProduct(
       return image ? ShopifyMedia(instance, image) : undefined;
     }),
     // not used
-    first_available_variant: deferWith(product, (product: SwellRecord) => {
+    first_available_variant: deferWith(product, (product: SwellProduct) => {
       // it returns first variant with empty query
       const variant = getSelectedVariant(product, {});
 
@@ -114,82 +125,64 @@ export default function ShopifyProduct(
         .filter((option: SwellData) => option.active && option.name)
         .map((option: SwellData) => option.name);
     }),
-    options_by_name: deferWith(product, (product) => {
+    options_by_name: deferWith(product, (product: SwellProduct) => {
       if (!Array.isArray(product.options)) {
         return {};
       }
 
-      let index = 0;
+      const { queryParams } = instance.swell;
+      const variants = getAvailableVariants(product);
+      const variant = getSelectedVariant(product, queryParams);
 
       return product.options.reduce(
         (
           acc: Record<string, ShopifyProductOption | undefined>,
-          option: SwellData,
+          option: SwellProductOption,
+          index: number,
         ) => {
-          if (option.active && option.name) {
-            acc[option.name.toLowerCase()] = {
-              name: option.name,
-              position: ++index,
-              selected_value: undefined,
-              // variant_option: option.variant,
-              values:
-                option.values?.map((value: SwellRecord) =>
-                  ShopifyProductOptionValue({
-                    available: true,
-                    id: value.id as unknown as number,
-                    name: value.name,
-                    product_url: undefined,
-                    selected: false,
-                    swatch: undefined,
-                    variant: undefined,
-                    // addPrice: value.price,
-                  }),
-                ) ?? [],
-            };
+          if (!option.active || !option.name) {
+            return acc;
           }
+
+          acc[option.name.toLowerCase()] = getOption(
+            option,
+            index,
+            product,
+            instance,
+            depth,
+            variants,
+            variant,
+          );
 
           return acc;
         },
         {},
       );
     }),
-    options_with_values: deferWith<ShopifyProductOption[], SwellRecord>(
+    options_with_values: deferWith<ShopifyProductOption[], SwellProduct>(
       product,
-      (product: SwellRecord) => {
+      (product: SwellProduct) => {
         if (!Array.isArray(product.options)) {
           return [];
         }
 
-        const variant = getSelectedVariant(product, instance.swell.queryParams);
-        const optionValues = variant?.option_value_ids || [];
+        const { queryParams } = instance.swell;
+        const variants = getAvailableVariants(product);
+        const variant = getSelectedVariant(product, queryParams);
 
         return product.options
           .filter((option) => option.active && option.name)
-          .map((option: SwellData, index: number) => {
-            return {
-              name: option.name,
-              position: index + 1,
-              selected_value: undefined,
-              // variant_option: option.variant,
-              values: option.values?.map((value: SwellRecord) =>
-                ShopifyProductOptionValue({
-                  available: true,
-                  id: value.id as unknown as number,
-                  name: value.name,
-                  product_url: undefined,
-                  selected: optionValues.includes(value.id),
-                  swatch: undefined,
-                  variant: ShopifyVariant(
-                    instance,
-                    variant || product,
-                    product,
-                    depth + 1,
-                  ),
-                  // addPrice: value.price,
-                }),
-              ),
-            };
-          });
+          .map((option: SwellProductOption, index: number) =>
+            getOption(
+              option,
+              index,
+              product,
+              instance,
+              depth,
+              variants,
+              variant,
+            ),
+          );
       },
     ),
     price: deferWith(product, (product) => product.price),
@@ -259,7 +252,7 @@ export default function ShopifyProduct(
     selected_or_first_available_selling_plan_allocation: undefined,
     selected_or_first_available_variant: deferWith(
       product,
-      (product: SwellRecord) => {
+      (product: SwellProduct) => {
         const variant = getSelectedVariant(product, instance.swell.queryParams);
 
         return variant
@@ -309,4 +302,46 @@ export function isLikeShopifyProduct(value: unknown): value is ShopifyProduct {
     Object.hasOwn(value, 'price_varies') &&
     Object.hasOwn(value, 'has_only_default_variant')
   );
+}
+
+function getOption(
+  option: SwellProductOption,
+  index: number,
+  product: SwellProduct,
+  instance: ShopifyCompatibility,
+  depth: number,
+  variants?: SwellVariant[],
+  variant?: SwellVariant,
+) {
+  const { queryParams } = instance.swell;
+
+  return {
+    ...option,
+    name: option.name,
+    position: index + 1,
+    selected_value: undefined,
+    values: option.values?.map((value: SwellProductOptionValue) =>
+      ShopifyProductOptionValue({
+        ...value,
+        available: isOptionValueAvailable(option, value, product, variants),
+        id: value.id as unknown as number,
+        name: value.name,
+        product_url: undefined,
+        selected: isOptionValueSelected(
+          option,
+          value,
+          product,
+          queryParams,
+          variant,
+        ),
+        swatch: undefined,
+        variant: ShopifyVariant(
+          instance,
+          variant || product,
+          product,
+          depth + 1,
+        ),
+      }),
+    ),
+  };
 }

@@ -1,19 +1,28 @@
 // This file defines swell properties that are used for swell classes
 // Currently only used properties are defined
 
-export interface PartialSwellProductOptionValue {
+export enum ScheduleInterval {
+  Daily = 'daily',
+  Weekly = 'weekly',
+  Monthly = 'monthly',
+  Yearly = 'yearly',
+}
+
+export interface SwellProductOptionValue {
   id: string;
+  name: string;
   price?: number;
 }
 
-export interface PartialSwellProductOption {
+export interface SwellProductOption {
   active: boolean;
   variant: boolean;
+  name: string;
   input_type: string;
-  values?: PartialSwellProductOptionValue[];
+  values?: SwellProductOptionValue[];
 }
 
-export interface PartialSwellVariant {
+export interface SwellVariant {
   id: string;
   stock_status?: string;
   option_value_ids: string[];
@@ -21,11 +30,55 @@ export interface PartialSwellVariant {
   price?: number;
 }
 
-export interface PartialSwellProduct {
+export interface SwellBillingSchedule {
+  interval: ScheduleInterval;
+  interval_count: number;
+  limit?: number;
+  trial_days?: number;
+}
+
+export interface SwellOrderSchedule {
+  interval: ScheduleInterval;
+  interval_count: number;
+  limit?: number;
+}
+
+export interface SwellSubscriptionPlan {
+  id: string;
+  name: string;
+  description: string | null;
   price: number;
-  options?: PartialSwellProductOption[];
+  billing_schedule: SwellBillingSchedule;
+  has_order_schedule?: boolean;
+  order_schedule?: SwellOrderSchedule;
+  selected?: boolean;
+}
+
+export interface SwellProductPurchaseOptionStandard {
+  price: number;
+  sale: boolean;
+  sale_price?: number;
+  orig_price?: number;
+  selected?: boolean;
+}
+
+export interface SwellProductPurchaseOptionSubscription {
+  plans: SwellSubscriptionPlan[];
+  selected?: boolean;
+}
+
+export interface SwellProductPurchaseOptions {
+  standard?: SwellProductPurchaseOptionStandard;
+  subscription?: SwellProductPurchaseOptionSubscription;
+}
+
+export interface SwellProduct {
+  id: string;
+  price: number;
+  options?: SwellProductOption[];
   selected_option_values?: string[];
+  purchase_options?: SwellProductPurchaseOptions;
   variants: {
-    results: PartialSwellVariant[];
+    results: SwellVariant[];
   };
 }
