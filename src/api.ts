@@ -471,19 +471,11 @@ export class Swell {
  * Generates a cache key from a root key and any optional arguments.
  */
 function getCacheKey(key: string, args?: unknown[]): string {
-  let cacheKey = key;
   if (Array.isArray(args) && args.length > 0) {
-    cacheKey += `_${JSON.stringify(args)}`;
+    return `${key}_${md5(JSON.stringify(args))}`;
   }
 
-  // TODO: calculate the number of bytes
-  // 512 bytes, maximum key for KV storage
-  if (cacheKey.length > 512) {
-    // TODO: slice the first 480 bytes instead of the length of the code units
-    cacheKey = `${cacheKey.slice(0, 480)}${md5(cacheKey)}`;
-  }
-
-  return cacheKey;
+  return key;
 }
 
 export class SwellBackendAPI {

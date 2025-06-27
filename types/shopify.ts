@@ -505,7 +505,7 @@ export interface ShopifyProductOption {
   name: string;
   position: number;
   selected_value?: string;
-  values: ShopifyProductOptionValue[];
+  values?: ShopifyProductOptionValue[];
 }
 
 export interface ShopifyProduct {

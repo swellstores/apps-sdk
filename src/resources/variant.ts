@@ -1,14 +1,11 @@
 import type { SwellData } from 'types/swell';
-import type { PartialSwellProduct, PartialSwellVariant } from './swell_types';
-import {
-  calculateAddOptionsVariantPrice,
-  getSelectedVariantOptionValues,
-} from './product_helpers';
+import type { SwellProduct, SwellVariant } from './swell_types';
+import { getSelectedVariantOptionValues } from './product_helpers';
 
 export function transformSwellVariant(
   params: SwellData,
-  product: PartialSwellProduct,
-  variant: PartialSwellVariant,
+  product: SwellProduct,
+  variant: SwellVariant,
 ) {
   if (!product) {
     return product;
@@ -22,11 +19,10 @@ export function transformSwellVariant(
     ...variant,
 
     // add swell properties there
-    price: calculateAddOptionsVariantPrice(product, variant, params),
     selected_option_values: getSelectedVariantOptionValues(
       product,
-      variant,
       params,
+      variant,
     ),
   };
 }

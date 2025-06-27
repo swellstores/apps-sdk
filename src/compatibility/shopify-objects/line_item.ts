@@ -228,33 +228,10 @@ function resolveSubscription(
   item: StorefrontResource | SwellRecord,
 ): ShopifySellingPlanAllocation | undefined {
   const purchaseOption = item?.purchase_option;
+
   if (purchaseOption?.type !== 'subscription') {
-    return undefined;
+    return;
   }
-
-  const trialDays = purchaseOption.billing_schedule?.trial_days || 0;
-  const trialText =
-    trialDays > 0
-      ? ` (Includes ${trialDays} trial day${trialDays === 1 ? '' : 's'})`
-      : '';
-
-  const intervalCount = purchaseOption.billing_schedule?.interval_count || 1;
-  let intervalText = 'day';
-  switch (purchaseOption.billing_schedule?.interval) {
-    case 'weekly':
-      intervalText = 'wk';
-      break;
-    case 'monthly':
-      intervalText = 'mo';
-      break;
-    case 'yearly':
-      intervalText = 'yr';
-      break;
-    default:
-  }
-
-  const periodText = `${intervalCount > 1 ? intervalCount : ''}${intervalText}`;
-  const text = `${periodText}${trialText}`;
 
   return {
     checkout_charge_amount: item.price,
@@ -265,14 +242,11 @@ function resolveSubscription(
     remaining_balance_charge_amount: 0,
     selling_plan_group_id: purchaseOption.plan_id,
     selling_plan: {
-      id: 0,
+      id: purchaseOption.plan_id,
       group_id: purchaseOption.plan_id,
       name: purchaseOption.plan_name,
       description: purchaseOption.plan_description,
-      // billing_schedule: purchaseOption.billing_schedule,
       options: [],
-      // provide as separate parts to properly render currency
-      // planPriceText: text,
       checkout_charge: { value: item.price, value_type: 'price' },
       recurring_deliveries: item.delivery === 'shipment',
       price_adjustments: [],

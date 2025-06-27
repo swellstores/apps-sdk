@@ -5,16 +5,16 @@ import type {
   SwellData,
   SwellRecord,
 } from 'types/swell';
-import type { PartialSwellProduct } from './swell_types';
+import type { SwellProduct as ISwellProduct } from './swell_types';
 import {
-  calculateAddOptionsPrice,
-  getSelectedOptionValues,
+  getSelectedVariantOptionValues,
+  getPurchaseOptions,
 } from './product_helpers';
 import { transformSwellVariant } from './variant';
 
 function transformSwellProduct(
   params: SwellData,
-  product?: PartialSwellProduct | null,
+  product?: ISwellProduct | null,
 ) {
   if (!product) {
     return product;
@@ -24,8 +24,8 @@ function transformSwellProduct(
     ...product,
 
     // add swell properties there
-    price: calculateAddOptionsPrice(product, params),
-    selected_option_values: getSelectedOptionValues(product, params),
+    selected_option_values: getSelectedVariantOptionValues(product, params),
+    purchase_options: getPurchaseOptions(product, params),
   };
 
   // transform the variants. we always load variants as part of the product
@@ -63,7 +63,7 @@ export class SwellProduct<
   _transformResult(result?: T | null) {
     const res = transformSwellProduct(
       this._params,
-      result as unknown as PartialSwellProduct,
+      result as unknown as ISwellProduct,
     ) as unknown as T | null | undefined;
     return res;
   }
