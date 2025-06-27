@@ -488,13 +488,7 @@ function getAllSectionComponentTemplates(
     }
   }
 
-  // Filter templates with settings because
-  // easyblocks creates a default template for each component otherwise
-  return list.filter((template) => {
-    return Object.keys(template.entry).some(
-      (key) => key !== '_id' && key !== '_component',
-    );
-  });
+  return list;
 }
 
 export function getEasyblocksPagePropsWithConfigs(
