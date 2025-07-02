@@ -312,18 +312,20 @@ export interface ThemeSectionSettings extends ThemeSettings {
 export interface ThemePageSchema {
   layout?: string;
   page?: {
+    title?: string;
+    label?: string; // 'page.label' is deprecated
     slug?: string;
-    label?: string;
     description?: string;
     $locale?: string;
   };
 }
 
 interface ThemePageAdditionalProps {
-  description?: string;
   current: number;
   label: string;
+  title: string;
   slug?: string;
+  description?: string;
   $locale?: string;
 }
 

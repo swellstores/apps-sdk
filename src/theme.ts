@@ -206,6 +206,7 @@ export class SwellTheme {
       current: Number(this.swell.queryParams.page) || 1,
       url: this.swell.url.pathname,
       custom: !swellPage,
+      title: swellPage?.label,
       slug: undefined,
       description: undefined,
       $locale: undefined,
@@ -229,10 +230,17 @@ export class SwellTheme {
       }
 
       if (pageSchema?.page) {
-        const { slug, label, description, $locale } = pageSchema.page;
+        const {
+          title,
+          label, // 'label' is deprecated, kept for compatibility
+          description,
+          slug,
+          $locale,
+        } = pageSchema.page;
 
+        page.label = page.label || title || label || ''; // `page.label` is used only for displaying the page name
+        page.title = title || page.label; // `page.title` is used exclusively for SEO purposes
         page.slug = slug;
-        page.label = label || page.label;
         page.description = description;
         page.$locale = $locale;
       }
@@ -1260,9 +1268,10 @@ ${content.slice(pos)}`;
     }
 
     let pageConfig;
-    if (this.page?.id) {
+
+    if (this.pageId) {
       pageConfig = await this.renderPageTemplate(
-        this.page.id,
+        this.pageId,
         pageData,
         altTemplateId,
       );
