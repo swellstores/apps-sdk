@@ -8,6 +8,8 @@ export enum ScheduleInterval {
   Yearly = 'yearly',
 }
 
+/* Product Types */
+
 export interface SwellProductOptionValue {
   id: string;
   name: string;
@@ -81,4 +83,37 @@ export interface SwellProduct {
   variants: {
     results: SwellVariant[];
   };
+}
+
+/* Blog Types */
+
+export interface SwellBlogAuthor {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export interface SwellBlogCategory {
+  id: string;
+  title: string;
+  slug: string;
+  meta_title: string | null;
+  meta_description: string | null;
+  date_created: string;
+}
+
+export interface SwellBlog {
+  id: string;
+  title: string;
+  slug: string;
+  published: boolean;
+  content: string;
+  meta_title: string | null;
+  meta_description: string | null;
+  author_id: string;
+  category_id: string;
+  tags: string[];
+  date_created: string;
+  category?: SwellBlogCategory;
+  author?: SwellBlogAuthor;
 }
