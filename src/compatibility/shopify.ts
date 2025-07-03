@@ -240,7 +240,11 @@ export class ShopifyCompatibility {
         );
 
         if (resourceMap && value instanceof StorefrontResource) {
-          pageData[resourceMap.to] = resourceMap.object(this, value);
+          pageData[resourceMap.to] = Object.assign(
+            {},
+            value.toObject(),
+            resourceMap.object(this, value),
+          );
         }
       }
     }

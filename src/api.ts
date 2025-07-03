@@ -17,7 +17,7 @@ import type {
 import { isLikePromise } from './liquid/utils';
 
 export * from './resources';
-export * from './resources/product';
+export * from './resources/index';
 
 const DEFAULT_API_HOST = 'https://api.schema.io';
 
