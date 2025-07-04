@@ -219,7 +219,7 @@ export class Swell {
           'get',
           '/settings/all',
           undefined,
-          undefined,
+          force ? { $cache: false } : undefined,
           { force },
         );
 
@@ -230,6 +230,9 @@ export class Swell {
       storefrontSettings.set({
         value: settings,
       });
+
+      // Reset menu state
+      storefrontSettings.menuState = [];
 
       storefrontSettings.set({
         model: 'menus',
@@ -430,6 +433,7 @@ export class Swell {
         }
 
         default:
+          break;
       }
 
       return storefrontRequest<T>(method, url, id, data, opt);
