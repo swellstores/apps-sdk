@@ -79,13 +79,17 @@ export class ShopifyCompatibility {
   }
 
   initGlobals(globals: ThemeGlobals): void {
-    const { request } = globals;
+    const { request, page } = globals;
+
+    globals.page = {
+      ...(page || undefined),
+    };
 
     globals.request = {
       ...(request || undefined),
       design_mode: this.swell.isEditor,
       visual_section_preview: false, // TODO: Add support for visual section preview
-      page_type: '',
+      page_type: page?.id,
     };
 
     globals.collections = new CollectionsDrop(this);
@@ -240,11 +244,12 @@ export class ShopifyCompatibility {
         );
 
         if (resourceMap && value instanceof StorefrontResource) {
-          pageData[resourceMap.to] = Object.assign(
-            {},
-            value.toObject(),
-            resourceMap.object(this, value),
-          );
+          const resource = resourceMap.object(this, value);
+          const composed = Object.assign({}, value.toObject(), resource);
+
+          Object.setPrototypeOf(composed, Object.getPrototypeOf(resource));
+
+          pageData[resourceMap.to] = composed;
         }
       }
     }

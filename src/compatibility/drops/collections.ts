@@ -11,11 +11,7 @@ import {
 } from '../shopify-objects';
 
 import type { ShopifyCompatibility } from '../shopify';
-import type {
-  SwellCollection,
-  SwellData,
-  SwellRecord,
-} from '../../../types/swell';
+import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyCollection as ShopifyCollectionType } from 'types/shopify';
 
 // TODO: remove this once backend is implemented for "all"
@@ -154,10 +150,22 @@ class SwellStorefrontCategory extends SwellStorefrontRecord<SwellData> {
       const record = await category.resolve();
 
       if (isObject(record) && record.id) {
-        record.products = new SwellStorefrontProducts(instance, {
-          category: record.id,
-          $variants: true,
-        });
+        record.products = new SwellStorefrontProducts(
+          instance,
+          {
+            category: record.id,
+            $variants: true,
+          },
+          (result) => {
+            return {
+              ...result,
+              results: result.results.map(
+                (product) =>
+                  ShopifyProduct(instance, product) as unknown as SwellRecord,
+              ),
+            };
+          },
+        );
       }
 
       return record;
@@ -168,7 +176,13 @@ class SwellStorefrontCategory extends SwellStorefrontRecord<SwellData> {
 class SwellStorefrontProducts extends SwellStorefrontCollection<
   SwellCollection<SwellRecord>
 > {
-  constructor(instance: ShopifyCompatibility, query?: SwellData) {
+  constructor(
+    instance: ShopifyCompatibility,
+    query?: SwellData,
+    transform?: (
+      result: SwellCollection<SwellRecord>,
+    ) => SwellCollection<SwellRecord>,
+  ) {
     super(instance.swell, 'products', query, async function () {
       const result = await this._defaultGetter().call(this);
 
@@ -176,13 +190,7 @@ class SwellStorefrontProducts extends SwellStorefrontCollection<
         return result;
       }
 
-      return {
-        ...result,
-        results: result.results.map(
-          (product) =>
-            ShopifyProduct(instance, product) as unknown as SwellRecord,
-        ),
-      };
+      return transform ? transform(result) : result;
     });
   }
 }

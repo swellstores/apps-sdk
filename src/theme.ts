@@ -140,14 +140,18 @@ export class SwellTheme {
     );
   }
 
-  async initGlobals(): Promise<void> {
+  async initGlobals(pageId: string, altTemplate?: string): Promise<void> {
+    this.pageId = pageId;
+
     await this.themeLoader.init(this.themeConfigs || undefined);
 
     const { store, session, menus, geo, configs } =
       await this.getSettingsAndConfigs();
 
-    const { settings, request, cart, account, customer } =
-      await this.resolvePageData(store, configs);
+    const { settings, request, page, cart, account, customer } =
+      await this.resolvePageData(store, configs, pageId, altTemplate);
+
+    this.page = page;
 
     const globals: ThemeGlobals = {
       ...this.globalData,
@@ -156,7 +160,7 @@ export class SwellTheme {
       session,
       request,
       menus,
-      page: {} as ThemePage,
+      page,
       cart,
       account,
       customer,
@@ -192,63 +196,6 @@ export class SwellTheme {
     this.liquidSwell.options.globals = {
       ...this.globals,
     };
-  }
-
-  async initPageGlobals(pageId: string, altTemplate?: string): Promise<void> {
-    this.pageId = pageId;
-
-    const swellPage = this.props.pages?.find(
-      (page: ThemeSettings) => page.id === pageId,
-    );
-
-    const page = {
-      ...swellPage,
-      current: Number(this.swell.queryParams.page) || 1,
-      url: this.swell.url.pathname,
-      custom: !swellPage,
-      title: swellPage?.label,
-      slug: undefined,
-      description: undefined,
-      $locale: undefined,
-    } as ThemePage;
-
-    if (pageId) {
-      const templateConfig = await this.getThemeTemplateConfigByType(
-        'templates',
-        pageId,
-        altTemplate,
-      );
-
-      let pageSchema: ThemePageSchema | undefined;
-      try {
-        pageSchema = JSON5.parse<ThemePageSchema>(
-          templateConfig?.file_data || '{}',
-        );
-      } catch (err) {
-        // noop
-        console.warn(err);
-      }
-
-      if (pageSchema?.page) {
-        const {
-          title,
-          label, // 'label' is deprecated, kept for compatibility
-          description,
-          slug,
-          $locale,
-        } = pageSchema.page;
-
-        page.label = page.label || title || label || ''; // `page.label` is used only for displaying the page name
-        page.title = title || page.label; // `page.title` is used exclusively for SEO purposes
-        page.slug = slug;
-        page.description = description;
-        page.$locale = $locale;
-      }
-    }
-
-    this.page = page;
-
-    this.setGlobals({ page });
   }
 
   async getSettingsAndConfigs(): Promise<{
@@ -321,9 +268,12 @@ export class SwellTheme {
   async resolvePageData(
     store: SwellData,
     configs: ThemeConfigs,
+    pageId?: string,
+    altTemplate?: string,
   ): Promise<{
     settings: ThemeSettings;
     request: SwellPageRequest;
+    page: ThemePage;
     cart: SwellStorefrontSingleton | {};
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
@@ -366,6 +316,55 @@ export class SwellTheme {
       is_preview: this.swell.isPreview,
     };
 
+    const swellPage = this.props.pages?.find(
+      (page: ThemeSettings) => page.id === pageId,
+    );
+
+    const page = {
+      ...swellPage,
+      current: Number(this.swell.queryParams.page) || 1,
+      url: this.swell.url.pathname,
+      custom: !swellPage,
+      title: swellPage?.label,
+      slug: undefined,
+      description: undefined,
+      $locale: undefined,
+    } as ThemePage;
+
+    if (pageId) {
+      const templateConfig = await this.getThemeTemplateConfigByType(
+        'templates',
+        pageId,
+        altTemplate,
+      );
+
+      let pageSchema: ThemePageSchema | undefined;
+      try {
+        pageSchema = JSON5.parse<ThemePageSchema>(
+          templateConfig?.file_data || '{}',
+        );
+      } catch (err) {
+        // noop
+        console.warn(err);
+      }
+
+      if (pageSchema?.page) {
+        const {
+          title,
+          label, // 'label' is deprecated, kept for compatibility
+          description,
+          slug,
+          $locale,
+        } = pageSchema.page;
+
+        page.label = page.label || title || label || ''; // `page.label` is used only for displaying the page name
+        page.title = title || page.label; // `page.title` is used exclusively for SEO purposes
+        page.slug = slug;
+        page.description = description;
+        page.$locale = $locale;
+      }
+    }
+
     const [cart, account] = await Promise.all([
       this.fetchSingletonResourceCached<StorefrontResource | {}>(
         'cart',
@@ -393,6 +392,7 @@ export class SwellTheme {
     return {
       settings,
       request,
+      page,
       cart,
       account: account as SwellStorefrontSingleton,
       customer: customer as SwellStorefrontSingleton, // Shopify only
