@@ -1,9 +1,9 @@
+import { StorefrontResource, cloneStorefrontResource } from '@/resources';
 import { ShopifyResource, deferWith } from './resource';
 import ShopifyImage from './image';
 import ShopifyProduct from './product';
 import ShopifyVariant from './variant';
 
-import type { StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
 import type {
@@ -25,9 +25,17 @@ export default function ShopifyLineItem(
     return item.clone() as ShopifyResource<ShopifyLineItem>;
   }
 
+  let swellItem = {};
+  if (item instanceof StorefrontResource) {
+    item = cloneStorefrontResource(item);
+  } else {
+    swellItem = { ...item };
+  }
+
   const discountAllocations = getDiscountAllocations(cart, item);
 
   return new ShopifyResource<ShopifyLineItem>({
+    ...swellItem,
     // Deprecated by Shopify
     discounts: getDeprecatedDiscounts(cart, item),
     discount_allocations: discountAllocations,
@@ -101,11 +109,8 @@ export default function ShopifyLineItem(
     }),
     taxable: item.tax_total > 0,
     title: deferWith(
-      [item.product, item.variant],
-      (product, variant) =>
-        `${product?.name || item.product_id}${
-          variant?.name ? ` - ${variant.name}` : ''
-        }`,
+      item.product,
+      (product) => product?.name || item.product_id,
     ),
     total_discount: item.discount_total,
     unit_price: undefined, // only available in germany and france
