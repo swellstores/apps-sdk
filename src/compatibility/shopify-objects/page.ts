@@ -1,4 +1,4 @@
-import { ShopifyResource, defer, deferWith } from './resource';
+import { ShopifyResource, deferWith } from './resource';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData } from 'types/swell';
@@ -14,15 +14,15 @@ export default function ShopifyPage(
 
   return new ShopifyResource<ShopifyPageObject>({
     author: undefined, // Not supported
-    content: defer(() => page.content),
-    handle: defer(() => page.slug),
+    content: deferWith(page, (page) => page.content),
+    handle: deferWith(page, (page) => page.slug),
     id: 0,
     metafields: {},
     published_at: deferWith(
       page,
       (page) => page.date_published || page.date_created,
     ),
-    template_suffix: defer(() => page.theme_template),
+    template_suffix: deferWith(page, (page) => page.theme_template),
     title: deferWith(page, (page) => page.title || page.name), // Due to deprecated name field
     url: deferWith(page, (page) => `/pages/${page.slug}`),
   });
