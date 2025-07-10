@@ -176,18 +176,24 @@ function getAllSectionComponents(
       id: section.id,
       label: section.label,
       schema: [
-        ...(section.fields || []).reduce<ExternalSchemaProp[]>((acc, field) => {
-          if (field.id && field.type) {
-            acc.push({
-              prop: toEasyblocksFieldId(field.id),
-              label: field.label,
-              optional: true,
-              ...schemaToEasyblocksProps(field),
-            });
-          }
+        ...(section.fields || []).reduce<ExternalSchemaProp[]>(
+          (acc, field, currentIndex) => {
+            if (field.type) {
+              // generate missed field id
+              const fieldId = field.id || `${field.type}_${currentIndex}`;
 
-          return acc;
-        }, []),
+              acc.push({
+                prop: toEasyblocksFieldId(fieldId),
+                label: field.label,
+                optional: true,
+                ...schemaToEasyblocksProps(field),
+              });
+            }
+
+            return acc;
+          },
+          [],
+        ),
         ...(hasBlocks
           ? [
               {
@@ -281,10 +287,13 @@ function getAllSectionComponents(
           id: `Block__${section.id}__${block.type}`,
           label: block.label,
           schema: (block.fields || []).reduce<SchemaProp[]>(
-            (acc, field) => {
-              if (field.id && field.type) {
+            (acc, field, currentIndex) => {
+              if (field.type) {
+                // generate missed field id
+                const fieldId = field.id || `${field.type}_${currentIndex}`;
+
                 acc.push({
-                  prop: toEasyblocksFieldId(field.id),
+                  prop: toEasyblocksFieldId(fieldId),
                   label: field.label,
                   optional: true,
                   ...schemaToEasyblocksProps(field),
