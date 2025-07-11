@@ -45,10 +45,10 @@ const svgs: Record<string, SvgImage | string | undefined> = {
     src: 'https://cdn.swell.store/schema/685ef581b79e3e0012cf3222/fba884c7fe8122c472e130355fb52db7/collection-6.png',
   },
   'lifestyle-1': {
-    src: 'https://cdn.swell.store/schema/685ef58bb79e3e0012cf3256/1da0da57ea80d90038fcf6b100a16fe6/lifestyle-1.png',
+    src: 'https://cdn.swell.store/schema/6870eddc1657130012643fc6/1777bcff40736610093833ef858b5936/lifestyle-1.png',
   },
   'lifestyle-2': {
-    src: 'https://cdn.swell.store/schema/685ef58cb79e3e0012cf3259/f963448f1a6f4d6588fcd283b5c00c7c/lifestyle-2.png',
+    src: 'https://cdn.swell.store/schema/6870eddc1657130012643fcb/4d29197e3fa0b6d8255c1b7770f8dc12/lifestyle-2.png',
   },
   'product-apparel-1': {
     src: 'https://cdn.swell.store/schema/685ef58eb79e3e0012cf3276/37c3c973a01287a580ab9db2e05dd36d/product-apparel-1.png',
