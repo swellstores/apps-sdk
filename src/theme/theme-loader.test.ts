@@ -2,7 +2,11 @@ import { Swell } from '@/api';
 
 import { ThemeLoader } from './theme-loader';
 
-import type { SwellThemeConfig, SwellThemeVersion } from 'types/swell';
+import type {
+  SwellThemeConfig,
+  SwellThemePreload,
+  SwellThemeVersion,
+} from 'types/swell';
 
 describe('#loadThemeFromManifest', () => {
   const configs = [
@@ -201,7 +205,9 @@ describe('#preloadTheme', () => {
   });
 
   it('caches the manifest and configs', async () => {
-    await loader.preloadTheme(version, configs);
+    const payload: SwellThemePreload = { api: 1, version, configs };
+
+    await loader.preloadTheme(payload);
 
     const cachedManifest = await loader.getCache().get('manifest:versionhash');
     expect(cachedManifest).toEqual(version.manifest);

@@ -217,20 +217,37 @@ export interface SwellCollectionPage {
 
 export type SwellCollectionPages = Record<string, SwellCollectionPage>;
 
-export interface SwellThemeConfig extends SwellRecord {
+export interface SwellFile {
+  id: string;
+  md5: string;
+  url: string;
+  length: number;
+  filename: string | null;
+  content_type: string;
+  date_uploaded: string;
+}
+
+export interface SwellThemeConfig {
   id: string;
   type: string;
+  name: string;
+  hash: string;
+  file: SwellFile;
   file_data: string;
   file_path: string;
 }
+
+export type SwellThemeManifest = Record<string, string>;
 
 export interface SwellThemeVersion extends SwellRecord {
   manifest: SwellThemeManifest;
   hash: string;
 }
 
-export interface SwellThemeManifest {
-  [key: string]: string;
+export interface SwellThemePreload {
+  api: number;
+  version?: SwellThemeVersion;
+  configs?: SwellThemeConfig[];
 }
 
 export interface SwellMenu {
@@ -713,7 +730,7 @@ export interface ThemeFormConfig {
   url: string;
   return_url?: string;
   params?: ThemeFormConfigParam[];
-  handler?: () => void;
+  handler?: (...args: any[]) => any;
 }
 
 export interface ThemeFormErrorMessage {
