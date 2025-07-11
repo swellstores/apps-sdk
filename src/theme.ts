@@ -57,7 +57,7 @@ import type {
   SwellRecord,
   SwellAppConfig,
   SwellThemeConfig,
-  SwellThemeVersion,
+  SwellThemePreload,
   SwellAppStorefrontThemeProps,
   SwellAppShopifyCompatibilityConfig,
   ThemePage,
@@ -886,11 +886,8 @@ export class SwellTheme {
   /**
    * Preloads updated theme configs. Used to optimize initial theme load.
    */
-  async preloadThemeConfigs(
-    version: SwellThemeVersion,
-    configs: SwellThemeConfig[],
-  ): Promise<void> {
-    await this.themeLoader.preloadTheme(version, configs);
+  async preloadThemeConfigs(payload: SwellThemePreload): Promise<void> {
+    await this.themeLoader.preloadTheme(payload);
   }
 
   getPageConfigPath(pageId: string, altTemplate?: string): string | null {
