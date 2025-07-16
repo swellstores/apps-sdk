@@ -15,7 +15,7 @@ export type CreateCacheOptions = OriginalCreateCacheOptions & {
   workerCtx?: CFWorkerContext;
 };
 
-export const CF_KV_NAMESPACE = 'THEME';
+const CF_KV_NAMESPACE = 'THEME';
 
 const DEFAULT_TTL = 5 * 1000; // 5s
 const DEFAULT_SWR_TTL = 1000 * 60 * 60 * 24 * 7; // 1 week
@@ -24,8 +24,11 @@ const DEFAULT_OPTIONS: CreateCacheOptions = Object.freeze({
   ttl: DEFAULT_TTL,
 });
 
-// Value used to indicate null to differentiate between actual null values and unset cache keys
-// Necessary because cache manager always returns null when a value has not been set yet
+/**
+ * Value used to indicate `null` to differentiate between actual `null` values and unset cache keys
+ *
+ * Necessary because cache manager always returns `null` when a value has not been set yet
+ */
 const NULL_VALUE = '__NULL__';
 
 /**
@@ -50,12 +53,19 @@ export class Cache {
     });
   }
 
-  async fetch<T>(key: string, fetchFn: () => T | Promise<T>): Promise<T> {
-    return this.client.wrap(key, fetchFn);
+  async fetch<T>(
+    key: string,
+    fetchFn: () => T | Promise<T>,
+    ttl?: number,
+  ): Promise<T> {
+    return this.client.wrap(key, fetchFn, ttl);
   }
 
-  // Fetch cache using SWR (stale-while-revalidate)
-  // This will always return the cached value immediately if exists
+  /**
+   * Fetch cache using SWR (stale-while-revalidate)
+   *
+   * This will always return the cached value immediately if exists
+   */
   async fetchSWR<T>(
     key: string,
     fetchFn: () => T | Promise<T>,
@@ -65,13 +75,13 @@ export class Cache {
 
     // Update cache asynchronously
     const promiseValue = Promise.resolve()
-      .then(() => fetchFn())
+      .then(fetchFn)
+      .then(resolveAsyncResources)
       .then(async (value) => {
         // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
         const isNull = value === null || value === undefined;
-        const valueResolved = await resolveAsyncResources(value);
-        await this.client.set(key, isNull ? NULL_VALUE : valueResolved, ttl);
-        return value;
+        await this.client.set(key, isNull ? NULL_VALUE : value, ttl);
+        return value as T;
       });
 
     // Make the worker wait until the promise is resolved if possible
@@ -79,16 +89,16 @@ export class Cache {
       this.workerCtx.waitUntil(promiseValue);
     }
 
-    if (cacheValue !== null) {
+    if (cacheValue !== undefined) {
       return cacheValue === NULL_VALUE ? (null as T) : (cacheValue as T);
     }
 
     const result = await promiseValue;
 
-    return result as T;
+    return result;
   }
 
-  async get<T>(key: string): Promise<T | null> {
+  async get<T>(key: string): Promise<T | undefined> {
     return this.client.get(key);
   }
 
@@ -102,16 +112,17 @@ export class Cache {
 
   /**
    * Flushes the entire cache.
-   * WARNING: If the cache store is shared among many cache clients,
-   *          this will flush entries for other clients.
+   *
+   * __WARNING__: If the cache store is shared among many cache clients,
+   *              this will flush entries for other clients.
    */
   async flushAll(): Promise<void> {
     await this.client.clear();
   }
 }
 
-function buildStores(kvStore?: CFWorkerKV) {
-  const stores = [];
+function buildStores(kvStore?: CFWorkerKV): Keyv[] {
+  const stores: Keyv[] = [];
 
   if (kvStore) {
     stores.push(

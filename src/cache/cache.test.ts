@@ -10,9 +10,9 @@ describe('Cache', () => {
     return Promise.resolve(counter);
   }
 
-  beforeEach(async () => {
+  beforeEach(() => {
     counter = 0;
-  })
+  });
 
   describe('#fetch', () => {
     it('fetches a cache entry', async () => {
@@ -35,7 +35,7 @@ describe('Cache', () => {
       const fn = () => {
         counter += 1;
         return null;
-      }
+      };
 
       const cache = new Cache();
 
@@ -52,7 +52,7 @@ describe('Cache', () => {
       const fn = () => {
         counter += 1;
         return undefined;
-      }
+      };
 
       const cache = new Cache();
 
@@ -67,7 +67,7 @@ describe('Cache', () => {
 
     it('expires cache after TTL', async () => {
       const cache = new Cache({
-        ttl: 100, // ms 
+        ttl: 100, // ms
       });
 
       let result = await cache.fetch('foo', fetchFn);
@@ -81,7 +81,7 @@ describe('Cache', () => {
         try {
           setTimeout(resolve, 101);
         } catch (err) {
-          reject(err);
+          reject(err instanceof Error ? err : new Error(String(err)));
         }
       });
 
@@ -95,7 +95,7 @@ describe('Cache', () => {
       const cache = new Cache();
 
       let result = await cache.get('foo');
-      expect(result).toEqual(null);
+      expect(result).toBeUndefined();
 
       await cache.set('foo', 'bar');
 
@@ -126,7 +126,7 @@ describe('Cache', () => {
       await cache.set('foo', undefined);
 
       result = await cache.get('foo');
-      expect(result).toBeNull();
+      expect(result).toBeUndefined();
     });
 
     describe('when shared cache is namespaced', () => {
@@ -134,10 +134,10 @@ describe('Cache', () => {
         // Initialize a shared cache store with two namespaced cache clients.
         const sharedSource = new Map();
         const cacheA = new Cache({
-          stores: [ new Keyv(sharedSource, { namespace: 'a' }) ],
+          stores: [new Keyv(sharedSource, { namespace: 'a' })],
         });
         const cacheB = new Cache({
-          stores: [ new Keyv(sharedSource, { namespace: 'b' }) ],
+          stores: [new Keyv(sharedSource, { namespace: 'b' })],
         });
 
         // set different values for the same key in each namespace
@@ -197,10 +197,10 @@ describe('Cache', () => {
         // Initialize a shared cache store with two namespaced cache clients.
         const sharedSource = new Map();
         const cacheA = new Cache({
-          stores: [ new Keyv(sharedSource, { namespace: 'a' }) ],
+          stores: [new Keyv(sharedSource, { namespace: 'a' })],
         });
         const cacheB = new Cache({
-          stores: [ new Keyv(sharedSource, { namespace: 'b' }) ],
+          stores: [new Keyv(sharedSource, { namespace: 'b' })],
         });
 
         // set different values for the same key in each namespace
@@ -221,7 +221,7 @@ describe('Cache', () => {
         result = await cacheA.get('foo');
         expect(result).toEqual('bar');
         result = await cacheB.get('foo');
-        expect(result).toBeNull();
+        expect(result).toBeUndefined();
         expect(Array.from(sharedSource.keys())).toEqual(['a:foo']);
       });
     }); // describe: when shared cache is namespaced
@@ -256,10 +256,10 @@ describe('Cache', () => {
         // Initialize a shared cache store with two namespaced cache clients.
         const sharedSource = new Map();
         const cacheA = new Cache({
-          stores: [ new Keyv(sharedSource, { namespace: 'a' }) ],
+          stores: [new Keyv(sharedSource, { namespace: 'a' })],
         });
         const cacheB = new Cache({
-          stores: [ new Keyv(sharedSource, { namespace: 'b' }) ],
+          stores: [new Keyv(sharedSource, { namespace: 'b' })],
         });
 
         // set different values for the same key in each namespace
@@ -277,11 +277,11 @@ describe('Cache', () => {
         await cacheB.flushAll();
 
         result = await cacheA.get('foo');
-        expect(result).toBeNull();
+        expect(result).toBeUndefined();
         result = await cacheB.get('foo');
-        expect(result).toBeNull();
+        expect(result).toBeUndefined();
         expect(Array.from(sharedSource.keys())).toEqual([]);
       });
-    }); // describe: when shared cahce is namespaced
+    }); // describe: when shared cache is namespaced
   }); // describe: #flushAll
 }); // describe: Cache

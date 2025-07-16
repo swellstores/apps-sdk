@@ -146,10 +146,10 @@ export class ThemeLoader {
    * Fetches a theme config by file path.
    */
   async fetchThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
-    const themeConfig = this.configs.get(filePath);
+    const config = this.configs.get(filePath);
 
-    if (themeConfig !== undefined) {
-      return themeConfig;
+    if (config !== undefined) {
+      return config;
     }
 
     const hash = this.manifest?.get(filePath);
@@ -159,19 +159,21 @@ export class ThemeLoader {
     }
 
     const cache = this.getCache();
-    let config = await cache.get<SwellThemeConfig>(`config:${hash}`);
+    const themeId = this.getThemeId();
 
-    if (config) {
-      const themeId = this.getThemeId();
+    const [themeConfig, fileUrl] = await Promise.all([
+      cache.get<SwellThemeConfig>(`config:${hash}`),
+      themeId ? cache.get<string>(`file:${themeId}:${hash}`) : undefined,
+    ]);
 
-      if (themeId && config.file?.url) {
-        const fileUrl = await cache.get<string>(
-          `file:${themeId}:${config.hash}`,
-        );
+    if (themeConfig) {
+      let config = themeConfig;
 
-        if (fileUrl) {
-          config = { ...config, file: { ...config.file, url: fileUrl } };
-        }
+      if (fileUrl && themeConfig.file?.url) {
+        config = {
+          ...themeConfig,
+          file: { ...themeConfig.file, url: fileUrl },
+        };
       }
 
       this.configs.set(filePath, config);
@@ -243,21 +245,25 @@ export class ThemeLoader {
     await Promise.map(
       manifest.values(),
       async (configHash) => {
-        let config = await cache.get<SwellThemeConfig>(`config:${configHash}`);
+        const [themeConfig, fileUrl] = await Promise.all([
+          cache.get<SwellThemeConfig>(`config:${configHash}`),
+          themeId
+            ? cache.get<string>(`file:${themeId}:${configHash}`)
+            : undefined,
+        ]);
 
-        if (!config) {
+        if (!themeConfig) {
           configHashesUnresolved.push(configHash);
           return;
         }
 
-        if (themeId && config.file?.url) {
-          const fileUrl = await cache.get<string>(
-            `file:${themeId}:${configHash}`,
-          );
+        let config = themeConfig;
 
-          if (fileUrl) {
-            config = { ...config, file: { ...config.file, url: fileUrl } };
-          }
+        if (fileUrl && themeConfig.file?.url) {
+          config = {
+            ...themeConfig,
+            file: { ...themeConfig.file, url: fileUrl },
+          };
         }
 
         configsByHash.set(config.hash, config);
