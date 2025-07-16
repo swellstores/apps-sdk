@@ -14,7 +14,7 @@ export class ResourceCache extends Cache {
 function buildStores(): Keyv[] {
   return [
     new Keyv({
-      // Disabling serialization allows for pure memo-ization of class instances
+      // Disabling serialization allows for pure memoization of class instances
       // at the tradeoff of no support for compression.
       serialize: undefined,
       deserialize: undefined,

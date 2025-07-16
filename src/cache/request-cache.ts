@@ -1,5 +1,4 @@
-import { type CreateCacheOptions } from './cache';
-import { Cache } from './cache';
+import { Cache, type CreateCacheOptions } from './cache';
 
 export class RequestCache extends Cache {
   constructor(options?: CreateCacheOptions) {

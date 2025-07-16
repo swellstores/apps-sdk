@@ -366,16 +366,18 @@ export class SwellTheme {
     }
 
     const [cart, account] = await Promise.all([
-      this.fetchSingletonResourceCached<StorefrontResource | {}>(
+      this.fetchSingletonResourceCached<StorefrontResource>(
         'cart',
+        // The cached cart may be null, but we need the StorefrontResource
         () => this.fetchCart(),
-        {},
+        // Default value (always StorefrontResource)
+        () => this.fetchCart(),
       ),
 
       this.fetchSingletonResourceCached<StorefrontResource | null>(
         'account',
         () => this.fetchAccount(),
-        null,
+        () => null,
       ),
     ]);
 
@@ -402,17 +404,22 @@ export class SwellTheme {
   async fetchSingletonResourceCached<R>(
     key: string,
     handler: () => Promise<R>,
-    defaultValue: R,
+    defaultValue: () => R | Promise<R>,
   ): Promise<R | undefined> {
     // Cookie should change when cart/account is updated
     const cacheKey = this.swell.storefront.session.getCookie();
+
     if (!cacheKey) {
-      return defaultValue;
+      return defaultValue();
     }
 
-    return this.swell.getCachedResource(`${key}-${cacheKey}`, [], () =>
-      handler(),
+    const result = await this.swell.getCachedResource(
+      `${key}-${cacheKey}`,
+      [],
+      handler,
     );
+
+    return result ?? defaultValue();
   }
 
   async fetchCart(): Promise<StorefrontResource> {

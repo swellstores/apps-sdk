@@ -40,11 +40,11 @@
   "dependencies": {
     "@swell/easyblocks-core": "^1.0.19",
     "bluebird": "^3.7.2",
-    "cache-manager": "^6.3.2",
+    "cache-manager": "^7.0.1",
     "color": "^4.2.3",
     "country-flag-icons": "1.5.18",
     "json5": "^2.2.3",
-    "keyv": "^5.2.3",
+    "keyv": "^5.3.4",
     "liquidjs": "^10.21.0",
     "lodash": "^4.17.21",
     "lodash-es": "^4.17.21",

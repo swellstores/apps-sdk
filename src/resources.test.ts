@@ -66,13 +66,13 @@ describe('SwellSingletonResource', () => {
         theme.fetchSingletonResourceCached<StorefrontResource | object>(
           'cart',
           () => theme.fetchCart(),
-          {},
+          () => ({}),
         ),
 
         theme.fetchSingletonResourceCached<StorefrontResource | null>(
           'account',
           () => theme.fetchAccount(),
-          null,
+          () => null,
         ),
       ]);
 

@@ -793,7 +793,7 @@ export interface CFWorkerKV {
     key: string,
     type?: 'stream',
     options?: CFWorkerKVGetOptions<'stream'>,
-  ): Promise<ReadableStream | null>;
+  ): Promise<ReadableStream<Uint8Array> | null>;
   get<T>(
     key: string,
     type?: 'json',
@@ -814,7 +814,7 @@ export interface CFWorkerKV {
     key: string,
     type?: 'stream',
     options?: CFWorkerKVGetOptions<'stream'>,
-  ): Promise<CFWorkerKVGetMetadataResponse<ReadableStream>>;
+  ): Promise<CFWorkerKVGetMetadataResponse<ReadableStream<Uint8Array>>>;
   getWithMetadata<T>(
     key: string,
     type?: 'json',
@@ -835,6 +835,6 @@ export interface CFThemeEnv {
 }
 
 export interface CFWorkerContext {
-  waitUntil(promise: Promise<any>): void;
+  waitUntil(promise: Promise<unknown>): void;
   passThroughOnException(): void;
 }
