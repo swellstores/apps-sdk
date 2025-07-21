@@ -21,6 +21,7 @@ import font_face from './font_face';
 import font_modify from './font_modify';
 import font_url from './font_url';
 import format_address from './format_address';
+import handleize from './handleize';
 import image_tag from './image_tag';
 import image_url from './image_url';
 import inline_asset_content from './inline_asset_content';
@@ -84,6 +85,8 @@ export const filters = {
   font_modify,
   font_url,
   format_address,
+  handle: handleize, // alias
+  handleize,
   image_tag,
   image_url,
   inline_asset_content,
