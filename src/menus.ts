@@ -108,15 +108,24 @@ export async function resolveMenuItemUrlAndResource(
   if (!item) return { url: '#invalid-link-item' };
 
   if (typeof item === 'object' && item !== null) {
-    let { url, resource } = await getMenuItemUrlAndResource(theme, item);
+    const { url: itemUrl, resource } = await getMenuItemUrlAndResource(
+      theme,
+      item,
+    );
 
-    // Add/remove trailing slash
-    const endsWithSlash = url.slice(-1) === '/';
-    if (options?.trailingSlash && !endsWithSlash && url.length > 1) {
-      url = url + '/';
-    }
-    if (!options?.trailingSlash && endsWithSlash && url.length > 1) {
-      url = url.slice(0, -1);
+    let url = itemUrl;
+
+    if (url.length > 1) {
+      // Add/remove trailing slash
+      const endsWithSlash = url.endsWith('/');
+
+      if (options?.trailingSlash) {
+        if (!endsWithSlash) {
+          url = url + '/';
+        }
+      } else if (endsWithSlash) {
+        url = url.slice(0, -1);
+      }
     }
 
     return { url, resource }; // TODO wrap nuxt-i18n to generate localized path
@@ -185,68 +194,74 @@ export async function getMenuItemUrlAndResource(
         url: getMenuItemStorefrontUrl(theme, 'index'),
       };
 
-    case SwellMenuItemType.Category:
+    case SwellMenuItemType.Category: {
       if (!id) {
         return {
           url: getMenuItemStorefrontUrl(theme, 'categories/index'),
         };
       }
-      return await deferMenuItemUrlAndResource(
-        theme,
-        'categories/category',
-        id,
-      );
 
-    case SwellMenuItemType.Product:
+      return deferMenuItemUrlAndResource(theme, 'categories/category', id);
+    }
+
+    case SwellMenuItemType.Product: {
       if (!id) {
         return {
           url: getMenuItemStorefrontUrl(theme, 'products/index'),
         };
       }
-      return await deferMenuItemUrlAndResource(theme, 'products/product', id);
+
+      return deferMenuItemUrlAndResource(theme, 'products/product', id);
+    }
+
+    case SwellMenuItemType.ProductList:
+      return {
+        url: getMenuItemStorefrontUrl(theme, 'products/index'),
+      };
 
     case SwellMenuItemType.Page:
-      return await deferMenuItemUrlAndResource(theme, 'pages/page', id);
+      return deferMenuItemUrlAndResource(theme, 'pages/page', id);
 
     case SwellMenuItemType.Blog:
-      return await deferMenuItemUrlAndResource(
-        theme,
-        'blogs/blog',
-        id,
-        async (blog) => {
-          const blogCategory = new SwellStorefrontRecord(
-            theme.swell,
-            'content/blog-categories',
-            blog.category_id,
-          );
-          return blogCategory.slug;
-        },
-      );
+      return deferMenuItemUrlAndResource(theme, 'blogs/blog', id, (blog) => {
+        const blogCategory = new SwellStorefrontRecord(
+          theme.swell,
+          'content/blog-categories',
+          blog.category_id as string,
+        );
+        return blogCategory.slug as Promise<string>;
+      });
 
     case SwellMenuItemType.BlogCategory:
-      return await deferMenuItemUrlAndResource(theme, 'blogs/category', id);
+      return deferMenuItemUrlAndResource(theme, 'blogs/category', id);
 
-    case SwellMenuItemType.ContentList:
+    case SwellMenuItemType.ContentList: {
       if (model) {
         const slug = model?.replace('content/', '');
+
         return {
           url: getMenuItemStorefrontUrl(theme, 'content/index', slug),
           resource: new SwellStorefrontCollection(theme.swell, model),
         };
       }
-      break;
 
-    case SwellMenuItemType.Content:
+      break;
+    }
+
+    case SwellMenuItemType.Content: {
       if (model) {
         const collectionSlug = model?.replace('content/', '');
-        return await deferMenuItemUrlAndResource(
+
+        return deferMenuItemUrlAndResource(
           theme,
           'content/content',
           id,
           collectionSlug,
         );
       }
+
       break;
+    }
 
     case SwellMenuItemType.Search:
       return {
@@ -302,7 +317,7 @@ export async function deferMenuItemUrlAndResource(
     ? new SwellStorefrontRecord(theme.swell, collection, id)
     : undefined;
 
-  const slug = (await resource?.slug) || id;
+  const slug = ((await resource?.slug) as string) || id;
 
   let collectionSlug: string | undefined =
     typeof collectionSlugOrHandler === 'string'
