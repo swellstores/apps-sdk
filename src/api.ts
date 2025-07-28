@@ -3,6 +3,7 @@ import qs from 'qs';
 
 import { Cache, RequestCache, ResourceCache } from './cache';
 import { md5, toBase64 } from './utils';
+import { logger, createTraceId, configureSdkLogger } from './utils/logger';
 
 import type {
   SwellApiParams,
@@ -75,8 +76,14 @@ export class Swell {
       queryParams,
       workerEnv,
       workerCtx,
+      logger: loggerConfig,
       ...clientProps
     } = params;
+
+    // Configure logger if config provided
+    if (loggerConfig) {
+      configureSdkLogger(loggerConfig);
+    }
 
     this.url = url instanceof URL ? url : new URL(url || '');
 
@@ -93,7 +100,9 @@ export class Swell {
 
     this.resourceLoadingIndicator = params.resourceLoadingIndicator;
 
-    console.log(`KV cache: ${this.workerEnv?.THEME ? 'enabled' : 'disabled'}`);
+    logger.info(
+      `[SDK] KV cache: ${this.workerEnv?.THEME ? 'enabled' : 'disabled'}`,
+    );
 
     if (serverHeaders) {
       const { headers, swellHeaders } = Swell.formatHeaders(serverHeaders);
@@ -258,7 +267,7 @@ export class Swell {
         err.message = `Swell: unable to load settings (${err.message})`;
       }
 
-      console.error(err);
+      logger.error(err);
     }
 
     return this.storefront.settings.get();
@@ -374,7 +383,9 @@ export class Swell {
           decodeURIComponent(this.swellHeaders['storefront-context']),
         );
       } catch (error) {
-        console.error('Failed to parse swell-storefront-context. Ignoring...');
+        logger.error(
+          '[SDK] Failed to parse swell-storefront-context. Ignoring...',
+        );
       }
     }
     return storefrontContext;
@@ -415,7 +426,7 @@ export class Swell {
         return this.getRequestCache().fetchSWR<T>(
           getCacheKey('request', [this.instanceId, method, url, id, data, opt]),
           () => {
-            console.log('Storefront request', { method, url, id, data });
+            logger.info('[SDK] Storefront request', { method, url, id, data });
             return storefrontRequest<T>(method, url, id, data, opt);
           },
         );
@@ -533,6 +544,12 @@ export class SwellBackendAPI {
     const endpointUrl = String(url).startsWith('/') ? url.substring(1) : url;
     const requestUrl = `${this.apiHost}/${endpointUrl}${query}`;
 
+    const trace = createTraceId();
+    logger.debug('[SDK] Backend request start', {
+      query: `/${endpointUrl}${query}`,
+      trace: trace,
+    });
+
     const response = await fetch(requestUrl, requestOptions);
 
     const responseText = await response.text();
@@ -543,6 +560,11 @@ export class SwellBackendAPI {
     } catch {
       result = String(responseText || '').trim();
     }
+
+    logger.debug('[SDK] Backend request end', {
+      status: response.status,
+      trace: trace,
+    });
 
     if (response.status > 299) {
       throw new SwellError(result, {

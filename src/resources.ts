@@ -1,6 +1,7 @@
 import { cloneDeep } from 'lodash-es';
 
 import { md5, resolveAsyncResources, stringifyQueryParams } from './utils';
+import { logger, createTraceId } from './utils/logger';
 import { isLikePromise } from './liquid/utils';
 
 import type { Swell } from './api';
@@ -87,7 +88,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
           }
 
           instance._result = instance._get().catch((err: unknown) => {
-            console.log(err);
+            logger.error(err);
             return instance._getCollectionResultOrProp(instance, prop);
           }) as unknown as T;
         }
@@ -99,7 +100,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
               return instance._getCollectionResultOrProp(instance, prop);
             })
             .catch((err: unknown) => {
-              console.log(err);
+              logger.error(err);
               return null;
             });
         }
@@ -181,7 +182,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
           return result;
         })
         .catch((err) => {
-          console.log(err);
+          logger.error(err);
           return null;
         });
     }
@@ -456,7 +457,7 @@ export class SwellStorefrontCollection<
           return result;
         })
         .catch((err) => {
-          console.log(err);
+          logger.error(err);
           return null;
         }) as unknown as T;
     }
@@ -618,7 +619,7 @@ export class SwellStorefrontRecord<
           return result;
         })
         .catch((err: unknown) => {
-          console.log(err);
+          logger.error(err);
           return null;
         }) as unknown as T;
     }
@@ -671,11 +672,22 @@ export class SwellStorefrontSingleton<
 
   async _get() {
     if (this._getter) {
+      const trace = createTraceId();
+      logger.debug('[SDK] Resource fetch start', {
+        resource: this.constructor.name,
+        hash: this._getterHash,
+        trace,
+      });
+
       const getter = this._getter.bind(this);
 
       this._result = Promise.resolve()
         .then(getter)
         .then((result?: T | null) => {
+          logger.debug('[SDK] Resource fetch end', {
+            hash: this._getterHash,
+            trace,
+          });
           this._result = result;
 
           if (result) {
@@ -685,7 +697,7 @@ export class SwellStorefrontSingleton<
           return result;
         })
         .catch((err: unknown) => {
-          console.log(err);
+          logger.error(err, { trace });
           return null;
         }) as unknown as T;
     }

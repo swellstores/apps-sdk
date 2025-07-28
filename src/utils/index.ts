@@ -28,6 +28,7 @@ import { isLikePromise } from '@/liquid/utils';
 import { toSchemaFieldId } from '@/easyblocks/utils';
 
 export * from './md5';
+export { configureSdkLogger, type SdkLoggerConfig } from './logger';
 
 /* export function dump(value: any, depth = 10) {
   console.log(util.inspect(value, { depth, colors: true }));
