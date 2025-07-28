@@ -18,6 +18,8 @@ import type {
   ShopifySettingsSchema,
 } from './shopify';
 
+import type { SdkLoggerConfig } from '../src/utils/logger';
+
 export interface SwellApiParams {
   url: URL | string;
   config?: SwellAppConfig;
@@ -29,6 +31,7 @@ export interface SwellApiParams {
   workerEnv?: CFThemeEnv;
   workerCtx?: CFWorkerContext;
   isEditor?: boolean;
+  logger?: SdkLoggerConfig;
   getCookie?: (name: string) => string | undefined;
   setCookie?: (
     name: string,

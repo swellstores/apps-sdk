@@ -28,6 +28,8 @@ import {
   scopeCustomCSS,
 } from './utils';
 
+import { logger, createTraceId } from './utils/logger';
+
 import type { FormatInput } from 'swell-js';
 import type {
   ShopifySectionSchema,
@@ -143,13 +145,19 @@ export class SwellTheme {
   async initGlobals(pageId: string, altTemplate?: string): Promise<void> {
     this.pageId = pageId;
 
+    const trace = createTraceId();
+    logger.debug('[SDK] Theme init start', { page: pageId, trace });
+
     await this.themeLoader.init(this.themeConfigs || undefined);
+    logger.debug('[SDK] ThemeLoader init done', { page: pageId, trace });
 
     const { store, session, menus, geo, configs } =
       await this.getSettingsAndConfigs();
+    logger.debug('[SDK] Theme settings load done', { page: pageId, trace });
 
     const { settings, request, page, cart, account, customer } =
       await this.resolvePageData(store, configs, pageId, altTemplate);
+    logger.debug('[SDK] Theme page data load done', { page: pageId, trace });
 
     this.page = page;
 
@@ -181,6 +189,8 @@ export class SwellTheme {
     if (this.shopifyCompatibility) {
       this.shopifyCompatibility.adaptQueryParams();
     }
+
+    logger.debug('[SDK] Theme init end', { page: pageId, trace });
   }
 
   setGlobals(globals: Partial<ThemeGlobals>): void {
@@ -225,7 +235,7 @@ export class SwellTheme {
             try {
               configValue = JSON5.parse<unknown>(config.file_data);
             } catch (err) {
-              console.error(`Error parsing ${configName} config: ${err}`);
+              logger.error(`Error parsing config`, err, { configName });
               configValue = {};
             }
             acc[configName] = configValue;
@@ -345,7 +355,7 @@ export class SwellTheme {
         );
       } catch (err) {
         // noop
-        console.warn(err);
+        logger.warn(err);
       }
 
       if (pageSchema?.page) {
@@ -756,7 +766,7 @@ export class SwellTheme {
         return JSON5.parse<ThemeLocaleConfig>(localeConfig?.file_data || '{}');
       } catch (err) {
         // noop
-        console.warn(err);
+        logger.warn(err);
       }
     }
 
@@ -1011,11 +1021,20 @@ export class SwellTheme {
     }
 
     template = unescapeLiquidSyntax(template);
-
+    const trace = createTraceId();
     try {
-      return await this.liquidSwell.parseAndRender(template, data);
+      logger.debug('[SDK] Render template start', {
+        config: config.name,
+        trace,
+      });
+      const result = await this.liquidSwell.parseAndRender(template, data);
+      logger.debug('[SDK] Render template end', {
+        config: config.name,
+        trace,
+      });
+      return result;
     } catch (err: any) {
-      console.error(err);
+      logger.error(err);
       return `<!-- template render error: ${err.message} -->`;
     }
   }
@@ -1027,7 +1046,7 @@ export class SwellTheme {
     try {
       return await this.liquidSwell.parseAndRender(templateString, data);
     } catch (err) {
-      console.error(err);
+      logger.error(err);
       return '';
     }
   }
@@ -1061,7 +1080,7 @@ export class SwellTheme {
         }
       } catch (err) {
         // noop
-        console.warn(err);
+        logger.warn(err);
         return undefined;
       }
     } else if (config?.file_path?.endsWith('.liquid')) {
@@ -1148,11 +1167,10 @@ export class SwellTheme {
       try {
         return JSON5.parse<ThemePageTemplateConfig>(content);
       } catch (err) {
-        console.log(
-          'Unable to render theme template',
-          config.file_path,
+        logger.error('[SDK] Unable to render theme template', {
+          file: config.file_path,
           content,
-        );
+        });
         throw new PageError(err as Error);
       }
     }
@@ -1523,7 +1541,7 @@ ${content.slice(pos)}`;
         schema = JSON5.parse(resolvedConfig?.file_data) || undefined;
       } catch (err) {
         // noop
-        console.warn(err);
+        logger.warn(err);
       }
     }
 
@@ -2082,7 +2100,7 @@ function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {
   try {
     return JSON5.parse<T>(config?.file_data || '{}');
   } catch (err) {
-    console.warn(err);
+    logger.warn(err);
     return {} as T;
   }
 }
