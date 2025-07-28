@@ -274,7 +274,7 @@ export class SwellTheme {
     settings: ThemeSettings;
     request: SwellPageRequest;
     page: ThemePage;
-    cart: SwellStorefrontSingleton | {};
+    cart: SwellStorefrontSingleton;
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
@@ -395,7 +395,7 @@ export class SwellTheme {
       settings,
       request,
       page,
-      cart,
+      cart: cart as SwellStorefrontSingleton,
       account: account as SwellStorefrontSingleton,
       customer: customer as SwellStorefrontSingleton, // Shopify only
     };

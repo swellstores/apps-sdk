@@ -31,6 +31,8 @@ const DEFAULT_OPTIONS: CreateCacheOptions = Object.freeze({
  */
 const NULL_VALUE = '__NULL__';
 
+const SWR_PROMISE_MAP = new Map<string, Promise<unknown>>();
+
 /**
  * Cache supports memory or KV
  * The KV layer supports namespacing and compression
@@ -73,27 +75,37 @@ export class Cache {
   ): Promise<T> {
     const cacheValue = await this.client.get(key);
 
-    // Update cache asynchronously
-    const promiseValue = Promise.resolve()
-      .then(fetchFn)
-      .then(resolveAsyncResources)
-      .then(async (value) => {
-        // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
-        const isNull = value === null || value === undefined;
-        await this.client.set(key, isNull ? NULL_VALUE : value, ttl);
-        return value as T;
-      });
+    // Do not create duplicate requests
+    let promise = SWR_PROMISE_MAP.get(key);
+
+    if (promise === undefined) {
+      // Update cache asynchronously
+      promise = Promise.resolve()
+        .then(fetchFn)
+        .then(resolveAsyncResources)
+        .then(async (value) => {
+          // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
+          const isNull = value === null || value === undefined;
+          await this.client.set(key, isNull ? NULL_VALUE : value, ttl);
+          return value as T;
+        })
+        .finally(() => {
+          SWR_PROMISE_MAP.delete(key);
+        });
+
+      SWR_PROMISE_MAP.set(key, promise);
+    }
 
     // Make the worker wait until the promise is resolved if possible
-    if (this.workerCtx?.waitUntil) {
-      this.workerCtx.waitUntil(promiseValue);
+    if (typeof this.workerCtx?.waitUntil === 'function') {
+      this.workerCtx.waitUntil(promise);
     }
 
     if (cacheValue !== undefined) {
       return cacheValue === NULL_VALUE ? (null as T) : (cacheValue as T);
     }
 
-    const result = await promiseValue;
+    const result = await (promise as Promise<T>);
 
     return result;
   }

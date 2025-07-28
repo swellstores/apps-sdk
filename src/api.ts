@@ -445,7 +445,7 @@ export class Swell {
    */
   private getResourceCache(): Cache {
     let cache = resourceCaches.get(this.instanceId);
-    if (!cache) {
+    if (cache === undefined) {
       cache = new ResourceCache({
         kvStore: this.workerEnv?.THEME,
         workerCtx: this.workerCtx,
@@ -460,7 +460,7 @@ export class Swell {
    */
   private getRequestCache(): Cache {
     let cache = requestCaches.get(this.instanceId);
-    if (!cache) {
+    if (cache === undefined) {
       cache = new RequestCache({
         kvStore: this.workerEnv?.THEME,
         workerCtx: this.workerCtx,
