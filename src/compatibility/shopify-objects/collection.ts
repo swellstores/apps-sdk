@@ -3,6 +3,7 @@ import {
   SwellStorefrontCollection,
   cloneStorefrontResource,
 } from '@/resources';
+import { productQueryWithFilters } from '@/resources/product';
 
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
@@ -12,10 +13,6 @@ import ShopifyFilter from './filter';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyCollection } from 'types/shopify';
-
-interface ShopifyProductCollection {
-  products?: SwellStorefrontCollection | SwellCollection;
-}
 
 export default function ShopifyCollection(
   instance: ShopifyCompatibility,
@@ -29,8 +26,13 @@ export default function ShopifyCollection(
     category = cloneStorefrontResource(category);
   }
 
-  const resolveProducts = makeProductsCollectionResolve(category, (product) =>
-    ShopifyProduct(instance, product as SwellRecord),
+  const productMapper = (product: SwellData) =>
+    ShopifyProduct(instance, product as SwellRecord);
+
+  const resolveProducts = makeProductsCollectionResolve(
+    instance,
+    category,
+    productMapper,
   );
 
   return new ShopifyResource<ShopifyCollection>({
@@ -91,8 +93,8 @@ export default function ShopifyCollection(
     featured_image: deferWith(category, (category) =>
       getFirstImage(instance, category),
     ),
-    filters: defer(async () =>
-      ((await resolveProducts())?.filter_options ?? []).map((filter) =>
+    filters: deferWith(category, (category) =>
+      (category?.filter_options ?? []).map((filter: any) =>
         ShopifyFilter(instance, filter),
       ),
     ),
@@ -102,9 +104,7 @@ export default function ShopifyCollection(
     metafields: {},
     next_product: undefined,
     previous_product: undefined,
-    products: defer(async () => {
-      return (await resolveProducts())?.results ?? [];
-    }),
+    products: getProducts(instance, category, productMapper),
     products_count: defer(
       async () => (await resolveProducts())?.results?.length || 0,
     ),
@@ -147,41 +147,51 @@ function convertToShopifySorting(value: string) {
   }
 }
 
+function getProducts<T extends SwellData>(
+  instance: ShopifyCompatibility,
+  object: StorefrontResource | SwellRecord,
+  mapper: (product: SwellData) => T,
+) {
+  return deferWith(object, (object) => {
+    const { page, limit } = instance.swell.queryParams;
+    const categoryFilter =
+      object.id && object.id !== 'all' ? object.id : undefined;
+    const productQuery = categoryFilter
+      ? { category: categoryFilter, $variants: true }
+      : { $variants: true };
+    const filterQuery = productQueryWithFilters(instance.swell, productQuery);
+    const products = new SwellStorefrontCollection(
+      instance.swell,
+      'products',
+      {
+        page,
+        limit,
+        ...filterQuery,
+      },
+      async function () {
+        return this._defaultGetter().call(this);
+      },
+    );
+
+    return products._cloneWithCompatibilityResult<SwellCollection<T>>(
+      (products) => {
+        return { ...products, results: products.results.map(mapper) };
+      },
+    );
+  });
+}
+
 export function makeProductsCollectionResolve<T extends SwellData>(
+  instance: ShopifyCompatibility,
   object: StorefrontResource | SwellRecord,
   mapper: (product: SwellData) => T,
 ): () => Promise<SwellCollection<T> | null | undefined> {
-  const productResults = deferWith<
-    SwellStorefrontCollection<SwellCollection<T>> | SwellCollection<T> | null,
-    ShopifyProductCollection
-  >(object, (object) => {
-    if (object.products) {
-      if (object.products instanceof SwellStorefrontCollection) {
-        return object.products._cloneWithCompatibilityResult<
-          SwellCollection<T>
-        >((products) => {
-          return {
-            ...products,
-            results: products.results.map(mapper),
-          };
-        });
-      }
-
-      if (Array.isArray(object.products?.results)) {
-        return {
-          ...object.products,
-          results: object.products.results.map(mapper),
-        };
-      }
-    }
-
-    return null;
-  });
+  const products = getProducts(instance, object, mapper);
 
   async function resolveProducts(): Promise<
     SwellCollection<T> | null | undefined
   > {
-    const resolved = await productResults.resolve();
+    const resolved = await products.resolve();
 
     if (resolved && '_resolve' in resolved) {
       return resolved._resolve();
