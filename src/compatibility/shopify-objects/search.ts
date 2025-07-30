@@ -16,11 +16,15 @@ export default function ShopifySearch(
     return search.clone() as ShopifyResource<ShopifySearch>;
   }
 
-  const resolveProducts = makeProductsCollectionResolve(search, (product) => {
-    const shopifyProduct = ShopifyProduct(instance, product as SwellRecord);
-    (shopifyProduct as any).object_type = 'product';
-    return shopifyProduct;
-  });
+  const resolveProducts = makeProductsCollectionResolve(
+    instance,
+    search,
+    (product) => {
+      const shopifyProduct = ShopifyProduct(instance, product as SwellRecord);
+      (shopifyProduct as any).object_type = 'product';
+      return shopifyProduct;
+    },
+  );
 
   return new ShopifyResource<ShopifySearch>({
     default_sort_by: deferWith(
