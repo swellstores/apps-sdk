@@ -18,6 +18,8 @@ import type {
   ShopifyQuantityPriceBreak,
   ShopifyVariant,
 } from 'types/shopify';
+import type { SwellProduct, SwellVariant } from '@/resources/swell_types';
+import { isProductAvailable } from '@/resources/product_helpers';
 
 export default function ShopifyVariant(
   instance: ShopifyCompatibility,
@@ -41,8 +43,8 @@ export default function ShopifyVariant(
 
   return new ShopifyResource<ShopifyVariant>({
     ...swellVariant,
-    available: deferWith(variant, (variant) =>
-      Boolean(variant.stock_status === 'in_stock' || !variant.stock_status),
+    available: deferWith([product, variant], (product, variant) =>
+      isProductAvailable(product as SwellProduct, variant as SwellVariant),
     ),
     barcode: undefined,
     compare_at_price: defer<number>(() => variant.orig_price),
@@ -136,7 +138,7 @@ export default function ShopifyVariant(
     },
     requires_selling_plan: false,
     requires_shipping: deferWith(product, (product) =>
-      Boolean(product.delivery?.contains('shipment')),
+      Boolean(product.delivery?.includes('shipment')),
     ),
     selected: false,
     selected_selling_plan_allocation: undefined,

@@ -14,6 +14,7 @@ import type {
   ShopifyLineItem,
   ShopifySellingPlanAllocation,
 } from 'types/shopify';
+import { isGiftcard } from '@/resources/product_helpers';
 
 export default function ShopifyLineItem(
   instance: ShopifyCompatibility,
@@ -53,7 +54,7 @@ export default function ShopifyLineItem(
         })
       : undefined, */
     fulfillment_service: 'manual', // TODO
-    gift_card: item.delivery === 'giftcard',
+    gift_card: isGiftcard(item.product),
     grams: item.shipment_weight,
     id: item.id,
     image: deferWith(
