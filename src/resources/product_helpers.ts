@@ -10,11 +10,38 @@ import type {
   SwellVariant,
 } from './swell_types';
 
+export function isGiftcard(product: SwellProduct) {
+  return product.type === 'giftcard';
+}
+
+export function isOptionAvailable(
+  product: SwellProduct,
+  option: SwellProductOption,
+) {
+  if (isGiftcard(product)) {
+    return true;
+  }
+
+  return Boolean(option.active && option.name);
+}
+
+export function isProductAvailable(
+  product: SwellProduct,
+  variant?: SwellVariant,
+) {
+  if (product.stock_purchasable) {
+    return true;
+  }
+
+  const stockStatus = (variant || product).stock_status;
+
+  return !stockStatus || stockStatus === 'in_stock';
+}
+
 // get available variants
 export function getAvailableVariants(product: SwellProduct) {
   return (product.variants?.results?.slice()?.reverse() || []).filter(
-    (variant: SwellVariant) =>
-      variant.stock_status === 'in_stock' || !variant.stock_status,
+    (variant: SwellVariant) => isProductAvailable(product, variant),
   );
 }
 
@@ -130,7 +157,7 @@ export function getSelectedVariantOptionValues(
 
     const hasOptionValues = option.values.length > 0;
 
-    if (!option.active || !hasOptionValues) {
+    if (!isOptionAvailable(product, option) || !hasOptionValues) {
       return acc;
     }
 

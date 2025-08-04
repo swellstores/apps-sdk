@@ -23,6 +23,9 @@ import {
   getAvailableVariants,
   isOptionValueAvailable,
   isOptionValueSelected,
+  isProductAvailable,
+  isOptionAvailable,
+  isGiftcard,
 } from '@/resources/product_helpers';
 
 export default function ShopifyProduct(
@@ -57,9 +60,8 @@ export default function ShopifyProduct(
   const compareAtPrice = defer<number>(() => product.orig_price);
 
   return new ShopifyResource<ShopifyProduct>({
-    available: deferWith(
-      product,
-      (product) => product.stock_status === 'in_stock' || !product.stock_status,
+    available: deferWith(product, (product: SwellProduct) =>
+      isProductAvailable(product),
     ),
     collections: [], // TODO: need to support this in the resource class somehow
     compare_at_price: compareAtPrice, // Note: This field hasn't been standardized as of May 2024
@@ -86,7 +88,7 @@ export default function ShopifyProduct(
         ? ShopifyVariant(instance, variant, product, depth + 1)
         : undefined;
     }),
-    'gift_card?': deferWith(product, (product) => product.type === 'giftcard'),
+    'gift_card?': deferWith(product, isGiftcard),
     handle: defer(() => product.slug),
     // indicates that product has any options
     has_only_default_variant: deferWith(
@@ -116,13 +118,15 @@ export default function ShopifyProduct(
       );
     }),
     metafields: {},
-    options: deferWith(product, (product): string[] => {
+    options: deferWith(product, (product: SwellProduct): string[] => {
       if (!Array.isArray(product.options)) {
         return [];
       }
 
       return product.options
-        .filter((option: SwellData) => option.active && option.name)
+        .filter((option: SwellProductOption) =>
+          isOptionAvailable(product, option),
+        )
         .map((option: SwellData) => option.name);
     }),
     options_by_name: deferWith(product, (product: SwellProduct) => {
@@ -140,7 +144,7 @@ export default function ShopifyProduct(
           option: SwellProductOption,
           index: number,
         ) => {
-          if (!option.active || !option.name) {
+          if (!isOptionAvailable(product, option)) {
             return acc;
           }
 
@@ -171,7 +175,7 @@ export default function ShopifyProduct(
         const variant = getSelectedVariant(product, queryParams);
 
         return product.options
-          .filter((option) => option.active && option.name)
+          .filter((option) => isOptionAvailable(product, option))
           .map((option: SwellProductOption, index: number) =>
             getOption(
               option,
