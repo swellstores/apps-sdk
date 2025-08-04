@@ -627,6 +627,10 @@ ${injects.join('\n')}</script>`;
             pageId = 'account/order';
             urlParams.id = segment3;
             break;
+          case 'subscriptions':
+            pageId = 'account/subscription';
+            urlParams.id = segment3;
+            break;
           case 'register':
             pageId = 'account/login';
             break;

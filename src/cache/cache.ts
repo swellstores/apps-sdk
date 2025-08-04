@@ -73,10 +73,11 @@ export class Cache {
     key: string,
     fetchFn: () => T | Promise<T>,
     ttl: number = DEFAULT_SWR_TTL,
+    isCacheble = true,
   ): Promise<T> {
     const trace = createTraceId();
     logger.debug('[SDK] Cache fetch start', { key, trace });
-    const cacheValue = await this.client.get(key);
+    const cacheValue = isCacheble ? await this.client.get(key) : undefined;
 
     // Do not create duplicate requests
     let promise = SWR_PROMISE_MAP.get(key);
@@ -89,8 +90,10 @@ export class Cache {
         .then(async (value) => {
           // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
           const isNull = value === null || value === undefined;
-          await this.client.set(key, isNull ? NULL_VALUE : value, ttl);
-          logger.debug('[SDK] Cache update done', { key, trace });
+          if (isCacheble) {
+            await this.client.set(key, isNull ? NULL_VALUE : value, ttl);
+            logger.debug('[SDK] Cache update done', { key, trace });
+          }
           return value as T;
         })
         .finally(() => {

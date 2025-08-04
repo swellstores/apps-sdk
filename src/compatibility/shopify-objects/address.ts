@@ -20,6 +20,11 @@ export default function ShopifyAddress(
     address = cloneStorefrontResource(address);
   }
 
+  // address can be null
+  if (!address) {
+    address = {} as SwellRecord;
+  }
+
   return new ShopifyResource<ShopifyAddress>({
     address1: defer(() => address.address1),
     address2: defer(() => address.address2),
