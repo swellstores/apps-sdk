@@ -138,7 +138,7 @@ class Swell {
   post<T>(url: string, data: SwellData): Promise<T>;
   put<T>(url: string, data: SwellData): Promise<T>;
   delete<T>(url: string, data?: SwellData): Promise<T>;
-  getCachedResource<T>(key: string, args: unknown[], handler: () => T): Promise<T>;
+  getCachedResource<T>(key: string, args: unknown[], handler: () => T, isCacheble = true): Promise<T>;
 }
 ```
 

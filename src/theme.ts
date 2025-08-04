@@ -151,7 +151,7 @@ export class SwellTheme {
     await this.themeLoader.init(this.themeConfigs || undefined);
     logger.debug('[SDK] ThemeLoader init done', { page: pageId, trace });
 
-    const { store, session, menus, geo, configs } =
+    const { store, session, menus, geo, configs, storefrontSettings } =
       await this.getSettingsAndConfigs();
     logger.debug('[SDK] Theme settings load done', { page: pageId, trace });
 
@@ -163,7 +163,8 @@ export class SwellTheme {
 
     const globals: ThemeGlobals = {
       ...this.globalData,
-      store,
+      // return all storefront settings in the store
+      store: { ...storefrontSettings, ...store },
       settings,
       session,
       request,
@@ -214,6 +215,7 @@ export class SwellTheme {
     menus: Record<string, SwellMenu | undefined>;
     geo: SwellSettingsGeo;
     configs: ThemeConfigs;
+    storefrontSettings: SwellData;
   }> {
     const geo = GEO_DATA;
 
@@ -246,7 +248,12 @@ export class SwellTheme {
       ),
     };
 
-    const session = await this.swell.storefront.settings.session();
+    // get all settings that should be localized
+    // These requests should get already loaded settings and not trigger endpoints if the setting exist
+    const [session, storeSettings] = await Promise.all([
+      storefrontSettings.session(),
+      storefrontSettings.get(),
+    ]);
 
     // Maintain backward compatibility for a few theme versions
     // TODO: remove this in the near future
@@ -267,11 +274,13 @@ export class SwellTheme {
     const menus = await this.resolveMenuSettings();
 
     return {
-      store: storefrontSettings?.store,
+      store: storeSettings?.store,
       session,
       menus,
       geo,
       configs,
+      // all settings
+      storefrontSettings,
     };
   }
 
@@ -388,6 +397,7 @@ export class SwellTheme {
         'account',
         () => this.fetchAccount(),
         () => null,
+        false,
       ),
     ]);
 
@@ -415,6 +425,7 @@ export class SwellTheme {
     key: string,
     handler: () => Promise<R>,
     defaultValue: () => R | Promise<R>,
+    isCacheble = true,
   ): Promise<R | undefined> {
     // Cookie should change when cart/account is updated
     const cacheKey = this.swell.storefront.session.getCookie();
@@ -427,6 +438,7 @@ export class SwellTheme {
       `${key}-${cacheKey}`,
       [],
       handler,
+      isCacheble,
     );
 
     return result ?? defaultValue();

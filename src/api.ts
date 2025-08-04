@@ -204,9 +204,15 @@ export class Swell {
     key: string,
     args: unknown[],
     handler: () => T | Promise<T>,
+    isCacheble = true,
   ): Promise<T | undefined> {
     const cacheKey = getCacheKey(key, [this.instanceId, args]);
-    return this.getResourceCache().fetchSWR<T>(cacheKey, handler);
+    return this.getResourceCache().fetchSWR<T>(
+      cacheKey,
+      handler,
+      undefined,
+      isCacheble,
+    );
   }
 
   async getAppSettings(): Promise<SwellData> {
@@ -221,19 +227,21 @@ export class Swell {
   }
 
   async getStorefrontSettings(force = false): Promise<SwellData> {
+    const storefrontSettings = this.storefront.settings as any;
     try {
       // Load all settings including menus, payments, etc
-      const { settings, menus, payments, subscriptions, session } =
-        await this.storefront.request<any>(
-          'get',
-          '/settings/all',
-          undefined,
-          force ? { $cache: false } : undefined,
-          { force },
-        );
+      const allSettings = await this.storefront.request<any>(
+        'get',
+        '/settings/all',
+        undefined,
+        force ? { $cache: false } : undefined,
+        { force },
+      );
 
-      const storefrontSettings = this.storefront.settings as any;
+      // we use only part of settings
+      const { settings, menus, payments, subscriptions, session } = allSettings;
 
+      // initialize all used settings
       storefrontSettings.localizedState = {};
 
       storefrontSettings.set({
@@ -270,7 +278,7 @@ export class Swell {
       logger.error(err);
     }
 
-    return this.storefront.settings.get();
+    return storefrontSettings;
   }
 
   getStorefrontMenus(): SwellMenu[] {

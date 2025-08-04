@@ -16,6 +16,14 @@ import type {
   StorefrontCollectionGetter,
 } from '../types/swell';
 
+const NOT_CACHEBLE_COLLECTIONS = Object.freeze(
+  new Set(['accounts:addresses', 'accounts:orders', 'accounts:subscriptions']),
+);
+
+function isResourceCacheble(name: string): boolean {
+  return !NOT_CACHEBLE_COLLECTIONS.has(name);
+}
+
 export const MAX_QUERY_PAGE_LIMIT = 100;
 export const DEFAULT_QUERY_PAGE_LIMIT = 15;
 
@@ -444,6 +452,7 @@ export class SwellStorefrontCollection<
             this._getterHash,
           ],
           getter,
+          isResourceCacheble(this._collection),
         )
         .then((result?: T | null) => {
           this._result = result;
@@ -605,6 +614,7 @@ export class SwellStorefrontRecord<
             this._getterHash,
           ],
           getter,
+          isResourceCacheble(this._collection),
         )
         .then((result?: T | null) => {
           return this._transformResult(result);
