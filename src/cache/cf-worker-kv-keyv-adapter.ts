@@ -1,5 +1,5 @@
 import type { KeyvStoreAdapter } from 'keyv';
-import type { CFWorkerKV } from 'types/swell';
+import type { CFWorkerKV } from 'types/cloudflare';
 
 /**
  * CloudFlare Workers KV adapter for Keyv.

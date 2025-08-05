@@ -9,7 +9,7 @@ import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
 import { resolveAsyncResources } from '../utils';
 import { logger, createTraceId } from '../utils/logger';
 
-import type { CFWorkerKV, CFWorkerContext } from 'types/swell';
+import type { CFWorkerKV, CFWorkerContext } from 'types/cloudflare';
 
 export type CreateCacheOptions = OriginalCreateCacheOptions & {
   kvStore?: CFWorkerKV;

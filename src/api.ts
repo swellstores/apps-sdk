@@ -4,6 +4,7 @@ import qs from 'qs';
 import { Cache, RequestCache, ResourceCache } from './cache';
 import { md5, toBase64 } from './utils';
 import { logger, createTraceId, configureSdkLogger } from './utils/logger';
+import { isLikePromise } from './liquid/utils';
 
 import type {
   SwellApiParams,
@@ -11,11 +12,9 @@ import type {
   SwellErrorOptions,
   SwellMenu,
   SwellData,
-  CFThemeEnv,
-  CFWorkerContext,
   SwellAppShopifyCompatibilityConfig,
 } from '../types/swell';
-import { isLikePromise } from './liquid/utils';
+import type { CFThemeEnv, CFWorkerContext } from '../types/cloudflare';
 
 export * from './resources';
 export * from './resources/index';
