@@ -181,7 +181,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
           return this._transformResult(result);
         })
         .then((result) => {
-          this._result = result;
+          this._result = result ?? null;
 
           if (result) {
             Object.assign(this, result);
@@ -190,6 +190,7 @@ export class StorefrontResource<T extends SwellData = SwellData> {
           return result;
         })
         .catch((err) => {
+          this._result = null;
           logger.error(err);
           return null;
         });
@@ -292,15 +293,21 @@ export function cloneStorefrontResource<T extends SwellData = SwellData>(
   input: StorefrontResource<T>,
 ): StorefrontResource<T> {
   const resourceName = input._resourceName as string;
-  const clone = new StorefrontResource(input._getter);
+
+  // Create a new class with the same name as the input resource
+  // Since we determine the resource type by the constructor name
+  const ClonedClass = class extends StorefrontResource<T> {};
+
+  // Define the name of class constructor
+  Object.defineProperty(ClonedClass, 'name', {
+    value: resourceName,
+  });
+
+  const clone = new ClonedClass(input._getter);
 
   // clone query parameters and result transformation function
   clone._params = input._params as SwellData;
   clone._transformResult = input._transformResult.bind(clone);
-
-  Object.defineProperty(clone.constructor, 'name', {
-    value: resourceName,
-  });
 
   Object.defineProperty(clone, '_resourceName', {
     value: resourceName,
@@ -309,11 +316,22 @@ export function cloneStorefrontResource<T extends SwellData = SwellData>(
   return clone;
 }
 
+interface StorefrontResourceFetcher<T extends SwellData = SwellRecord> {
+  get: (
+    id?: string,
+    query?: SwellData,
+  ) => Promise<InferSwellCollection<T> | null>;
+
+  list: (
+    query?: SwellData,
+  ) => Promise<T extends SwellCollection ? T : SwellCollection<T>>;
+}
+
 export class SwellStorefrontResource<
   T extends SwellData = SwellData,
 > extends StorefrontResource<T> {
   public _swell: Swell;
-  public _resource: any;
+  public _resource?: StorefrontResourceFetcher<T>;
   public _resourceName!: string;
 
   public readonly _collection: string;
@@ -337,26 +355,23 @@ export class SwellStorefrontResource<
     return super._getProxy() as SwellStorefrontResource<T>;
   }
 
-  getResourceObject(): {
-    get: (
-      id?: string,
-      query?: SwellData,
-    ) => Promise<InferSwellCollection<T> | null>;
-    list: (
-      query?: SwellData,
-    ) => Promise<T extends SwellCollection ? T : SwellCollection<T>>;
-  } {
+  getResourceObject(): StorefrontResourceFetcher<T> {
     const { _swell, _collection } = this;
 
-    this._resource = (_swell?.storefront as any)[_collection];
+    this._resource = (_swell?.storefront as any)[_collection] as
+      | StorefrontResourceFetcher<T>
+      | undefined;
 
     if (_swell && _collection.startsWith('content/')) {
       const type = _collection.split('/')[1]?.replace(/\/$/, '').trim();
       this._resource = {
-        list: (query: SwellData) => _swell.storefront.content.list(type, query),
-        get: (id: string, query: SwellData) =>
-          _swell.storefront.content.get(type, id, query),
-      };
+        list(query?: SwellData) {
+          return _swell.storefront.content.list(type, query);
+        },
+        get(id: string, query?: SwellData) {
+          return _swell.storefront.content.get(type, id, query);
+        },
+      } as StorefrontResourceFetcher<T>;
     }
 
     if (!this._resource?.get) {
@@ -455,7 +470,7 @@ export class SwellStorefrontCollection<
           isResourceCacheble(this._collection),
         )
         .then((result?: T | null) => {
-          this._result = result;
+          this._result = result ?? null;
 
           if (result) {
             Object.assign(this, result, {
@@ -466,6 +481,7 @@ export class SwellStorefrontCollection<
           return result;
         })
         .catch((err) => {
+          this._result = null;
           logger.error(err);
           return null;
         }) as unknown as T;
@@ -474,11 +490,27 @@ export class SwellStorefrontCollection<
     return this._result;
   }
 
+  get size(): Promise<number> | number {
+    if (this._result !== undefined) {
+      return this.length;
+    }
+
+    return this._resolve().then(() => this.length);
+  }
+
   [Symbol.iterator]() {
     return this.iterator();
   }
 
   iterator() {
+    if (this._result !== undefined) {
+      return this.makeIterator();
+    }
+
+    return this._resolve().then(() => this.makeIterator());
+  }
+
+  private makeIterator() {
     return (this.results || []).values();
   }
 
