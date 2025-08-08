@@ -57,11 +57,7 @@ export default function ShopifyCustomer(
     ),
     orders_count: defer(() => account.order_count),
     payment_methods: [],
-    phone: deferWith(
-      account,
-      (account) =>
-        account.phone || account.shipping?.phone || account.billing?.phone,
-    ),
+    phone: deferWith(account, (account) => account.phone),
     store_credit_account: deferWith(account, (account) => ({
       balance: ShopifyMoney(instance, Number(account.balance)),
     })),
