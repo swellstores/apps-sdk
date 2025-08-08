@@ -140,19 +140,20 @@ export function toEnumerable<T>(val: unknown): T[] {
   if (isArray<T>(val)) return val;
   if (isString(val) && val.length > 0) return [val as T];
   if (isIterable<T>(val)) return Array.from(val);
-  if (isObject(val))
+  if (isObject(val)) {
     // Converting keyed objects to an array with id is required for Shopify compatibility
     return Object.entries(val).reduce<T[]>((acc, [key, value]) => {
       acc.push({ id: key, ...(value as T) });
       return acc;
     }, []); //map((key) => [key, val[key]]);
+  }
   return [];
 }
 
 export async function resolveEnumerable<T>(val: unknown): Promise<T[]> {
   if (val instanceof SwellStorefrontCollection) {
-    await val._get();
-    return [...val] as T[];
+    const iterator = await val.iterator();
+    return [...iterator] as T[];
   } else if (val instanceof Drop && Symbol.iterator in val) {
     const iterFn = val[Symbol.iterator];
 
