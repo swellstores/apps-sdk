@@ -38,7 +38,7 @@ export default function ShopifyAddress(
       address,
       (address) => address.first_name || account?.first_name,
     ),
-    id: defer(() => address.id),
+    id: defer(() => address.id || address.account_address_id),
     last_name: deferWith(
       address,
       (address) => address.last_name || account?.last_name,
@@ -63,7 +63,11 @@ export default function ShopifyAddress(
         address.country,
       ),
     ),
-    url: deferWith(address, (address) => `/account/addresses/${address.id}`),
+    url: deferWith(
+      address,
+      (address) =>
+        `/account/addresses/${address.id || address.account_address_id}`,
+    ),
     zip: defer(() => address.zip),
   });
 }
