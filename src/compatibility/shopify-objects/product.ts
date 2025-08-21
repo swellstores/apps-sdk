@@ -73,11 +73,11 @@ export default function ShopifyProduct(
     description: defer(() => product.description),
     featured_image: deferWith(product, (product: SwellRecord) => {
       const image = product.images?.[0];
-      return image ? ShopifyImage(instance, image, {}, product) : undefined;
+      return image ? ShopifyImage(image, {}, product) : undefined;
     }),
     featured_media: deferWith(product, (product) => {
       const image = product.images?.[0];
-      return image ? ShopifyMedia(instance, image) : undefined;
+      return image ? ShopifyMedia(image) : undefined;
     }),
     // not used
     first_available_variant: deferWith(product, (product: SwellProduct) => {
@@ -102,7 +102,7 @@ export default function ShopifyProduct(
       }
 
       return product.images.map((image: SwellData, index) =>
-        ShopifyImage(instance, image, { position: index + 1 }, product),
+        ShopifyImage(image, { position: index + 1 }, product),
       );
     }),
     media: deferWith(product, (product) => {
@@ -111,7 +111,7 @@ export default function ShopifyProduct(
       }
 
       return product.images.map((image: SwellData, index) =>
-        ShopifyMedia(instance, image, {
+        ShopifyMedia(image, {
           media_type: 'image',
           position: index + 1,
         }),

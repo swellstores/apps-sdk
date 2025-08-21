@@ -61,9 +61,7 @@ export default function ShopifyLineItem(
       [item.product, item.variant],
       (product: SwellRecord, variant: SwellRecord) => {
         const image = product?.images?.[0];
-        return image
-          ? ShopifyImage(instance, image, {}, product, variant)
-          : undefined;
+        return image ? ShopifyImage(image, {}, product, variant) : undefined;
       },
     ),
     item_components: (item.bundle_items ?? []).map((bundleItem: SwellRecord) =>

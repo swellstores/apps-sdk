@@ -2,7 +2,11 @@ import { Drop } from 'liquidjs';
 
 import { isObject } from '@/utils';
 import { isLikePromise } from '@/liquid/utils';
-import { SwellStorefrontRecord, SwellStorefrontCollection } from '@/resources';
+import {
+  StorefrontResource,
+  SwellStorefrontRecord,
+  SwellStorefrontCollection,
+} from '@/resources';
 
 import {
   ShopifyCollection,
@@ -17,9 +21,9 @@ import type { ShopifyCollection as ShopifyCollectionType } from 'types/shopify';
 // TODO: remove this once backend is implemented for "all"
 class AllCategoryResource<
   T extends SwellData = SwellRecord,
-> extends SwellStorefrontRecord<T> {
+> extends StorefrontResource<T> {
   constructor(instance: ShopifyCompatibility) {
-    super(instance.swell, 'categories', 'all', {}, () => {
+    super(() => {
       const category: SwellData = {
         id: 'all',
         slug: 'all',
@@ -32,16 +36,13 @@ class AllCategoryResource<
   }
 }
 
-export default class CollectionsDrop extends Drop {
+class CollectionsDrop extends Drop {
   #instance: ShopifyCompatibility;
-  #categories?: ShopifyResource<ShopifyCollectionType>[];
-  #size: number;
   #map: Map<string, ShopifyResource<ShopifyCollectionType>>;
 
   constructor(instance: ShopifyCompatibility) {
     super();
     this.#instance = instance;
-    this.#size = Number.NaN;
     this.#map = new Map();
   }
 
@@ -100,46 +101,41 @@ export default class CollectionsDrop extends Drop {
 
     return resource;
   }
+}
 
-  get size(): Promise<number> | number {
-    if (!Number.isFinite(this.#size)) {
-      return this.#instance.swell.storefront
-        .get('/categories/:count')
-        .then((count) => {
-          const size = Number(count ?? 0);
-          this.#size = size;
-          return size;
-        });
-    }
+export default class Collections extends SwellStorefrontCollection<
+  SwellCollection<ShopifyCollectionType>
+> {
+  #drop: CollectionsDrop;
 
-    return this.#size;
+  constructor(instance: ShopifyCompatibility) {
+    super(instance.swell, 'categories', {}, async () => {
+      const response = await this._defaultGetter().call(this);
+
+      if (!response) {
+        return null;
+      }
+
+      return {
+        ...response,
+        page_count: response.page_count || 0,
+        results: response.results.map((item) =>
+          ShopifyCollection(instance, item as unknown as SwellRecord),
+        ),
+      };
+    });
+
+    this.#drop = new CollectionsDrop(instance);
   }
 
-  [Symbol.iterator]() {
-    return this.iterator();
-  }
-
-  async iterator() {
-    if (!this.#categories) {
-      this.#categories = await this.#instance.swell.storefront.categories
-        .list()
-        .then((res) => {
-          return res.results.map((category) =>
-            ShopifyCollection(
-              this.#instance,
-              new SwellStorefrontCategory(this.#instance, category.slug),
-            ),
-          );
-        });
-    }
-
-    return this.#categories.values();
+  toLiquid() {
+    return this.#drop;
   }
 }
 
-class SwellStorefrontCategory extends SwellStorefrontRecord<SwellData> {
+class SwellStorefrontCategory extends StorefrontResource<SwellData> {
   constructor(instance: ShopifyCompatibility, id: string, query?: SwellData) {
-    super(instance.swell, 'categories', id, query, async () => {
+    super(async () => {
       const category = new SwellStorefrontRecord(
         instance.swell,
         'categories',

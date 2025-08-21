@@ -52,25 +52,19 @@ export default function ShopifyVariant(
       [product, variant],
       (product: SwellRecord, variant: SwellRecord) => {
         const image = variant.images?.[0] || product.images?.[0];
-        return image
-          ? ShopifyImage(instance, image, {}, product, variant)
-          : undefined;
+        return image ? ShopifyImage(image, {}, product, variant) : undefined;
       },
     ),
     featured_media: deferWith([product, variant], (product, variant) => {
       const image = variant.images?.[0] || product.images?.[0];
-      return image
-        ? ShopifyMedia(instance, image, { media_type: 'image' })
-        : undefined;
+      return image ? ShopifyMedia(image, { media_type: 'image' }) : undefined;
     }),
     id: defer(() => variant.id),
     image: deferWith(
       [product, variant],
       (product: SwellRecord, variant: SwellRecord) => {
         const image = variant.images?.[0] || product.images?.[0];
-        return image
-          ? ShopifyImage(instance, image, {}, product, variant)
-          : undefined;
+        return image ? ShopifyImage(image, {}, product, variant) : undefined;
       },
     ),
     incoming: false,

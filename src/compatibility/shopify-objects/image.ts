@@ -1,6 +1,5 @@
 import { ShopifyResource, defer, deferWith } from './resource';
 
-import type { ShopifyCompatibility } from '../shopify';
 import type { StorefrontResource } from '@/resources';
 import type { SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyImage, ShopifyImageSrc } from 'types/shopify';
@@ -12,7 +11,6 @@ interface ShopifyImageOptions {
 }
 
 export default function ShopifyImage(
-  _instance: ShopifyCompatibility,
   image: SwellData,
   options: ShopifyImageOptions = {},
   product?: StorefrontResource | SwellRecord,

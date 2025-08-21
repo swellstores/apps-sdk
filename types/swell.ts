@@ -16,6 +16,7 @@ import type {
   ShopifySettingRoleSchema,
   ShopifySettingsData,
   ShopifySettingsSchema,
+  ShopifyImage,
 } from './shopify';
 
 import type { CFThemeEnv, CFWorkerContext } from './cloudflare';
@@ -91,6 +92,7 @@ export interface SwellAppStorefrontThemePage {
   label: string;
   group?: string;
   icon?: string;
+  record?: string;
   templates?: boolean;
   collection?: string;
   json?: boolean;
@@ -320,11 +322,15 @@ export interface ThemeSettingsBlock {
 
 export interface ThemeSectionBase {
   id: string;
+  type: string;
   settings: ThemeSettings;
   blocks?: ThemeSettingsBlock[];
   block_order?: string[];
   custom_css?: string | string[];
   disabled?: boolean;
+  location: string;
+  index0?: number;
+  index?: number;
 }
 
 export interface ThemeSectionSettings extends ThemeSettings {
@@ -364,6 +370,11 @@ export interface ThemeSwellPage
 
 export type ThemePage = ThemeSwellPage | ThemeCustomPage;
 
+export interface ThemeInitGlobalsOptions {
+  pageRecord?: Record<string, unknown>;
+  altTemplate?: string;
+}
+
 export interface ThemeGlobals extends SwellData {
   store: SwellData;
   settings: ThemeSettings;
@@ -371,13 +382,19 @@ export interface ThemeGlobals extends SwellData {
   request: SwellPageRequest;
   menus?: Record<string, SwellMenu | undefined>;
   page: ThemePage;
-  cart: SwellStorefrontSingleton | {};
+  page_title?: unknown;
+  page_description?: unknown;
+  page_image?: unknown;
+  cart: SwellStorefrontSingleton;
   account: SwellStorefrontSingleton | null;
   customer?: SwellStorefrontSingleton | null;
   geo: SwellSettingsGeo;
   configs: ThemeConfigs;
   language: Record<string, unknown>;
   canonical_url: string;
+  powered_by_link: string;
+  all_country_option_tags: string;
+  country_option_tags: string;
   shopify_compatibility: boolean;
   [key: string]: any;
 }

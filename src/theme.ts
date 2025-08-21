@@ -12,7 +12,7 @@ import { ShopifyCompatibility } from './compatibility/shopify';
 import ShopifyTemplate from './compatibility/shopify-objects/template';
 import ShopifyCart from './compatibility/shopify-objects/cart';
 import ShopifyCustomer from './compatibility/shopify-objects/customer';
-import RenderDrop from './compatibility/drops/render';
+import RenderDrop from './liquid/drops/render';
 import { GEO_DATA } from './constants';
 import { LiquidSwell, ThemeColor, ThemeFont, ThemeForm } from './liquid';
 import { resolveMenuSettings } from './menus';
@@ -26,9 +26,17 @@ import {
   isObject,
   extractSettingsFromForm,
   scopeCustomCSS,
+  getSectionLocation,
 } from './utils';
 
 import { logger, createTraceId } from './utils/logger';
+
+import {
+  POWERED_BY_LINK,
+  getRecordGlobals,
+  getAllCountryOptionTags,
+  getRobotsGlobals,
+} from './globals';
 
 import type { FormatInput } from 'swell-js';
 import type {
@@ -41,6 +49,7 @@ import type {
   ThemeSettings,
   ThemeResources,
   ThemeFormConfig,
+  ThemeInitGlobalsOptions,
   ThemeFormErrorMessages,
   ThemeLocaleConfig,
   ThemePresetSchema,
@@ -51,6 +60,9 @@ import type {
   ThemeSectionSettings,
   ThemeSettingFieldSchema,
   ThemeSettingSectionSchema,
+  ThemeSettingsBlock,
+  ThemePage,
+  ThemePageSchema,
   ThemePageSectionSchema,
   ThemePageTemplateConfig,
   ThemeLayoutSectionGroupConfig,
@@ -62,11 +74,8 @@ import type {
   SwellThemePreload,
   SwellAppStorefrontThemeProps,
   SwellAppShopifyCompatibilityConfig,
-  ThemePage,
   SwellPageRequest,
-  ThemePageSchema,
   SwellSettingsGeo,
-  ThemeSettingsBlock,
 } from '../types/swell';
 
 export class SwellTheme {
@@ -142,8 +151,14 @@ export class SwellTheme {
     );
   }
 
-  async initGlobals(pageId: string, altTemplate?: string): Promise<void> {
+  async initGlobals(
+    pageId: string,
+    options?: ThemeInitGlobalsOptions,
+  ): Promise<void> {
     this.pageId = pageId;
+
+    const pageRecord = options?.pageRecord;
+    const altTemplate = options?.altTemplate;
 
     const trace = createTraceId();
     logger.debug('[SDK] Theme init start', { page: pageId, trace });
@@ -161,6 +176,8 @@ export class SwellTheme {
 
     this.page = page;
 
+    const countryOptions = getAllCountryOptionTags(geo);
+
     const globals: ThemeGlobals = {
       ...this.globalData,
       // return all storefront settings in the store
@@ -176,10 +193,28 @@ export class SwellTheme {
       geo,
       configs,
       language: configs?.language,
+      ...(pageRecord
+        ? getRecordGlobals(this, pageRecord)
+        : {
+            page_title: page.title,
+            page_description: page.description,
+          }),
+      all_country_option_tags: countryOptions,
+      country_option_tags: countryOptions,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
+      powered_by_link: POWERED_BY_LINK,
       // Flag to enable Shopify compatibility in sections and tags/filters
       shopify_compatibility: Boolean(settings.shopify_compatibility),
     };
+
+    switch (pageId) {
+      case 'robots.txt':
+        globals.robots = getRobotsGlobals(globals.canonical_url);
+        break;
+
+      default:
+        break;
+    }
 
     if (this.shopifyCompatibility) {
       this.shopifyCompatibility.initGlobals(globals);
@@ -356,6 +391,8 @@ export class SwellTheme {
         pageId,
         altTemplate,
       );
+
+      // TODO: add global.template
 
       let pageSchema: ThemePageSchema | undefined;
       try {
@@ -696,7 +733,7 @@ export class SwellTheme {
       return this.shopifyCompatibility;
     };
 
-    if (!Object.keys(configs.editor).length && configs.settings_schema) {
+    if (Object.keys(configs.editor).length <= 0 && configs.settings_schema) {
       // The editor should use the store locale, not the storefront locale.
       const store = await this.swell.storefront.settings.get('store');
 
@@ -710,14 +747,14 @@ export class SwellTheme {
       );
     }
 
-    if (!Object.keys(configs.theme).length && configs.settings_data) {
+    if (Object.keys(configs.theme).length <= 0 && configs.settings_data) {
       configs.theme = shopifyCompatibility().getThemeConfig(
         configs.settings_data,
       );
       this.themeSettingFilePath = 'theme/config/settings_data.json';
     }
 
-    if (!Object.keys(configs.presets).length && configs.settings_data) {
+    if (Object.keys(configs.presets).length <= 0 && configs.settings_data) {
       configs.presets = shopifyCompatibility().getPresetsConfig(
         configs.settings_data,
       );
@@ -1001,11 +1038,17 @@ export class SwellTheme {
     return null;
   }
 
-  async getAssetUrl(filePath: string): Promise<string | null> {
+  async getAssetConfig(assetName: string): Promise<SwellThemeConfig | null> {
     // Asset support both inside and outside theme folder
-    const assetConfig =
-      (await this.getThemeConfig(`theme/assets/${filePath}`)) ||
-      (await this.getThemeConfig(`assets/${filePath}`));
+    return (
+      (await this.getThemeConfig(`theme/assets/${assetName}`)) ??
+      (await this.getThemeConfig(`assets/${assetName}`)) ??
+      null
+    );
+  }
+
+  async getAssetUrl(filePath: string): Promise<string | null> {
+    const assetConfig = await this.getAssetConfig(filePath);
 
     const file = assetConfig?.file;
 
@@ -1448,15 +1491,57 @@ ${content.slice(pos)}`;
     return '';
   }
 
-  async renderLayout(layoutName?: string, data?: SwellData): Promise<string> {
+  async renderLayout(
+    layoutName?: string,
+    data?: SwellData,
+    contentForLayout?: string,
+    contentForHeader?: string,
+  ): Promise<string> {
     layoutName = layoutName || this.liquidSwell.layoutName;
 
     if (layoutName) {
-      return this.renderLayoutTemplate(layoutName, data);
+      if (data) {
+        data = await this.renderDataFields(data, [
+          'page_title',
+          'page_description',
+        ]);
+      }
+
+      return this.renderLayoutTemplate(layoutName, {
+        ...data,
+        content_for_layout: contentForLayout,
+        content_for_header: contentForHeader,
+      });
     } else {
       // Render content directly when layout is `none`
-      return data?.content_for_layout || '';
+      return contentForLayout || '';
     }
+  }
+
+  private async renderDataFields(
+    data: SwellData,
+    fields: string[],
+  ): Promise<SwellData> {
+    const promises: Promise<void>[] = [];
+
+    for (const key of fields) {
+      if (typeof data[key] === 'string') {
+        promises.push(
+          this.renderTemplateString(data[key], data).then((value) => {
+            if (data) {
+              data[key] = value;
+            }
+          }),
+        );
+      }
+    }
+
+    if (promises.length > 0) {
+      data = { ...data };
+      await Promise.all(promises);
+    }
+
+    return data;
   }
 
   getContentForHeader(): string {
@@ -1689,8 +1774,10 @@ ${content.slice(pos)}`;
     const pageSectionGroups: ThemeSectionGroupInfo[] = [];
     this.pageSectionGroups = pageSectionGroups;
 
-    await this.renderLayout(pageLayout, {
-      content_for_layout: new RenderDrop(() => {
+    await this.renderLayout(
+      pageLayout,
+      {},
+      new RenderDrop(() => {
         pageSectionGroups.push({
           prop: SECTION_GROUP_CONTENT,
           label: 'Template',
@@ -1699,8 +1786,8 @@ ${content.slice(pos)}`;
         });
 
         return '';
-      }),
-    });
+      }) as unknown as string,
+    );
 
     this.pageSectionGroups = null;
 
@@ -1766,7 +1853,7 @@ ${content.slice(pos)}`;
         const { section, schema } = sectionConfig;
         const settings =
           schema?.fields && this.globals
-            ? resolveSectionSettings(this, sectionConfig)
+            ? resolveSectionSettings(this, sectionConfig, index)
             : { ...sectionConfig.settings };
 
         const templateConfig = await this.getThemeTemplateConfigByType(
@@ -1783,7 +1870,7 @@ ${content.slice(pos)}`;
 
           if (settings?.section?.custom_css) {
             output += `<style>${scopeCustomCSS(
-              settings?.section.custom_css,
+              settings.section.custom_css,
               sectionConfig.id,
             )}</style>`;
           }
@@ -1889,6 +1976,7 @@ export class PageNotFound extends PageError {
 export function resolveSectionSettings(
   theme: SwellTheme,
   sectionConfig: ThemeSectionConfig,
+  index?: number,
 ): ThemeSectionSettings | undefined {
   const { settings, schema } = sectionConfig;
 
@@ -1927,6 +2015,9 @@ export function resolveSectionSettings(
         editorSettings,
       ),
       blocks,
+      index0: index,
+      index: typeof index === 'number' ? index + 1 : undefined,
+      location: getSectionLocation(settings.section.type),
     },
   };
 }

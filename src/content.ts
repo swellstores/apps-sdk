@@ -1,11 +1,15 @@
-import { Swell, SwellStorefrontCollection, SwellStorefrontRecord } from './api';
+import {
+  type Swell,
+  SwellStorefrontCollection,
+  SwellStorefrontRecord,
+} from './api';
 
-import type { SwellData } from 'types/swell';
+import type { SwellCollection, SwellData } from 'types/swell';
 
 export function getContentModel(
   swell: Swell,
   name: string,
-): Promise<any> {
+): Promise<SwellData | undefined> {
   return swell.getCachedResource(`content-model-${name}`, [], () =>
     swell.get('/:content/{name}', {
       name,
@@ -15,39 +19,42 @@ export function getContentModel(
   );
 }
 
-export async function getContentList(
+export function getContentList(
   swell: Swell,
   type: string,
   query?: SwellData,
-): Promise<any> {
+): SwellStorefrontCollection<SwellCollection<SwellData>> {
   return new SwellStorefrontCollection(swell, `content/${type}`, query);
 }
 
-export async function getContentEntry(
+export function getContentEntry(
   swell: Swell,
   type: string,
   id: string,
   query?: SwellData,
-): Promise<any> {
+): SwellStorefrontRecord<SwellData> {
   return new SwellStorefrontRecord(swell, `content/${type}`, id, query);
 }
 
-export async function getPage(
+export function getPage(
   swell: Swell,
   id: string,
   query?: object,
-): Promise<any> {
+): SwellStorefrontRecord<SwellData> {
   return getContentEntry(swell, 'pages', id, query);
 }
 
-export async function getBlogs(swell: Swell, query?: object): Promise<any> {
+export function getBlogs(
+  swell: Swell,
+  query?: SwellData,
+): SwellStorefrontCollection<SwellCollection<SwellData>> {
   return getContentList(swell, 'blogs', query);
 }
 
-export async function getBlog(
+export function getBlog(
   swell: Swell,
   id: string,
   query?: object,
-): Promise<any> {
+): SwellStorefrontRecord<SwellData> {
   return getContentEntry(swell, 'blogs', id, query);
 }
