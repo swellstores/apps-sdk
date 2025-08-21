@@ -165,6 +165,8 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
           ${html}
         </form>
       `);
+
+      ctx.pop();
     }
   };
 }

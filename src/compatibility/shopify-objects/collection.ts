@@ -90,9 +90,7 @@ export default function ShopifyCollection(
       convertToShopifySorting(category.sort_options?.[0].value ?? ''),
     ),
     description: defer(() => category.description),
-    featured_image: deferWith(category, (category) =>
-      getFirstImage(instance, category),
-    ),
+    featured_image: deferWith(category, (category) => getFirstImage(category)),
     filters: deferWith(category, (category) =>
       (category?.filter_options ?? []).map((filter: any) =>
         ShopifyFilter(instance, filter),
@@ -100,7 +98,7 @@ export default function ShopifyCollection(
     ),
     handle: defer(() => category.slug),
     id: defer(() => category.id),
-    image: deferWith(category, (category) => getFirstImage(instance, category)),
+    image: deferWith(category, (category) => getFirstImage(category)),
     metafields: {},
     next_product: undefined,
     previous_product: undefined,
@@ -121,9 +119,9 @@ export default function ShopifyCollection(
   });
 }
 
-function getFirstImage(instance: ShopifyCompatibility, category: SwellData) {
+function getFirstImage(category: SwellData) {
   const image = category.images?.[0];
-  return image ? ShopifyImage(instance, image) : undefined;
+  return image ? ShopifyImage(image) : undefined;
 }
 
 function convertToShopifySorting(value: string) {

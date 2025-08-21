@@ -1250,3 +1250,18 @@ export interface ShopifyPaginate {
   parts: ShopifyPart[];
   previous?: ShopifyPart;
 }
+
+export interface ShopifyRule {
+  directive: string;
+  value: string;
+}
+
+export interface ShopifyGroup {
+  rules: ShopifyRule[];
+  sitemap?: ShopifyRule;
+  user_agent: ShopifyRule;
+}
+
+export interface ShopifyRobots {
+  default_groups: ShopifyGroup[];
+}

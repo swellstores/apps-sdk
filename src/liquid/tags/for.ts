@@ -3,7 +3,7 @@ import { evalToken, ForTag as LiquidForTag } from 'liquidjs';
 import { ForloopDrop, resolveEnumerable } from '../utils';
 
 import type { LiquidSwell } from '..';
-import type { Context, Emitter } from 'liquidjs';
+import type { Context, Emitter, Scope } from 'liquidjs';
 import type { TagClass, Template } from 'liquidjs/dist/template';
 
 const MODIFIERS = Object.freeze(['offset', 'limit', 'reversed']);
@@ -19,7 +19,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
     ): Generator<unknown, void | string, Template[]> {
       const r = this.liquid.renderer;
 
-      let collection: any = yield evalToken(this.collection, ctx);
+      let collection: unknown[] = yield evalToken(this.collection, ctx);
       collection = yield resolveEnumerable(collection);
 
       if (!collection.length) {
@@ -29,8 +29,16 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
 
       const continueKey =
         'continue-' + this.variable + '-' + this.collection.getText();
-      ctx.push({ continue: ctx.getRegister(continueKey) });
-      const hash: any = yield this.hash.render(ctx);
+
+      ctx.push({
+        continue: ctx.getRegister(continueKey) as number | undefined,
+      } as Scope);
+
+      const hash = (yield this.hash.render(ctx)) as unknown as Record<
+        string,
+        unknown
+      >;
+
       ctx.pop();
 
       const modifiers = this.liquid.options.orderedFilterParameters
@@ -40,10 +48,10 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       collection = modifiers.reduce((collection: unknown[], modifier) => {
         switch (modifier) {
           case 'offset':
-            return offset(collection, hash['offset']);
+            return offset(collection, hash['offset'] as number);
 
           case 'limit':
-            return limit(collection, hash['limit']);
+            return limit(collection, hash['limit'] as number);
 
           case 'reversed':
             return reversed(collection);
@@ -53,20 +61,29 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
         }
       }, collection);
 
-      ctx.setRegister(continueKey, (hash['offset'] || 0) + collection.length);
+      // Maximum 50 iterations
+      // https://shopify.dev/docs/api/liquid/tags/for
+      const length = Math.min(collection.length, 50);
+      const parent = ctx.getRegister('parentloop') as ForloopDrop | undefined;
+
+      ctx.setRegister(continueKey, ((hash['offset'] as number) || 0) + length);
+
+      const forloop = new ForloopDrop(
+        length,
+        this.collection.getText(),
+        this.variable,
+        parent,
+      );
 
       const scope: { forloop: ForloopDrop; [key: string]: unknown } = {
-        forloop: new ForloopDrop(
-          collection.length,
-          this.collection.getText(),
-          this.variable,
-        ),
+        forloop,
       };
 
       ctx.push(scope);
+      ctx.setRegister('parentloop', forloop);
 
-      for (const item of collection) {
-        scope[this.variable] = item;
+      for (let i = 0; i < length; ++i) {
+        scope[this.variable] = collection[i];
         ctx.continueCalled = ctx.breakCalled = false;
         yield r.renderTemplates(this.templates, ctx, emitter);
         if (ctx.breakCalled) break;
@@ -74,6 +91,7 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       }
 
       ctx.continueCalled = ctx.breakCalled = false;
+      ctx.setRegister('parentloop', parent);
       ctx.pop();
     }
   };

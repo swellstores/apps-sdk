@@ -10,6 +10,16 @@ type DescribeLiquidCallbackType = (
 
 function createSwellLiquid(): LiquidSwell {
   const swell = {
+    storefront: {},
+    // eslint-disable-next-line @typescript-eslint/require-await
+    async getCachedResource(
+      key: string,
+      args: unknown[],
+      handler: () => unknown,
+    ) {
+      return handler();
+    },
+    isLoading() {},
     getStorefrontLocalization: jest.fn(() => ({
       currency: 'USD',
       locale: 'en-US',

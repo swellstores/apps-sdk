@@ -23,8 +23,13 @@ import {
 import * as ShopifyObjects from './shopify-objects';
 import ShopifyShop from './shopify-objects/shop';
 import ShopifyLocalization from './shopify-objects/localization';
-import ObjectHandlesDrop from './drops/object-handles';
+import AllProductsDrop from './drops/all_products';
+import ArticlesDrop from './drops/articles';
+import BlogsDrop from './drops/blogs';
 import CollectionsDrop from './drops/collections';
+import ImagesDrop from './drops/images';
+import ObjectHandlesDrop from './drops/object-handles';
+import PagesDrop from './drops/pages';
 
 import type {
   ThemeGlobals,
@@ -37,7 +42,6 @@ import type {
   SwellData,
   SwellMenu,
   SwellAppShopifyCompatibilityConfig,
-  SwellSettingsGeo,
 } from '../../types/swell';
 
 import type {
@@ -81,9 +85,35 @@ export class ShopifyCompatibility {
   initGlobals(globals: ThemeGlobals): void {
     const { request, page } = globals;
 
+    globals.additional_checkout_buttons = false;
+    // globals.all_country_option_tags = ''; // implemented in theme globals
+    globals.all_products = new AllProductsDrop(this);
+    globals.articles = new ArticlesDrop(this);
+    globals.blogs = new BlogsDrop(this);
+    globals.closest = {}; // TODO: implement
+    globals.collections = new CollectionsDrop(this);
+    globals.content_for_additional_checkout_buttons = ''; // TODO: implement
+    globals.content_for_header = ''; // Should be pass in theme.renderLayout
+    globals.content_for_index = ''; // Should be pass in theme.renderTemplateString
+    globals.content_for_layout = ''; // Should be pass in theme.renderLayout
+    // globals.country_option_tags = ''; // implemented in theme globals
+    globals.current_page = this.swell.queryParams.page || 1;
+    // globals.customer = {}; // implemented in theme globals
+    // globals.handle = null; // implemented in theme globals
+    globals.images = new ImagesDrop(this);
+    globals.linklists = null; // init in adaptGlobals
+    globals.localization = null; // init in adaptGlobals
+    globals.metaobjects = {}; // TODO: implement
+
     globals.page = {
       ...(page || undefined),
     };
+
+    // globals.page_description = null; // implemented in theme globals
+    // globals.page_image = null; // implemented in theme globals
+    // globals.page_title = null; // implemented in theme globals
+    globals.pages = new PagesDrop(this); // TODO: implement
+    // globals.powered_by_link = ''; // implemented in theme globals
 
     globals.request = {
       ...(request || undefined),
@@ -92,9 +122,12 @@ export class ShopifyCompatibility {
       page_type: page?.id,
     };
 
-    globals.collections = new CollectionsDrop(this);
-    globals.current_page = this.swell.queryParams.page || 1;
     globals.routes = this.getPageRoutes();
+    globals.scripts = {}; // deprecated
+    // globals.settings = {}; implemented in theme globals
+    globals.shop = null; // init in adaptGlobals
+    globals.template = {}; // TODO: implement
+    globals.theme = {}; // TODO: implement (deprecated)
   }
 
   adaptGlobals(
@@ -121,13 +154,6 @@ export class ShopifyCompatibility {
 
     if (globals.menus) {
       globals.linklists = new ObjectHandlesDrop<SwellMenu>(globals.menus);
-    }
-
-    if (globals.geo) {
-      const countryOptions = this.getAllCountryOptionTags(globals.geo);
-
-      globals.all_country_option_tags = countryOptions;
-      globals.country_option_tags = countryOptions;
     }
 
     if (globals.store) {
@@ -794,30 +820,6 @@ ${injects.join('\n')}</script>`;
         },
       },
     ];
-  }
-
-  getAllCountryOptionTags(geoSettings: SwellSettingsGeo): string {
-    if (!geoSettings) {
-      return '';
-    }
-
-    return geoSettings.countries
-      ?.map((country) => {
-        if (!country) return '';
-
-        const provinces = (geoSettings.states || [])
-          .filter((state) => state.country === country.id)
-          .map((state) => [state.id, state.name]);
-
-        const provincesEncoded = JSON.stringify(provinces).replace(
-          /"/g,
-          '&quot;',
-        );
-
-        return `<option value="${country.id}" data-provinces="${provincesEncoded}">${country.name}</option>`;
-      })
-      .filter(Boolean)
-      .join('\n');
   }
 
   // returns true if this URL is used for script actions

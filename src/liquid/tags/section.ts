@@ -71,6 +71,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
               id: this.fileName,
               settings: { ...defaultSettings, blocks: undefined },
               blocks: defaultSettings.blocks,
+              location: 'static',
             },
           });
         })) as string;

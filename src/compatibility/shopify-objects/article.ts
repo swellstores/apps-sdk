@@ -36,7 +36,7 @@ export default function ShopifyArticle(
     handle: defer(() => blog.slug),
     id: defer(() => blog.id),
     image: deferWith(blog, (blog) =>
-      blog.image ? ShopifyImage(instance, blog.image) : undefined,
+      blog.image ? ShopifyImage(blog.image) : undefined,
     ),
     metafields: {},
     published_at: deferWith(

@@ -1,5 +1,3 @@
-import { ShopifyCompatibility } from '../shopify';
-
 import { ShopifyResource } from './resource';
 import ShopifyImage from './image';
 
@@ -12,7 +10,6 @@ interface ShopifyMediaOptions {
 }
 
 export default function ShopifyMedia(
-  instance: ShopifyCompatibility,
   image: SwellData,
   options?: ShopifyMediaOptions,
 ): ShopifyResource<ShopifyMedia> {
@@ -25,6 +22,6 @@ export default function ShopifyMedia(
     id: image.id || image.file?.id,
     media_type: options?.media_type ?? 'image',
     position: options?.position,
-    preview_image: ShopifyImage(instance, image),
+    preview_image: ShopifyImage(image),
   });
 }

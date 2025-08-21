@@ -13,6 +13,7 @@ import {
 } from './utils';
 
 import type {
+  SwellFile,
   SwellThemeConfig,
   ThemeSectionGroup,
   ThemeSettingFieldSchema,
@@ -40,6 +41,8 @@ describe('easyblocks/utils', () => {
           id: 'test_1',
           name: 'test_1',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/test_1.liquid',
           file_data:
             '{% schema %}{ "name": "Test section", "tag": "section", "class": "section" }{% endschema %}',
@@ -48,6 +51,8 @@ describe('easyblocks/utils', () => {
           id: 'test_2',
           name: 'test_2',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/test_2.json',
           file_data:
             '{ "name": "Test section 2", "tag": "section", "class": "section" }',
@@ -57,6 +62,8 @@ describe('easyblocks/utils', () => {
           id: 'test_3',
           name: 'test_3',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/test_3.liquid',
           file_data:
             '{% schema %}{ "name": "Test section 3", "tag": "section", "class": "section" }{% endschema %}',
@@ -65,6 +72,8 @@ describe('easyblocks/utils', () => {
           id: 'test_4',
           name: 'test_4',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/test_3.json',
           file_data:
             '{ "name": "Test section 3", "tag": "section", "class": "section" }',
@@ -74,6 +83,8 @@ describe('easyblocks/utils', () => {
           id: 'test_5',
           name: 'test_5',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/templates/test_5.json',
           file_data:
             '{ "name": "Test section 5", "tag": "section", "class": "section" }',
@@ -83,6 +94,8 @@ describe('easyblocks/utils', () => {
           id: 'test_6',
           name: 'test_6',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/test_6.liquid',
           file_data: '<div>test section</div>',
         },
@@ -148,6 +161,8 @@ describe('easyblocks/utils', () => {
           id: 'test_1',
           name: 'test_1',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/test_1.liquid',
           file_data:
             '{% schema %}{ "name": "Test section", "tag": "section", "class": "section" }{% endschema %}',
@@ -156,6 +171,8 @@ describe('easyblocks/utils', () => {
           id: 'test_2',
           name: 'test_2',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/test_2.json',
           file_data:
             '{ "name": "Test section 2", "tag": "section", "class": "section" }',
@@ -197,6 +214,8 @@ describe('easyblocks/utils', () => {
           id: 'section_1',
           name: 'section_1',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/section_1.liquid',
           file_data:
             '{% schema %}{ "name": "Test section", "tag": "section", "class": "section" }{% endschema %}',
@@ -205,6 +224,8 @@ describe('easyblocks/utils', () => {
           id: 'section_2',
           name: 'section_2',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/section_2.json',
           file_data:
             '{ "name": "Test section 2", "tag": "section", "class": "section" }',
@@ -271,6 +292,9 @@ describe('easyblocks/utils', () => {
                   settings: { block_4_key_1: 'block_4_value_1' },
                 },
               ],
+              location: 'custom.section_2',
+              index0: 0,
+              index: 1,
             },
           },
           section: {
@@ -321,6 +345,9 @@ describe('easyblocks/utils', () => {
                 },
               ],
               block_order: ['block_2', 'block_1'],
+              location: 'custom.section_1',
+              index0: 1,
+              index: 2,
             },
           },
           section: {
@@ -376,6 +403,8 @@ describe('easyblocks/utils', () => {
           id: 'section_test',
           name: 'section_test',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/section_test.json',
           file_data:
             '{ "name": "Test section 2", "tag": "section", "class": "section" }',
@@ -407,6 +436,9 @@ describe('easyblocks/utils', () => {
               type: 'section_test',
               settings: {},
               blocks: [],
+              location: 'custom.section_test',
+              index0: 0,
+              index: 1,
             },
           },
           section: {
@@ -454,6 +486,8 @@ describe('easyblocks/utils', () => {
           id: 'section_test',
           name: 'section_test',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/section_test.json',
           file_data: JSON.stringify({
             name: 'Test section',
@@ -472,6 +506,8 @@ describe('easyblocks/utils', () => {
           id: 'section_1',
           name: 'section_1',
           type: 'theme',
+          hash: '',
+          file: {} as SwellFile,
           file_path: 'theme/sections/section_1.json',
           file_data: JSON.stringify({
             name: 'Test section 1',
@@ -503,6 +539,9 @@ describe('easyblocks/utils', () => {
                   type: 'section_1',
                   settings: {},
                   blocks: [],
+                  location: 'custom.section_1',
+                  index0: 0,
+                  index: 1,
                 },
               },
               section: { id: 'section_1', type: 'section_1', settings: {} },

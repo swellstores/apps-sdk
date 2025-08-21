@@ -1,5 +1,7 @@
 import JSON5 from 'json5';
 
+import { getSectionLocation } from '@/utils';
+
 import type { ShopifySectionSchema, ShopifySectionGroup } from 'types/shopify';
 
 import type {
@@ -64,7 +66,8 @@ export async function getPageSections(
 
   const pageSections: ThemeSectionConfig[] = [];
 
-  for (const key of order) {
+  for (let i = 0; i < order.length; ++i) {
+    const key = order[i];
     const section: ThemeSection = sectionGroup.sections[key];
 
     const schemaData = await getSectionSchemaHandler(theme, section.type);
@@ -90,6 +93,9 @@ export async function getPageSections(
         id,
         ...section,
         blocks,
+        index0: i,
+        index: i + 1,
+        location: getSectionLocation(section.type),
       },
     };
 
@@ -532,6 +538,7 @@ export function getSectionSettingsFromProps(
       },
     ),
     id: sectionSchema.id,
+    type: sectionSchema.id,
     blocks: props.Blocks?.filter((propBlock) =>
       Boolean(propBlock.props.compiled?._component),
     ).map((propBlock): ThemeSettingsBlock => {
@@ -555,6 +562,7 @@ export function getSectionSettingsFromProps(
           ) || {},
       };
     }),
+    location: getSectionLocation(sectionSchema.id),
   };
 }
 

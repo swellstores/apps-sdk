@@ -16,18 +16,26 @@ export class ForloopDrop extends Drop {
   public last: boolean;
   public rindex: number;
   public rindex0: number;
+  public parentloop: ForloopDrop | null;
 
-  constructor(length: number, collection: string, variable: string) {
+  constructor(
+    length: number,
+    collection: string,
+    variable: string,
+    parent?: ForloopDrop,
+  ) {
     super();
+
     this.length = length;
     this.name = `${variable}-${collection}`;
     this.i = 0;
     this.index = 1;
     this.index0 = 0;
     this.first = true;
-    this.last = false;
+    this.last = length <= 0;
     this.rindex = length;
     this.rindex0 = length - 1;
+    this.parentloop = parent ?? null;
   }
 
   next(): void {
@@ -46,6 +54,7 @@ export class ForloopDrop extends Drop {
 }
 
 export function toValue(value: unknown) {
+  // eslint-disable-next-line @typescript-eslint/unbound-method
   return value instanceof Drop && isFunction(value.valueOf)
     ? value.valueOf()
     : value;

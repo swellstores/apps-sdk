@@ -78,7 +78,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       if (
         !Number.isNaN(pageSize) &&
         collection instanceof SwellStorefrontCollection &&
-        collection.limit != pageSize
+        collection.limit !== pageSize
       ) {
         yield collection._get({
           limit: pageSize,
@@ -98,6 +98,10 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       }
 
       yield r.renderTemplates(this.templates, ctx, emitter);
+
+      if (collection) {
+        ctx.pop();
+      }
     }
   };
 }

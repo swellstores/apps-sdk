@@ -51,6 +51,11 @@ export class StorefrontResource<T extends SwellData = SwellData> {
         switch (prop) {
           // Ignore liquid prop checks
           case 'toLiquid':
+            return typeof instance.toLiquid === 'function'
+              ? instance.toLiquid
+              : undefined;
+
+          // Ignore liquid prop checks
           case 'next':
             return;
 

@@ -21,6 +21,7 @@ import type {
   ThemeSectionConfig,
   ThemeSectionGroup,
   ThemeSectionSchema,
+  ThemeSectionSettings,
   ThemeSettings,
   ThemeSettingsBlock,
 } from 'types/swell';
@@ -216,7 +217,9 @@ export async function getPageSections(
       : Object.keys(sectionGroup?.sections || {});
 
   const pageSections: ThemeSectionConfig[] = [];
-  for (const key of order) {
+
+  for (let i = 0; i < order.length; ++i) {
+    const key = order[i];
     const section: ThemeSection = sectionGroup.sections?.[key];
 
     if (!section) {
@@ -244,11 +247,14 @@ export async function getPageSections(
       .map((key: string) => section.blocks?.[key])
       .filter(Boolean) as ThemeSettingsBlock[];
 
-    const settings = {
+    const settings: ThemeSectionSettings = {
       section: {
         id,
         ...section,
         blocks,
+        index0: i,
+        index: i + 1,
+        location: getSectionLocation(section.type),
       },
     };
 
@@ -584,6 +590,17 @@ export function extractSettingsFromForm(
     },
     cloneDeep(currentSettings),
   );
+}
+
+export function getSectionLocation(sectionType?: string): string {
+  switch (sectionType) {
+    case 'header':
+    case 'footer':
+      return sectionType;
+
+    default:
+      return sectionType ? `custom.${sectionType}` : 'template';
+  }
 }
 
 export const SECTION_GROUP_CONTENT = 'ContentSections';
