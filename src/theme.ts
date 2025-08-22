@@ -17,6 +17,7 @@ import { GEO_DATA } from './constants';
 import { LiquidSwell, ThemeColor, ThemeFont, ThemeForm } from './liquid';
 import { resolveMenuSettings } from './menus';
 import { ThemeLoader } from './theme/theme-loader';
+import type { PutFilesResult } from './cache';
 import {
   SECTION_GROUP_CONTENT,
   getSectionGroupProp,
@@ -87,7 +88,6 @@ export class SwellTheme {
   public liquidSwell: LiquidSwell;
 
   public themeLoader: ThemeLoader;
-  public themeConfigs: Map<string, SwellThemeConfig> | null = null;
 
   public page?: ThemePage;
   public pageId: string | undefined;
@@ -141,6 +141,25 @@ export class SwellTheme {
     });
 
     this.themeLoader = new ThemeLoader(swell);
+  }
+
+  /**
+   * Getter for theme configs - returns the configs from the loader.
+   * Used by editor and tests to access loaded configs.
+   */
+  get themeConfigs(): Map<string, SwellThemeConfig> | null {
+    const configs = this.themeLoader.getConfigs();
+    return configs.size > 0 ? configs : null;
+  }
+
+  /**
+   * Setter for theme configs - directly sets configs in the loader.
+   * Used by editor and tests to inject configs without API/KV loading.
+   */
+  set themeConfigs(configs: Map<string, SwellThemeConfig> | null) {
+    if (configs) {
+      this.themeLoader.setConfigs(configs);
+    }
   }
 
   getSwellAppThemeProps(
@@ -254,10 +273,11 @@ export class SwellTheme {
   }> {
     const geo = GEO_DATA;
 
-    const [storefrontSettings, settingConfigs] = await Promise.all([
-      this.swell.getStorefrontSettings(),
-      this.getThemeConfigsByPath('theme/config/', '.json'),
-    ]);
+    // Get storefront settings asynchronously
+    const storefrontSettings = await this.swell.getStorefrontSettings();
+
+    // Get theme configs synchronously from pre-loaded data
+    const settingConfigs = this.getThemeConfigsByPath('theme/config/', '.json');
 
     const configs: ThemeConfigs = {
       theme: {},
@@ -386,7 +406,8 @@ export class SwellTheme {
     } as ThemePage;
 
     if (pageId) {
-      const templateConfig = await this.getThemeTemplateConfigByType(
+      // Use sync helper internally for better performance
+      const templateConfig = this._getTemplateConfigByType(
         'templates',
         pageId,
         altTemplate,
@@ -779,7 +800,7 @@ export class SwellTheme {
     localeCode = 'en',
     suffix = '.json',
   ): Promise<ThemeLocaleConfig> {
-    const allLocaleConfigs = await this.getThemeConfigsByPath(
+    const allLocaleConfigs = this.getThemeConfigsByPath(
       'theme/locales/',
       suffix,
     );
@@ -934,26 +955,29 @@ export class SwellTheme {
     return resolvedUrl;
   }
 
-  async getAllThemeConfigs(): Promise<Map<string, SwellThemeConfig>> {
-    if (this.themeConfigs === null) {
-      const configs = await this.themeLoader.loadTheme();
+  async preloadThemeConfigs(
+    payload: SwellThemePreload,
+  ): Promise<PutFilesResult> {
+    const result = await this.themeLoader.updateThemeCache(payload);
 
-      const configsByPath = new Map<string, SwellThemeConfig>();
-      for (const config of configs) {
-        configsByPath.set(config.file_path, config);
-      }
+    // Log warnings at the theme level for visibility
+    if (result.warnings && result.warnings.length > 0) {
+      const rejected = result.warnings.filter(
+        (w) => w.reason === 'rejected_5mb' || w.reason === 'exceeded_25mb',
+      ).length;
+      const warned = result.warnings.filter(
+        (w) => w.reason === 'warning_1mb',
+      ).length;
 
-      this.themeConfigs = configsByPath;
+      logger.warn('[Theme] File size issues detected during cache update', {
+        totalWarnings: result.warnings.length,
+        rejected,
+        warned,
+        details: result.warnings.slice(0, 5), // Log first 5 warnings for debugging
+      });
     }
 
-    return this.themeConfigs;
-  }
-
-  /**
-   * Preloads updated theme configs. Used to optimize initial theme load.
-   */
-  async preloadThemeConfigs(payload: SwellThemePreload): Promise<void> {
-    await this.themeLoader.preloadTheme(payload);
+    return result;
   }
 
   getPageConfigPath(pageId: string, altTemplate?: string): string | null {
@@ -970,21 +994,17 @@ export class SwellTheme {
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
-    if (this.themeConfigs !== null) {
-      return this.themeConfigs.get(filePath) ?? null;
-    }
-
-    return this.themeLoader.fetchThemeConfig(filePath);
+    // All configs are pre-loaded in themeLoader after init
+    // Wrapped in Promise for backward compatibility with LiquidSwell
+    return this.themeLoader.getConfig(filePath);
   }
 
-  async getThemeConfigsByPath(
+  getThemeConfigsByPath(
     pathPrefix: string,
     pathSuffix?: string,
-  ): Promise<Map<string, SwellThemeConfig>> {
-    const configs = await this.themeLoader.fetchThemeConfigsByPath(
-      pathPrefix,
-      pathSuffix,
-    );
+  ): Map<string, SwellThemeConfig> {
+    // Get configs directly from pre-loaded data
+    const configs = this.themeLoader.getConfigsByPath(pathPrefix, pathSuffix);
 
     const configsByPath = new Map<string, SwellThemeConfig>();
     for (const config of configs) {
@@ -997,19 +1017,54 @@ export class SwellTheme {
   async getThemeTemplateConfig(
     filePath: string,
   ): Promise<SwellThemeConfig | null> {
+    // Use internal sync helper and wrap result in Promise
+    return this._getTemplateConfig(filePath);
+  }
+
+  /**
+   * Internal synchronous helper for getting template configs by type.
+   * Used internally within theme.ts to avoid async overhead.
+   */
+  private _getTemplateConfigByType(
+    type: string,
+    name: string,
+    suffix?: string,
+  ): SwellThemeConfig | null {
+    const templatesByPriority = [withSuffix(`${type}/${name}`, suffix)];
+
+    if (this.shopifyCompatibility) {
+      const path = this.shopifyCompatibility.getThemeFilePath(type, name);
+      templatesByPriority.push(withSuffix(path, suffix));
+    }
+
+    for (const filePath of templatesByPriority) {
+      // Use sync helper internally
+      const templateConfig = this._getTemplateConfig(`theme/${filePath}`);
+      if (templateConfig) {
+        return templateConfig;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Internal synchronous helper for getting template configs.
+   */
+  private _getTemplateConfig(filePath: string): SwellThemeConfig | null {
     // Explicit extension
     if (filePath.endsWith('.json') || filePath.endsWith('.liquid')) {
-      return this.getThemeConfig(filePath);
+      return this.themeLoader.getConfig(filePath);
     }
 
     // Try to find a JSON template first
-    const jsonTemplate = await this.getThemeConfig(`${filePath}.json`);
+    const jsonTemplate = this.themeLoader.getConfig(`${filePath}.json`);
 
     if (jsonTemplate) {
       return jsonTemplate;
     }
 
-    return this.getThemeConfig(`${filePath}.liquid`);
+    return this.themeLoader.getConfig(`${filePath}.liquid`);
   }
 
   async getThemeTemplateConfigByType(
@@ -1017,25 +1072,8 @@ export class SwellTheme {
     name: string,
     suffix?: string,
   ): Promise<SwellThemeConfig | null> {
-    const templatesByPriority = [withSuffix(`${type}/${name}`, suffix)];
-
-    if (this.shopifyCompatibility) {
-      const path = this.shopifyCompatibility.getThemeFilePath(type, name);
-
-      templatesByPriority.push(withSuffix(path, suffix));
-    }
-
-    for (const filePath of templatesByPriority) {
-      const templateConfig = await this.getThemeTemplateConfig(
-        `theme/${filePath}`,
-      );
-
-      if (templateConfig) {
-        return templateConfig;
-      }
-    }
-
-    return null;
+    // Use internal sync helper
+    return this._getTemplateConfigByType(type, name, suffix);
   }
 
   async getAssetConfig(assetName: string): Promise<SwellThemeConfig | null> {
@@ -1076,17 +1114,8 @@ export class SwellTheme {
     }
 
     template = unescapeLiquidSyntax(template);
-    const trace = createTraceId();
     try {
-      logger.debug('[SDK] Render template start', {
-        config: config.name,
-        trace,
-      });
       const result = await this.liquidSwell.parseAndRender(template, data);
-      logger.debug('[SDK] Render template end', {
-        config: config.name,
-        trace,
-      });
       return result;
     } catch (err: any) {
       logger.error(err);
@@ -1111,10 +1140,8 @@ export class SwellTheme {
   ): Promise<Partial<ThemeSectionSchema> | undefined> {
     let result: Partial<ThemeSectionSchema> | undefined;
 
-    const config = await this.getThemeTemplateConfigByType(
-      'sections',
-      sectionName,
-    );
+    // Use sync helper internally
+    const config = this._getTemplateConfigByType('sections', sectionName);
 
     if (config?.file_path?.endsWith('.json')) {
       try {
@@ -1234,10 +1261,8 @@ export class SwellTheme {
   }
 
   async renderLayoutTemplate(name: string, data?: SwellData): Promise<string> {
-    const templateConfig = await this.getThemeTemplateConfigByType(
-      'layouts',
-      name,
-    );
+    // Use sync helper internally
+    const templateConfig = this._getTemplateConfigByType('layouts', name);
 
     if (!templateConfig) {
       throw new Error(`Layout template not found: ${name}`);
@@ -1291,7 +1316,8 @@ ${content.slice(pos)}`;
     let templateConfig: SwellThemeConfig | null = null;
 
     if (altTemplateId) {
-      templateConfig = await this.getThemeTemplateConfigByType(
+      // Use sync helper internally
+      templateConfig = this._getTemplateConfigByType(
         'templates',
         name,
         altTemplateId,
@@ -1299,10 +1325,8 @@ ${content.slice(pos)}`;
     }
 
     if (!templateConfig) {
-      templateConfig = await this.getThemeTemplateConfigByType(
-        'templates',
-        name,
-      );
+      // Use sync helper internally
+      templateConfig = this._getTemplateConfigByType('templates', name);
     }
 
     if (templateConfig) {
@@ -1454,7 +1478,8 @@ ${content.slice(pos)}`;
     // return replaced '/' back
     const pageId = (originalPageId || '').replaceAll('_', '/');
 
-    const templateConfig = await this.getThemeTemplateConfigByType(
+    // Use sync helper internally
+    const templateConfig = this._getTemplateConfigByType(
       pageId ? 'templates' : 'sections',
       pageId ? pageId : sectionKey,
     );
@@ -1698,7 +1723,8 @@ ${content.slice(pos)}`;
   }
 
   async getAllSections(): Promise<ThemePageSectionSchema[]> {
-    const configs = await this.getThemeConfigsByPath('theme/sections/');
+    // Get configs synchronously from pre-loaded data
+    const configs = this.getThemeConfigsByPath('theme/sections/');
     return getAllSections(configs, this.getTemplateSchema.bind(this));
   }
 
@@ -1735,7 +1761,8 @@ ${content.slice(pos)}`;
     let sourcePath = '';
 
     if (group) {
-      const sectionConfig = await this.getThemeTemplateConfigByType(
+      // Use sync helper internally
+      const sectionConfig = this._getTemplateConfigByType(
         'sections',
         `${sectionFileName}.json`,
       );
@@ -1758,7 +1785,8 @@ ${content.slice(pos)}`;
     pageId: string,
     altTemplate?: string,
   ): Promise<ThemeSectionGroupInfo[]> {
-    const pageConfig = await this.getThemeTemplateConfigByType(
+    // Use sync helper internally
+    const pageConfig = this._getTemplateConfigByType(
       'templates',
       pageId,
       altTemplate,
@@ -1856,7 +1884,8 @@ ${content.slice(pos)}`;
             ? resolveSectionSettings(this, sectionConfig, index)
             : { ...sectionConfig.settings };
 
-        const templateConfig = await this.getThemeTemplateConfigByType(
+        // Use sync helper internally
+        const templateConfig = this._getTemplateConfigByType(
           'sections',
           `${section.type}.liquid`,
         );

@@ -1,41 +1,37 @@
-import bluebird from 'bluebird';
-
-const { Promise } = bluebird;
-
-import { ThemeCache } from '../cache';
 import { FILE_DATA_INCLUDE_QUERY } from '../constants';
+import { logger, createTraceId } from '../utils/logger';
+import { getKVFlavor } from '../utils/kv-flavor';
 
 import type { Swell } from '@/api';
+import { ThemeFileStorage } from '../cache';
+import { WorkerCacheProxy } from '../cache/worker-cache-proxy';
+import type { PutFilesResult } from '../cache';
 import type {
   SwellCollection,
   SwellThemeConfig,
-  SwellThemeManifest,
   SwellThemePreload,
-  SwellThemeVersion,
 } from 'types/swell';
 
-// Max individual theme configs to fetch from source. If threshold is exceeded,
-// just fetch all configs from source.
+// Max individual theme configs to fetch from source when fetching missing data
 const MAX_INDIVIDUAL_CONFIGS_TO_FETCH = 50;
 
 /**
- * Responsible for loading a theme.
+ * Responsible for loading and managing theme configurations.
+ * Uses a single batch loading strategy for optimal performance.
  */
 export class ThemeLoader {
-  private static cache: ThemeCache | null = null;
-
   private swell: Swell;
-  private manifest: Map<string, string> | null;
   private configs: Map<string, SwellThemeConfig>;
-  private configPaths: string[];
 
   constructor(swell: Swell) {
     this.swell = swell;
-    this.manifest = null;
     this.configs = new Map();
-    this.configPaths = [];
   }
 
+  /**
+   * Initialize the theme loader with all configurations.
+   * Either uses provided configs (editor mode) or loads from storage.
+   */
   async init(themeConfigs?: Map<string, SwellThemeConfig>): Promise<void> {
     if (themeConfigs) {
       this.setConfigs(themeConfigs);
@@ -43,344 +39,282 @@ export class ThemeLoader {
     }
 
     if (!this.getThemeId()) {
+      logger.debug('[ThemeLoader] No theme ID, skipping init');
       return;
     }
 
-    await this.fetchManifest();
+    await this.loadAllConfigs();
 
-    if (this.manifest === null) {
-      console.log('ThemeLoader.init - version manifest not found');
-      await this.loadTheme();
-    }
+    logger.info('[ThemeLoader] Initialization complete', {
+      configCount: this.configs.size,
+      themeId: this.getThemeId(),
+    });
   }
 
   /**
-   * Loads theme configs for this version.
+   * Get a single config by file path (synchronous).
+   * Returns null if config not found.
    */
-  async loadTheme(): Promise<SwellThemeConfig[]> {
-    const { swellHeaders } = this.swell;
+  getConfig(filePath: string): SwellThemeConfig | null {
+    return this.configs.get(filePath) ?? null;
+  }
 
-    console.log('ThemeLoader.loadTheme', swellHeaders['theme-version-hash']);
+  /**
+   * Get all loaded configs.
+   * Used by theme getter to expose configs to editor/tests.
+   */
+  getConfigs(): Map<string, SwellThemeConfig> {
+    return this.configs;
+  }
 
-    if (swellHeaders['theme-version-hash']) {
-      const configs = await this.loadThemeFromManifest();
-      if (configs) {
-        return configs;
+  /**
+   * Get multiple configs by path pattern (synchronous).
+   * Filters configs by prefix and optional suffix.
+   */
+  getConfigsByPath(
+    pathPrefix: string,
+    pathSuffix?: string,
+  ): SwellThemeConfig[] {
+    const results: SwellThemeConfig[] = [];
+    for (const [path, config] of this.configs) {
+      if (
+        path.startsWith(pathPrefix) &&
+        (!pathSuffix || path.endsWith(pathSuffix))
+      ) {
+        results.push(config);
       }
     }
-
-    return this.loadThemeAllConfigs();
-  }
-
-  /**
-   * Returns the cache instance for this theme loader.
-   */
-  getCache(): ThemeCache {
-    if (ThemeLoader.cache === null) {
-      ThemeLoader.cache = new ThemeCache({
-        kvStore: this.swell.workerEnv?.THEME,
-      });
-    }
-
-    return ThemeLoader.cache;
+    return results;
   }
 
   /**
    * Load theme configs from internal data, typically in the editor.
+   * Used when configs are provided externally (e.g., from editor).
    */
   setConfigs(themeConfigs: Map<string, SwellThemeConfig>): void {
     this.configs = new Map(themeConfigs);
-    this.manifest = new Map<string, string>();
-
-    for (const { file_path, hash } of this.configs.values()) {
-      this.manifest.set(file_path, hash);
-    }
-
-    this.configPaths = Array.from(this.configs.keys());
   }
 
   /**
-   * Preloads a theme version and configs. This is used to optimize initial theme load.
+   * Updates KV with file_data for provided theme configs (warmup path).
+   * Uses the new ThemeFileStorage abstraction for optimized operations.
    */
-  async preloadTheme(payload: SwellThemePreload): Promise<void> {
-    const { version, configs } = payload;
+  async updateThemeCache(payload: SwellThemePreload): Promise<PutFilesResult> {
+    const configs = payload?.configs || [];
 
-    console.log(
-      `ThemeLoader.preloadTheme${version?.hash ? ` - manifest: ${version.hash}` : ''}${configs?.length ? ` - configs: ${configs.length}` : ''}`,
-    );
-
-    const promises: Promise<unknown>[] = [];
-
-    if (version) {
-      promises.push(this.cacheManifest(version));
+    if (configs.length === 0) {
+      logger.debug('[ThemeLoader] No configs to cache');
+      return {
+        written: 0,
+        skipped: 0,
+        skippedExisting: 0,
+        warnings: [],
+      };
     }
 
-    if (configs) {
-      const themeId = this.getThemeId();
+    // Use centralized KV flavor detection
+    const flavor = getKVFlavor(this.swell.workerEnv);
+    const trace = createTraceId();
+    logger.info('[ThemeLoader] Starting theme cache update', {
+      totalConfigs: configs.length,
+      flavor,
+      trace,
+    });
 
-      promises.push(
-        Promise.map(
-          configs,
-          async (config) => {
-            const promises: Promise<unknown>[] = [
-              this.cacheThemeConfig(config),
-            ];
+    const storage = new ThemeFileStorage(this.swell.workerEnv, flavor);
+    const result = await storage.putFiles(configs);
 
-            if (themeId && config.file?.url) {
-              promises.push(
-                this.cacheThemeFileUrl(themeId, config.hash, config.file.url),
-              );
-            }
-
-            await Promise.all(promises);
-          },
-          { concurrency: 10 },
-        ),
-      );
+    // Log summary with appropriate level based on results
+    if (result.warnings.length > 0) {
+      logger.warn('[ThemeLoader] Theme cache updated with warnings', {
+        total: configs.length,
+        written: result.written,
+        skipped: result.skipped,
+        skippedExisting: result.skippedExisting,
+        warnings: result.warnings.length,
+        trace,
+      });
+    } else {
+      logger.info('[ThemeLoader] Theme cache updated successfully', {
+        total: configs.length,
+        written: result.written,
+        skipped: result.skipped,
+        skippedExisting: result.skippedExisting,
+        trace,
+      });
     }
 
-    await Promise.all(promises);
+    return result;
   }
 
   /**
-   * Fetches a theme config by file path.
+   * Main loading logic - loads all configs at once.
+   * 1. Fetches lightweight metadata (cached when possible)
+   * 2. Batch hydrates file_data from KV
+   * 3. Fetches missing file_data from API if needed
    */
-  async fetchThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
-    const config = this.configs.get(filePath);
+  private async loadAllConfigs(): Promise<void> {
+    // Step 1: Get lightweight metadata (cached when possible)
+    const configMetadata = await this.fetchConfigMetadata();
 
-    if (config !== undefined) {
-      return config;
+    if (configMetadata.length === 0) {
+      logger.warn('[ThemeLoader] No configs found');
+      return;
     }
 
-    const hash = this.manifest?.get(filePath);
+    logger.debug('[ThemeLoader] Loading configs', {
+      total: configMetadata.length,
+    });
 
-    if (!hash) {
-      return null;
+    // Step 2: Batch hydrate file_data from KV
+    const flavor = getKVFlavor(this.swell.workerEnv);
+    const storage = new ThemeFileStorage(this.swell.workerEnv, flavor);
+    const kvHydrated = await storage.getFiles(configMetadata);
+
+    // Step 3: Ensure all configs have data (fetch missing from API if needed)
+    const completeConfigs = await this.ensureConfigsHaveData(kvHydrated);
+
+    // Step 4: Store in memory for fast access
+    for (const config of completeConfigs) {
+      this.configs.set(config.file_path, config);
     }
 
-    const cache = this.getCache();
-    const themeId = this.getThemeId();
-
-    const [themeConfig, fileUrl] = await Promise.all([
-      cache.get<SwellThemeConfig>(`config:${hash}`),
-      themeId ? cache.get<string>(`file:${themeId}:${hash}`) : undefined,
-    ]);
-
-    if (themeConfig) {
-      let config = themeConfig;
-
-      if (fileUrl && themeConfig.file?.url) {
-        config = {
-          ...themeConfig,
-          file: { ...themeConfig.file, url: fileUrl },
-        };
-      }
-
-      this.configs.set(filePath, config);
-      return config;
-    }
-
-    return this.fetchThemeConfigsFromSourceByPath(filePath, hash);
-  }
-
-  async fetchThemeConfigsByPath(
-    pathPrefix: string,
-    pathSuffix?: string,
-  ): Promise<SwellThemeConfig[]> {
-    const paths = this.configPaths.filter(
-      (path) =>
-        path.startsWith(pathPrefix) &&
-        (!pathSuffix || path.endsWith(pathSuffix)),
-    );
-
-    const configs = await Promise.map(
-      paths,
-      (path) => this.fetchThemeConfig(path),
-      { concurrency: 10 },
-    );
-
-    return configs.filter<SwellThemeConfig>((config) => config !== null);
+    logger.info('[ThemeLoader] All configs loaded', {
+      total: completeConfigs.length,
+      withData: completeConfigs.filter((c) => c.file_data).length,
+    });
   }
 
   /**
-   * Load all theme configs.
+   * Fetch lightweight config metadata from API or cache.
+   * Does NOT include file_data to minimize payload size.
    */
-  private async loadThemeAllConfigs(): Promise<SwellThemeConfig[]> {
-    const { swellHeaders } = this.swell;
+  private async fetchConfigMetadata(): Promise<SwellThemeConfig[]> {
+    // Fetch from API without file_data
+    const query = {
+      ...this.themeVersionQueryFilter(),
+      limit: 1000,
+      type: 'theme',
+      fields: 'id, name, type, file, file_path, hash', // NO file_data
+    };
 
-    const configVersion = String(swellHeaders['theme-config-version']);
-    if (!configVersion) {
-      throw new Error('Theme version is required');
-    }
+    // Try to get from cache first
+    try {
+      const cache = new WorkerCacheProxy(this.swell);
+      const versionHash = this.swell.swellHeaders['theme-version-hash'];
 
-    const configs = await this.getCache().fetch<
-      SwellCollection<SwellThemeConfig>
-    >(`configs-all:${this.swell.instanceId}:v@${configVersion}2`, () =>
-      this.fetchThemeConfigsFromSource(),
-    );
-
-    return configs?.results ?? [];
-  }
-
-  /**
-   * Load theme configs via manifest.
-   *
-   * This approach has the following optimizations:
-   *   - cached manifests and configs can be shared by other clients
-   *   - when fetching from source, only fetch the missing records
-   */
-  private async loadThemeFromManifest(): Promise<SwellThemeConfig[] | null> {
-    // Fetch the manifest, which contains a list of theme configs
-    const manifest = await this.fetchManifest();
-    if (!manifest) {
-      return null; // Fall back to fetching all configs
-    }
-
-    // Determine which configs we already have, and which we do not have.
-    const configHashesUnresolved: string[] = []; // tracks unresolved configs
-    const configsByHash = new Map<string, SwellThemeConfig>(); // tracks resolved configs
-    const themeId = this.getThemeId();
-    const cache = this.getCache();
-
-    await Promise.map(
-      manifest.values(),
-      async (configHash) => {
-        const [themeConfig, fileUrl] = await Promise.all([
-          cache.get<SwellThemeConfig>(`config:${configHash}`),
-          themeId
-            ? cache.get<string>(`file:${themeId}:${configHash}`)
-            : undefined,
-        ]);
-
-        if (!themeConfig) {
-          configHashesUnresolved.push(configHash);
-          return;
-        }
-
-        let config = themeConfig;
-
-        if (fileUrl && themeConfig.file?.url) {
-          config = {
-            ...themeConfig,
-            file: { ...themeConfig.file, url: fileUrl },
-          };
-        }
-
-        configsByHash.set(config.hash, config);
-        this.configs.set(config.file_path, config);
-      },
-      { concurrency: 10 },
-    );
-
-    // Fetch remaining unresolved configs from source.
-    if (configHashesUnresolved.length > 0) {
-      // Missing some/all configs. Fetch them from source.
-      const configs = await this.fetchThemeConfigsFromSource(
-        // If no configs were resolved, then fetch them all. otherwise fetch
-        // the specific subset of configs.
-        configsByHash.size === 0 ? undefined : configHashesUnresolved,
-      );
-      const newConfigs: SwellThemeConfig[] = configs?.results ?? [];
-
-      for (const config of newConfigs) {
-        configsByHash.set(config.hash, config);
-        this.configs.set(config.file_path, config);
-      }
-
-      // Cache the newly resolved theme configs.
-      await Promise.map(
-        newConfigs,
-        async (config) => {
-          const promises: Promise<unknown>[] = [this.cacheThemeConfig(config)];
-
-          if (themeId && config.file?.url) {
-            promises.push(
-              this.cacheThemeFileUrl(themeId, config.hash, config.file.url),
-            );
-          }
-
-          await Promise.all(promises);
-        },
-        { concurrency: 10 },
-      );
-    }
-
-    return Array.from(configsByHash.values());
-  }
-
-  /**
-   * Caches a theme version manifest by hash.
-   */
-  private async cacheManifest(version: SwellThemeVersion): Promise<void> {
-    if (version?.hash) {
-      await this.getCache().set(`manifest:${version.hash}`, version.manifest);
-    }
-  }
-
-  /**
-   * Caches a theme config by hash.
-   */
-  private async cacheThemeConfig(config: SwellThemeConfig): Promise<void> {
-    if (config?.hash) {
-      await this.getCache().set(`config:${config.hash}`, config);
-    }
-  }
-
-  /**
-   * Caches a CDN file url by config hash.
-   */
-  private async cacheThemeFileUrl(
-    themeId: string,
-    configHash: string,
-    fileUrl: string,
-  ): Promise<void> {
-    await this.getCache().set(`file:${themeId}:${configHash}`, fileUrl);
-  }
-
-  /**
-   * Fetches the manifest (set of config hashes) for a theme version.
-   */
-  private async fetchManifest(): Promise<Map<string, string> | null> {
-    const { swellHeaders } = this.swell;
-
-    const versionHash = swellHeaders['theme-version-hash'];
-
-    console.log('ThemeLoader.fetchManifest', versionHash);
-
-    let manifest = await this.getCache().get<SwellThemeManifest>(
-      `manifest:${versionHash}`,
-    );
-
-    if (!manifest) {
-      // No cached manifest. Ignore the hash and fetch the latest
-      // manifest from source.
-      const themeVersion = await this.swell.get<SwellThemeVersion>(
-        '/:themes:versions/:last',
+      const cached = await cache.get<SwellThemeConfig[]>(
+        '/:themes:configs',
+        query,
         {
-          ...this.themeVersionQueryFilter(),
-          fields: 'hash, manifest',
+          version: versionHash || null,
         },
       );
 
-      if (themeVersion) {
-        // Cache the latest manifest.
-        await this.cacheManifest(themeVersion);
-
-        manifest = themeVersion.manifest;
+      if (cached) {
+        logger.debug('[ThemeLoader] Config metadata cache hit');
+        return cached;
       }
+    } catch (err) {
+      logger.warn('[ThemeLoader] Cache read failed, fetching from API', err);
     }
 
-    // Save manifest for individual lookups
-    if (manifest) {
-      this.manifest = new Map<string, string>(Object.entries(manifest));
-      this.configPaths = [...this.manifest.keys()];
+    logger.debug('[ThemeLoader] Fetching config metadata from API');
+
+    const response = await this.swell.get<SwellCollection<SwellThemeConfig>>(
+      '/:themes:configs',
+      query,
+    );
+
+    const configs = response?.results || [];
+
+    // Try to cache for next time
+    try {
+      const cache = new WorkerCacheProxy(this.swell);
+      const versionHash = this.swell.swellHeaders['theme-version-hash'];
+
+      await cache.put('/:themes:configs', query, configs, {
+        version: versionHash || null,
+      });
+    } catch (err) {
+      logger.warn('[ThemeLoader] Cache write failed', err);
     }
 
-    return this.manifest;
+    return configs;
   }
 
   /**
-   * Fetches many theme configs via Swell Backend API.
+   * Helper to ensure all configs have file_data.
+   * Fetches missing data from API and updates KV cache.
+   */
+  private async ensureConfigsHaveData(
+    configs: SwellThemeConfig[],
+  ): Promise<SwellThemeConfig[]> {
+    const missingData = configs.filter((c) => !c.file_data);
+
+    if (missingData.length === 0) {
+      logger.debug('[ThemeLoader] All configs have file_data from KV');
+      return configs;
+    }
+
+    const trace = createTraceId();
+
+    logger.info(
+      `[ThemeLoader] Loading ${missingData.length} missing file_data from API`,
+      {
+        trace,
+      },
+    );
+
+    // Fetch from API with file_data
+    const hashes = missingData.map((c) => c.hash);
+    const apiResponse = await this.fetchThemeConfigsFromSource(hashes);
+    const fetched = apiResponse.results || [];
+
+    logger.info(`[ThemeLoader] Fetched ${fetched.length} configs from API`, {
+      trace,
+    });
+
+    // Cache for next time
+    if (fetched.length > 0) {
+      const cacheResult = await this.updateThemeCache({
+        api: 1, // Required by SwellThemePreload type
+        configs: fetched,
+      });
+
+      if (cacheResult.warnings.length > 0) {
+        logger.warn('[ThemeLoader] Some files had size issues', {
+          warnings: cacheResult.warnings.length,
+        });
+      }
+    }
+
+    // Merge results
+    const fetchedMap = new Map(fetched.map((c) => [c.hash, c]));
+    const mergedConfigs = configs.map((config) => {
+      if (!config.file_data) {
+        const withData = fetchedMap.get(config.hash);
+        if (withData?.file_data) {
+          return { ...config, file_data: withData.file_data };
+        }
+      }
+      return config;
+    });
+
+    // Log final status
+    const stillMissing = mergedConfigs.filter((c) => !c.file_data).length;
+    if (stillMissing > 0) {
+      logger.warn(
+        `[ThemeLoader] ${stillMissing} configs still missing file_data after fetch`,
+      );
+    }
+
+    return mergedConfigs;
+  }
+
+  /**
+   * Fetches theme configs with file_data from Swell Backend API.
+   * Used to retrieve missing file_data for configs.
    */
   private async fetchThemeConfigsFromSource(
     configHashes: string[] | undefined = undefined,
@@ -388,18 +322,16 @@ export class ThemeLoader {
     configHashes = configHashes || [];
 
     const { swellHeaders } = this.swell;
-
     const version = String(swellHeaders['theme-config-version']);
 
-    // Determine whether we need to fetch all or just some of the theme configs.
-    // If no configs are specified, then fetch them all.
-    // If the # of configs exceeds N, just fetch them all.
+    // Determine whether we need to fetch all or just some of the theme configs
     const fetchAll =
       configHashes.length === 0 ||
       configHashes.length > MAX_INDIVIDUAL_CONFIGS_TO_FETCH;
 
-    console.log(
-      `Retrieving ${fetchAll ? 'all' : 'some'} theme configurations - version: ${version}`,
+    logger.debug(
+      `[ThemeLoader] Fetching ${fetchAll ? 'all' : configHashes.length} configs with file_data`,
+      { version },
     );
 
     const configs = await this.swell.get<SwellCollection<SwellThemeConfig>>(
@@ -407,7 +339,6 @@ export class ThemeLoader {
       {
         ...this.themeVersionQueryFilter(),
         ...(fetchAll ? undefined : { hash: { $in: configHashes } }),
-        // TODO: paginate to support more than 1000 configs
         limit: 1000,
         type: 'theme',
         fields: 'name, file, file_path, hash',
@@ -421,58 +352,14 @@ export class ThemeLoader {
   }
 
   /**
-   * Fetches one theme config via Swell Backend API.
-   * This is used when a hash entry cannot be found.
-   * We may override the cached hash in order to ensure it is found on reload,
-   * but we probably need to find why that happens in the first place (TODO).
+   * Get the current theme ID from headers.
    */
-  private async fetchThemeConfigsFromSourceByPath(
-    filePath: string,
-    hash?: string,
-  ): Promise<SwellThemeConfig | null> {
-    console.log(`Retrieving theme config - ${filePath}`);
-
-    const config = await this.swell.get<SwellThemeConfig>(
-      '/:themes:configs/:last',
-      {
-        ...this.themeVersionQueryFilter(),
-        file_path: filePath,
-        fields: 'name, file, file_path, hash',
-        include: {
-          file_data: FILE_DATA_INCLUDE_QUERY,
-        },
-      },
-    );
-
-    if (config) {
-      this.configs.set(filePath, config);
-
-      if (hash) {
-        // Override hash to ensure cache exists next round
-        config.hash = hash;
-      }
-
-      const themeId = this.getThemeId();
-      const promises: Promise<unknown>[] = [this.cacheThemeConfig(config)];
-
-      if (themeId && config.file?.url) {
-        promises.push(
-          this.cacheThemeFileUrl(themeId, config.hash, config.file.url),
-        );
-      }
-
-      await Promise.all(promises);
-    }
-
-    return config ?? null;
-  }
-
   private getThemeId(): string | undefined {
     return this.swell.swellHeaders['theme-id'];
   }
 
   /**
-   * Generates a Swell API query filter for this theme version.
+   * Generate a Swell API query filter for this theme version.
    */
   private themeVersionQueryFilter(): Record<string, unknown> {
     const { swellHeaders } = this.swell;
