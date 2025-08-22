@@ -5,6 +5,7 @@ export interface CFWorkerContext {
 
 export interface CFThemeEnv {
   THEME?: CFWorkerKV;
+  KV_FLAVOR?: string;
 }
 
 // Cloudflare KV
@@ -12,13 +13,13 @@ export interface CFThemeEnv {
 export type CFWorkerKVGetType = 'text' | 'json' | 'arrayBuffer' | 'stream';
 
 export interface CFWorkerKVGetOptions<T extends CFWorkerKVGetType> {
-  cacheTtl: number;
-  type: T;
+  cacheTtl?: number;
+  type?: T;
 }
 
 export interface CFWorkerKVGetMetadataResponse<T> {
   value: T | null;
-  metadata: string | null;
+  metadata: string | Record<string, unknown> | null;
 }
 
 export interface CFWorkerKVPutOptions {
@@ -67,6 +68,18 @@ export interface CFWorkerKV {
     options?: CFWorkerKVGetOptions<'json'>,
   ): Promise<T | null>;
 
+  // Bulk read: up to 100 keys per call
+  get(
+    keys: string[],
+    type?: 'text',
+    options?: CFWorkerKVGetOptions<'text'>,
+  ): Promise<Map<string, string | null>>;
+  get(
+    keys: string[],
+    type?: 'json',
+    options?: CFWorkerKVGetOptions<'json'>,
+  ): Promise<Map<string, object | null>>;
+
   getWithMetadata(
     key: string,
     type?: 'text',
@@ -87,6 +100,34 @@ export interface CFWorkerKV {
     type?: 'json',
     options?: CFWorkerKVGetOptions<'json'>,
   ): Promise<CFWorkerKVGetMetadataResponse<T>>;
+
+  // Bulk read with metadata: up to 100 keys per call
+  getWithMetadata(
+    keys: string[],
+    type?: 'text',
+    options?: CFWorkerKVGetOptions<'text'>,
+  ): Promise<
+    Map<
+      string,
+      {
+        value: string | null;
+        metadata: string | Record<string, unknown> | null;
+      }
+    >
+  >;
+  getWithMetadata(
+    keys: string[],
+    type?: 'json',
+    options?: CFWorkerKVGetOptions<'json'>,
+  ): Promise<
+    Map<
+      string,
+      {
+        value: object | null;
+        metadata: string | Record<string, unknown> | null;
+      }
+    >
+  >;
 
   put(
     key: string,

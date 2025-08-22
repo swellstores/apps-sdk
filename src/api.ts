@@ -2,7 +2,7 @@ import SwellJS from 'swell-js';
 import qs from 'qs';
 
 import { Cache, RequestCache, ResourceCache } from './cache';
-import { md5, toBase64 } from './utils';
+import { md5, toBase64, getKVFlavor } from './utils';
 import { logger, createTraceId, configureSdkLogger } from './utils/logger';
 import { isLikePromise } from './liquid/utils';
 
@@ -100,7 +100,7 @@ export class Swell {
     this.resourceLoadingIndicator = params.resourceLoadingIndicator;
 
     logger.info(
-      `[SDK] KV cache: ${this.workerEnv?.THEME ? 'enabled' : 'disabled'}`,
+      `[SDK] KV cache: ${this.workerEnv?.THEME ? 'enabled' : 'disabled'}, flavor: ${getKVFlavor(this.workerEnv)}`,
     );
 
     if (serverHeaders) {
