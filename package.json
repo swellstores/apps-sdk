@@ -1,7 +1,7 @@
 {
   "name": "@swell/apps-sdk",
   "type": "module",
-  "version": "1.0.149",
+  "version": "1.0.150",
   "description": "Swell SDK for building isomorphic apps.",
   "author": "Swell",
   "license": "MIT",
