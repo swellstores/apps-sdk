@@ -1,10 +1,11 @@
-import { LiquidSwell } from '../..';
 import { SwellStorefrontPagination } from '../../../resources';
 import ShopifyPaginate from '@/compatibility/shopify-objects/paginate';
 
+import type { LiquidSwell } from '../..';
+
 // {{ paginate | default_pagination }}
 
-type ShopifyPaginate = {
+interface ShopifyPaginate {
   current_offset: number;
   current_page: number;
   items: number;
@@ -14,13 +15,13 @@ type ShopifyPaginate = {
   pages: number;
   parts: ShopifyPaginatePart[];
   previous: ShopifyPaginatePart;
-};
+}
 
-type ShopifyPaginatePart = {
+interface ShopifyPaginatePart {
   is_link: boolean;
   title: string;
   url: string;
-};
+}
 
 export default function bind(liquidSwell: LiquidSwell) {
   return (paginate: SwellStorefrontPagination): string => {

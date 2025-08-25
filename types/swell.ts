@@ -16,7 +16,6 @@ import type {
   ShopifySettingRoleSchema,
   ShopifySettingsData,
   ShopifySettingsSchema,
-  ShopifyImage,
 } from './shopify';
 
 import type { CFThemeEnv, CFWorkerContext } from './cloudflare';
@@ -306,9 +305,17 @@ export type StorefrontResourceGetter<T extends SwellData = SwellData> = (
   this: SwellStorefrontResource<T>,
 ) => Promise<T | null> | T | null;
 
-export type StorefrontCollectionGetter<
-  T extends SwellCollection<SwellData> = SwellCollection<SwellData>,
-> = (this: SwellStorefrontCollection<T>) => Promise<T | null> | T | null;
+export type StorefrontRecordGetter<T extends SwellData = SwellData> = (
+  this: SwellStorefrontRecord<T>,
+) => Promise<T | null> | T | null;
+
+export type StorefrontSingletonGetter<T extends SwellData = SwellData> = (
+  this: SwellStorefrontSingleton<T>,
+) => Promise<T | null> | T | null;
+
+export type StorefrontCollectionGetter<T extends SwellData = SwellData> = (
+  this: SwellStorefrontCollection<T>,
+) => Promise<SwellCollection<T> | null> | SwellCollection<T> | null;
 
 export interface ThemeSettings {
   [key: string]: any;

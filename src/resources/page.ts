@@ -1,21 +1,12 @@
-import type { Swell } from '@/api';
 import { SwellStorefrontRecord } from '@/resources';
-import type {
-  StorefrontResourceGetter,
-  SwellData,
-  SwellRecord,
-} from 'types/swell';
 
-export class SwellPage<
-  T extends SwellData = SwellRecord,
-> extends SwellStorefrontRecord<T> {
-  constructor(
-    swell: Swell,
-    id: string,
-    query: SwellData = {},
-    getter?: StorefrontResourceGetter<T>,
-  ) {
-    super(swell, 'content/pages', id, query, getter);
+import type { Swell } from '@/api';
+import type { SwellData } from 'types/swell';
+import type { SwellPage as SwellPageType } from './swell_types';
+
+export default class SwellPage extends SwellStorefrontRecord<SwellPageType> {
+  constructor(swell: Swell, id: string, query?: SwellData) {
+    super(swell, 'content/pages', id, query);
 
     return this._getProxy();
   }

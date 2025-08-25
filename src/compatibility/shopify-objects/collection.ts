@@ -3,7 +3,7 @@ import {
   SwellStorefrontCollection,
   cloneStorefrontResource,
 } from '@/resources';
-import { productQueryWithFilters } from '@/resources/product';
+import { productQueryWithFilters } from '@/resources/product_helpers';
 
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
@@ -171,11 +171,9 @@ function getProducts<T extends SwellData>(
       },
     );
 
-    return products._cloneWithCompatibilityResult<SwellCollection<T>>(
-      (products) => {
-        return { ...products, results: products.results.map(mapper) };
-      },
-    );
+    return products._cloneWithCompatibilityResult<T>((products) => {
+      return { ...products, results: products.results.map(mapper) };
+    });
   });
 }
 

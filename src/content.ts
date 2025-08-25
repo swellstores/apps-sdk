@@ -4,7 +4,7 @@ import {
   SwellStorefrontRecord,
 } from './api';
 
-import type { SwellCollection, SwellData } from 'types/swell';
+import type { SwellData } from 'types/swell';
 
 export function getContentModel(
   swell: Swell,
@@ -23,7 +23,7 @@ export function getContentList(
   swell: Swell,
   type: string,
   query?: SwellData,
-): SwellStorefrontCollection<SwellCollection<SwellData>> {
+): SwellStorefrontCollection<SwellData> {
   return new SwellStorefrontCollection(swell, `content/${type}`, query);
 }
 
@@ -47,7 +47,7 @@ export function getPage(
 export function getBlogs(
   swell: Swell,
   query?: SwellData,
-): SwellStorefrontCollection<SwellCollection<SwellData>> {
+): SwellStorefrontCollection<SwellData> {
   return getContentList(swell, 'blogs', query);
 }
 
