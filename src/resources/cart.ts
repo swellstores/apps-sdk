@@ -1,16 +1,11 @@
-import type { Swell } from '@/api';
 import { SwellStorefrontSingleton } from '@/resources';
-import type {
-  StorefrontResourceGetter,
-  SwellData,
-  SwellRecord,
-} from 'types/swell';
 
-export class SwellCart<
-  T extends SwellData = SwellRecord,
-> extends SwellStorefrontSingleton<T> {
-  constructor(swell: Swell, getter?: StorefrontResourceGetter<T>) {
-    super(swell, 'cart', getter);
+import type { Swell } from '@/api';
+import type { SwellCart as SwellCartType } from './swell_types';
+
+export default class SwellCart extends SwellStorefrontSingleton<SwellCartType> {
+  constructor(swell: Swell) {
+    super(swell, 'cart');
 
     return this._getProxy();
   }

@@ -1,8 +1,4 @@
-import type {
-  SwellData,
-  SwellCollection,
-  ThemeSectionEnabledDisabled,
-} from './swell';
+import type { SwellData, ThemeSectionEnabledDisabled } from './swell';
 
 import type { ShopifyResource } from '../src/compatibility/shopify-objects/resource';
 import type { ShopifyCompatibility } from '../src/compatibility/shopify';
@@ -586,9 +582,7 @@ export interface ShopifyCollection {
   metafields: Record<string, unknown>;
   next_product?: ShopifyProduct;
   previous_product?: ShopifyProduct;
-  products: SwellStorefrontCollection<
-    SwellCollection<ShopifyResource<ShopifyProduct>>
-  >;
+  products: SwellStorefrontCollection<ShopifyResource<ShopifyProduct>>;
   products_count: number;
   published_at: string;
   sort_by?: string;

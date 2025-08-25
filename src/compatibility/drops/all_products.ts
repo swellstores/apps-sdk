@@ -2,7 +2,7 @@ import { Drop } from 'liquidjs';
 
 import { isLikePromise } from '@/liquid/utils';
 import { SwellStorefrontRecord } from '@/resources';
-import { ShopifyProduct, ShopifyResource } from '../shopify-objects';
+import { ShopifyProduct, type ShopifyResource } from '../shopify-objects';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type { ShopifyProduct as ShopifyProductType } from 'types/shopify';

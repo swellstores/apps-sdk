@@ -2,11 +2,10 @@ import { Drop } from 'liquidjs';
 
 import { isLikePromise } from '@/liquid/utils';
 import { SwellStorefrontCollection, SwellStorefrontRecord } from '@/resources';
-import { ShopifyPage, ShopifyResource } from '../shopify-objects';
+import { ShopifyPage, type ShopifyResource } from '../shopify-objects';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type { ShopifyPageObject } from 'types/shopify';
-import type { SwellCollection } from 'types/swell';
 
 class PagesDrop extends Drop {
   #instance: ShopifyCompatibility;
@@ -60,9 +59,7 @@ class PagesDrop extends Drop {
   }
 }
 
-export default class Pages extends SwellStorefrontCollection<
-  SwellCollection<ShopifyPageObject>
-> {
+export default class Pages extends SwellStorefrontCollection<ShopifyPageObject> {
   #drop: PagesDrop;
 
   constructor(instance: ShopifyCompatibility) {

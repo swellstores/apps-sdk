@@ -1,23 +1,28 @@
 // Functions to calculate product properties
 
-import type { SwellData } from 'types/swell';
+import type { SwellData, SwellProductFilter } from 'types/swell';
+
 import type {
   SwellProduct,
   SwellProductOption,
   SwellProductOptionValue,
   SwellProductPurchaseOptions,
   SwellProductPurchaseOptionSubscription,
+  SwellSubscriptionPlan,
+  SwellSortOption,
   SwellVariant,
 } from './swell_types';
 
-export function isGiftcard(product: SwellProduct) {
+import type { Swell } from '@/api';
+
+export function isGiftcard(product: SwellProduct): boolean {
   return product.type === 'giftcard';
 }
 
 export function isOptionAvailable(
   product: SwellProduct,
   option: SwellProductOption,
-) {
+): boolean {
   if (isGiftcard(product)) {
     return true;
   }
@@ -28,7 +33,7 @@ export function isOptionAvailable(
 export function isProductAvailable(
   product: SwellProduct,
   variant?: SwellVariant,
-) {
+): boolean {
   if (product.stock_purchasable) {
     return true;
   }
@@ -39,7 +44,7 @@ export function isProductAvailable(
 }
 
 // get available variants
-export function getAvailableVariants(product: SwellProduct) {
+export function getAvailableVariants(product: SwellProduct): SwellVariant[] {
   return (product.variants?.results?.slice()?.reverse() || []).filter(
     (variant: SwellVariant) => isProductAvailable(product, variant),
   );
@@ -50,7 +55,7 @@ export function isOptionValueAvailable(
   value: SwellProductOptionValue,
   product: SwellProduct,
   availableVariants?: SwellVariant[],
-) {
+): boolean {
   if (!option.variant) {
     return true;
   }
@@ -75,7 +80,7 @@ export function isOptionValueSelected(
   product: SwellProduct,
   queryParams: SwellData,
   selectedVariant?: SwellVariant,
-) {
+): boolean {
   let variant;
 
   if (option.variant) {
@@ -140,7 +145,7 @@ export function getSelectedVariantOptionValues(
   product: SwellProduct,
   queryParams: SwellData,
   variant?: SwellVariant,
-) {
+): string[] {
   if (variant) {
     return variant.option_value_ids;
   }
@@ -176,7 +181,7 @@ export function getSelectedVariantOptionValues(
 export function getPurchaseOptions(
   product: SwellProduct,
   queryParams: SwellData,
-) {
+): SwellProductPurchaseOptions | null {
   if (!product?.purchase_options) {
     return null;
   }
@@ -219,7 +224,7 @@ export function getPurchaseOptions(
 function getSelectedPurchaseOptionType(
   product: SwellProduct,
   queryParams: SwellData,
-) {
+): string | null {
   const { purchase_options: purchaseOptions } = product;
 
   if (!purchaseOptions) {
@@ -244,7 +249,7 @@ function getSelectedSubscriptionPurchaseOptionPlan(
   selectedPurchaseOptionType: string | null,
   subscriptionPurchaseOption: SwellProductPurchaseOptionSubscription,
   queryParams: SwellData,
-) {
+): SwellSubscriptionPlan | null {
   if (selectedPurchaseOptionType !== 'subscription') {
     return null;
   }
@@ -263,4 +268,106 @@ function getSelectedSubscriptionPurchaseOptionPlan(
   }
 
   return selectedPlan || subscriptionPurchaseOption.plans[0];
+}
+
+const SORT_OPTIONS = Object.freeze<SwellSortOption[]>([
+  { value: '', name: 'Featured' },
+  { value: 'popularity', name: 'Popularity', query: 'popularity desc' },
+  { value: 'price_asc', name: 'Price, low to high', query: 'price asc' },
+  { value: 'price_desc', name: 'Price, high to low', query: 'price desc' },
+  { value: 'date_asc', name: 'Date, old to new', query: 'date asc' },
+  { value: 'date_desc', name: 'Date, new to old', query: 'date desc' },
+  { value: 'name_asc', name: 'Product name, A-Z', query: 'name asc' },
+  { value: 'name_desc', name: 'Product name, Z-A', query: 'name desc' },
+]);
+
+export async function getProductFilters(
+  swell: Swell,
+  productQuery?: SwellData,
+) {
+  const sortBy = swell.queryParams.sort || '';
+  const filterQuery = productQueryWithFilters(swell, productQuery);
+
+  return {
+    filter_options: await getProductFiltersByQuery(swell, filterQuery),
+    sort: SORT_OPTIONS.find((option) => option.value === sortBy)?.value,
+    sort_options: [...SORT_OPTIONS],
+  };
+}
+
+async function getProductFiltersByQuery(
+  swell: Swell,
+  query: SwellData = {},
+): Promise<SwellProductFilter[]> {
+  const filters =
+    (await swell.get<SwellProductFilter[]>('/products/:filters', {
+      ...query,
+      sort: undefined,
+    })) || [];
+
+  if (!Array.isArray(filters)) {
+    throw new Error('Product filters must be an array');
+  }
+
+  for (const filter of filters) {
+    filter.param_name = `filter_${filter.id}`;
+
+    if (Array.isArray(filter.options)) {
+      filter.active_options = [];
+      filter.inactive_options = [];
+
+      // Option `active` state
+      for (const option of filter.options) {
+        const queryValue = swell.queryParams[filter.param_name];
+
+        option.active = Array.isArray(queryValue)
+          ? (queryValue as unknown[]).includes(option.value)
+          : queryValue === option.value;
+
+        // Active/inactive options
+        const list = option.active
+          ? filter.active_options
+          : filter.inactive_options;
+
+        list.push(option);
+      }
+    }
+  }
+
+  return filters;
+}
+
+export function productQueryWithFilters(swell: Swell, query?: SwellData) {
+  const filters = Object.keys(swell.queryParams).reduce(
+    (acc: Record<string, unknown>, key) => {
+      if (key.startsWith('filter_')) {
+        const qkey = key.replace('filter_', '');
+        const value = swell.queryParams[key];
+
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          !Array.isArray(value) &&
+          (value.gte !== undefined || value.lte !== undefined)
+        ) {
+          acc[qkey] = [value.gte || 0, value.lte || undefined];
+        } else {
+          acc[qkey] = value;
+        }
+      }
+
+      return acc;
+    },
+    {},
+  );
+
+  const sortBy = swell.queryParams.sort || '';
+
+  return {
+    sort:
+      SORT_OPTIONS.find((option) => option.value === sortBy)?.query ||
+      undefined,
+    $filters: filters,
+    ...query,
+  };
 }

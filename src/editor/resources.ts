@@ -183,11 +183,11 @@ function createCollection(
   path: string,
   parent_slug: string,
   parent_query: SwellData,
-): SwellStorefrontCollection {
+): SwellStorefrontCollection<SwellRecord> {
   const query = getResourceQuery(parent_slug, parent_query);
   // we need to distinguish AccountResource in cache, I add a fictive parameter with resource path
   query.$resource_path = path;
-  return new SwellStorefrontCollection(
+  return new SwellStorefrontCollection<SwellRecord>(
     swell,
     resource,
     query,

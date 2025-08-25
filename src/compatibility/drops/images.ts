@@ -2,12 +2,12 @@ import { Drop } from 'liquidjs';
 
 import { isLikePromise } from '@/liquid/utils';
 import { StorefrontResource } from '@/resources';
-import { ShopifyResource } from '../shopify-objects';
 import ShopifyImage from '../shopify-objects/image';
 
 import type { ShopifyCompatibility } from '../shopify';
+import type { ShopifyResource } from '../shopify-objects';
 import type { ShopifyImage as ShopifyImageType } from 'types/shopify';
-import type { SwellCollection, SwellData } from 'types/swell';
+import type { SwellData } from 'types/swell';
 import type { Swell } from '@/api';
 
 export default class ImagesDrop extends Drop {
@@ -62,15 +62,13 @@ export default class ImagesDrop extends Drop {
 class SwellImage extends StorefrontResource<SwellData> {
   constructor(swell: Swell, name: string) {
     super(async () => {
-      const files = await swell.get<SwellCollection<SwellData>>('/:files', {
+      const file = await swell.get<SwellData>('/:files/:last', {
         private: { $ne: true },
         content_type: { $regex: '^image/' },
         filename: name,
       });
 
-      const file = files?.results[0] ?? null;
-
-      if (file === null) {
+      if (!file) {
         return null;
       }
 

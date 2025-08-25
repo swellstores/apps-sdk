@@ -11,7 +11,7 @@ import {
 import {
   ShopifyCollection,
   ShopifyProduct,
-  ShopifyResource,
+  type ShopifyResource,
 } from '../shopify-objects';
 
 import type { ShopifyCompatibility } from '../shopify';
@@ -19,9 +19,7 @@ import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
 import type { ShopifyCollection as ShopifyCollectionType } from 'types/shopify';
 
 // TODO: remove this once backend is implemented for "all"
-class AllCategoryResource<
-  T extends SwellData = SwellRecord,
-> extends StorefrontResource<T> {
+class AllCategoryResource extends StorefrontResource<SwellData> {
   constructor(instance: ShopifyCompatibility) {
     super(() => {
       const category: SwellData = {
@@ -31,7 +29,7 @@ class AllCategoryResource<
         products: new SwellStorefrontProducts(instance, { $variants: true }),
       };
 
-      return category as T;
+      return category;
     });
   }
 }
@@ -103,9 +101,7 @@ class CollectionsDrop extends Drop {
   }
 }
 
-export default class Collections extends SwellStorefrontCollection<
-  SwellCollection<ShopifyCollectionType>
-> {
+export default class Collections extends SwellStorefrontCollection<ShopifyCollectionType> {
   #drop: CollectionsDrop;
 
   constructor(instance: ShopifyCompatibility) {
@@ -169,9 +165,7 @@ class SwellStorefrontCategory extends StorefrontResource<SwellData> {
   }
 }
 
-class SwellStorefrontProducts extends SwellStorefrontCollection<
-  SwellCollection<SwellRecord>
-> {
+class SwellStorefrontProducts extends SwellStorefrontCollection<SwellRecord> {
   constructor(
     instance: ShopifyCompatibility,
     query?: SwellData,

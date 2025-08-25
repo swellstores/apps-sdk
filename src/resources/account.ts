@@ -1,16 +1,41 @@
-import type { Swell } from '@/api';
 import { SwellStorefrontSingleton } from '@/resources';
-import type {
-  StorefrontResourceGetter,
-  SwellData,
-  SwellRecord,
-} from 'types/swell';
 
-export class SwellAccount<
-  T extends SwellData = SwellRecord,
-> extends SwellStorefrontSingleton<T> {
-  constructor(swell: Swell, getter?: StorefrontResourceGetter<T>) {
-    super(swell, 'account', getter);
+import type { Swell } from '@/api';
+import type {
+  SwellAccount as SwellAccountType,
+  SwellAddress,
+  SwellOrder,
+  SwellSubscription,
+} from './swell_types';
+import type { SwellCollection } from 'types/swell';
+
+import SwellAddresses from './addresses';
+import SwellOrders from './orders';
+import SwellSubscriptions from './subscriptions';
+
+export default class SwellAccount extends SwellStorefrontSingleton<SwellAccountType> {
+  constructor(swell: Swell) {
+    super(swell, 'account', async function () {
+      const account = await this._defaultGetter().call(this);
+
+      if (!account) {
+        return null;
+      }
+
+      account.addresses = new SwellAddresses(
+        this._swell,
+      ) as SwellCollection<SwellAddress>;
+
+      account.orders = new SwellOrders(
+        this._swell,
+      ) as SwellCollection<SwellOrder>;
+
+      account.subscriptions = new SwellSubscriptions(
+        this._swell,
+      ) as SwellCollection<SwellSubscription>;
+
+      return account;
+    });
 
     return this._getProxy();
   }

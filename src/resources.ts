@@ -14,6 +14,8 @@ import type {
   SwellCollectionPages,
   StorefrontResourceGetter,
   StorefrontCollectionGetter,
+  StorefrontSingletonGetter,
+  StorefrontRecordGetter,
 } from '../types/swell';
 
 const NOT_CACHEBLE_COLLECTIONS = Object.freeze(
@@ -169,11 +171,6 @@ export class StorefrontResource<T extends SwellData = SwellData> {
     return instance[prop];
   }
 
-  // add additional properties to the loaded result
-  _transformResult(result?: T | null) {
-    return result;
-  }
-
   async _get(..._args: unknown[]): Promise<T | null | undefined> {
     if (this._getter) {
       const getter = this._getter.bind(
@@ -182,9 +179,6 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 
       return Promise.resolve()
         .then(getter)
-        .then((result) => {
-          return this._transformResult(result);
-        })
         .then((result) => {
           this._result = result ?? null;
 
@@ -312,7 +306,6 @@ export function cloneStorefrontResource<T extends SwellData = SwellData>(
 
   // clone query parameters and result transformation function
   clone._params = input._params as SwellData;
-  clone._transformResult = input._transformResult.bind(clone);
 
   Object.defineProperty(clone, '_resourceName', {
     value: resourceName,
@@ -390,10 +383,10 @@ export class SwellStorefrontResource<
 }
 
 export class SwellStorefrontCollection<
-  T extends SwellCollection<SwellData> = SwellCollection<SwellData>,
-> extends SwellStorefrontResource<T> {
+  T extends SwellData = SwellData,
+> extends SwellStorefrontResource<SwellCollection<T>> {
   public length: number = 0;
-  public results?: InferSwellCollection<T>[];
+  public results?: T[];
   public count?: number;
   public page?: number;
   public pages?: SwellCollectionPages;
@@ -407,7 +400,11 @@ export class SwellStorefrontCollection<
     query: SwellData = {},
     getter?: StorefrontCollectionGetter<T>,
   ) {
-    super(swell, collection, getter as StorefrontResourceGetter<T>);
+    super(
+      swell,
+      collection,
+      getter as StorefrontResourceGetter<SwellCollection<T>>,
+    );
 
     this._query = this._initQuery(query);
 
@@ -439,17 +436,21 @@ export class SwellStorefrontCollection<
     return properQuery;
   }
 
-  _defaultGetter(): StorefrontResourceGetter<T> {
+  _defaultGetter(): StorefrontResourceGetter<SwellCollection<T>> {
     const resource = this.getResourceObject();
 
-    async function defaultGetter(this: SwellStorefrontResource<T>) {
+    async function defaultGetter(
+      this: SwellStorefrontResource<SwellCollection<T>>,
+    ) {
       return resource.list(this._query);
     }
 
-    return defaultGetter as StorefrontResourceGetter<T>;
+    return defaultGetter as StorefrontResourceGetter<SwellCollection<T>>;
   }
 
-  async _get(query: SwellData = {}): Promise<T | null | undefined> {
+  async _get(
+    query: SwellData = {},
+  ): Promise<SwellCollection<T> | null | undefined> {
     const { currency, locale } = this._swell.getStorefrontLocalization();
 
     this._query = {
@@ -474,7 +475,7 @@ export class SwellStorefrontCollection<
           getter,
           isResourceCacheble(this._collection),
         )
-        .then((result?: T | null) => {
+        .then((result?: SwellCollection<T> | null) => {
           this._result = result ?? null;
 
           if (result) {
@@ -489,7 +490,7 @@ export class SwellStorefrontCollection<
           this._result = null;
           logger.error(err);
           return null;
-        }) as unknown as T;
+        }) as unknown as SwellCollection<T>;
     }
 
     return this._result;
@@ -546,9 +547,9 @@ export class SwellStorefrontCollection<
     return cloned;
   }
 
-  _cloneWithCompatibilityResult<
-    R extends SwellCollection<SwellData> = SwellCollection<SwellData>,
-  >(compatibilityGetter: (result: T) => R): SwellStorefrontCollection<R> {
+  _cloneWithCompatibilityResult<R extends SwellData = SwellData>(
+    compatibilityGetter: (result: SwellCollection<T>) => SwellCollection<R>,
+  ): SwellStorefrontCollection<R> {
     const originalGetter = this._getter;
 
     const cloned = this._clone({
@@ -596,9 +597,9 @@ export class SwellStorefrontRecord<
     collection: string,
     id: string,
     query: SwellData = {},
-    getter?: StorefrontResourceGetter<T>,
+    getter?: StorefrontRecordGetter<T>,
   ) {
-    super(swell, collection, getter);
+    super(swell, collection, getter as StorefrontResourceGetter<T>);
 
     this._id = id;
     this._query = query;
@@ -654,9 +655,6 @@ export class SwellStorefrontRecord<
           isResourceCacheble(this._collection),
         )
         .then((result?: T | null) => {
-          return this._transformResult(result);
-        })
-        .then((result?: T | null) => {
           this._result = result;
 
           if (result) {
@@ -681,9 +679,9 @@ export class SwellStorefrontSingleton<
   constructor(
     swell: Swell,
     collection: string,
-    getter?: StorefrontResourceGetter<T>,
+    getter?: StorefrontSingletonGetter<T>,
   ) {
-    super(swell, collection, getter);
+    super(swell, collection, getter as StorefrontResourceGetter<T>);
 
     if (!getter) {
       this._setGetter(this._defaultGetter());
@@ -753,9 +751,7 @@ export class SwellStorefrontSingleton<
   }
 }
 
-export class SwellStorefrontPagination<
-  T extends SwellCollection = SwellCollection,
-> {
+export class SwellStorefrontPagination<T extends SwellData = SwellData> {
   public _resource: SwellStorefrontCollection<T>;
 
   public count = 0;
