@@ -430,13 +430,19 @@ export class Swell {
 
     return (method: string, url: string, id?: any, data?: any, opt?: any) => {
       if (this.isStorefrontRequestCacheable(method, url, opt)) {
-        return this.getRequestCache().fetchSWR<T>(
-          getCacheKey('request', [this.instanceId, method, url, id, data, opt]),
-          () => {
-            logger.info('[SDK] Storefront request', { method, url, id, data });
-            return storefrontRequest<T>(method, url, id, data, opt);
-          },
-        );
+        const key = getCacheKey('request', [
+          this.instanceId,
+          method,
+          url,
+          id,
+          data,
+          opt,
+        ]);
+        return this.getRequestCache().fetchSWR<T>(key, () => {
+          const requestUrl = id ? `${url}/${id}` : url;
+          logger.debug('[SDK] Cacheable API request', { url: requestUrl, key });
+          return storefrontRequest<T>(method, url, id, data, opt);
+        });
       }
 
       // clear storefront context if we mutate it
@@ -494,7 +500,9 @@ export class Swell {
  */
 function getCacheKey(key: string, args?: unknown[]): string {
   if (Array.isArray(args) && args.length > 0) {
-    return `${key}_${md5(JSON.stringify(args))}`;
+    const fullKey = `${key}_${md5(JSON.stringify(args))}`;
+    logger.debug(`[SDK] make cache key: ${fullKey}`);
+    return fullKey;
   }
 
   return key;

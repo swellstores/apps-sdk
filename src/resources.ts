@@ -469,7 +469,7 @@ export class SwellStorefrontCollection<
           [
             this._collection,
             this._query,
-            this._swell.queryParams,
+            this._swell.queryParams, // TODO: consider to exlcude
             this._getterHash,
           ],
           getter,
@@ -648,7 +648,7 @@ export class SwellStorefrontRecord<
             this._collection,
             this._id,
             this._query,
-            this._swell.queryParams,
+            this._swell.queryParams, // TODO: consider to exlcude
             this._getterHash,
           ],
           getter,

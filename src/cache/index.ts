@@ -4,6 +4,8 @@ export { ResourceCache } from './resource-cache';
 export { ThemeCache } from './theme-cache';
 export { ThemeFileStorage } from './theme-file-storage';
 export { WorkerCacheProxy } from './worker-cache-proxy';
+export { WorkerHtmlCache } from './worker-html-cache';
+export type { CacheResult } from './worker-html-cache';
 export type {
   ThemeFileStorageInterface,
   PutFilesResult,
