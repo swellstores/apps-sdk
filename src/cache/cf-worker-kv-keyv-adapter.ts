@@ -1,5 +1,6 @@
 import type { KeyvStoreAdapter } from 'keyv';
 import type { CFWorkerKV } from 'types/cloudflare';
+import { logger, createTraceId } from '../utils/logger';
 
 /**
  * CloudFlare Workers KV adapter for Keyv.
@@ -30,10 +31,17 @@ export class CFWorkerKVKeyvAdapter implements KeyvStoreAdapter {
   }
 
   async get<T>(key: string): Promise<T | undefined> {
+    const trace = createTraceId();
+    logger.debug('[SDK] kv.get', { key, trace });
     const value = await this.store.get(key);
     // The adapter stores any value as a string,
     // so `null` means that the `key` does not exist in the KV.
-    return value !== null ? (value as T) : undefined;
+    const result = value !== null ? (value as T) : undefined;
+    logger.debug(`[SDK] kv.get ${value !== null ? 'HIT' : 'MISS'}`, {
+      key,
+      trace,
+    });
+    return result;
   }
 
   set(key: string, value: string, ttl?: number): Promise<void> {
@@ -45,6 +53,7 @@ export class CFWorkerKVKeyvAdapter implements KeyvStoreAdapter {
       ttl = Math.max(60, ttl / 1000);
     }
 
+    logger.debug('[SDK] kv.set', { key });
     return this.store.put(key, value, { expirationTtl: ttl });
   }
 

@@ -12,3 +12,7 @@ export * from './liquid';
 export * from './compatibility/shopify';
 export * from './compatibility/shopify-objects';
 export * from './editor/resources';
+
+export { WorkerHtmlCache } from './cache';
+export type { CacheResult } from './cache';
+export type { PutFilesResult, FileWarning } from './cache';

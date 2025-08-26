@@ -7,7 +7,6 @@ import {
 
 import { CFWorkerKVKeyvAdapter } from './cf-worker-kv-keyv-adapter';
 import { resolveAsyncResources } from '../utils';
-import { logger, createTraceId } from '../utils/logger';
 
 import type { CFWorkerKV, CFWorkerContext } from 'types/cloudflare';
 
@@ -75,8 +74,6 @@ export class Cache {
     ttl: number = DEFAULT_SWR_TTL,
     isCacheble = true,
   ): Promise<T> {
-    const trace = createTraceId();
-    logger.debug('[SDK] Cache fetch start', { key, trace });
     const cacheValue = isCacheble ? await this.client.get(key) : undefined;
 
     // Do not create duplicate requests
@@ -92,7 +89,6 @@ export class Cache {
           const isNull = value === null || value === undefined;
           if (isCacheble) {
             await this.client.set(key, isNull ? NULL_VALUE : value, ttl);
-            logger.debug('[SDK] Cache update done', { key, trace });
           }
           return value as T;
         })
@@ -109,13 +105,10 @@ export class Cache {
     }
 
     if (cacheValue !== undefined) {
-      logger.debug('[SDK] Cache check done', { status: 'HIT', key, trace });
       return cacheValue === NULL_VALUE ? (null as T) : (cacheValue as T);
     }
 
-    logger.debug('[SDK] Cache check done', { status: 'MISS', key, trace });
     const result = await (promise as Promise<T>);
-    logger.debug('[SDK] Cache fetch end', { key, trace });
 
     return result;
   }
