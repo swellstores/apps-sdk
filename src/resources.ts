@@ -279,6 +279,17 @@ export class StorefrontResource<T extends SwellData = SwellData> {
   }
 }
 
+const RESOURCE_CLONE_PROPS = Object.freeze([
+  '_defaultGetter',
+  '_getResourceObject',
+  '_collection',
+  '_swell',
+  '_query',
+  '_params',
+  '_id',
+  '_resourceName',
+]);
+
 /**
  * Clone the resource without compatibility properties.
  *
@@ -291,7 +302,8 @@ export class StorefrontResource<T extends SwellData = SwellData> {
 export function cloneStorefrontResource<T extends SwellData = SwellData>(
   input: StorefrontResource<T>,
 ): StorefrontResource<T> {
-  const resourceName = input._resourceName as string;
+  const resourceName = (input._resourceName ||
+    input.constructor?.name) as string;
 
   // Create a new class with the same name as the input resource
   // Since we determine the resource type by the constructor name
@@ -303,13 +315,13 @@ export function cloneStorefrontResource<T extends SwellData = SwellData>(
   });
 
   const clone = new ClonedClass(input._getter);
-
-  // clone query parameters and result transformation function
-  clone._params = input._params as SwellData;
-
-  Object.defineProperty(clone, '_resourceName', {
-    value: resourceName,
-  });
+  for (const key of RESOURCE_CLONE_PROPS) {
+    if (input[key] !== undefined) {
+      Object.defineProperty(clone, key, {
+        value: input[key],
+      });
+    }
+  }
 
   return clone;
 }
@@ -353,7 +365,7 @@ export class SwellStorefrontResource<
     return super._getProxy() as SwellStorefrontResource<T>;
   }
 
-  getResourceObject(): StorefrontResourceFetcher<T> {
+  _getResourceObject(): StorefrontResourceFetcher<T> {
     const { _swell, _collection } = this;
 
     this._resource = (_swell?.storefront as any)[_collection] as
@@ -437,7 +449,7 @@ export class SwellStorefrontCollection<
   }
 
   _defaultGetter(): StorefrontResourceGetter<SwellCollection<T>> {
-    const resource = this.getResourceObject();
+    const resource = this._getResourceObject();
 
     async function defaultGetter(
       this: SwellStorefrontResource<SwellCollection<T>>,
@@ -617,7 +629,7 @@ export class SwellStorefrontRecord<
   }
 
   _defaultGetter(): StorefrontResourceGetter<T> {
-    const resource = this.getResourceObject();
+    const resource = this._getResourceObject();
 
     async function defaultGetter(this: SwellStorefrontRecord<T>) {
       return resource.get(this._id, this._query);
@@ -700,7 +712,7 @@ export class SwellStorefrontSingleton<
       _swell: { storefrontContext },
     } = this;
 
-    const resource = this.getResourceObject();
+    const resource = this._getResourceObject();
 
     async function defaultGetter(this: SwellStorefrontSingleton<T>) {
       // Try and fetch from context first
