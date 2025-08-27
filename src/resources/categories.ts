@@ -15,7 +15,9 @@ export default class SwellCategories extends SwellStorefrontCollection<SwellCate
         ...query,
       },
       async function () {
-        const categories = await this._defaultGetter().call(this);
+        // Instead of this._defaultGetter().call(this), directly call the resource
+        const resource = this.getResourceObject();
+        const categories = await resource.list(this._query);
 
         if (!categories) {
           return null;

@@ -46,7 +46,9 @@ export default class SwellProduct extends SwellStorefrontRecord<SwellProductType
     const params = swell.queryParams;
 
     super(swell, 'products', id, query, async function () {
-      const result = await this._defaultGetter().call(this);
+      // Instead of this._defaultGetter().call(this), directly call the resource
+      const resource = this.getResourceObject();
+      const result = await resource.get(this._id, this._query) as SwellProductType | null;
 
       // add swell properties to the resolved object
       return transformSwellProduct(params, result);

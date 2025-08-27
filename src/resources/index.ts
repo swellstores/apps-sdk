@@ -16,6 +16,9 @@ import SwellSubscription from './subscription';
 import SwellSubscriptions from './subscriptions';
 import SwellVariant from './variant';
 
+import type { Swell } from '@/api';
+import type { SwellData } from 'types/swell';
+
 export {
   SwellAccount,
   SwellAddresses,
@@ -35,3 +38,46 @@ export {
   SwellSubscriptions,
   SwellVariant,
 };
+
+/**
+ * Factory function to create resource instances with a uniform interface.
+ * This encapsulates the knowledge of different constructor signatures
+ * so that consumers (like proxima) don't need to know about them.
+ */
+export function createSwellResource(
+  ResourceClass: any,
+  swell: Swell,
+  slug?: string,
+  query?: SwellData
+): any {
+  const className = ResourceClass.name;
+  
+  // Handle different resource types based on their class names
+  // This keeps the instantiation logic within apps-sdk
+  
+  // Singletons (no ID parameter)
+  if (className === 'SwellAccount' || className === 'SwellCart') {
+    return new ResourceClass(swell);
+  }
+  
+  // Collections (optional query parameter)
+  if (className === 'SwellCategories' || 
+      className === 'SwellAddresses' || 
+      className === 'SwellOrders' || 
+      className === 'SwellSubscriptions') {
+    return new ResourceClass(swell, query || {});
+  }
+  
+  // Search resources (query string parameter)
+  if (className === 'SwellSearch' || className === 'SwellPredictiveSearch') {
+    return new ResourceClass(swell, slug || query?.q || '');
+  }
+  
+  // Blog resource with optional category
+  if (className === 'SwellBlog' && query?.category_id) {
+    return new ResourceClass(swell, slug || '', query.category_id, query);
+  }
+  
+  // Records (ID and optional query) - default case
+  return new ResourceClass(swell, slug || '', query || {});
+}

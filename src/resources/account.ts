@@ -16,7 +16,9 @@ import SwellSubscriptions from './subscriptions';
 export default class SwellAccount extends SwellStorefrontSingleton<SwellAccountType> {
   constructor(swell: Swell) {
     super(swell, 'account', async function () {
-      const account = await this._defaultGetter().call(this);
+      // Instead of this._defaultGetter().call(this), directly call the resource
+      const resource = this.getResourceObject();
+      const account = await resource.get() as SwellAccountType | null;
 
       if (!account) {
         return null;
