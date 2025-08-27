@@ -5,14 +5,27 @@ const CACHE_NAME = 'swell-html-v1';
 const CACHE_KEY_ORIGIN = 'https://cache.swell.store';
 
 const TTL_CONFIG = {
-  DEFAULT: 300, // 5 minutes
-  DEFAULT_SWR: 3600, // 1 hour stale-while-revalidate
-  HOME: 300, // 5 minutes
-  PRODUCT: 600, // 10 minutes
-  COLLECTION: 900, // 15 minutes
-  PAGE: 3600, // 1 hour
-  BLOG: 1800, // 30 minutes
+  LIVE: {
+    DEFAULT: 300, // 5 minutes
+    HOME: 300, // 5 minutes
+    PRODUCT: 600, // 10 minutes
+    COLLECTION: 900, // 15 minutes
+    PAGE: 3600, // 1 hour
+    BLOG: 1800, // 30 minutes
+    SWR: 3600, // 1 hour stale-while-revalidate
+  },
+  PREVIEW: {
+    DEFAULT: 5, // 1 minute - faster updates in preview
+    HOME: 5, // 1 minute
+    PRODUCT: 5, // 2 minutes
+    COLLECTION: 5, // 3 minutes
+    PAGE: 5, // 5 minutes
+    BLOG: 5, // 5 minutes
+    SWR: 600, // 10 minutes stale-while-revalidate
+  },
 } as const;
+
+type DeploymentMode = 'live' | 'preview' | 'editor';
 
 export interface CacheResult {
   found: boolean;
@@ -20,6 +33,8 @@ export interface CacheResult {
   response?: Response;
   cacheable?: boolean;
   age?: number;
+  notModified?: boolean;
+  conditional304?: Response;
 }
 
 export class WorkerHtmlCache {
@@ -60,7 +75,7 @@ export class WorkerHtmlCache {
         this.getTTLForRequest(request);
       const swr =
         parseInt(cached.headers.get('X-Original-SWR') || '') ||
-        TTL_CONFIG.DEFAULT_SWR;
+        this.getSWRForRequest(request);
 
       const isStale = age >= ttl;
       const isExpired = age >= ttl + swr;
@@ -98,6 +113,84 @@ export class WorkerHtmlCache {
     }
   }
 
+  // 304 support
+  async getWithConditionals(request: Request): Promise<CacheResult | null> {
+    const result = await this.get(request);
+
+    if (!result?.found || result.stale) {
+      return result;
+    }
+
+    // Check conditional headers for 304 response
+    const ifModifiedSince = request.headers.get('If-Modified-Since');
+    const ifNoneMatch = request.headers.get('If-None-Match');
+
+    if ((ifModifiedSince || ifNoneMatch) && result.response) {
+      const lastModified = result.response.headers.get('Last-Modified');
+      const etag = result.response.headers.get('ETag');
+
+      if (
+        this.checkNotModified(ifModifiedSince, ifNoneMatch, lastModified, etag)
+      ) {
+        result.notModified = true;
+        result.conditional304 = new Response(null, {
+          status: 304,
+          headers: {
+            'Last-Modified': lastModified || '',
+            ETag: etag || '',
+            'Cache-Control': result.response.headers.get('Cache-Control') || '',
+            'Cloudflare-CDN-Cache-Control':
+              result.response.headers.get('Cloudflare-CDN-Cache-Control') || '',
+            'X-Cache-Status': 'HIT-304',
+          },
+        });
+      }
+    }
+
+    return result;
+  }
+
+  private checkNotModified(
+    ifModifiedSince: string | null,
+    ifNoneMatch: string | null,
+    lastModified: string | null,
+    etag: string | null,
+  ): boolean {
+    if (ifNoneMatch && etag) {
+      return ifNoneMatch === etag;
+    }
+
+    if (ifModifiedSince && lastModified) {
+      const ifModDate = new Date(ifModifiedSince);
+      const lastModDate = new Date(lastModified);
+      return (
+        !isNaN(ifModDate.getTime()) &&
+        !isNaN(lastModDate.getTime()) &&
+        ifModDate >= lastModDate
+      );
+    }
+
+    return false;
+  }
+
+  createRevalidationRequest(request: Request): Request {
+    const headers = new Headers(request.headers);
+
+    // Signal this is a revalidation to prevent loops
+    headers.set('X-Cache-Bypass', 'revalidation');
+
+    // Remove conditional headers to ensure fresh fetch
+    headers.delete('If-None-Match');
+    headers.delete('If-Modified-Since');
+    headers.delete('Cache-Control');
+    headers.delete('Pragma');
+
+    return new Request(request.url, {
+      method: 'GET',
+      headers,
+    });
+  }
+
   async put(request: Request, response: Response): Promise<void> {
     const trace = createTraceId();
 
@@ -117,8 +210,12 @@ export class WorkerHtmlCache {
       const cache = await caches.open(CACHE_NAME + this.epoch);
       const cacheKey = this.buildCacheKey(request);
 
+      // Delete existing entry first to ensure fresh data is stored
+      // Cache API may not overwrite "fresh" entries otherwise
+      await cache.delete(cacheKey);
+
       const ttl = this.getTTLForRequest(request);
-      const swr = TTL_CONFIG.DEFAULT_SWR;
+      const swr = this.getSWRForRequest(request);
 
       const headers = new Headers(response.headers);
 
@@ -131,9 +228,16 @@ export class WorkerHtmlCache {
       }
 
       // Store metadata for correct client response construction
-      headers.set('X-Cache-Time', new Date().toISOString());
+      const cacheTime = new Date().toISOString();
+      headers.set('X-Cache-Time', cacheTime);
       headers.set('X-Original-TTL', ttl.toString());
       headers.set('X-Original-SWR', swr.toString());
+
+      // Set stable Last-Modified if not already present
+      // This enables efficient 304 responses from Edge CDN
+      if (!headers.get('Last-Modified')) {
+        headers.set('Last-Modified', new Date(cacheTime).toUTCString());
+      }
 
       const cacheableResponse = new Response(response.body, {
         status: response.status,
@@ -148,9 +252,6 @@ export class WorkerHtmlCache {
     }
   }
 
-  /**
-   * Build client response with correct headers
-   */
   private buildClientResponse(
     cachedResponse: Response,
     ttl: number,
@@ -158,14 +259,28 @@ export class WorkerHtmlCache {
     isStale: boolean,
     age: number,
   ): Response {
-    // Create new response with fresh headers
     const headers = new Headers(cachedResponse.headers);
 
-    // Set correct client-facing Cache-Control
+    // Set correct client-facing Cache-Control for browsers
     headers.set(
       'Cache-Control',
       `public, max-age=${ttl}, stale-while-revalidate=${swr}`,
     );
+
+    // Explicitly control Cloudflare's edge cache behavior
+    // This overrides default Origin Cache Control behavior for precise control
+    headers.set(
+      'Cloudflare-CDN-Cache-Control',
+      `public, s-maxage=${ttl}, stale-while-revalidate=${swr}, stale-if-error=60`,
+    );
+
+    // Ensure stable Last-Modified for efficient conditional requests
+    // Use the original cache time as Last-Modified for consistency
+    const cacheTime = headers.get('X-Cache-Time');
+    if (cacheTime) {
+      const lastModified = new Date(cacheTime).toUTCString();
+      headers.set('Last-Modified', lastModified);
+    }
 
     // Add cache status headers
     headers.set('X-Cache-Status', isStale ? 'STALE' : 'HIT');
@@ -174,6 +289,7 @@ export class WorkerHtmlCache {
     // Remove internal metadata headers
     headers.delete('X-Original-TTL');
     headers.delete('X-Original-SWR');
+    headers.delete('X-Cache-Time'); // Don't expose internal cache time
 
     return new Response(cachedResponse.body, {
       status: cachedResponse.status,
@@ -182,9 +298,6 @@ export class WorkerHtmlCache {
     });
   }
 
-  /**
-   * Build cache key from request using two-level structure
-   */
   private buildCacheKey(request: Request): Request {
     const url = new URL(request.url);
 
@@ -199,8 +312,6 @@ export class WorkerHtmlCache {
       keyUrl.search = `?${normalizedQuery}`;
     }
 
-    // Create request with SANITIZED headers for cache matching
-    // This prevents unique per-request headers from breaking cache lookups
     const sanitizedHeaders = this.sanitizeHeaders(request.headers);
     return new Request(keyUrl.toString(), {
       method: 'GET',
@@ -208,25 +319,13 @@ export class WorkerHtmlCache {
     });
   }
 
-  /**
-   * Sanitize headers for cache operations - minimal whitelist approach
-   */
   private sanitizeHeaders(originalHeaders: Headers): Headers {
     // Minimal headers needed for cache behavior
     // Most content variation is already handled by version hash
     const CACHE_RELEVANT_HEADERS = [
       // Content negotiation (affects response format)
       'accept',
-      'accept-encoding',
       'accept-language',
-
-      // Cache control directives from client/proxy
-      'cache-control',
-      'pragma', // Legacy cache control
-
-      // Conditional request headers (for 304 responses)
-      'if-none-match',
-      'if-modified-since',
     ];
 
     const sanitized = new Headers();
@@ -241,9 +340,6 @@ export class WorkerHtmlCache {
     return sanitized;
   }
 
-  /**
-   * Generate version hash from headers and cookies
-   */
   private generateVersionHash(headers: Headers): string {
     const swellData = this.extractSwellData(headers);
 
@@ -252,6 +348,8 @@ export class WorkerHtmlCache {
       auth: headers.get('swell-access-token') || '',
 
       theme: headers.get('swell-theme-version-hash') || '',
+
+      modified: headers.get('swell-cache-modified') || '',
 
       currency: (swellData['swell-currency'] as string) || 'USD',
       locale:
@@ -267,9 +365,6 @@ export class WorkerHtmlCache {
     return md5(JSON.stringify(versionFactors));
   }
 
-  /**
-   * Extract swell-data from cookies
-   */
   private extractSwellData(headers: Headers): Record<string, unknown> {
     const cookie = headers.get('cookie');
     if (!cookie) return {};
@@ -316,6 +411,11 @@ export class WorkerHtmlCache {
       return false;
     }
 
+    // Never cache responses that set cookies as they likely contain user-specific data
+    if (response.headers.get('set-cookie')) {
+      return false;
+    }
+
     const cacheControl = response.headers.get('cache-control');
     if (
       cacheControl?.includes('no-store') ||
@@ -327,31 +427,58 @@ export class WorkerHtmlCache {
     return true;
   }
 
+  private getDeploymentMode(headers: Headers): DeploymentMode {
+    const mode = headers.get('swell-deployment-mode');
+    if (mode === 'preview' || mode === 'editor') {
+      return mode;
+    }
+    return 'live';
+  }
+
   private getTTLForRequest(request: Request): number {
     const url = new URL(request.url);
     const path = url.pathname;
+    const mode = this.getDeploymentMode(request.headers);
+
+    // Editor mode should not cache, but if we get here, use minimal TTL
+    if (mode === 'editor') {
+      return 0;
+    }
+
+    const config = mode === 'preview' ? TTL_CONFIG.PREVIEW : TTL_CONFIG.LIVE;
 
     if (path === '/') {
-      return TTL_CONFIG.HOME;
+      return config.HOME;
     }
 
     if (path.startsWith('/products/')) {
-      return TTL_CONFIG.PRODUCT;
+      return config.PRODUCT;
     }
 
     if (path.startsWith('/categories/')) {
-      return TTL_CONFIG.COLLECTION;
+      return config.COLLECTION;
     }
 
     if (path.startsWith('/pages/')) {
-      return TTL_CONFIG.PAGE;
+      return config.PAGE;
     }
 
     if (path.startsWith('/blogs/')) {
-      return TTL_CONFIG.BLOG;
+      return config.BLOG;
     }
 
-    return TTL_CONFIG.DEFAULT;
+    return config.DEFAULT;
+  }
+
+  private getSWRForRequest(request: Request): number {
+    const mode = this.getDeploymentMode(request.headers);
+
+    // Editor mode should not use SWR
+    if (mode === 'editor') {
+      return 0;
+    }
+
+    return mode === 'preview' ? TTL_CONFIG.PREVIEW.SWR : TTL_CONFIG.LIVE.SWR;
   }
 
   private getResponseAge(response: Response): number {
@@ -369,37 +496,6 @@ export class WorkerHtmlCache {
     return Math.max(0, age);
   }
 
-  private getMaxAge(response: Response): number {
-    const cacheControl = response.headers.get('Cache-Control');
-    if (!cacheControl) {
-      return TTL_CONFIG.DEFAULT;
-    }
-
-    const maxAgeMatch = cacheControl.match(/max-age=(\d+)/);
-    if (maxAgeMatch) {
-      return parseInt(maxAgeMatch[1], 10);
-    }
-
-    return TTL_CONFIG.DEFAULT;
-  }
-
-  private getStaleWindow(response: Response): number {
-    const cacheControl = response.headers.get('Cache-Control');
-    if (!cacheControl) {
-      return TTL_CONFIG.DEFAULT_SWR;
-    }
-
-    const swrMatch = cacheControl.match(/stale-while-revalidate=(\d+)/);
-    if (swrMatch) {
-      return parseInt(swrMatch[1], 10);
-    }
-
-    return TTL_CONFIG.DEFAULT_SWR;
-  }
-
-  /**
-   * Normalize search params for cache key
-   */
   private normalizeSearchParams(searchParams: URLSearchParams): string {
     const ignoredParams = [
       'utm_source',
