@@ -167,7 +167,7 @@ function getProducts<T extends SwellData>(
         ...filterQuery,
       },
       async function () {
-        return this._defaultGetter().call(this);
+        return this._defaultGetter();
       },
     );
 

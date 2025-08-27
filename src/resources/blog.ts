@@ -17,9 +17,7 @@ export default class SwellBlog extends SwellStorefrontRecord<SwellBlogType> {
     super(swell, 'content/blogs', blogId, query, async function () {
       this._query = { ...this._query, expand: 'author' };
 
-      // Instead of this._defaultGetter().call(this), directly call the resource
-      const resource = this.getResourceObject();
-      const blog = await resource.get(this._id, this._query) as SwellBlogType | null;
+      const blog = await this._defaultGetter();
 
       if (!blog) {
         return null;

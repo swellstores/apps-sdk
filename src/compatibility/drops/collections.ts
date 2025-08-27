@@ -106,7 +106,7 @@ export default class Collections extends SwellStorefrontCollection<ShopifyCollec
 
   constructor(instance: ShopifyCompatibility) {
     super(instance.swell, 'categories', {}, async () => {
-      const response = await this._defaultGetter().call(this);
+      const response = await this._defaultGetter();
 
       if (!response) {
         return null;
@@ -174,7 +174,7 @@ class SwellStorefrontProducts extends SwellStorefrontCollection<SwellRecord> {
     ) => SwellCollection<SwellRecord>,
   ) {
     super(instance.swell, 'products', query, async function () {
-      const result = await this._defaultGetter().call(this);
+      const result = await this._defaultGetter();
 
       if (!result) {
         return result;

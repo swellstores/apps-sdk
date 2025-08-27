@@ -409,7 +409,7 @@ export class SwellStorefrontCollection<
     this._query = this._initQuery(query);
 
     if (!getter) {
-      this._setGetter(this._defaultGetter());
+      this._setGetter(this._defaultGetterFunc());
     }
 
     return this._getProxy();
@@ -436,7 +436,12 @@ export class SwellStorefrontCollection<
     return properQuery;
   }
 
-  _defaultGetter(): StorefrontResourceGetter<SwellCollection<T>> {
+  async _defaultGetter(): Promise<SwellCollection<T> | null> {
+    const resource = this.getResourceObject();
+    return resource.list(this._query) as Promise<SwellCollection<T> | null>;
+  }
+  
+  _defaultGetterFunc(): StorefrontResourceGetter<SwellCollection<T>> {
     const resource = this.getResourceObject();
 
     async function defaultGetter(
@@ -606,7 +611,7 @@ export class SwellStorefrontRecord<
     this._params = {};
 
     if (!getter) {
-      this._setGetter(this._defaultGetter());
+      this._setGetter(this._defaultGetterFunc());
     }
 
     return this._getProxy();
@@ -616,7 +621,12 @@ export class SwellStorefrontRecord<
     return super._getProxy() as SwellStorefrontRecord<T>;
   }
 
-  _defaultGetter(): StorefrontResourceGetter<T> {
+  async _defaultGetter(): Promise<T | null> {
+    const resource = this.getResourceObject();
+    return resource.get(this._id, this._query) as Promise<T | null>;
+  }
+  
+  _defaultGetterFunc(): StorefrontResourceGetter<T> {
     const resource = this.getResourceObject();
 
     async function defaultGetter(this: SwellStorefrontRecord<T>) {
@@ -684,7 +694,7 @@ export class SwellStorefrontSingleton<
     super(swell, collection, getter as StorefrontResourceGetter<T>);
 
     if (!getter) {
-      this._setGetter(this._defaultGetter());
+      this._setGetter(this._defaultGetterFunc());
     }
 
     return this._getProxy();
@@ -694,7 +704,24 @@ export class SwellStorefrontSingleton<
     return super._getProxy() as SwellStorefrontSingleton<T>;
   }
 
-  _defaultGetter(): StorefrontResourceGetter<T> {
+  async _defaultGetter(): Promise<T | null> {
+    const {
+      _collection,
+      _swell: { storefrontContext },
+    } = this;
+
+    const resource = this.getResourceObject();
+
+    // Try and fetch from context first
+    if (storefrontContext[_collection] !== undefined) {
+      return storefrontContext[_collection];
+    }
+
+    // Otherwise fetch from source (Storefront API)
+    return resource.get() as Promise<T | null>;
+  }
+  
+  _defaultGetterFunc(): StorefrontResourceGetter<T> {
     const {
       _collection,
       _swell: { storefrontContext },

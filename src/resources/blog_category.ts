@@ -10,9 +10,7 @@ import type {
 export default class SwellBlogCategory extends SwellStorefrontRecord<SwellBlogCategoryType> {
   constructor(swell: Swell, id: string, query?: SwellData) {
     super(swell, 'content/blog-categories', id, query, async function () {
-      // Instead of this._defaultGetter().call(this), directly call the resource
-      const resource = this.getResourceObject();
-      const category = await resource.get(this._id, this._query) as SwellBlogCategoryType | null;
+      const category = await this._defaultGetter();
 
       if (!category) {
         return null;

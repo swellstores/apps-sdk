@@ -64,7 +64,7 @@ export default class Pages extends SwellStorefrontCollection<ShopifyPageObject> 
 
   constructor(instance: ShopifyCompatibility) {
     super(instance.swell, 'content/pages', {}, async () => {
-      const response = await this._defaultGetter().call(this);
+      const response = await this._defaultGetter();
 
       if (!response) {
         return null;
