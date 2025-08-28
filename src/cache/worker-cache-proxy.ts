@@ -5,9 +5,10 @@ import type { Swell } from '@/api';
 import type { SwellData } from '../../types/swell';
 import { MAX_TTL, SHORT_TTL } from './constants';
 import { md5 } from '../utils';
+import { logger } from '../utils/logger';
 
 // Internal constant cache name; isolated within Worker Cache API
-const CACHE_NAME = 'swell-cache-v1';
+const CACHE_NAME = 'swell-cache-v011';
 
 // Stable cache origin; used only to construct a string key (no network request)
 const CACHE_KEY_ORIGIN = 'https://cache.swell.store';
@@ -79,6 +80,7 @@ export class WorkerCacheProxy {
       });
 
       await cache.put(keyUrl, response);
+      logger.debug('[SDK] cache put done', { keyUrl });
     } catch {
       // ignore cache write errors
     }

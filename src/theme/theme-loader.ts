@@ -198,11 +198,10 @@ export class ThemeLoader {
       fields: 'id, name, type, file, file_path, hash', // NO file_data
     };
 
-    // Try to get from cache first
-    try {
-      const cache = new WorkerCacheProxy(this.swell);
-      const versionHash = this.swell.swellHeaders['theme-version-hash'];
+    const cache = new WorkerCacheProxy(this.swell);
+    const versionHash = this.swell.swellHeaders['theme-version-hash'];
 
+    try {
       const cached = await cache.get<SwellThemeConfig[]>(
         '/:themes:configs',
         query,
@@ -229,15 +228,14 @@ export class ThemeLoader {
     const configs = response?.results || [];
 
     // Try to cache for next time
-    try {
-      const cache = new WorkerCacheProxy(this.swell);
-      const versionHash = this.swell.swellHeaders['theme-version-hash'];
+    const ctx = this.swell.workerCtx || (globalThis as any).executionContext;
 
-      await cache.put('/:themes:configs', query, configs, {
-        version: versionHash || null,
-      });
-    } catch (err) {
-      logger.warn('[ThemeLoader] Cache write failed', err);
+    if (ctx && typeof ctx.waitUntil === 'function') {
+      ctx.waitUntil(
+        cache.put('/:themes:configs', query, configs, {
+          version: versionHash || null,
+        }),
+      );
     }
 
     return configs;
