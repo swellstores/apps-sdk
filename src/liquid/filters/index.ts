@@ -13,6 +13,7 @@ import color_saturate from './color_saturate';
 import color_to_hex from './color_to_hex';
 import color_to_hsl from './color_to_hsl';
 import color_to_rgb from './color_to_rgb';
+import date_next_interval from './date_next_interval';
 import date from './date';
 import default_errors from './default_errors';
 import divided_by from './divided_by';
@@ -77,6 +78,7 @@ export const filters = {
   color_to_hex,
   color_to_hsl,
   color_to_rgb,
+  date_next_interval,
   date,
   default_errors,
   divided_by,
