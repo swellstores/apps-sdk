@@ -770,7 +770,7 @@ export interface ShopifyArticle {
 
 export interface ShopifyBlog {
   all_tags: string[];
-  articles: ShopifyArticle[];
+  articles: SwellStorefrontCollection<ShopifyResource<ShopifyArticle>>;
   articles_count: number;
   'comments_enabled?': boolean;
   handle: string;

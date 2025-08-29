@@ -1,4 +1,8 @@
-import { StorefrontResource, cloneStorefrontResource } from '@/resources';
+import {
+  StorefrontResource,
+  SwellStorefrontCollection,
+  cloneStorefrontResource,
+} from '@/resources';
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyArticle from './article';
 
@@ -40,16 +44,34 @@ export default function ShopifyBlog(
   return new ShopifyResource<ShopifyBlog>({
     all_tags: allTags,
     articles: deferWith(blogCategory, (blogCategory: SwellRecord) => {
+      const { page, limit } = instance.swell.queryParams;
+      const categoryBlogs = new SwellStorefrontCollection(
+        instance.swell,
+        'content/blogs',
+        {
+          page,
+          limit,
+          category_id: blogCategory.id,
+          expand: 'author',
+        },
+        async function () {
+          return this._defaultGetter().call(this);
+        },
+      );
+
       return (
-        blogCategory.blogs?._cloneWithCompatibilityResult(
-          (blogs: SwellData) => {
-            return {
-              results: blogs?.results?.map((blog: SwellRecord) =>
-                ShopifyArticle(instance, blog, blogCategory),
+        categoryBlogs._cloneWithCompatibilityResult((blogs) => {
+          return {
+            ...blogs,
+            results: blogs?.results?.map((blog) =>
+              ShopifyArticle(
+                instance,
+                blog as StorefrontResource,
+                blogCategory,
               ),
-            };
-          },
-        ) || []
+            ),
+          };
+        }) || []
       );
     }),
     articles_count: deferWith(blogCategory.blogs, (blogs) => blogs?.count || 0),

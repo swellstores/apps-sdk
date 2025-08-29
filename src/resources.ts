@@ -284,7 +284,6 @@ const RESOURCE_CLONE_PROPS = Object.freeze([
   '_getResourceObject',
   '_collection',
   '_swell',
-  '_query',
   '_params',
   '_id',
   '_resourceName',
