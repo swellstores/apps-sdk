@@ -53,7 +53,7 @@ export class CFWorkerKVKeyvAdapter implements KeyvStoreAdapter {
       ttl = Math.max(60, ttl / 1000);
     }
 
-    logger.debug('[SDK] kv.set', { key });
+    logger.debug('[SDK] kv.set', { key, ttl });
     return this.store.put(key, value, { expirationTtl: ttl });
   }
 

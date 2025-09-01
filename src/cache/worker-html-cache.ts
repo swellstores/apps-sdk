@@ -1,27 +1,28 @@
 import { md5 } from '../utils';
 import { logger, createTraceId } from '../utils/logger';
 
-const CACHE_NAME = 'swell-html-v1';
+const CACHE_NAME = 'swell-html-v0';
 const CACHE_KEY_ORIGIN = 'https://cache.swell.store';
 
+// TTL and SWR settings in seconds
 const TTL_CONFIG = {
   LIVE: {
-    DEFAULT: 300, // 5 minutes
-    HOME: 300, // 5 minutes
-    PRODUCT: 600, // 10 minutes
-    COLLECTION: 900, // 15 minutes
-    PAGE: 3600, // 1 hour
-    BLOG: 1800, // 30 minutes
-    SWR: 3600, // 1 hour stale-while-revalidate
+    DEFAULT: 20,
+    HOME: 20,
+    PRODUCT: 20,
+    COLLECTION: 20,
+    PAGE: 20,
+    BLOG: 20,
+    SWR: 180,
   },
   PREVIEW: {
-    DEFAULT: 5, // 1 minute - faster updates in preview
-    HOME: 5, // 1 minute
-    PRODUCT: 5, // 2 minutes
-    COLLECTION: 5, // 3 minutes
-    PAGE: 5, // 5 minutes
-    BLOG: 5, // 5 minutes
-    SWR: 600, // 10 minutes stale-while-revalidate
+    DEFAULT: 20,
+    HOME: 20,
+    PRODUCT: 20,
+    COLLECTION: 20,
+    PAGE: 20,
+    BLOG: 20,
+    SWR: 180,
   },
 } as const;
 
@@ -210,8 +211,6 @@ export class WorkerHtmlCache {
       const cache = await caches.open(CACHE_NAME + this.epoch);
       const cacheKey = this.buildCacheKey(request);
 
-      // Delete existing entry first to ensure fresh data is stored
-      // Cache API may not overwrite "fresh" entries otherwise
       await cache.delete(cacheKey);
 
       const ttl = this.getTTLForRequest(request);
