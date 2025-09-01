@@ -287,6 +287,7 @@ const RESOURCE_CLONE_PROPS = Object.freeze([
   '_params',
   '_id',
   '_resourceName',
+  '_result',
 ]);
 
 /**
