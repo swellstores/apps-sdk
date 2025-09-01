@@ -11,7 +11,12 @@ import ShopifyImage from './image';
 import ShopifyFilter from './filter';
 
 import type { ShopifyCompatibility } from '../shopify';
-import type { SwellCollection, SwellData, SwellRecord } from 'types/swell';
+import type {
+  SwellCollection,
+  SwellData,
+  SwellRecord,
+  SwellProductQuery,
+} from 'types/swell';
 import type { ShopifyCollection } from 'types/shopify';
 
 export default function ShopifyCollection(
@@ -152,11 +157,18 @@ function getProducts<T extends SwellData>(
 ) {
   return deferWith(object, (object) => {
     const { page, limit } = instance.swell.queryParams;
-    const categoryFilter =
-      object.id && object.id !== 'all' ? object.id : undefined;
-    const productQuery = categoryFilter
-      ? { category: categoryFilter, $variants: true }
-      : { $variants: true };
+    const productQuery: SwellProductQuery = {
+      $variants: true,
+    };
+
+    if (typeof object.id === 'string' && object.id !== 'all') {
+      productQuery.category = object.id;
+    }
+
+    if (object.performed && typeof object.query === 'string') {
+      productQuery.search = object.query;
+    }
+
     const filterQuery = productQueryWithFilters(instance.swell, productQuery);
     const products = new SwellStorefrontCollection(
       instance.swell,
