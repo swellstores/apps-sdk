@@ -1,10 +1,10 @@
 import { FILE_DATA_INCLUDE_QUERY } from '../constants';
 import { logger, createTraceId } from '../utils/logger';
 import { getKVFlavor } from '../utils/kv-flavor';
+import { md5 } from '../utils';
 
 import type { Swell } from '@/api';
-import { ThemeFileStorage } from '../cache';
-import { WorkerCacheProxy } from '../cache/worker-cache-proxy';
+import { ThemeFileStorage, ThemeCache } from '../cache';
 import type { PutFilesResult } from '../cache';
 import type {
   SwellCollection,
@@ -20,6 +20,7 @@ const MAX_INDIVIDUAL_CONFIGS_TO_FETCH = 50;
  * Uses a single batch loading strategy for optimal performance.
  */
 export class ThemeLoader {
+  private static cache: ThemeCache | null = null;
   private swell: Swell;
   private configs: Map<string, SwellThemeConfig>;
 
@@ -190,36 +191,25 @@ export class ThemeLoader {
    * Does NOT include file_data to minimize payload size.
    */
   private async fetchConfigMetadata(): Promise<SwellThemeConfig[]> {
-    // Fetch from API without file_data
     const query = {
       ...this.themeVersionQueryFilter(),
       limit: 1000,
       type: 'theme',
-      fields: 'id, name, type, file, file_path, hash', // NO file_data
+      fields: 'id, name, type, file, file_path, hash',
     };
 
-    const cache = new WorkerCacheProxy(this.swell);
     const versionHash = this.swell.swellHeaders['theme-version-hash'];
+    const cacheKey = this.buildMetadataCacheKey(versionHash, query);
+    const cache = this.getCache();
 
-    try {
-      const cached = await cache.get<SwellThemeConfig[]>(
-        '/:themes:configs',
-        query,
-        {
-          version: versionHash || null,
-        },
-      );
-
-      if (cached) {
-        logger.debug('[ThemeLoader] Config metadata cache hit');
-        return cached;
-      }
-    } catch (err) {
-      logger.warn('[ThemeLoader] Cache read failed, fetching from API', err);
+    // Check cache first - version-based, valid forever for that version
+    const cached = await cache.get<SwellThemeConfig[]>(cacheKey);
+    if (cached) {
+      logger.debug('[ThemeLoader] Config metadata cache hit');
+      return cached;
     }
 
     logger.debug('[ThemeLoader] Fetching config metadata from API');
-
     const response = await this.swell.get<SwellCollection<SwellThemeConfig>>(
       '/:themes:configs',
       query,
@@ -227,16 +217,8 @@ export class ThemeLoader {
 
     const configs = response?.results || [];
 
-    // Try to cache for next time
-    const ctx = this.swell.workerCtx || (globalThis as any).executionContext;
-
-    if (ctx && typeof ctx.waitUntil === 'function') {
-      ctx.waitUntil(
-        cache.put('/:themes:configs', query, configs, {
-          version: versionHash || null,
-        }),
-      );
-    }
+    // Cache for this version
+    await cache.set(cacheKey, configs);
 
     return configs;
   }
@@ -376,5 +358,30 @@ export class ThemeLoader {
           ? true
           : { $ne: true },
     };
+  }
+
+  /**
+   * Build cache key with tenant isolation for metadata
+   */
+  private buildMetadataCacheKey(
+    version: string | undefined,
+    query: Record<string, unknown>,
+  ): string {
+    // Hash all args including instanceId for tenant isolation
+    const args = [this.swell.instanceId, version || 'default', query];
+    return `theme_configs:${md5(JSON.stringify(args))}`;
+  }
+
+  /**
+   * Get or create the theme cache instance
+   */
+  private getCache(): ThemeCache {
+    if (!ThemeLoader.cache) {
+      ThemeLoader.cache = new ThemeCache({
+        kvStore: this.swell.workerEnv?.THEME,
+        workerCtx: this.swell.workerCtx,
+      });
+    }
+    return ThemeLoader.cache;
   }
 }
