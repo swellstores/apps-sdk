@@ -85,6 +85,7 @@ export class SwellTheme {
   public globals: ThemeGlobals;
   public forms?: ThemeFormConfig[];
   public resources?: ThemeResources;
+  public dynamicAssetUrl?: string;
   public liquidSwell: LiquidSwell;
 
   public themeLoader: ThemeLoader;
@@ -111,10 +112,17 @@ export class SwellTheme {
       forms?: ThemeFormConfig[];
       resources?: ThemeResources;
       globals?: ThemeGlobals;
+      dynamic_asset_url?: string;
       shopifyCompatibilityClass?: typeof ShopifyCompatibility;
     } = {},
   ) {
-    const { forms, resources, globals, shopifyCompatibilityClass } = options;
+    const {
+      forms,
+      resources,
+      globals,
+      dynamic_asset_url,
+      shopifyCompatibilityClass,
+    } = options;
 
     this.swell = swell;
     this.props = this.getSwellAppThemeProps(swell.config);
@@ -123,6 +131,7 @@ export class SwellTheme {
     this.globals = globals || ({} as ThemeGlobals);
     this.forms = forms;
     this.resources = resources;
+    this.dynamicAssetUrl = dynamic_asset_url;
     this.shopifyCompatibilityClass =
       shopifyCompatibilityClass || ShopifyCompatibility;
 
@@ -1080,13 +1089,27 @@ export class SwellTheme {
     );
   }
 
+  async getDynamicAssetUrl(filePath: string): Promise<string | null> {
+    if (!this.dynamicAssetUrl) {
+      return null;
+    }
+
+    const assetName = `${filePath}.liquid`;
+    const assetConfig = await this.getAssetConfig(assetName);
+
+    if (!assetConfig) {
+      return null;
+    }
+
+    return `${this.dynamicAssetUrl}${assetName}`;
+  }
+
   async getAssetUrl(filePath: string): Promise<string | null> {
     const assetConfig = await this.getAssetConfig(filePath);
-
     const file = assetConfig?.file;
 
     if (!file) {
-      return null;
+      return this.getDynamicAssetUrl(filePath);
     }
 
     const fileUrl: string | null = file.url || null;
