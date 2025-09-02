@@ -36,11 +36,11 @@ export default function ShopifySearch(
         ShopifyFilter(instance, filter),
       );
     }),
-    performed: defer(() => search.performed),
+    performed: deferWith(search, (search) => search.performed),
     results: defer(async () => (await resolveProducts())?.results ?? []),
     results_count: defer(async () => (await resolveProducts())?.count || 0),
     sort_by: defer(() => search.sort),
-    sort_options: defer(() => search.sort_options),
+    sort_options: deferWith(search, (search) => search.sort_options),
     terms: defer(() => search.query),
     types: ['product'],
   });

@@ -185,6 +185,12 @@ export interface SwellProductFilter {
   inactive_options?: SwellProductFilterOption[];
 }
 
+export interface SwellProductQuery {
+  $variants: boolean;
+  category?: string;
+  search?: string;
+}
+
 export interface SwellErrorOptions {
   status?: number;
   method?: string;
