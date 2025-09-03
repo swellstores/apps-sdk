@@ -13,6 +13,6 @@ export * from './compatibility/shopify';
 export * from './compatibility/shopify-objects';
 export * from './editor/resources';
 
-export { WorkerHtmlCache } from './cache';
-export type { CacheResult } from './cache';
+export * from './cache/html-cache';
+
 export type { PutFilesResult, FileWarning } from './cache';

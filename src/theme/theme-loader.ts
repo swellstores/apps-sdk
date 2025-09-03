@@ -4,7 +4,7 @@ import { getKVFlavor } from '../utils/kv-flavor';
 import { md5 } from '../utils';
 
 import type { Swell } from '@/api';
-import { ThemeFileStorage, ThemeCache } from '../cache';
+import { ThemeFileCache, ThemeCache } from '../cache';
 import type { PutFilesResult } from '../cache';
 import type {
   SwellCollection,
@@ -122,7 +122,7 @@ export class ThemeLoader {
       trace,
     });
 
-    const storage = new ThemeFileStorage(this.swell.workerEnv, flavor);
+    const storage = new ThemeFileCache(this.swell.workerEnv, flavor);
     const result = await storage.putFiles(configs);
 
     // Log summary with appropriate level based on results
@@ -169,7 +169,7 @@ export class ThemeLoader {
 
     // Step 2: Batch hydrate file_data from KV
     const flavor = getKVFlavor(this.swell.workerEnv);
-    const storage = new ThemeFileStorage(this.swell.workerEnv, flavor);
+    const storage = new ThemeFileCache(this.swell.workerEnv, flavor);
     const kvHydrated = await storage.getFiles(configMetadata);
 
     // Step 3: Ensure all configs have data (fetch missing from API if needed)

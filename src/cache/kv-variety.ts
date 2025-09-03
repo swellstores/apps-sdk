@@ -1,9 +1,6 @@
 // ABOUTME: Minimal KV wrapper for CF, Miniflare, and Memory implementations
 // Handles only the environment differences without retry logic or complexity
 
-import bluebird from 'bluebird';
-const { Promise } = bluebird;
-
 import type { CFWorkerKV, CFThemeEnv } from '../../types/cloudflare';
 
 export interface ClientKV {
@@ -66,14 +63,12 @@ class MiniflareKV implements ClientKV {
 
     const result = new Map<string, string | null>();
 
-    // High concurrency for local development
-    await Promise.map(
-      keys,
-      async (key) => {
+    // Execute all KV operations in parallel - workerd handles queueing
+    await Promise.all(
+      keys.map(async (key) => {
         const value = await this.kv.get(key, 'text');
         result.set(key, value);
-      },
-      { concurrency: 50 },
+      }),
     );
 
     return result;
