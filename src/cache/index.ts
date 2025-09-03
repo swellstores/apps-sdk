@@ -2,13 +2,11 @@ export { Cache } from './cache';
 export { RequestCache } from './request-cache';
 export { ResourceCache } from './resource-cache';
 export { ThemeCache } from './theme-cache';
-export { ThemeFileStorage } from './theme-file-storage';
-export { WorkerCacheProxy } from './worker-cache-proxy';
-export { WorkerHtmlCache } from './worker-html-cache';
-export type { CacheResult } from './worker-html-cache';
+export { ThemeFileCache } from './theme-file-cache';
+
 export type {
-  ThemeFileStorageInterface,
+  ThemeFileCacheInterface,
   PutFilesResult,
   FileWarning,
-} from './theme-file-storage';
+} from './theme-file-cache';
 export type { KVFlavor } from './kv-variety';

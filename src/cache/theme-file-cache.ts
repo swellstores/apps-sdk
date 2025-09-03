@@ -1,9 +1,3 @@
-// ABOUTME: Theme file storage abstraction layer for efficient KV operations
-// Handles batching, size validation, and environment-specific optimizations
-
-import bluebird from 'bluebird';
-const { Promise } = bluebird;
-
 import type { SwellThemeConfig } from '../../types/swell';
 import type { CFThemeEnv } from '../../types/cloudflare';
 import type { ClientKV, KVFlavor } from './kv-variety';
@@ -13,7 +7,7 @@ import { logger, createTraceId } from '../utils/logger';
 /**
  * Main interface for theme file storage operations
  */
-export interface ThemeFileStorageInterface {
+export interface ThemeFileCacheInterface {
   /**
    * Load files for given configs, intelligently batching to avoid 413 errors
    * Returns new configs with file_data populated
@@ -70,17 +64,12 @@ interface ConfigBatch {
  * Theme file storage implementation
  * Manages efficient batch operations for theme files in KV storage
  */
-export class ThemeFileStorage implements ThemeFileStorageInterface {
+export class ThemeFileCache implements ThemeFileCacheInterface {
   private kv: ClientKV;
-  private maxConcurrency: number;
   private maxBatchSize: number = 20 * 1024 * 1024; // 20MB safety margin
 
   constructor(env?: CFThemeEnv, flavor: KVFlavor = 'cf') {
     this.kv = createClientKV(env, flavor);
-
-    // Set concurrency based on environment
-    // Miniflare can handle more concurrent operations in local development
-    this.maxConcurrency = flavor === 'miniflare' ? 50 : 6;
   }
 
   /**
@@ -211,11 +200,9 @@ export class ThemeFileStorage implements ThemeFileStorageInterface {
       trace,
     });
 
-    // Execute batches with appropriate concurrency
-    const results = await Promise.map(
-      batches,
-      (batch) => this.loadBatch(batch),
-      { concurrency: Math.min(this.maxConcurrency, batches.length) },
+    // Execute batches in parallel - runtime handles queueing
+    const results = await Promise.all(
+      batches.map((batch) => this.loadBatch(batch)),
     );
 
     // Merge results and return new configs with file_data
@@ -307,10 +294,8 @@ export class ThemeFileStorage implements ThemeFileStorageInterface {
     const batches = this.planGetBatches(configs);
 
     // Check existence using planned batches
-    const results = await Promise.map(
-      batches,
-      (batch) => this.kv.get(batch.keys),
-      { concurrency: this.maxConcurrency },
+    const results = await Promise.all(
+      batches.map((batch) => this.kv.get(batch.keys)),
     );
 
     // Mark existing files
@@ -400,19 +385,17 @@ export class ThemeFileStorage implements ThemeFileStorageInterface {
         trace,
       });
 
-      // Write only new files with appropriate concurrency
-      await Promise.map(
-        toWrite,
-        async (config) => {
+      // Write only new files - runtime handles queueing
+      await Promise.all(
+        toWrite.map(async (config) => {
           const key = this.buildKey(config.hash);
           const metadata = config.file?.content_type
             ? { content_type: config.file.content_type }
             : undefined;
 
-          await this.kv.put(key, config.file_data, metadata);
+          await this.kv.put(key, config.file_data, { metadata });
           result.written++;
-        },
-        { concurrency: this.maxConcurrency },
+        }),
       );
     }
 
