@@ -14,9 +14,9 @@ const CACHE_KEY_ORIGIN = 'https://cache.swell.store';
  */
 export interface PathRule {
   path: string;
-  ttl?: number;    // Time-to-live in seconds
-  swr?: number;    // Stale-while-revalidate in seconds
-  skip?: boolean;  // If true, skip caching for this path
+  ttl?: number; // Time-to-live in seconds
+  swr?: number; // Stale-while-revalidate in seconds
+  skip?: boolean; // If true, skip caching for this path
 }
 
 export interface CacheRules {
@@ -32,9 +32,7 @@ export const DEFAULT_CACHE_RULES: CacheRules = {
     live: { ttl: 20, swr: 60 * 60 * 24 * 7 }, // 20s TTL, 1 week SWR
     preview: { ttl: 10, swr: 60 * 60 * 24 * 7 }, // 10s TTL, 1 week SWR
   },
-  pathRules: [
-    { path: '/checkout/*', skip: true }
-  ]
+  pathRules: [{ path: '/checkout/*', skip: true }],
 };
 
 type DeploymentMode = 'live' | 'preview';
@@ -60,7 +58,11 @@ export class HtmlCache {
   protected backend: CacheBackend;
   protected cacheRules: CacheRules;
 
-  constructor(epoch: string, backend: CacheBackend, cacheRules: CacheRules = DEFAULT_CACHE_RULES) {
+  constructor(
+    epoch: string,
+    backend: CacheBackend,
+    cacheRules: CacheRules = DEFAULT_CACHE_RULES,
+  ) {
     this.epoch = epoch;
     this.backend = backend;
     this.cacheRules = cacheRules;
@@ -167,6 +169,17 @@ export class HtmlCache {
       const swr = this.getSWRForRequest(request);
       // Don't clone here - the response passed in is already dedicated for caching
       const body = await response.text();
+
+      if (!body || body.trim().length === 0) {
+        logger.warn(
+          '[SDK Html-cache] put skipped, empty or minimal response body',
+          {
+            trace,
+            bodyLength: body.length,
+          },
+        );
+        return;
+      }
       const cacheTimeISO = new Date().toISOString();
 
       const headers = this.normalizeHeaders(response.headers);
@@ -214,15 +227,20 @@ export class HtmlCache {
 
   public canReadFromCache(request: Request): boolean {
     const method = request.method.toUpperCase();
-    return (method === 'GET' || method === 'HEAD') && this.isRequestCacheable(request);
+    return (
+      (method === 'GET' || method === 'HEAD') &&
+      this.isRequestCacheable(request)
+    );
   }
 
   public canWriteToCache(request: Request, response: Response): boolean {
     const method = request.method.toUpperCase();
-    return method === 'GET' && 
-           response.ok &&
-           this.isRequestCacheable(request) && 
-           this.isResponseCacheable(response);
+    return (
+      method === 'GET' &&
+      response.ok &&
+      this.isRequestCacheable(request) &&
+      this.isResponseCacheable(response)
+    );
   }
 
   public createRevalidationRequest(request: Request): Request {
@@ -246,12 +264,7 @@ export class HtmlCache {
   ): Response {
     const headers = new Headers(entry.headers);
 
-    /*headers.set(
-      'Cache-Control',
-      `public, max-age=${entry.ttl}, stale-while-revalidate=${entry.swr}`,
-    );*/ // otherwise browser may instantly show stale content while cart has changed
-
-    headers.set('Cache-Control', 'public, max-age=0, must-revalidate');
+    headers.set('Cache-Control', 'public, max-age=1, must-revalidate');
     headers.set(
       'Cloudflare-CDN-Cache-Control',
       `public, s-maxage=${entry.ttl}, stale-while-revalidate=${entry.swr}, stale-if-error=60`,
@@ -372,7 +385,10 @@ export class HtmlCache {
 
     const versionFactors = {
       store: headers.get('swell-storefront-id') || '',
-      app: (headers.get('swell-app-id') || '') + '@' + (swellData['swell-app-version'] || ''),
+      app:
+        (headers.get('swell-app-id') || '') +
+        '@' +
+        (swellData['swell-app-version'] || ''),
       auth: headers.get('swell-access-token') || '',
       theme: headers.get('swell-theme-version-hash') || '',
       modified: headers.get('swell-cache-modified') || '',
@@ -408,7 +424,7 @@ export class HtmlCache {
   protected isRequestCacheable(request: Request): boolean {
     const url = new URL(request.url);
     if (request.headers.get('swell-deployment-mode') === 'editor') return false;
-    
+
     // Check path rules for skip directives (first match wins)
     if (this.cacheRules.pathRules) {
       for (const rule of this.cacheRules.pathRules) {
@@ -417,7 +433,7 @@ export class HtmlCache {
         }
       }
     }
-    
+
     if (request.headers.get('cache-control')?.includes('no-cache'))
       return false;
     return true;
@@ -442,16 +458,19 @@ export class HtmlCache {
   protected getTTLForRequest(request: Request): number {
     const url = new URL(request.url);
     const mode = this.getDeploymentMode(request.headers);
-    
+
     // Check path rules first (first match wins)
     if (this.cacheRules.pathRules) {
       for (const rule of this.cacheRules.pathRules) {
-        if (this.pathMatches(rule.path, url.pathname) && rule.ttl !== undefined) {
+        if (
+          this.pathMatches(rule.path, url.pathname) &&
+          rule.ttl !== undefined
+        ) {
           return rule.ttl;
         }
       }
     }
-    
+
     // Fall back to defaults
     const defaults = this.cacheRules.defaults?.[mode];
     return defaults?.ttl ?? DEFAULT_CACHE_RULES.defaults![mode]!.ttl;
@@ -460,16 +479,19 @@ export class HtmlCache {
   protected getSWRForRequest(request: Request): number {
     const url = new URL(request.url);
     const mode = this.getDeploymentMode(request.headers);
-    
+
     // Check path rules first (first match wins)
     if (this.cacheRules.pathRules) {
       for (const rule of this.cacheRules.pathRules) {
-        if (this.pathMatches(rule.path, url.pathname) && rule.swr !== undefined) {
+        if (
+          this.pathMatches(rule.path, url.pathname) &&
+          rule.swr !== undefined
+        ) {
           return rule.swr;
         }
       }
     }
-    
+
     // Fall back to defaults
     const defaults = this.cacheRules.defaults?.[mode];
     return defaults?.swr ?? DEFAULT_CACHE_RULES.defaults![mode]!.swr;
@@ -490,10 +512,10 @@ export class HtmlCache {
   protected pathMatches(pattern: string, path: string): boolean {
     // Escape special regex chars except * and /
     const regex = pattern
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special chars
-      .replace(/\*\*/g, '___DOUBLE_STAR___')    // Temporarily replace **
-      .replace(/\*/g, '[^/]*')                   // * matches anything except /
-      .replace(/___DOUBLE_STAR___/g, '.*');      // ** matches anything
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special chars
+      .replace(/\*\*/g, '___DOUBLE_STAR___') // Temporarily replace **
+      .replace(/\*/g, '[^/]*') // * matches anything except /
+      .replace(/___DOUBLE_STAR___/g, '.*'); // ** matches anything
     return new RegExp(`^${regex}$`).test(path);
   }
 

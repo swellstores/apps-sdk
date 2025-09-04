@@ -74,8 +74,6 @@ export class WorkerCacheBackend implements CacheBackend {
       headers,
     });
 
-    // Optional: delete first for cleanliness (not required)
-    await cache.delete(request);
     await cache.put(request, response);
   }
 
