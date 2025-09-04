@@ -69,21 +69,22 @@ describe('SwellSingletonResource', () => {
           () => ({}),
         ),
 
-        theme.fetchSingletonResourceCached<StorefrontResource | null>(
-          'account',
-          () => theme.fetchAccount(),
-          () => null,
-        ),
+        theme.fetchAccount(),
       ]);
 
       // correct resources should be fetched
       const { calls } = fetchMock.mock;
       expect(calls).toHaveLength(2);
-      const cartCall = calls[0] as string[];
+      // fetch order is undefined
+      const firstCall = calls[0] as string[];
+      const secondCall = calls[1] as string[];
+      const isFirstCartCall =
+        firstCall[0] === 'test/resources/CartResource.json/?query=%7B%7D';
+      const cartCall = isFirstCartCall ? firstCall : secondCall;
+      const accountCall = isFirstCartCall ? secondCall : firstCall;
       expect(cartCall[0]).toEqual(
         'test/resources/CartResource.json/?query=%7B%7D',
       );
-      const accountCall = calls[1] as string[];
       expect(accountCall[0]).toEqual(
         'test/resources/AccountResource.json/?query=%7B%7D',
       );

@@ -451,12 +451,7 @@ export class SwellTheme {
         () => this.fetchCart(),
       ),
 
-      this.fetchSingletonResourceCached<StorefrontResource | null>(
-        'account',
-        () => this.fetchAccount(),
-        () => null,
-        false,
-      ),
+      this.fetchAccount(),
     ]);
 
     if (!cart) {
