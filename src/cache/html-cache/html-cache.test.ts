@@ -92,7 +92,7 @@ describe('HtmlCache (backend agnostic)', () => {
 
     const h = hit.response.headers;
     expect(h.get('Cache-Control')).toBe(
-      'public, max-age=0, must-revalidate',
+      'public, max-age=1, must-revalidate',
     );
     expect(h.get('Cloudflare-CDN-Cache-Control')).toBe(
       'public, s-maxage=20, stale-while-revalidate=604800, stale-if-error=60',
