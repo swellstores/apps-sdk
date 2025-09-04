@@ -196,6 +196,13 @@ export class Swell {
   }
 
   /**
+   * Checks if cache bypass is requested via X-Cache-Bypass header
+   */
+  private shouldBypassCache(): boolean {
+    return this.headers?.['x-cache-bypass'] === 'revalidation';
+  }
+
+  /**
    * Fetches a resource.
    * First attempts to fetch from cache.
    */
@@ -206,12 +213,14 @@ export class Swell {
     isCacheble = true,
   ): Promise<T | undefined> {
     const cacheKey = getCacheKey(key, [this.instanceId, args]);
-    return this.getResourceCache().fetchSWR<T>(
-      cacheKey,
-      handler,
-      undefined,
-      isCacheble,
-    );
+    const cache = this.getResourceCache();
+    
+    // Use fetch for cache bypass, fetchSWR for normal operation
+    if (this.shouldBypassCache()) {
+      return cache.fetch<T>(cacheKey, handler, undefined, isCacheble);
+    } else {
+      return cache.fetchSWR<T>(cacheKey, handler, undefined, isCacheble);
+    }
   }
 
   async getAppSettings(): Promise<SwellData> {
@@ -438,11 +447,19 @@ export class Swell {
           data,
           opt,
         ]);
-        return this.getRequestCache().fetchSWR<T>(key, () => {
+        const cache = this.getRequestCache();
+        const fetchFn = () => {
           const requestUrl = id ? `${url}/${id}` : url;
           logger.debug('[SDK] Cacheable API request', { url: requestUrl, key });
           return storefrontRequest<T>(method, url, id, data, opt);
-        });
+        };
+        
+        // Use fetch for cache bypass, fetchSWR for normal operation
+        if (this.shouldBypassCache()) {
+          return cache.fetch<T>(key, fetchFn);
+        } else {
+          return cache.fetchSWR<T>(key, fetchFn);
+        }
       }
 
       // clear storefront context if we mutate it
