@@ -3,90 +3,137 @@ import { Keyv } from 'keyv';
 import { Cache } from './cache';
 
 describe('Cache', () => {
-  let counter = 0;
-  function fetchFn() {
-    // increment the counter for each fetch from source
-    counter += 1;
-    return Promise.resolve(counter);
-  }
-
-  beforeEach(() => {
-    counter = 0;
-  });
 
   describe('#fetch', () => {
-    it('fetches a cache entry', async () => {
+    it('always fetches fresh data ignoring cache', async () => {
       const cache = new Cache();
+      let fetchCount = 0;
+      const trackingFn = () => {
+        fetchCount++;
+        return `fetch-${fetchCount}`;
+      };
 
-      let result = await cache.fetch('foo', fetchFn);
-      expect(result).toEqual(1); // fetch from source
+      // Pre-populate cache with stale data
+      await cache.set('test-key', 'stale-cached-value');
+      
+      // Verify cache has the stale value
+      expect(await cache.get('test-key')).toEqual('stale-cached-value');
 
-      result = await cache.fetch('foo', fetchFn);
-      expect(result).toEqual(1); // fetch from cache
+      // Fetch should ignore cache and call the function
+      const result = await cache.fetch('test-key', trackingFn);
+      expect(result).toEqual('fetch-1');
+      expect(fetchCount).toEqual(1);
+      
+      // Verify cache was updated with fresh value
+      expect(await cache.get('test-key')).toEqual('fetch-1');
 
-      result = await cache.fetch('bar', fetchFn);
-      expect(result).toEqual(2); // fetch from source
-
-      result = await cache.fetch('bar', fetchFn);
-      expect(result).toEqual(2); // fetch from cache
+      // Another fetch should call the function again (not use cache)
+      const result2 = await cache.fetch('test-key', trackingFn);
+      expect(result2).toEqual('fetch-2');
+      expect(fetchCount).toEqual(2);
     });
 
-    it('fetches a null cache entry', async () => {
-      const fn = () => {
-        counter += 1;
+    it('updates cache after fetching for future get/fetchSWR calls', async () => {
+      const cache = new Cache();
+      let callCount = 0;
+      const incrementFn = () => {
+        callCount++;
+        return `value-${callCount}`;
+      };
+
+      // Fetch fresh data
+      const fetchResult = await cache.fetch('key', incrementFn);
+      expect(fetchResult).toEqual('value-1');
+      expect(callCount).toEqual(1);
+
+      // Direct cache get should return the fresh value
+      const cachedValue = await cache.get('key');
+      expect(cachedValue).toEqual('value-1');
+
+      // fetchSWR should return cached value immediately
+      // (it may refresh in background, but returns cache first)
+      const swrResult = await cache.fetchSWR('key', incrementFn);
+      expect(swrResult).toEqual('value-1');
+      
+      // Note: fetchSWR may trigger background refresh, so we don't check callCount here
+      // The important thing is it returned the cached value
+    });
+
+    it('deduplicates concurrent requests with same key', async () => {
+      const cache = new Cache();
+      let executionCount = 0;
+      const slowFn = async () => {
+        executionCount++;
+        const currentCount = executionCount;
+        await new Promise(resolve => setTimeout(resolve, 20));
+        return `execution-${currentCount}`;
+      };
+
+      // Make 5 concurrent requests with same key
+      const promises = Array(5).fill(null).map(() => 
+        cache.fetch('same-key', slowFn)
+      );
+      
+      const results = await Promise.all(promises);
+      
+      // All should return the same value from single execution
+      results.forEach(result => {
+        expect(result).toEqual('execution-1');
+      });
+      
+      // Function should have been called only once
+      expect(executionCount).toEqual(1);
+    });
+
+
+    it('respects isCacheable=false parameter', async () => {
+      const cache = new Cache();
+      const fetchValue = () => 'test-value';
+
+      // Fetch with isCacheable=false
+      const result = await cache.fetch('no-cache-key', fetchValue, undefined, false);
+      expect(result).toEqual('test-value');
+
+      // Cache should remain empty
+      const cached = await cache.get('no-cache-key');
+      expect(cached).toBeUndefined();
+
+      // Now fetch with isCacheable=true (default)
+      await cache.fetch('cache-key', fetchValue);
+      
+      // This one should be cached
+      const cached2 = await cache.get('cache-key');
+      expect(cached2).toEqual('test-value');
+    });
+
+    it('handles null and undefined values correctly', async () => {
+      const cache = new Cache();
+      
+      // Test null value
+      const returnNull = () => null;
+      const nullResult = await cache.fetch('null-key', returnNull);
+      expect(nullResult).toBeNull();
+      
+      // fetch should update cache, fetchSWR should return the cached null
+      let callCount = 0;
+      const countingNull = () => {
+        callCount++;
         return null;
       };
-
-      const cache = new Cache();
-
-      let result = await cache.fetch('foo', fn);
-      expect(result).toEqual(null); // fetch from source
-      expect(counter).toEqual(1);
-
-      result = await cache.fetch('foo', fn);
-      expect(result).toEqual(null); // fetch from cache
-      expect(counter).toEqual(1);
-    });
-
-    it('does not cache an undefined result', async () => {
-      const fn = () => {
-        counter += 1;
-        return undefined;
-      };
-
-      const cache = new Cache();
-
-      let result = await cache.fetch('foo', fn);
-      expect(result).toBeUndefined(); // fetch from source
-      expect(counter).toEqual(1);
-
-      result = await cache.fetch('foo', fn);
-      expect(result).toBeUndefined(); // fetch from source
-      expect(counter).toEqual(2);
-    });
-
-    it('expires cache after TTL', async () => {
-      const cache = new Cache({
-        ttl: 100, // ms
-      });
-
-      let result = await cache.fetch('foo', fetchFn);
-      expect(counter).toEqual(1); // fetch from source
-
-      result = await cache.fetch('foo', fetchFn);
-      expect(result).toEqual(1); // fetch from cache
-
-      // wait for expiry
-      await new Promise((resolve, reject) => {
-        try {
-          setTimeout(resolve, 101);
-        } catch (err) {
-          reject(err instanceof Error ? err : new Error(String(err)));
-        }
-      });
-
-      result = await cache.fetch('foo', fetchFn);
-      expect(result).toEqual(2); // fetch from source
+      
+      await cache.fetch('null-test', countingNull);
+      expect(callCount).toEqual(1);
+      
+      // fetchSWR should use cached value (even though it's null)
+      const cachedNull = await cache.fetchSWR('null-test', countingNull);
+      expect(cachedNull).toBeNull();
+      // The function might be called again due to SWR background refresh
+      // but the important thing is it returned null immediately
+      
+      // Test undefined value  
+      const returnUndefined = () => undefined;
+      const undefResult = await cache.fetch('undef-key', returnUndefined);
+      expect(undefResult).toBeUndefined();
     });
   }); // describe: #fetch
 
@@ -158,38 +205,36 @@ describe('Cache', () => {
     it('flushes an individual cache entry', async () => {
       const cache = new Cache();
 
-      let result = await cache.fetch('foo', fetchFn);
-      expect(result).toEqual(1); // fetch from source
+      // Set cache entries
+      await cache.set('foo', 'value1');
+      await cache.set('bar', 'value2');
 
-      result = await cache.fetch('bar', fetchFn);
-      expect(result).toEqual(2); // fetch from source
+      // Verify both are cached
+      expect(await cache.get('foo')).toEqual('value1');
+      expect(await cache.get('bar')).toEqual('value2');
 
+      // Flush only 'foo'
       await cache.flush('foo');
 
-      result = await cache.fetch('foo', fetchFn);
-      expect(result).toEqual(3); // fetch from source
-
-      result = await cache.fetch('bar', fetchFn);
-      expect(result).toEqual(2); // still cached
+      // Verify 'foo' is gone but 'bar' remains
+      expect(await cache.get('foo')).toBeUndefined();
+      expect(await cache.get('bar')).toEqual('value2');
     });
 
     it('flushes the entry within the namespace', async () => {
       const cache1 = new Cache();
       const cache2 = new Cache();
 
-      let result = await cache1.fetch('foo', fetchFn);
-      expect(result).toEqual(1); // fetch from source
+      // Set same key in both caches
+      await cache1.set('foo', 'cache1-value');
+      await cache2.set('foo', 'cache2-value');
 
-      result = await cache2.fetch('foo', fetchFn);
-      expect(result).toEqual(2); // fetch from source
-
+      // Flush from cache1
       await cache1.flush('foo');
 
-      result = await cache1.fetch('foo', fetchFn);
-      expect(result).toEqual(3); // fetch from source
-
-      result = await cache2.fetch('foo', fetchFn);
-      expect(result).toEqual(2); // still cached
+      // Verify cache1 entry is gone but cache2 remains
+      expect(await cache1.get('foo')).toBeUndefined();
+      expect(await cache2.get('foo')).toEqual('cache2-value');
     });
 
     describe('when shared cache is namespaced', () => {
@@ -232,23 +277,23 @@ describe('Cache', () => {
       const cacheA = new Cache();
       const cacheB = new Cache();
 
-      let result1 = await cacheA.fetch('a1', fetchFn);
-      let result2 = await cacheA.fetch('a2', fetchFn);
-      let result3 = await cacheB.fetch('b1', fetchFn);
+      // Set cache entries
+      await cacheA.set('a1', 'value1');
+      await cacheA.set('a2', 'value2');
+      await cacheB.set('b1', 'value3');
 
-      expect(result1).toEqual(1); // fetch from source
-      expect(result2).toEqual(2); // fetch from source
-      expect(result3).toEqual(3); // fetch from source
+      // Verify all are cached
+      expect(await cacheA.get('a1')).toEqual('value1');
+      expect(await cacheA.get('a2')).toEqual('value2');
+      expect(await cacheB.get('b1')).toEqual('value3');
 
+      // Flush all from cacheA
       await cacheA.flushAll();
 
-      result1 = await cacheA.fetch('a1', fetchFn);
-      result2 = await cacheA.fetch('a2', fetchFn);
-      result3 = await cacheB.fetch('b1', fetchFn);
-
-      expect(result1).toEqual(4); // fetch from source
-      expect(result2).toEqual(5); // fetch from source
-      expect(result3).toEqual(3); // still cached
+      // Verify cacheA entries are gone but cacheB remains
+      expect(await cacheA.get('a1')).toBeUndefined();
+      expect(await cacheA.get('a2')).toBeUndefined();
+      expect(await cacheB.get('b1')).toEqual('value3');
     });
 
     describe('when shared cache is namespaced', () => {

@@ -32,6 +32,7 @@ const DEFAULT_OPTIONS: CreateCacheOptions = Object.freeze({
 const NULL_VALUE = '__NULL__';
 
 const SWR_PROMISE_MAP = new Map<string, Promise<unknown>>();
+const FETCH_PROMISE_MAP = new Map<string, Promise<unknown>>();
 
 /**
  * Cache supports memory or KV
@@ -55,12 +56,44 @@ export class Cache {
     });
   }
 
+  /**
+   * Always fetches fresh data and updates cache
+   * Deduplicates concurrent requests with the same key
+   * 
+   * @param key Cache key
+   * @param fetchFn Function to fetch fresh data
+   * @param ttl Time to live in milliseconds (default: DEFAULT_SWR_TTL)
+   * @param isCacheable Whether to store result in cache (default: true)
+   */
   async fetch<T>(
     key: string,
     fetchFn: () => T | Promise<T>,
-    ttl?: number,
+    ttl: number = DEFAULT_SWR_TTL,
+    isCacheable = true,
   ): Promise<T> {
-    return this.client.wrap(key, fetchFn, ttl);
+    // Check for concurrent request deduplication
+    let promise = FETCH_PROMISE_MAP.get(key) as Promise<T> | undefined;
+    
+    if (!promise) {
+      promise = Promise.resolve()
+        .then(fetchFn)
+        .then(resolveAsyncResources)
+        .then(async (value) => {
+          // Store null values as NULL_VALUE to differentiate between unset keys and actual null values
+          const isNull = value === null || value === undefined;
+          if (isCacheable) {
+            await this.client.set(key, isNull ? NULL_VALUE : value, ttl);
+          }
+          return value as T;
+        })
+        .finally(() => {
+          FETCH_PROMISE_MAP.delete(key);
+        });
+      
+      FETCH_PROMISE_MAP.set(key, promise);
+    }
+    
+    return await promise;
   }
 
   /**
