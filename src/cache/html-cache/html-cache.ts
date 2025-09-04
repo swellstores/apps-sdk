@@ -4,29 +4,40 @@ import type { CacheBackend, CachedEntry } from './html-cache-backend';
 
 const CACHE_KEY_ORIGIN = 'https://cache.swell.store';
 
-// TTL and SWR settings in seconds
-const TTL_CONFIG = {
-  LIVE: {
-    DEFAULT: 20,
-    HOME: 20,
-    PRODUCT: 20,
-    COLLECTION: 20,
-    PAGE: 20,
-    BLOG: 20,
-    SWR: 60 * 60 * 24 * 7, // 1 week
-  },
-  PREVIEW: {
-    DEFAULT: 10,
-    HOME: 10,
-    PRODUCT: 10,
-    COLLECTION: 10,
-    PAGE: 10,
-    BLOG: 10,
-    SWR: 60 * 60 * 24 * 7, // 1 week
-  },
-} as const;
+/**
+ * Configuration for path-specific cache behavior.
+ * Paths support wildcards:
+ *   - * matches any characters except /
+ *   - ** matches any characters including /
+ * Examples: '/account/*', '/api/**', '*.json'
+ * First matching rule wins.
+ */
+export interface PathRule {
+  path: string;
+  ttl?: number;    // Time-to-live in seconds
+  swr?: number;    // Stale-while-revalidate in seconds
+  skip?: boolean;  // If true, skip caching for this path
+}
 
-type DeploymentMode = 'live' | 'preview' | 'editor';
+export interface CacheRules {
+  defaults?: {
+    live?: { ttl: number; swr: number };
+    preview?: { ttl: number; swr: number };
+  };
+  pathRules?: PathRule[];
+}
+
+export const DEFAULT_CACHE_RULES: CacheRules = {
+  defaults: {
+    live: { ttl: 20, swr: 60 * 60 * 24 * 7 }, // 20s TTL, 1 week SWR
+    preview: { ttl: 10, swr: 60 * 60 * 24 * 7 }, // 10s TTL, 1 week SWR
+  },
+  pathRules: [
+    { path: '/checkout/*', skip: true }
+  ]
+};
+
+type DeploymentMode = 'live' | 'preview';
 
 export interface CacheResult {
   found: boolean;
@@ -47,21 +58,18 @@ export interface CacheResult {
 export class HtmlCache {
   protected epoch: string;
   protected backend: CacheBackend;
+  protected cacheRules: CacheRules;
 
-  constructor(epoch: string, backend: CacheBackend) {
+  constructor(epoch: string, backend: CacheBackend, cacheRules: CacheRules = DEFAULT_CACHE_RULES) {
     this.epoch = epoch;
     this.backend = backend;
+    this.cacheRules = cacheRules;
   }
 
   async get(request: Request): Promise<CacheResult | null> {
     const trace = createTraceId();
 
-    if (request.method !== 'GET') {
-      logger.debug('[SDK Html-cache] non-cacheable method', { trace });
-      return { found: false, cacheable: false };
-    }
-
-    if (!this.isCacheable(request)) {
+    if (!this.canReadFromCache(request)) {
       logger.debug('[SDK Html-cache] non-cacheable request', { trace });
       return { found: false, cacheable: false };
     }
@@ -148,14 +156,7 @@ export class HtmlCache {
   async put(request: Request, response: Response): Promise<void> {
     const trace = createTraceId();
 
-    if (request.method !== 'GET' || !response.ok) {
-      logger.debug('[SDK Html-cache] put skipped, invalid method or response', {
-        trace,
-      });
-      return;
-    }
-
-    if (!this.isCacheable(request) || !this.isResponseCacheable(response)) {
+    if (!this.canWriteToCache(request, response)) {
       logger.debug('[SDK Html-cache] put skipped, non-cacheable', { trace });
       return;
     }
@@ -168,15 +169,7 @@ export class HtmlCache {
       const body = await response.text();
       const cacheTimeISO = new Date().toISOString();
 
-      function lowercaseHeaders(headers: Headers): Record<string, string> {
-        const out: Record<string, string> = {};
-        headers.forEach((value, key) => {
-          out[key.toLowerCase()] = value;
-        });
-        return out;
-      }
-
-      const headers = lowercaseHeaders(response.headers);
+      const headers = this.normalizeHeaders(response.headers);
 
       const entry: CachedEntry = {
         status: response.status,
@@ -219,15 +212,17 @@ export class HtmlCache {
     }
   }
 
-  public isReadCacheCandidate(request: Request): boolean {
-    const m = request.method.toUpperCase();
-    return (m === 'GET' || m === 'HEAD') && this.isCacheable(request);
+  public canReadFromCache(request: Request): boolean {
+    const method = request.method.toUpperCase();
+    return (method === 'GET' || method === 'HEAD') && this.isRequestCacheable(request);
   }
 
-  public isWriteCacheCandidate(request: Request, response: Response): boolean {
-    if (request.method.toUpperCase() !== 'GET') return false;
-    if (!this.isCacheable(request)) return false;
-    return this.isResponseCacheable(response);
+  public canWriteToCache(request: Request, response: Response): boolean {
+    const method = request.method.toUpperCase();
+    return method === 'GET' && 
+           response.ok &&
+           this.isRequestCacheable(request) && 
+           this.isResponseCacheable(response);
   }
 
   public createRevalidationRequest(request: Request): Request {
@@ -377,6 +372,7 @@ export class HtmlCache {
 
     const versionFactors = {
       store: headers.get('swell-storefront-id') || '',
+      app: (headers.get('swell-app-id') || '') + '@' + (swellData['swell-app-version'] || ''),
       auth: headers.get('swell-access-token') || '',
       theme: headers.get('swell-theme-version-hash') || '',
       modified: headers.get('swell-cache-modified') || '',
@@ -409,11 +405,19 @@ export class HtmlCache {
     }
   }
 
-  protected isCacheable(request: Request): boolean {
+  protected isRequestCacheable(request: Request): boolean {
     const url = new URL(request.url);
     if (request.headers.get('swell-deployment-mode') === 'editor') return false;
-    const skipPaths = ['/checkout'];
-    if (skipPaths.some((path) => url.pathname.startsWith(path))) return false;
+    
+    // Check path rules for skip directives (first match wins)
+    if (this.cacheRules.pathRules) {
+      for (const rule of this.cacheRules.pathRules) {
+        if (this.pathMatches(rule.path, url.pathname) && rule.skip) {
+          return false;
+        }
+      }
+    }
+    
     if (request.headers.get('cache-control')?.includes('no-cache'))
       return false;
     return true;
@@ -431,26 +435,44 @@ export class HtmlCache {
 
   protected getDeploymentMode(headers: Headers): DeploymentMode {
     const mode = headers.get('swell-deployment-mode');
-    return mode === 'preview' || mode === 'editor' ? mode : 'live';
+    // Editor mode is never cacheable, so we treat it as live for defaults
+    return mode === 'preview' ? 'preview' : 'live';
   }
 
   protected getTTLForRequest(request: Request): number {
     const url = new URL(request.url);
     const mode = this.getDeploymentMode(request.headers);
-    if (mode === 'editor') return 0;
-    const config = mode === 'preview' ? TTL_CONFIG.PREVIEW : TTL_CONFIG.LIVE;
-    if (url.pathname === '/') return config.HOME;
-    if (url.pathname.startsWith('/products/')) return config.PRODUCT;
-    if (url.pathname.startsWith('/categories/')) return config.COLLECTION;
-    if (url.pathname.startsWith('/pages/')) return config.PAGE;
-    if (url.pathname.startsWith('/blogs/')) return config.BLOG;
-    return config.DEFAULT;
+    
+    // Check path rules first (first match wins)
+    if (this.cacheRules.pathRules) {
+      for (const rule of this.cacheRules.pathRules) {
+        if (this.pathMatches(rule.path, url.pathname) && rule.ttl !== undefined) {
+          return rule.ttl;
+        }
+      }
+    }
+    
+    // Fall back to defaults
+    const defaults = this.cacheRules.defaults?.[mode];
+    return defaults?.ttl ?? DEFAULT_CACHE_RULES.defaults![mode]!.ttl;
   }
 
   protected getSWRForRequest(request: Request): number {
+    const url = new URL(request.url);
     const mode = this.getDeploymentMode(request.headers);
-    if (mode === 'editor') return 0;
-    return mode === 'preview' ? TTL_CONFIG.PREVIEW.SWR : TTL_CONFIG.LIVE.SWR;
+    
+    // Check path rules first (first match wins)
+    if (this.cacheRules.pathRules) {
+      for (const rule of this.cacheRules.pathRules) {
+        if (this.pathMatches(rule.path, url.pathname) && rule.swr !== undefined) {
+          return rule.swr;
+        }
+      }
+    }
+    
+    // Fall back to defaults
+    const defaults = this.cacheRules.defaults?.[mode];
+    return defaults?.swr ?? DEFAULT_CACHE_RULES.defaults![mode]!.swr;
   }
 
   protected getEntryAge(entry: CachedEntry): number {
@@ -458,6 +480,29 @@ export class HtmlCache {
     if (Number.isNaN(t)) return Infinity;
     const age = (Date.now() - t) / 1000;
     return age < 0 ? 0 : age;
+  }
+
+  /**
+   * Converts wildcard pattern to regex and tests against path.
+   * - * matches any characters except /
+   * - ** matches any characters including /
+   */
+  protected pathMatches(pattern: string, path: string): boolean {
+    // Escape special regex chars except * and /
+    const regex = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special chars
+      .replace(/\*\*/g, '___DOUBLE_STAR___')    // Temporarily replace **
+      .replace(/\*/g, '[^/]*')                   // * matches anything except /
+      .replace(/___DOUBLE_STAR___/g, '.*');      // ** matches anything
+    return new RegExp(`^${regex}$`).test(path);
+  }
+
+  protected normalizeHeaders(headers: Headers): Record<string, string> {
+    const normalized: Record<string, string> = {};
+    headers.forEach((value, key) => {
+      normalized[key.toLowerCase()] = value;
+    });
+    return normalized;
   }
 
   protected normalizeSearchParams(searchParams: URLSearchParams): string {
