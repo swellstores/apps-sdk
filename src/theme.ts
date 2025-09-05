@@ -112,7 +112,7 @@ export class SwellTheme {
       forms?: ThemeFormConfig[];
       resources?: ThemeResources;
       globals?: ThemeGlobals;
-      dynamic_asset_url?: string;
+      dynamicAssetUrl?: string;
       shopifyCompatibilityClass?: typeof ShopifyCompatibility;
     } = {},
   ) {
@@ -120,7 +120,7 @@ export class SwellTheme {
       forms,
       resources,
       globals,
-      dynamic_asset_url,
+      dynamicAssetUrl,
       shopifyCompatibilityClass,
     } = options;
 
@@ -131,7 +131,7 @@ export class SwellTheme {
     this.globals = globals || ({} as ThemeGlobals);
     this.forms = forms;
     this.resources = resources;
-    this.dynamicAssetUrl = dynamic_asset_url;
+    this.dynamicAssetUrl = dynamicAssetUrl;
     this.shopifyCompatibilityClass =
       shopifyCompatibilityClass || ShopifyCompatibility;
 
@@ -1099,6 +1099,11 @@ export class SwellTheme {
 
     if (!assetConfig) {
       return null;
+    }
+
+    // Make sure asset url is followed by a slash
+    if (!this.dynamicAssetUrl.endsWith('/')) {
+      this.dynamicAssetUrl += '/';
     }
 
     return `${this.dynamicAssetUrl}${assetName}`;

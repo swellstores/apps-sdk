@@ -16,10 +16,10 @@ export const FILE_DATA_INCLUDE_QUERY: SwellData = {
         { content_type: { $regex: '^image/svg' } },
       ],
     },
-    // Do not return assets unless they end with .liquid.[ext] or css/js/svg
+    // Do not return assets unless they end with .liquid or css/js/svg
     $or: [
       { file_path: { $regex: '^(?!theme/assets/)' } },
-      { file_path: { $regex: '.liquid.[a-zA-Z0-9]+$' } },
+      { file_path: { $regex: '.liquid$' } },
       { file_path: { $regex: '.(css|js|svg)$' } },
     ],
   },
