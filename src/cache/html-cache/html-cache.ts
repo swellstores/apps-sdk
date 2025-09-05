@@ -386,9 +386,7 @@ export class HtmlCache {
     const versionFactors = {
       store: headers.get('swell-storefront-id') || '',
       app:
-        (headers.get('swell-app-id') || '') +
-        '@' +
-        (swellData['swell-app-version'] || ''),
+        (headers.get('swell-app-id') || '') + '@' + (headers.get('host') || ''),
       auth: headers.get('swell-access-token') || '',
       theme: headers.get('swell-theme-version-hash') || '',
       modified: headers.get('swell-cache-modified') || '',
