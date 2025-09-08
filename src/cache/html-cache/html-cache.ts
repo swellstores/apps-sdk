@@ -381,7 +381,6 @@ export class HtmlCache {
   protected generateVersionHash(headers: Headers): string {
     const swellData = this.extractSwellData(headers);
     const acceptLang = headers.get('accept-language') || '';
-    const accept = headers.get('accept') || '';
 
     const versionFactors = {
       store: headers.get('swell-storefront-id') || '',
@@ -396,9 +395,9 @@ export class HtmlCache {
         acceptLang.split(',')[0].trim().toLowerCase() ||
         'default',
       context: headers.get('swell-storefront-context'),
-      accept,
       epoch: this.epoch,
     };
+
     return md5(JSON.stringify(versionFactors));
   }
 

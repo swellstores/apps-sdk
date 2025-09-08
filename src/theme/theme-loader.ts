@@ -163,19 +163,24 @@ export class ThemeLoader {
       return;
     }
 
+    // Step 2: Filter to only configs eligible for file_data
+    const eligibleConfigs = this.filterConfigsForDataInclusion(configMetadata);
+
     logger.debug('[ThemeLoader] Loading configs', {
       total: configMetadata.length,
+      eligible: eligibleConfigs.length,
+      filtered: configMetadata.length - eligibleConfigs.length,
     });
 
-    // Step 2: Batch hydrate file_data from KV
+    // Step 3: Batch hydrate file_data from KV (only for eligible configs)
     const flavor = getKVFlavor(this.swell.workerEnv);
     const storage = new ThemeFileCache(this.swell.workerEnv, flavor);
-    const kvHydrated = await storage.getFiles(configMetadata);
+    const kvHydrated = await storage.getFiles(eligibleConfigs);
 
-    // Step 3: Ensure all configs have data (fetch missing from API if needed)
+    // Step 4: Ensure all eligible configs have data (fetch missing from API if needed)
     const completeConfigs = await this.ensureConfigsHaveData(kvHydrated);
 
-    // Step 4: Store in memory for fast access
+    // Step 5: Store in memory for fast access
     for (const config of completeConfigs) {
       this.configs.set(config.file_path, config);
     }
@@ -358,6 +363,39 @@ export class ThemeLoader {
           ? true
           : { $ne: true },
     };
+  }
+
+  /**
+   * Check if a config should have file_data based on FILE_DATA_INCLUDE_QUERY rules.
+   * This mirrors the server-side logic to avoid fetching data for configs that won't have it.
+   */
+  private shouldIncludeFileData(config: SwellThemeConfig): boolean {
+    const { file_path, file } = config;
+
+    // File path conditions - must match at least one
+    const pathConditionMet =
+      !/^theme\/assets\//.test(file_path) || // NOT in theme/assets/
+      /\.liquid$/.test(file_path) || // ends with .liquid
+      /\.(css|js|svg)$/.test(file_path); // ends with .css/.js/.svg
+
+    // Content type conditions - must match at least one
+    const contentTypeMet =
+      (!file.content_type?.startsWith('image') &&
+        !file.content_type?.startsWith('video')) || // NOT image AND NOT video
+      file.content_type?.startsWith('image/svg'); // OR is SVG
+
+    // Both conditions must be satisfied
+    return pathConditionMet && contentTypeMet;
+  }
+
+  /**
+   * Filter configs to only those eligible for file_data.
+   * Aligns with FILE_DATA_INCLUDE_QUERY server-side logic.
+   */
+  private filterConfigsForDataInclusion(
+    configs: SwellThemeConfig[],
+  ): SwellThemeConfig[] {
+    return configs.filter((config) => this.shouldIncludeFileData(config));
   }
 
   /**
