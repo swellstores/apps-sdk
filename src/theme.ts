@@ -352,26 +352,11 @@ export class SwellTheme {
     account: SwellStorefrontSingleton | null;
     customer?: SwellStorefrontSingleton | null;
   }> {
-    const configVersion = String(
-      this.swell.swellHeaders['theme-config-version'],
-    );
+    if (configs.editor?.settings) {
+      fillDefaultThemeSettings(configs.theme, configs.editor?.settings);
+    }
 
-    // Cache normalized theme settings.
-    const settings = await this.swell.getCachedResource<ThemeSettings>(
-      `theme-settings-resolved:v@${configVersion}`,
-      [],
-      () => {
-        if (configs.editor?.settings) {
-          fillDefaultThemeSettings(configs.theme, configs.editor?.settings);
-        }
-
-        return resolveThemeSettings(
-          this,
-          configs.theme,
-          configs.editor?.settings,
-        );
-      },
-    );
+    const settings = resolveThemeSettings(this, configs.theme, configs.editor?.settings);
 
     if (!settings) {
       throw new Error('Failed to resolve theme settings');
