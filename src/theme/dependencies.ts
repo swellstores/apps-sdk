@@ -1,20 +1,19 @@
-// ABOUTME: Collects per-route collection dependencies from theme configs
-// ABOUTME: Inspects page templates and section schemas without fetching page data
+// Collects per-route collection dependencies from theme configs
+// Inspects page templates and section schemas without fetching page data
 
 import JSON5 from 'json5';
 
 import type { SwellTheme } from '../theme';
 import type {
-  ThemeBlockSchema,
   ThemePageTemplateConfig,
   ThemeSectionConfig,
   ThemeSectionGroup,
-  ThemeSectionSchema,
-  ThemeSettingFieldSchema,
-  ThemeLayoutSectionGroupConfig,
 } from 'types/swell';
-import { StorefrontResource, getStorefrontResourceCollection } from '../resources';
-
+import type { SwellAppStorefrontThemePage } from 'types/swell';
+import {
+  StorefrontResource,
+  getStorefrontResourceCollection,
+} from '../resources';
 
 /**
  * Returns a sorted list of collections that a given page depends on.
@@ -31,10 +30,10 @@ export async function getPageDependencies(
     await theme.initGlobals(pageId || 'index');
   }
 
-  const pages = Array.isArray(theme.props.pages) ? theme.props.pages : [];
-  const page = pages.find((p: any) => p.id === pageId) as
-    | { id: string; url?: string; collection?: string; record?: string }
-    | undefined;
+  const pages: SwellAppStorefrontThemePage[] = Array.isArray(theme.props.pages)
+    ? theme.props.pages
+    : [];
+  const page = pages.find((p) => p.id === pageId);
 
   const deps = new Set<string>();
 
@@ -52,12 +51,12 @@ export async function getPageDependencies(
     const group = parseSectionGroup(config.file_data);
     if (group) {
       const sections = await theme.getPageSections(group, true);
-      await collectFromSections(theme, sections, deps);
+      collectFromSections(sections, deps);
     }
   } else if (pageId === 'index') {
     try {
       const sections = await theme.getShopify1HomePageSections(true);
-      await collectFromSections(theme, sections, deps);
+      collectFromSections(sections, deps);
     } catch {
       // ignore
     }
@@ -68,7 +67,10 @@ export async function getPageDependencies(
     try {
       // Resolve page layout groups and compute a stable cache key by sources
       const pageGroups = await theme.getPageSectionGroups(pageId);
-      const sources = pageGroups.map((g) => g.source).filter(Boolean).sort();
+      const sources = pageGroups
+        .map((g) => g.source)
+        .filter(Boolean)
+        .sort();
       const cacheKey = JSON.stringify(sources);
 
       const themeCache = getLayoutDepsCache(theme);
@@ -76,11 +78,15 @@ export async function getPageDependencies(
       if (cached) {
         for (const c of cached) deps.add(c);
       } else {
-        const layoutGroups = await theme.getLayoutSectionGroups(pageGroups, true);
+        const layoutGroups = await theme.getLayoutSectionGroups(
+          pageGroups,
+          true,
+        );
         const layoutDeps = new Set<string>();
-        for (const group of layoutGroups as ThemeLayoutSectionGroupConfig[]) {
+        for (const group of layoutGroups) {
           for (const section of group.sectionConfigs) {
-            const settings = (section.settings?.section?.settings || {}) as Record<string, unknown>;
+            const settings = (section.settings?.section?.settings ||
+              {}) as Record<string, unknown>;
             scanResolvedValuesForCollections(settings, layoutDeps);
             const blocks = section.settings?.section?.blocks || [];
             for (const block of blocks) {
@@ -258,13 +264,15 @@ function parseSectionGroup(fileData?: string | null): ThemeSectionGroup | null {
   return null;
 }
 
-async function collectFromSections(
-  theme: SwellTheme,
+function collectFromSections(
   sections: ThemeSectionConfig[],
   deps: Set<string>,
-): Promise<void> {
+): void {
   for (const section of sections) {
-    const settings = (section.settings?.section?.settings || {}) as Record<string, unknown>;
+    const settings = (section.settings?.section?.settings || {}) as Record<
+      string,
+      unknown
+    >;
     collectCollectionsFromResolvedValues(settings, deps);
 
     const blocks = section.settings?.section?.blocks || [];
@@ -275,13 +283,6 @@ async function collectFromSections(
       );
     }
   }
-}
-
-function isEmptyValue(value: unknown): boolean {
-  if (value === null || value === undefined) return true;
-  if (typeof value === 'string') return value.trim() === '';
-  if (Array.isArray(value)) return value.length === 0;
-  return false;
 }
 
 function collectCollectionsFromResolvedValues(
