@@ -1545,15 +1545,21 @@ ${content.slice(pos)}`;
     const promises: Promise<void>[] = [];
 
     for (const key of fields) {
-      if (typeof data[key] === 'string') {
-        promises.push(
-          this.renderTemplateString(data[key], data).then((value) => {
-            if (data) {
-              data[key] = value;
-            }
+      const promise =
+        typeof data[key] === 'string'
+          ? this.renderTemplateString(data[key], data)
+          : Promise.resolve();
+
+      promises.push(
+        promise
+          .then((value: string | void) => {
+            // fallback to globals value that can be string or RenderDrop
+            return value ? value : (this.globals[key] as Promise<string>);
+          })
+          .then((value: string) => {
+            data[key] = value;
           }),
-        );
-      }
+      );
     }
 
     if (promises.length > 0) {
