@@ -5,6 +5,7 @@ export * from './easyblocks';
 export * from './menus';
 export * from './resources';
 export * from './theme';
+export * from './theme/dependencies';
 export * from './fonts';
 export * from './utils';
 

@@ -598,6 +598,14 @@ export class SwellStorefrontCollection<
   }
 }
 
+// Public helper to access a resource's collection without relying on private fields
+export function getStorefrontResourceCollection(
+  resource: StorefrontResource,
+): string | undefined {
+  const col = (resource as any)?._collection;
+  return typeof col === 'string' ? col : undefined;
+}
+
 export class SwellStorefrontRecord<
   T extends SwellData = SwellRecord,
 > extends SwellStorefrontResource<T> {
