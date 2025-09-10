@@ -1,5 +1,5 @@
-// Collects per-route collection dependencies from theme configs
-// Inspects page templates and section schemas without fetching page data
+// Route dependency resolution utilities for theme templates
+// Provides collection dependency detection without fetching data
 
 import JSON5 from 'json5';
 
@@ -9,11 +9,46 @@ import type {
   ThemeSectionConfig,
   ThemeSectionGroup,
 } from 'types/swell';
-import type { SwellAppStorefrontThemePage } from 'types/swell';
+import type {
+  SwellAppStorefrontThemePage,
+  SwellThemeConfig,
+} from 'types/swell';
 import {
   StorefrontResource,
   getStorefrontResourceCollection,
 } from '../resources';
+
+// Cache of type->collection maps per theme instance
+const __typeCollectionMapCache = new WeakMap<SwellTheme, Map<string, string>>();
+
+// Builds a type→collection map with stable aliases.
+// Precedence with mapping helpers:
+// 1) Direct resource keys (handled in mapRecordToCollection/mapPotentialFromToCollection)
+// 2) template_collections inversion (type → collection)
+//    - also include the collection key itself and its last path segment as aliases
+function getTypeToCollectionMap(theme: SwellTheme): Map<string, string> {
+  let map = __typeCollectionMapCache.get(theme);
+  if (map) return map;
+
+  map = new Map<string, string>();
+
+  const templateCollections = theme.props?.template_collections || {};
+  for (const [collection, templateId] of Object.entries(templateCollections)) {
+    // templateId example: "products/product" -> typeName "product"
+    const typeName = String(templateId).split('/').pop()?.trim().toLowerCase();
+    if (typeName) {
+      map.set(typeName, collection);
+    }
+    // Add stable aliases to avoid brittle heuristics
+    const colKey = String(collection).toLowerCase();
+    map.set(colKey, collection); // allow direct collection key lookup
+    const colBase = colKey.split('/').pop();
+    if (colBase) map.set(colBase, collection); // allow using last segment (e.g., pages, blogs)
+  }
+
+  __typeCollectionMapCache.set(theme, map);
+  return map;
+}
 
 /**
  * Returns a sorted list of collections that a given page depends on.
@@ -48,10 +83,15 @@ export async function getPageDependencies(
   const config = await resolveTemplateConfig(theme, pageId);
 
   if (config?.file_path?.endsWith('.json')) {
-    const group = parseSectionGroup(config.file_data);
-    if (group) {
-      const sections = await theme.getPageSections(group, true);
-      collectFromSections(sections, deps);
+    // Enumerate all template variants for this page base and union dependencies
+    const basePath = getPageBasePath(theme, pageId);
+    const variants = await listTemplateVariantConfigs(theme, basePath);
+    for (const v of variants) {
+      const group = parseSectionGroup(v.file_data);
+      if (group) {
+        const sections = await theme.getPageSections(group, true);
+        collectFromSections(sections, deps);
+      }
     }
   } else if (pageId === 'index') {
     try {
@@ -65,41 +105,49 @@ export async function getPageDependencies(
   // Optionally include layout/global section groups (header, footer, etc.)
   if (options?.includeLayout) {
     try {
-      // Resolve page layout groups and compute a stable cache key by sources
-      const pageGroups = await theme.getPageSectionGroups(pageId);
-      const sources = pageGroups
-        .map((g) => g.source)
-        .filter(Boolean)
-        .sort();
-      const cacheKey = JSON.stringify(sources);
+      // Enumerate template variants and union layout/global section dependencies
+      const basePath = getPageBasePath(theme, pageId);
+      const variants = await listTemplateVariantConfigs(theme, basePath);
 
-      const themeCache = getLayoutDepsCache(theme);
-      const cached = themeCache.get(cacheKey);
-      if (cached) {
-        for (const c of cached) deps.add(c);
-      } else {
-        const layoutGroups = await theme.getLayoutSectionGroups(
-          pageGroups,
-          true,
-        );
-        const layoutDeps = new Set<string>();
-        for (const group of layoutGroups) {
-          for (const section of group.sectionConfigs) {
-            const settings = (section.settings?.section?.settings ||
-              {}) as Record<string, unknown>;
-            scanResolvedValuesForCollections(settings, layoutDeps);
-            const blocks = section.settings?.section?.blocks || [];
-            for (const block of blocks) {
-              scanResolvedValuesForCollections(
-                (block?.settings || {}) as Record<string, unknown>,
-                layoutDeps,
-              );
+      for (const v of variants) {
+        const alt = getAltTemplateSuffix(basePath, v.file_path);
+
+        // Resolve page layout groups for the specific variant and compute a stable cache key by sources
+        const pageGroups = await theme.getPageSectionGroups(pageId, alt);
+        const sources = pageGroups
+          .map((g) => g.source)
+          .filter(Boolean)
+          .sort();
+        const cacheKey = JSON.stringify([v.file_path, ...sources]);
+
+        const themeCache = getLayoutDepsCache(theme);
+        const cached = themeCache.get(cacheKey);
+        if (cached) {
+          for (const c of cached) deps.add(c);
+        } else {
+          const layoutGroups = await theme.getLayoutSectionGroups(
+            pageGroups,
+            true,
+          );
+          const layoutDeps = new Set<string>();
+          for (const group of layoutGroups) {
+            for (const section of group.sectionConfigs) {
+              const settings = (section.settings?.section?.settings ||
+                {}) as Record<string, unknown>;
+              scanResolvedValuesForCollections(settings, layoutDeps);
+              const blocks = section.settings?.section?.blocks || [];
+              for (const block of blocks) {
+                scanResolvedValuesForCollections(
+                  (block?.settings || {}) as Record<string, unknown>,
+                  layoutDeps,
+                );
+              }
             }
           }
+          const list = Array.from(layoutDeps).sort();
+          themeCache.set(cacheKey, list);
+          for (const c of list) deps.add(c);
         }
-        const list = Array.from(layoutDeps).sort();
-        themeCache.set(cacheKey, list);
-        for (const c of list) deps.add(c);
       }
     } catch {
       // noop
@@ -127,27 +175,11 @@ function mapRecordToCollection(
   record: string,
 ): string | null {
   const rec = String(record).toLowerCase();
-  const available = new Set<string>(
-    Object.keys((theme.resources?.records as Record<string, unknown>) || {}),
-  );
+  const resources = (theme.resources?.records || {}) as Record<string, unknown>;
+  if (rec in resources) return rec;
 
-  const candidates = getCollectionCandidatesForKey(rec);
-  if (candidates) {
-    for (const c of candidates) {
-      if (available.has(c)) return c;
-    }
-  }
-
-  const plural = rec.endsWith('s') ? rec : `${rec}s`;
-  if (available.has(plural)) return plural;
-
-  // Probe common content/* namespaces for custom models
-  const contentCandidates = [`content/${rec}`, `content/${plural}`];
-  for (const c of contentCandidates) {
-    if (available.has(c)) return c;
-  }
-
-  return null;
+  const map = getTypeToCollectionMap(theme);
+  return map.get(rec) || null;
 }
 
 function mapPotentialFromToCollection(
@@ -155,20 +187,12 @@ function mapPotentialFromToCollection(
   pageType: string,
   from: string,
 ): string | null {
-  const available = new Set<string>(
-    Object.keys((theme.resources?.records as Record<string, unknown>) || {}),
-  );
-
   const key = String(from).toLowerCase();
+  const resources = (theme.resources?.records || {}) as Record<string, unknown>;
+  if (key in resources) return key;
 
-  const candidates = getCollectionCandidatesForKey(key);
-  if (candidates) {
-    for (const c of candidates) {
-      if (available.has(c)) return c;
-    }
-  }
-
-  return null;
+  const map = getTypeToCollectionMap(theme);
+  return map.get(key) || null;
 }
 
 // Helper: resolve a page template config using the same path as renderer
@@ -193,6 +217,73 @@ export async function resolveTemplateConfig(
   return fallback;
 }
 
+// Variant enumeration helpers
+const __templateVariantCache = new WeakMap<
+  SwellTheme,
+  Map<string, SwellThemeConfig[]>
+>();
+
+// Resolves the base template path for a given pageId, respecting Shopify compatibility mapping.
+function getPageBasePath(theme: SwellTheme, pageId: string): string {
+  const raw = theme.getPageConfigPath(pageId) || '';
+  return raw.replace(/\.json$/i, '');
+}
+
+// Lists the JSON template config variants for a base template path.
+// Includes the base file and any `${base}.*.json` variants.
+async function listTemplateVariantConfigs(
+  theme: SwellTheme,
+  basePath: string,
+): Promise<SwellThemeConfig[]> {
+  // Keep async signature and satisfy lint rule while relying on sync access
+  await Promise.resolve();
+
+  let cache = __templateVariantCache.get(theme);
+  if (!cache) {
+    cache = new Map<string, SwellThemeConfig[]>();
+    __templateVariantCache.set(theme, cache);
+  }
+
+  const cached = cache.get(basePath);
+  if (cached) return cached;
+
+  const configs = theme.getThemeConfigsByPath('theme/templates/', '.json');
+
+  const variants: SwellThemeConfig[] = [];
+  const base = basePath.endsWith('.json') ? basePath.slice(0, -5) : basePath;
+  const exact = `${base}.json`;
+  const dotPrefix = `${base}.`;
+
+  for (const cfg of configs.values()) {
+    const fp = cfg.file_path;
+    if (fp === exact || (fp.startsWith(dotPrefix) && fp.endsWith('.json'))) {
+      variants.push(cfg);
+    }
+  }
+
+  // Sort for stability
+  variants.sort((a, b) =>
+    a.file_path < b.file_path ? -1 : a.file_path > b.file_path ? 1 : 0,
+  );
+
+  cache.set(basePath, variants);
+  return variants;
+}
+
+// Computes the altTemplate suffix from a variant file path.
+function getAltTemplateSuffix(
+  basePath: string,
+  filePath: string,
+): string | undefined {
+  const base = basePath.endsWith('.json') ? basePath.slice(0, -5) : basePath;
+  if (filePath === `${base}.json`) return undefined;
+  if (filePath.startsWith(`${base}.`) && filePath.endsWith('.json')) {
+    const rest = filePath.slice(base.length + 1, -5);
+    return rest || undefined;
+  }
+  return undefined;
+}
+
 // Helper: scan any resolved settings object/array/resource for collection usage
 export function scanResolvedValuesForCollections(
   input: unknown,
@@ -201,38 +292,6 @@ export function scanResolvedValuesForCollections(
   const deps = into || new Set<string>();
   collectCollectionsFromResolvedValues(input, deps);
   return deps;
-}
-
-// Shared alias resolver used for both record and potential mapping
-function getCollectionCandidatesForKey(key: string): string[] | undefined {
-  switch (key) {
-    case 'product':
-    case 'products':
-      return ['products'];
-    case 'category':
-    case 'categories':
-      return ['categories'];
-    case 'page':
-    case 'pages':
-      return ['content/pages', 'pages'];
-    case 'blog':
-    case 'blogs':
-      return ['content/blogs', 'blogs'];
-    case 'cart':
-    case 'carts':
-      return ['carts'];
-    case 'order':
-    case 'orders':
-      return ['orders'];
-    case 'subscription':
-    case 'subscriptions':
-      return ['subscriptions'];
-    case 'account':
-    case 'accounts':
-      return ['accounts'];
-    default:
-      return undefined;
-  }
 }
 
 // Per-theme memoization for layout/global section dependency lists within a request

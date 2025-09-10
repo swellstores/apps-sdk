@@ -2131,6 +2131,7 @@ export function resolveThemeSettings(
     } else {
       switch (setting?.type) {
         case 'lookup':
+        case 'collection':
         case 'product_lookup':
         case 'category_lookup':
         case 'customer_lookup':
