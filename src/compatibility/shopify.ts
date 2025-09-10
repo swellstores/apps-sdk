@@ -270,12 +270,9 @@ export class ShopifyCompatibility {
         );
 
         if (resourceMap && value instanceof StorefrontResource) {
-          const resource = resourceMap.object(this, value);
-          const composed = Object.assign({}, value.toObject(), resource);
-
-          Object.setPrototypeOf(composed, Object.getPrototypeOf(resource));
-
-          pageData[resourceMap.to] = composed;
+          const resourceProps = resourceMap.object(this, value);
+          value.setCompatibilityProps(resourceProps);
+          pageData[resourceMap.to] = value;
         }
       }
     }
