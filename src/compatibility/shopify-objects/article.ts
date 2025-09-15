@@ -50,9 +50,11 @@ export default function ShopifyArticle(
       blog,
       (blog) => blog.date_updated || blog.date_created,
     ),
-    url: deferWith([blog, blog.category], (blog, blogCategory) =>
-      blogCategory ? `/blogs/${blogCategory?.slug}/${blog.slug}` : '',
-    ),
+    url: deferWith([blog, blog.category], (blog, blogCategory) => {
+      const blogCategoryId =
+        blogCategory?.slug || blogCategory?.id || blog.category_id;
+      return blogCategoryId ? `/blogs/${blogCategoryId}/${blog.slug}` : '';
+    }),
     user: defer(() => blog.author),
 
     // Comments not supported
