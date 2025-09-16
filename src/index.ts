@@ -15,4 +15,5 @@ export * from './editor/resources';
 
 export * from './cache/html-cache';
 
-export type { PutFilesResult, FileWarning } from './cache';
+export { ContentCache } from './cache';
+export type { ContentCacheOptions, PutFilesResult, FileWarning } from './cache';
