@@ -270,22 +270,30 @@ describe('HtmlCache (backend agnostic)', () => {
     expect(r2?.notModified).toBe(true);
   });
 
-  test('locale/Accept-Language differences vary the cache key', async () => {
+  test('locale from swell-data cookie varies the cache key, not Accept-Language', async () => {
     const url = 'https://site.test/pages/i18n';
 
-    const enReq = new Request(url, {
+    // Different Accept-Language headers but same locale in cookie should hit same cache
+    const enReq1 = new Request(url, {
       headers: { 'accept-language': 'en-US,en;q=0.9' },
     });
-    const frReq = new Request(url, {
-      headers: { 'accept-language': 'fr-FR,fr;q=0.9' },
+    const enReq2 = new Request(url, {
+      headers: { 'accept-language': 'en-GB,en;q=0.8' },
     });
 
-    await cache.put(enReq, htmlResponse('en'));
-    const hitEn = await cache.get(enReq);
+    await cache.put(enReq1, htmlResponse('en'));
+    const hitEn = await cache.get(enReq2);
+    expect(hitEn?.found).toBe(true); // same cache key despite different Accept-Language
     expect(await hitEn!.response!.text()).toBe('en');
 
+    // Different locale in swell-data cookie should use different cache key
+    const frReq = new Request(url, {
+      headers: {
+        'cookie': 'swell-data=' + encodeURIComponent(JSON.stringify({ 'swell-locale': 'fr-FR' }))
+      },
+    });
     const missFr = await cache.get(frReq);
-    expect(missFr?.found).toBe(false); // different key
+    expect(missFr?.found).toBe(false); // different key due to different locale in cookie
   });
 
   test('client response strips content-encoding/length from stored headers', async () => {
