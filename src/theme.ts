@@ -223,10 +223,7 @@ export class SwellTheme {
       language: configs?.language,
       ...(pageRecord
         ? getRecordGlobals(this, pageRecord)
-        : {
-            page_title: page.title,
-            page_description: page.description,
-          }),
+        : { page_title: page.title, page_description: page.description }),
       all_country_option_tags: countryOptions,
       country_option_tags: countryOptions,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
@@ -262,14 +259,9 @@ export class SwellTheme {
       this.shopifyCompatibility.adaptGlobals(globals, this.globals);
     }
 
-    this.globals = {
-      ...this.globals,
-      ...globals,
-    };
+    this.globals = { ...this.globals, ...globals };
 
-    this.liquidSwell.options.globals = {
-      ...this.globals,
-    };
+    this.liquidSwell.options.globals = { ...this.globals };
   }
 
   async getSettingsAndConfigs(): Promise<{
@@ -629,10 +621,7 @@ export class SwellTheme {
   }
 
   setGlobalData(data: SwellData = {}) {
-    this.globalData = {
-      ...this.globalData,
-      ...data,
-    };
+    this.globalData = { ...this.globalData, ...data };
 
     this.setGlobals(this.globalData);
   }
@@ -1106,7 +1095,16 @@ export class SwellTheme {
       this.dynamicAssetUrl += '/';
     }
 
-    return `${this.dynamicAssetUrl}${assetName}`;
+    const settingsConfig = this._getTemplateConfigByType(
+      'config',
+      'settings_data',
+      'json',
+    );
+    const settingsHash = settingsConfig?.hash;
+
+    return settingsHash
+      ? `${this.dynamicAssetUrl}v/${settingsHash}/${assetName}`
+      : `${this.dynamicAssetUrl}${assetName}`;
   }
 
   async getAssetUrl(filePath: string): Promise<string | null> {
@@ -1239,10 +1237,7 @@ export class SwellTheme {
       return null;
     }
 
-    return {
-      ...config,
-      file_data: schemaTag + schemaData + schemaEndTag,
-    };
+    return { ...config, file_data: schemaTag + schemaData + schemaEndTag };
   }
 
   async renderThemeTemplate(
@@ -1520,9 +1515,7 @@ ${content.slice(pos)}`;
         const pageSectionGroup = {
           // use original pageId to return exactly the requested section id
           id: originalPageId,
-          sections: {
-            [sectionKey]: oldSections[sectionKey],
-          },
+          sections: { [sectionKey]: oldSections[sectionKey] },
         };
 
         const [pageSection] = await this.renderPageSections(
@@ -1739,10 +1732,7 @@ ${content.slice(pos)}`;
 
           return {
             ...block,
-            settings: {
-              ...blockDefaults,
-              ...(block.settings || undefined),
-            },
+            settings: { ...blockDefaults, ...(block.settings || undefined) },
           };
         },
       );
@@ -1934,10 +1924,7 @@ ${content.slice(pos)}`;
           }
         }
 
-        return {
-          ...sectionConfig,
-          output,
-        };
+        return { ...sectionConfig, output };
       }),
     );
   }
@@ -2043,10 +2030,7 @@ export function resolveSectionSettings(
   }
 
   const editorSettings: ThemeSettingSectionSchema[] = [
-    {
-      label: schema.label,
-      fields: schema.fields,
-    },
+    { label: schema.label, fields: schema.fields },
   ];
 
   // skip disabled blocks
