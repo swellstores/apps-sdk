@@ -17,6 +17,10 @@ export interface PathRule {
   ttl?: number; // Time-to-live in seconds
   swr?: number; // Stale-while-revalidate in seconds
   skip?: boolean; // If true, skip caching for this path
+  // Optional list of allowed Content-Types for caching.
+  // If provided, responses whose Content-Type starts with one of these values are cacheable.
+  // If omitted, defaults to only allowing 'text/html'.
+  contentTypes?: string[];
 }
 
 export interface CacheRules {
@@ -227,20 +231,19 @@ export class HtmlCache {
 
   public canReadFromCache(request: Request): boolean {
     const method = request.method.toUpperCase();
-    return (
-      (method === 'GET' || method === 'HEAD') &&
-      this.isRequestCacheable(request)
-    );
+    if (!(method === 'GET' || method === 'HEAD')) return false;
+    const res = this.resolvePathRule(request);
+    if (res.skip) return false;
+    return this.isRequestCacheable(request);
   }
 
   public canWriteToCache(request: Request, response: Response): boolean {
     const method = request.method.toUpperCase();
-    return (
-      method === 'GET' &&
-      response.ok &&
-      this.isRequestCacheable(request) &&
-      this.isResponseCacheable(response)
-    );
+    if (method !== 'GET' || !response.ok) return false;
+    const res = this.resolvePathRule(request);
+    if (res.skip) return false;
+    if (!this.isRequestCacheable(request)) return false;
+    return this.isResponseCacheable(response, res.rule);
   }
 
   public createRevalidationRequest(request: Request): Request {
@@ -419,26 +422,25 @@ export class HtmlCache {
   }
 
   protected isRequestCacheable(request: Request): boolean {
-    const url = new URL(request.url);
     if (request.headers.get('swell-deployment-mode') === 'editor') return false;
-
-    // Check path rules for skip directives (first match wins)
-    if (this.cacheRules.pathRules) {
-      for (const rule of this.cacheRules.pathRules) {
-        if (this.pathMatches(rule.path, url.pathname) && rule.skip) {
-          return false;
-        }
-      }
-    }
 
     if (request.headers.get('cache-control')?.includes('no-cache'))
       return false;
     return true;
   }
 
-  protected isResponseCacheable(response: Response): boolean {
-    if (!response.headers.get('content-type')?.includes('text/html'))
-      return false;
+  protected isResponseCacheable(
+    response: Response,
+    matchedRule?: PathRule,
+  ): boolean {
+    const contentType = response.headers.get('content-type') || '';
+    const allowed = matchedRule?.contentTypes;
+    if (Array.isArray(allowed) && allowed.length > 0) {
+      const ok = allowed.some((ct) => contentType.toLowerCase().startsWith(ct));
+      if (!ok) return false;
+    } else {
+      if (!contentType.includes('text/html')) return false;
+    }
     if (response.headers.get('set-cookie')) return false;
     const cacheControl = response.headers.get('cache-control');
     if (cacheControl?.includes('no-store') || cacheControl?.includes('private'))
@@ -453,45 +455,11 @@ export class HtmlCache {
   }
 
   protected getTTLForRequest(request: Request): number {
-    const url = new URL(request.url);
-    const mode = this.getDeploymentMode(request.headers);
-
-    // Check path rules first (first match wins)
-    if (this.cacheRules.pathRules) {
-      for (const rule of this.cacheRules.pathRules) {
-        if (
-          this.pathMatches(rule.path, url.pathname) &&
-          rule.ttl !== undefined
-        ) {
-          return rule.ttl;
-        }
-      }
-    }
-
-    // Fall back to defaults
-    const defaults = this.cacheRules.defaults?.[mode];
-    return defaults?.ttl ?? DEFAULT_CACHE_RULES.defaults![mode]!.ttl;
+    return this.resolvePathRule(request).effectiveTTL;
   }
 
   protected getSWRForRequest(request: Request): number {
-    const url = new URL(request.url);
-    const mode = this.getDeploymentMode(request.headers);
-
-    // Check path rules first (first match wins)
-    if (this.cacheRules.pathRules) {
-      for (const rule of this.cacheRules.pathRules) {
-        if (
-          this.pathMatches(rule.path, url.pathname) &&
-          rule.swr !== undefined
-        ) {
-          return rule.swr;
-        }
-      }
-    }
-
-    // Fall back to defaults
-    const defaults = this.cacheRules.defaults?.[mode];
-    return defaults?.swr ?? DEFAULT_CACHE_RULES.defaults![mode]!.swr;
+    return this.resolvePathRule(request).effectiveSWR;
   }
 
   protected getEntryAge(entry: CachedEntry): number {
@@ -522,6 +490,43 @@ export class HtmlCache {
       normalized[key.toLowerCase()] = value;
     });
     return normalized;
+  }
+
+  protected resolvePathRule(request: Request): {
+    rule?: PathRule;
+    mode: 'live' | 'preview';
+    effectiveTTL: number;
+    effectiveSWR: number;
+    skip: boolean;
+  } {
+    const url = new URL(request.url);
+    const mode = this.getDeploymentMode(request.headers);
+    const defaults =
+      this.cacheRules.defaults?.[mode] ??
+      (DEFAULT_CACHE_RULES.defaults as any)[mode];
+
+    let rule: PathRule | undefined;
+    if (this.cacheRules.pathRules) {
+      for (const r of this.cacheRules.pathRules) {
+        if (this.pathMatches(r.path, url.pathname)) {
+          rule = r;
+          break;
+        }
+      }
+    }
+
+    const effectiveTTL =
+      (rule?.ttl !== undefined ? rule.ttl : defaults?.ttl) ?? defaults.ttl;
+    const effectiveSWR =
+      (rule?.swr !== undefined ? rule.swr : defaults?.swr) ?? defaults.swr;
+
+    return {
+      rule,
+      mode,
+      effectiveTTL,
+      effectiveSWR,
+      skip: Boolean(rule?.skip),
+    };
   }
 
   protected normalizeSearchParams(searchParams: URLSearchParams): string {
