@@ -120,7 +120,9 @@ export default function ShopifyCollection(
     tags: [],
     template_suffix: defer(() => category.theme_template),
     title: defer(() => category.name),
-    url: deferWith(category, (category) => `/collections/${category.slug}`),
+    url: deferWith(category, (category) =>
+      category.slug ? `/collections/${category.slug}` : '',
+    ),
   });
 }
 
@@ -157,9 +159,7 @@ function getProducts<T extends SwellData>(
 ) {
   return deferWith(object, (object) => {
     const { page, limit } = instance.swell.queryParams;
-    const productQuery: SwellProductQuery = {
-      $variants: true,
-    };
+    const productQuery: SwellProductQuery = { $variants: true };
 
     if (typeof object.id === 'string' && object.id !== 'all') {
       productQuery.category = object.id;
@@ -173,11 +173,7 @@ function getProducts<T extends SwellData>(
     const products = new SwellStorefrontCollection(
       instance.swell,
       'products',
-      {
-        page,
-        limit,
-        ...filterQuery,
-      },
+      { page, limit, ...filterQuery },
       async function () {
         return this._defaultGetter().call(this);
       },
