@@ -85,6 +85,7 @@ export class SwellTheme {
   public globals: ThemeGlobals;
   public forms?: ThemeFormConfig[];
   public resources?: ThemeResources;
+  public dynamicAssetUrl?: string;
   public liquidSwell: LiquidSwell;
 
   public themeLoader: ThemeLoader;
@@ -111,10 +112,17 @@ export class SwellTheme {
       forms?: ThemeFormConfig[];
       resources?: ThemeResources;
       globals?: ThemeGlobals;
+      dynamicAssetUrl?: string;
       shopifyCompatibilityClass?: typeof ShopifyCompatibility;
     } = {},
   ) {
-    const { forms, resources, globals, shopifyCompatibilityClass } = options;
+    const {
+      forms,
+      resources,
+      globals,
+      dynamicAssetUrl,
+      shopifyCompatibilityClass,
+    } = options;
 
     this.swell = swell;
     this.props = this.getSwellAppThemeProps(swell.config);
@@ -123,6 +131,7 @@ export class SwellTheme {
     this.globals = globals || ({} as ThemeGlobals);
     this.forms = forms;
     this.resources = resources;
+    this.dynamicAssetUrl = dynamicAssetUrl;
     this.shopifyCompatibilityClass =
       shopifyCompatibilityClass || ShopifyCompatibility;
 
@@ -214,10 +223,7 @@ export class SwellTheme {
       language: configs?.language,
       ...(pageRecord
         ? getRecordGlobals(this, pageRecord)
-        : {
-            page_title: page.title,
-            page_description: page.description,
-          }),
+        : { page_title: page.title, page_description: page.description }),
       all_country_option_tags: countryOptions,
       country_option_tags: countryOptions,
       canonical_url: `${store.url}${this.swell.url?.pathname || ''}`,
@@ -253,14 +259,9 @@ export class SwellTheme {
       this.shopifyCompatibility.adaptGlobals(globals, this.globals);
     }
 
-    this.globals = {
-      ...this.globals,
-      ...globals,
-    };
+    this.globals = { ...this.globals, ...globals };
 
-    this.liquidSwell.options.globals = {
-      ...this.globals,
-    };
+    this.liquidSwell.options.globals = { ...this.globals };
   }
 
   async getSettingsAndConfigs(): Promise<{
@@ -620,10 +621,7 @@ export class SwellTheme {
   }
 
   setGlobalData(data: SwellData = {}) {
-    this.globalData = {
-      ...this.globalData,
-      ...data,
-    };
+    this.globalData = { ...this.globalData, ...data };
 
     this.setGlobals(this.globalData);
   }
@@ -1080,13 +1078,41 @@ export class SwellTheme {
     );
   }
 
+  async getDynamicAssetUrl(filePath: string): Promise<string | null> {
+    if (!this.dynamicAssetUrl) {
+      return null;
+    }
+
+    const assetName = `${filePath}.liquid`;
+    const assetConfig = await this.getAssetConfig(assetName);
+
+    if (!assetConfig) {
+      return null;
+    }
+
+    // Make sure asset url is followed by a slash
+    if (!this.dynamicAssetUrl.endsWith('/')) {
+      this.dynamicAssetUrl += '/';
+    }
+
+    const settingsConfig = this._getTemplateConfigByType(
+      'config',
+      'settings_data',
+      'json',
+    );
+    const settingsHash = settingsConfig?.hash;
+
+    return settingsHash
+      ? `${this.dynamicAssetUrl}v/${settingsHash}/${assetName}`
+      : `${this.dynamicAssetUrl}${assetName}`;
+  }
+
   async getAssetUrl(filePath: string): Promise<string | null> {
     const assetConfig = await this.getAssetConfig(filePath);
-
     const file = assetConfig?.file;
 
     if (!file) {
-      return null;
+      return this.getDynamicAssetUrl(filePath);
     }
 
     const fileUrl: string | null = file.url || null;
@@ -1211,10 +1237,7 @@ export class SwellTheme {
       return null;
     }
 
-    return {
-      ...config,
-      file_data: schemaTag + schemaData + schemaEndTag,
-    };
+    return { ...config, file_data: schemaTag + schemaData + schemaEndTag };
   }
 
   async renderThemeTemplate(
@@ -1492,9 +1515,7 @@ ${content.slice(pos)}`;
         const pageSectionGroup = {
           // use original pageId to return exactly the requested section id
           id: originalPageId,
-          sections: {
-            [sectionKey]: oldSections[sectionKey],
-          },
+          sections: { [sectionKey]: oldSections[sectionKey] },
         };
 
         const [pageSection] = await this.renderPageSections(
@@ -1711,10 +1732,7 @@ ${content.slice(pos)}`;
 
           return {
             ...block,
-            settings: {
-              ...blockDefaults,
-              ...(block.settings || undefined),
-            },
+            settings: { ...blockDefaults, ...(block.settings || undefined) },
           };
         },
       );
@@ -1906,10 +1924,7 @@ ${content.slice(pos)}`;
           }
         }
 
-        return {
-          ...sectionConfig,
-          output,
-        };
+        return { ...sectionConfig, output };
       }),
     );
   }
@@ -2015,10 +2030,7 @@ export function resolveSectionSettings(
   }
 
   const editorSettings: ThemeSettingSectionSchema[] = [
-    {
-      label: schema.label,
-      fields: schema.fields,
-    },
+    { label: schema.label, fields: schema.fields },
   ];
 
   // skip disabled blocks

@@ -77,7 +77,7 @@ export function applyDateFormat(type: string, date: Date): string {
 }
 
 export function isCustomDateFormat(format: string): boolean {
-  return format.includes('%');
+  return Boolean(format) && format.includes('%');
 }
 
 export function applyStrftimeFormat(format: string, date: Date) {

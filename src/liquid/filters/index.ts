@@ -42,6 +42,7 @@ import where from './where';
 // Shopify compatibility only
 import asset_img_url from './shopify/asset_img_url';
 import hex_to_rgba from './shopify/hex_to_rgba';
+import img_url from './shopify/img_url';
 import item_count_for_variant from './shopify/item_count_for_variant';
 import payment_button from './shopify/payment_button';
 import payment_terms from './shopify/payment_terms';
@@ -109,6 +110,7 @@ export const filters = {
   // Shopify compatibility only
   asset_img_url,
   hex_to_rgba,
+  img_url,
   item_count_for_variant,
   payment_button,
   payment_terms,
