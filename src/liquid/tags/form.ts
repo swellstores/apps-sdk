@@ -43,8 +43,6 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       this.formType = (tokenizer.readValue() as QuotedToken)?.content;
       this.formConfig = liquidSwell.theme.getFormConfig(this.formType);
 
-      tokenizer.advance();
-
       this.arg = tokenizer.readValue();
       this.templates = [];
       this.hash = new Hash(this.tokenizer.remaining());
@@ -82,7 +80,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
 
       const attrs =
         ' ' +
-        Object.entries(hash)
+        Object.entries({ id: `${this.formConfig.id}_form`, ...hash })
           .reduce((acc: string[], [key, value]: [string, unknown]) => {
             if (value !== true) {
               // true represents the form type

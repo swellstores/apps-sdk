@@ -9,7 +9,7 @@ describeTag('form', (render, liquid) => {
     );
 
     expect(removeSpaces(result)).toBe(
-      '<form action="/test" method="post" accept-charset="UTF-8" enctype="multipart/form-data" ><input type="hidden" name="form_type" value="test_form" />Test form content</form>',
+      '<form action="/test" method="post" accept-charset="UTF-8" enctype="multipart/form-data" id="test_form_form"><input type="hidden" name="form_type" value="test_form" />Test form content</form>',
     );
     expect(liquid.theme.getFormConfig).toHaveBeenCalledWith('test_form');
   });

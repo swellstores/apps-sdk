@@ -1,3 +1,5 @@
+import { SHOPIFY_TO_SWELL_SORTING } from '@/compatibility/shopify-configs';
+
 import type { SwellData, ThemeSectionEnabledDisabled } from './swell';
 
 import type { ShopifyResource } from '../src/compatibility/shopify-objects/resource';
@@ -6,6 +8,8 @@ import type {
   StorefrontResource,
   SwellStorefrontCollection,
 } from '../src/resources';
+
+export type ShopifySorting = keyof typeof SHOPIFY_TO_SWELL_SORTING;
 
 export type ShopifyBasicInputType =
   | 'text'
@@ -565,14 +569,7 @@ export interface ShopifyCollection {
   all_vendors: string[];
   current_type?: string;
   current_vendor?: string;
-  default_sort_by:
-    | 'manual'
-    | 'best-selling'
-    | 'title-ascending'
-    | 'price-ascending'
-    | 'price-descending'
-    | 'created-ascending'
-    | 'created-descending';
+  default_sort_by: ShopifySorting;
   description: string;
   featured_image?: ShopifyImage;
   filters: ShopifyFilter[];

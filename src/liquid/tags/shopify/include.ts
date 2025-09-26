@@ -43,9 +43,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       const output = yield liquidSwell
         .getComponentPath(filepath)
         .then((path) => liquidSwell.getThemeConfig(path))
-        .then((themeConfig) =>
-          liquidSwell.renderTemplate(themeConfig, ctx.getAll()),
-        );
+        .then((themeConfig) => liquidSwell.renderTemplate(themeConfig, ctx));
 
       emitter.write(output);
 

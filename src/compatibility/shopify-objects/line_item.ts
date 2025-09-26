@@ -33,20 +33,20 @@ export default function ShopifyLineItem(
     swellItem = { ...item };
   }
 
-  const discountAllocations = getDiscountAllocations(cart, item);
+  const discountAllocations = getDiscountAllocations(instance, cart, item);
 
   return new ShopifyResource<ShopifyLineItem>({
     ...swellItem,
     // Deprecated by Shopify
-    discounts: getDeprecatedDiscounts(cart, item),
+    discounts: getDeprecatedDiscounts(instance, cart, item),
     discount_allocations: discountAllocations,
     error_message: undefined, // N/A
     final_line_price: isTrialSubscriptionItem(item)
       ? 0
-      : item.price_total - item.discount_total,
+      : instance.toShopifyPrice(item.price_total - item.discount_total),
     final_price: isTrialSubscriptionItem(item)
       ? 0
-      : item.price - item.discount_each,
+      : instance.toShopifyPrice(item.price - item.discount_each),
     // May not want to support this
     /* fulfillment: options.order
       ? deferWith(cart, async (cart: any) => {
@@ -72,8 +72,8 @@ export default function ShopifyLineItem(
     ),
     key: item.id, // Good enough
     line_level_discount_allocations: discountAllocations, // TODO
-    line_level_total_discount: item.discount_total, // TODO should be line discount only
-    line_price: item.price_total,
+    line_level_total_discount: instance.toShopifyPrice(item.discount_total), // TODO should be line discount only
+    line_price: instance.toShopifyPrice(item.price_total),
     message: undefined, // N/A
     options_with_values: (item.options ?? []).map((option: SwellData) => ({
       name: option.name,
@@ -81,9 +81,11 @@ export default function ShopifyLineItem(
     })),
     original_line_price: isTrialSubscriptionItem(item)
       ? 0
-      : item.price * item.quantity,
-    original_price: isTrialSubscriptionItem(item) ? 0 : item.price,
-    price: item.price,
+      : instance.toShopifyPrice(item.price * item.quantity),
+    original_price: isTrialSubscriptionItem(item)
+      ? 0
+      : instance.toShopifyPrice(item.price),
+    price: instance.toShopifyPrice(item.price),
     product: deferWith(
       item.product,
       () => item.product && ShopifyProduct(instance, item.product),
@@ -100,7 +102,7 @@ export default function ShopifyLineItem(
         (cartTax: SwellData) => cartTax.id === tax.id,
       );
       return {
-        price: tax.amount,
+        price: instance.toShopifyPrice(tax.amount),
         rate: (cartTax?.rate || 0) / 100,
         rate_percentage: cartTax?.rate || 0,
         title: tax.name,
@@ -111,7 +113,7 @@ export default function ShopifyLineItem(
       item.product,
       (product) => product?.name || item.product_id,
     ),
-    total_discount: item.discount_total,
+    total_discount: instance.toShopifyPrice(item.discount_total),
     unit_price: undefined, // only available in germany and france
     unit_price_measurement: undefined, // only available in germany and france
     url: deferWith(item.product, (product) => `/products/${product.slug}`), // TODO: use page mapping
@@ -289,6 +291,7 @@ function getDiscountSourceName(
 }
 
 function getDiscountAllocations(
+  instance: ShopifyCompatibility,
   cart: StorefrontResource | SwellRecord,
   item: StorefrontResource | SwellRecord,
 ): ShopifyDiscountAllocation[] {
@@ -302,7 +305,7 @@ function getDiscountAllocations(
       const discountSourceName = getDiscountSourceName(cart, cartDiscount);
 
       return {
-        amount: discount.amount,
+        amount: instance.toShopifyPrice(discount.amount),
         discount_application: cartDiscount
           ? {
               target_selection:
@@ -316,7 +319,9 @@ function getDiscountAllocations(
                   ? 'shipping_line'
                   : 'line_item',
               title: discountSourceName,
-              total_allocated_amount: cartDiscount.amount,
+              total_allocated_amount: instance.toShopifyPrice(
+                cartDiscount.amount,
+              ),
               type:
                 cartDiscount.type === 'promo'
                   ? 'automatic'
@@ -339,6 +344,7 @@ function getDiscountAllocations(
 }
 
 function getDeprecatedDiscounts(
+  instance: ShopifyCompatibility,
   cart: StorefrontResource | SwellRecord,
   item: StorefrontResource | SwellRecord,
 ): ShopifyDiscount[] {
@@ -351,12 +357,12 @@ function getDeprecatedDiscounts(
     const discountSourceName = getDiscountSourceName(cart, cartDiscount);
 
     return {
-      amount: discount.amount,
+      amount: instance.toShopifyPrice(discount.amount),
       code: discountSourceName,
-      savings: -discount.amount,
+      savings: -instance.toShopifyPrice(discount.amount),
       title: discountSourceName,
-      total_amount: discount.amount,
-      total_savings: -discount.amount,
+      total_amount: instance.toShopifyPrice(discount.amount),
+      total_savings: -instance.toShopifyPrice(discount.amount),
       type:
         cartDiscount?.type === 'shipment'
           ? 'ShippingDiscount'

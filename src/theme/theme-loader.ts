@@ -10,6 +10,7 @@ import type {
   SwellCollection,
   SwellThemeConfig,
   SwellThemePreload,
+  SwellThemeRecord,
 } from 'types/swell';
 
 // Max individual theme configs to fetch from source when fetching missing data
@@ -22,6 +23,7 @@ const MAX_INDIVIDUAL_CONFIGS_TO_FETCH = 50;
 export class ThemeLoader {
   private static cache: ThemeCache | null = null;
   private swell: Swell;
+  private themeRecord: SwellThemeRecord | null = null;
   private configs: Map<string, SwellThemeConfig>;
 
   constructor(swell: Swell) {
@@ -45,11 +47,16 @@ export class ThemeLoader {
     }
 
     await this.loadAllConfigs();
+    await this.loadThemeRecord();
 
     logger.info('[ThemeLoader] Initialization complete', {
       configCount: this.configs.size,
       themeId: this.getThemeId(),
     });
+  }
+
+  getThemeRecord(): SwellThemeRecord | null {
+    return this.themeRecord ?? null;
   }
 
   /**
@@ -105,12 +112,7 @@ export class ThemeLoader {
 
     if (configs.length === 0) {
       logger.debug('[ThemeLoader] No configs to cache');
-      return {
-        written: 0,
-        skipped: 0,
-        skippedExisting: 0,
-        warnings: [],
-      };
+      return { written: 0, skipped: 0, skippedExisting: 0, warnings: [] };
     }
 
     // Use centralized KV flavor detection
@@ -146,6 +148,52 @@ export class ThemeLoader {
     }
 
     return result;
+  }
+
+  /**
+   * Load theme record (/:themes/{themeId}) with caching.
+   */
+  private async loadThemeRecord(): Promise<SwellThemeRecord | null> {
+    const themeId = this.getThemeId();
+    if (!themeId) {
+      logger.warn('[ThemeLoader] Cannot load theme record: no themeId');
+      return null;
+    }
+
+    const versionHash = this.getThemeVersionHash();
+    const cacheKey = this.buildThemeRecordCacheKey(themeId, versionHash);
+    const cache = this.getCache();
+
+    // 1. Check cache first
+    const cached = await cache.get<SwellThemeRecord>(cacheKey);
+    if (cached) {
+      logger.debug('[ThemeLoader] Theme record cache hit', {
+        themeId,
+        versionHash,
+      });
+      this.themeRecord = cached;
+      return cached;
+    }
+
+    // 2. Fetch from API
+    logger.debug('[ThemeLoader] Fetching theme record from API', {
+      themeId,
+      versionHash,
+    });
+    const record = await this.swell.get<SwellThemeRecord>(
+      `/:themes/${themeId}`,
+      {
+        fields: 'id, name, description, storefront',
+      },
+    );
+
+    // 3. Cache result for future use
+    if (record) {
+      this.themeRecord = record;
+      await cache.set(cacheKey, record);
+    }
+
+    return record ?? null;
   }
 
   /**
@@ -203,7 +251,7 @@ export class ThemeLoader {
       fields: 'id, name, type, file, file_path, hash',
     };
 
-    const versionHash = this.swell.swellHeaders['theme-version-hash'];
+    const versionHash = this.getThemeVersionHash();
     const cacheKey = this.buildMetadataCacheKey(versionHash, query);
     const cache = this.getCache();
 
@@ -246,9 +294,7 @@ export class ThemeLoader {
 
     logger.info(
       `[ThemeLoader] Loading ${missingData.length} missing file_data from API`,
-      {
-        trace,
-      },
+      { trace },
     );
 
     // Fetch from API with file_data
@@ -327,9 +373,7 @@ export class ThemeLoader {
         limit: 1000,
         type: 'theme',
         fields: 'name, file, file_path, hash',
-        include: {
-          file_data: FILE_DATA_INCLUDE_QUERY,
-        },
+        include: { file_data: FILE_DATA_INCLUDE_QUERY },
       },
     );
 
@@ -341,6 +385,13 @@ export class ThemeLoader {
    */
   private getThemeId(): string | undefined {
     return this.swell.swellHeaders['theme-id'];
+  }
+
+  /**
+   * Get the current theme version hash from headers.
+   */
+  private getThemeVersionHash(): string | undefined {
+    return this.swell.swellHeaders['theme-version-hash'];
   }
 
   /**
@@ -376,14 +427,15 @@ export class ThemeLoader {
     const pathConditionMet =
       !/^theme\/assets\//.test(file_path) || // NOT in theme/assets/
       /\.liquid$/.test(file_path) || // ends with .liquid
-      /\.(css|js|svg)$/.test(file_path); // ends with .css/.js/.svg
+      /\.(css|js|svg|png|jpg)$/.test(file_path); // ends with .css/.js/.svg/.png/.jpg
 
     // Content type conditions - must match at least one
     const contentTypeMet =
       (!file.content_type?.startsWith('image') &&
         !file.content_type?.startsWith('video')) || // NOT image AND NOT video
-      file.content_type?.startsWith('image/svg'); // OR is SVG
-
+      file.content_type?.startsWith('image/svg') || // OR is SVG
+      file.content_type?.startsWith('image/png') || // OR is PNG
+      file.content_type?.startsWith('image/jpeg'); // OR is JPG
     // Both conditions must be satisfied
     return pathConditionMet && contentTypeMet;
   }
@@ -408,6 +460,17 @@ export class ThemeLoader {
     // Hash all args including instanceId for tenant isolation
     const args = [this.swell.instanceId, version || 'default', query];
     return `theme_configs:${md5(JSON.stringify(args))}`;
+  }
+
+  /**
+   * Build cache key for theme record.
+   */
+  private buildThemeRecordCacheKey(
+    themeId: string,
+    version: string | undefined,
+  ): string {
+    const args = [this.swell.instanceId, themeId, version || 'default'];
+    return `theme_record:${md5(JSON.stringify(args))}`;
   }
 
   /**

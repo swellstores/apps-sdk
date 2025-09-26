@@ -1,4 +1,4 @@
-import { get, isObject } from 'lodash-es';
+import { get, isObject, merge } from 'lodash-es';
 
 import { Swell, StorefrontResource } from '@/api';
 import { ThemeFont } from '@/liquid/font';
@@ -12,6 +12,7 @@ import {
   convertShopifySettingsPresets,
   convertShopifySectionSchema,
   convertShopifySectionGroup,
+  SHOPIFY_TO_SWELL_SORTING,
 } from './shopify-configs';
 import { shopifyFontToThemeFront } from './shopify-fonts';
 import {
@@ -105,9 +106,7 @@ export class ShopifyCompatibility {
     globals.localization = null; // init in adaptGlobals
     globals.metaobjects = {}; // TODO: implement
 
-    globals.page = {
-      ...(page || undefined),
-    };
+    globals.page = { ...(page || undefined) };
 
     // globals.page_description = null; // implemented in theme globals
     // globals.page_image = null; // implemented in theme globals
@@ -219,9 +218,7 @@ export class ShopifyCompatibility {
       return {
         current: {},
         presets: presets || {},
-        platform_customizations: {
-          custom_css: customCssArray,
-        },
+        platform_customizations: { custom_css: customCssArray },
       };
     }
 
@@ -230,9 +227,7 @@ export class ShopifyCompatibility {
       return {
         current: extractSettingsFromForm(form, current),
         presets,
-        platform_customizations: {
-          custom_css: customCssArray,
-        },
+        platform_customizations: { custom_css: customCssArray },
       };
     }
 
@@ -247,13 +242,8 @@ export class ShopifyCompatibility {
 
     return {
       current,
-      presets: {
-        ...presets,
-        [current]: extractSettingsFromForm(form, preset),
-      },
-      platform_customizations: {
-        custom_css: customCssArray,
-      },
+      presets: { ...presets, [current]: extractSettingsFromForm(form, preset) },
+      platform_customizations: { custom_css: customCssArray },
     };
   }
 
@@ -270,9 +260,12 @@ export class ShopifyCompatibility {
         );
 
         if (resourceMap && value instanceof StorefrontResource) {
-          const resourceProps = resourceMap.object(this, value);
-          value.setCompatibilityProps(resourceProps);
-          pageData[resourceMap.to] = value;
+          const resource = resourceMap.object(this, value);
+          const composed = Object.assign({}, value.toObject(), resource);
+
+          Object.setPrototypeOf(composed, Object.getPrototypeOf(resource));
+
+          pageData[resourceMap.to] = composed;
         }
       }
     }
@@ -308,7 +301,8 @@ export class ShopifyCompatibility {
           typeof paramMap.to === 'function'
             ? paramMap.to(key, value as string)
             : { [paramMap.to]: value };
-        Object.assign(adaptedParams, toObject);
+
+        merge(adaptedParams, toObject);
       } else {
         adaptedParams[key] = value;
       }
@@ -631,17 +625,12 @@ ${injects.join('\n')}</script>`;
     if (!url) return;
 
     let pageId;
-    let pageExt;
     const urlParams: Record<string, string | undefined> = {};
 
     const [pathname, query] = url.split('?');
     const pathExtParts = pathname.split('.');
     const ext = pathExtParts[1] ? pathExtParts.pop() : null;
     const [, segment1, segment2, segment3] = pathExtParts.join('.').split('/');
-
-    if (ext === 'js') {
-      pageExt = 'json';
-    }
 
     switch (segment1) {
       case 'account':
@@ -655,7 +644,7 @@ ${injects.join('\n')}</script>`;
             urlParams.id = segment3;
             break;
           case 'register':
-            pageId = 'account/login';
+            pageId = 'account/signup';
             break;
           default:
             break;
@@ -704,11 +693,6 @@ ${injects.join('\n')}</script>`;
         );
         return adaptedUrl + (ext ? `.${ext}` : '') + (query ? `?${query}` : '');
       }
-    } else if (pageExt) {
-      return (
-        pathname.replace(new RegExp(`.${ext}$`), `.${pageExt}`) +
-        (query ? `?${query}` : '')
-      );
     }
   }
 
@@ -802,21 +786,63 @@ ${injects.join('\n')}</script>`;
   getQueryParamsMap(): ShopifyQueryParamsMap {
     return [
       {
-        from: 'sort_by',
-        to: 'sort',
+        from(param) {
+          return param === 'sort_by';
+        },
+        to(_param, value) {
+          return { sort: SHOPIFY_TO_SWELL_SORTING[value] || '' };
+        },
       },
       {
         from(param) {
           return param.startsWith('filter.v.');
         },
         to(param, value) {
-          const filterKey = param.split('filter.v.')[1];
-          const filterValue = value;
+          const [attribute, attributeScope] = param
+            .split('filter.v.')[1]
+            .split('.');
+          const filterKey = `filter_${attribute}`;
 
-          return { [filterKey]: filterValue };
+          return attributeScope
+            ? { [filterKey]: { [attributeScope]: value } }
+            : { [filterKey]: value };
         },
       },
     ];
+  }
+
+  getCompatibilityFeatures(): Record<string, boolean> | undefined {
+    const themeRecord = this.theme.getThemeRecord();
+
+    return themeRecord?.storefront.compatibility.features;
+  }
+
+  supportsSwellPrices(): boolean {
+    const features = this.getCompatibilityFeatures();
+
+    return Boolean(features?.swell_prices);
+  }
+
+  supportsSwellVariants(): boolean {
+    const features = this.getCompatibilityFeatures();
+
+    return Boolean(features?.swell_variants);
+  }
+
+  toShopifyPrice<T>(amount: T): number | T {
+    if (typeof amount !== 'number' || this.supportsSwellPrices()) {
+      return amount;
+    }
+
+    return Math.round(amount * 100);
+  }
+
+  fromShopifyPrice(amount: number): number {
+    if (this.supportsSwellPrices()) {
+      return amount;
+    }
+
+    return amount / 100;
   }
 
   // returns true if this URL is used for script actions

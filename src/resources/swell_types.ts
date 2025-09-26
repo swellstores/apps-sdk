@@ -34,9 +34,10 @@ export interface SwellProductOption {
 
 export interface SwellVariant {
   id: string;
-  stock_status?: string;
+  name: string;
   option_value_ids: string[];
   selected_option_values: string[];
+  stock_status?: string;
   price?: number;
 }
 
@@ -84,8 +85,10 @@ export interface SwellProductPurchaseOptions {
 
 export interface SwellProduct {
   id: string;
+  name: string;
   price: number;
   type: string;
+  categories?: SwellCategory[];
   options?: SwellProductOption[];
   selected_option_values?: string[];
   purchase_options?: SwellProductPurchaseOptions;

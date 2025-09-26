@@ -54,6 +54,18 @@ export interface SwellAppConfig {
   storefront?: { theme: SwellAppStorefrontThemeProps };
 }
 
+export interface SwellThemeRecord {
+  id: string;
+  name: string;
+  description: string | null;
+  storefront: {
+    compatibility: {
+      shopify?: boolean;
+      features?: Record<string, boolean>;
+    };
+  };
+}
+
 export interface SwellAppShopifyCompatibilityConfig {
   page_types: Record<string, string>;
   page_routes: Record<string, { page_id?: string } | string | null>;

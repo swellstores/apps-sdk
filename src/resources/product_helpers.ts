@@ -232,9 +232,7 @@ function getSelectedPurchaseOptionType(
   }
 
   const { purchase_option: purchaseOption } = queryParams as {
-    purchase_option?: {
-      type: string;
-    };
+    purchase_option?: { type: string };
   };
   const purchaseOptionType = purchaseOption?.type;
 
@@ -255,9 +253,7 @@ function getSelectedSubscriptionPurchaseOptionPlan(
   }
 
   const { purchase_option: purchaseOption } = queryParams as {
-    purchase_option?: {
-      plan_id?: string;
-    };
+    purchase_option?: { plan_id?: string };
   };
   let selectedPlan = null;
 

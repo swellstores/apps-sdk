@@ -77,6 +77,7 @@ import type {
   SwellAppShopifyCompatibilityConfig,
   SwellPageRequest,
   SwellSettingsGeo,
+  SwellThemeRecord,
 } from '../types/swell';
 
 export class SwellTheme {
@@ -984,6 +985,10 @@ export class SwellTheme {
     }
 
     return `${withSuffix(`theme/templates/${pageId}`, altTemplate)}.json`;
+  }
+
+  getThemeRecord(): SwellThemeRecord | null {
+    return this.themeLoader.getThemeRecord();
   }
 
   async getThemeConfig(filePath: string): Promise<SwellThemeConfig | null> {
