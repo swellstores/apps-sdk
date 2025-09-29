@@ -259,7 +259,7 @@ export default function ShopifyProduct(
     }),
     inventory_quantity: deferWith(product, (product) => {
       if (!product.stock_status) {
-        return Infinity;
+        return null;
       }
 
       let inventory = product.stock_level || 0;

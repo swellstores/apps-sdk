@@ -656,7 +656,7 @@ export interface ShopifyQuantityPriceBreak {
 
 export interface ShopifyQuantityRule {
   increment: number;
-  max: number;
+  max: number | null;
   min: number;
 }
 

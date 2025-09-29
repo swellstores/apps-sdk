@@ -70,7 +70,9 @@ export default function ShopifyOrder(
     id: defer(() => order.id),
     item_count: deferWith(order, (order) => countItemQuantity(order.items)),
     line_items: lineItems,
-    line_items_subtotal_price: defer(() => order.sub_total),
+    line_items_subtotal_price: defer(() =>
+      instance.toShopifyPrice(order.sub_total),
+    ),
     metafields: {},
     name: defer(() => order.number),
     note: defer(() => order.comments),
@@ -88,20 +90,22 @@ export default function ShopifyOrder(
       ShopifyAddress(instance, order.shipping),
     ),
     shipping_methods: defer(() => {
-      const shippingMethod = ShopifyShippingMethod(order);
+      const shippingMethod = ShopifyShippingMethod(instance, order);
       return shippingMethod ? [shippingMethod] : [];
     }),
-    shipping_price: defer(() => order.shipment_total),
+    shipping_price: defer(() => instance.toShopifyPrice(order.shipment_total)),
     subtotal_line_items: lineItems,
-    subtotal_price: defer(() => order.sub_total),
+    subtotal_price: defer(() => instance.toShopifyPrice(order.sub_total)),
     tags: [], // N/A
     tax_lines: [], // TODO
-    tax_price: defer(() => order.tax_total),
-    total_discounts: defer(() => order.discount_total),
+    tax_price: defer(() => instance.toShopifyPrice(order.tax_total)),
+    total_discounts: defer(() => instance.toShopifyPrice(order.discount_total)),
     total_duties: 0,
-    total_net_amount: defer(() => order.grand_total),
-    total_price: defer(() => order.grand_total),
-    total_refunded_amount: defer(() => order.refund_total),
+    total_net_amount: defer(() => instance.toShopifyPrice(order.grand_total)),
+    total_price: defer(() => instance.toShopifyPrice(order.grand_total)),
+    total_refunded_amount: defer(() =>
+      instance.toShopifyPrice(order.refund_total),
+    ),
     transactions: [],
 
     // TODO
@@ -209,6 +213,7 @@ export function refundDue(order: SwellData) {
 }
 
 function ShopifyShippingMethod(
+  instance: ShopifyCompatibility,
   order: SwellData,
 ): ShopifyResource<ShopifyShippingMethod> | undefined {
   if (!order.shipping?.service) {
@@ -219,9 +224,9 @@ function ShopifyShippingMethod(
     id: order.shipping.service,
     discount_allocations: [],
     handle: `${order.shipping.service}-${order.shipping.price}`,
-    original_price: order.shipment_price,
-    price: order.shipment_total,
-    price_with_discounts: order.shipment_total,
+    original_price: instance.toShopifyPrice(order.shipment_price),
+    price: instance.toShopifyPrice(order.shipment_total),
+    price_with_discounts: instance.toShopifyPrice(order.shipment_total),
     tax_lines: [], // N/A
     title: order.shipping.service_name || order.shipping.service,
   });

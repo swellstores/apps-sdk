@@ -814,7 +814,7 @@ ${injects.join('\n')}</script>`;
   getCompatibilityFeatures(): Record<string, boolean> | undefined {
     const themeRecord = this.theme.getThemeRecord();
 
-    return themeRecord?.storefront.compatibility.features;
+    return get(themeRecord, 'storefront.compatibility.features');
   }
 
   supportsSwellPrices(): boolean {

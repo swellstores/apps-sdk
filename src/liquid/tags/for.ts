@@ -1,6 +1,6 @@
 import { evalToken, ForTag as LiquidForTag } from 'liquidjs';
 
-import { ForloopDrop, resolveEnumerable } from '../utils';
+import { ForloopDrop, resolveEnumerable, isObject } from '../utils';
 
 import type { LiquidSwell } from '..';
 import type { Context, Emitter, Scope } from 'liquidjs';
@@ -83,7 +83,13 @@ export default function bind(_liquidSwell: LiquidSwell): TagClass {
       ctx.setRegister('parentloop', forloop);
 
       for (let i = 0; i < length; ++i) {
-        scope[this.variable] = collection[i];
+        const value = collection[i];
+
+        if (isObject(value)) {
+          value.index = i;
+        }
+
+        scope[this.variable] = value;
         ctx.continueCalled = ctx.breakCalled = false;
         yield r.renderTemplates(this.templates, ctx, emitter);
         if (ctx.breakCalled) break;
