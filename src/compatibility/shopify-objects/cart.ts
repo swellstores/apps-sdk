@@ -22,7 +22,9 @@ export default function ShopifyCart(
   return new ShopifyResource<ShopifyCart>({
     attributes: defer(() => cart.metadata),
     cart_level_discount_applications: [], // TODO cart-level promotions
-    checkout_charge_amount: defer(() => cart.capture_total),
+    checkout_charge_amount: defer(() =>
+      instance.toShopifyPrice(cart.capture_total),
+    ),
     currency: deferWith(cart, (cart) =>
       ShopifyCurrency(instance, cart.currency),
     ),
@@ -40,13 +42,15 @@ export default function ShopifyCart(
         ShopifyLineItem(instance, item, cart),
       );
     }),
-    items_subtotal_price: defer(() => cart.sub_total),
+    items_subtotal_price: defer(() => instance.toShopifyPrice(cart.sub_total)),
     note: defer(() => cart.comments),
-    original_total_price: deferWith(cart, (cart) => cart.sub_total),
+    original_total_price: deferWith(cart, (cart) =>
+      instance.toShopifyPrice(cart.sub_total),
+    ),
     requires_shipping: defer(() => Boolean(cart.shipment_delivery)),
     taxes_included: defer(() => Boolean(cart.item_tax_included)),
-    total_discount: defer(() => cart.discount_total),
-    total_price: defer(() => cart.grand_total),
+    total_discount: defer(() => instance.toShopifyPrice(cart.discount_total)),
+    total_price: defer(() => instance.toShopifyPrice(cart.grand_total)),
     total_weight: defer(() => cart.item_shipment_weight),
   });
 }

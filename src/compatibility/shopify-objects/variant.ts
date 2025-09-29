@@ -47,7 +47,9 @@ export default function ShopifyVariant(
       isProductAvailable(product as SwellProduct, variant as SwellVariant),
     ),
     barcode: undefined,
-    compare_at_price: defer<number>(() => variant.orig_price),
+    compare_at_price: defer<number>(() =>
+      instance.toShopifyPrice(variant.orig_price),
+    ),
     featured_image: deferWith(
       [product, variant],
       (product: SwellRecord, variant: SwellRecord) => {
@@ -74,7 +76,7 @@ export default function ShopifyVariant(
     ),
     inventory_quantity: deferWith(variant, (variant) => {
       if (!variant.stock_status) {
-        return Infinity;
+        return null;
       }
 
       let inventory = variant.stock_level || 0;
@@ -96,7 +98,7 @@ export default function ShopifyVariant(
         price = variant.price;
       }
 
-      return price;
+      return instance.toShopifyPrice(price);
     }),
     product: deferWith(product, (product: SwellRecord) => {
       return ShopifyProduct(
@@ -114,7 +116,7 @@ export default function ShopifyVariant(
         if (!item.account_group) {
           acc.push({
             minimum_quantity: item.quantity_min,
-            price: item.price,
+            price: instance.toShopifyPrice(item.price),
           });
         }
 
@@ -125,11 +127,7 @@ export default function ShopifyVariant(
       variant,
       (variant) => variant.prices?.length > 0,
     ),
-    quantity_rule: {
-      min: 1,
-      max: Infinity,
-      increment: 1,
-    },
+    quantity_rule: { min: 1, max: null, increment: 1 },
     requires_selling_plan: false,
     requires_shipping: deferWith(product, (product) =>
       Boolean(product.delivery?.includes('shipment')),
@@ -141,7 +139,7 @@ export default function ShopifyVariant(
     store_availabilities: [],
     taxable: true,
     title: defer<string>(() => variant.name),
-    unit_price: defer<number>(() => variant.price),
+    unit_price: defer<number>(() => instance.toShopifyPrice(variant.price)),
     unit_price_measurement: undefined,
     url: defer<string>(() => product.url),
     weight: defer<number>(() => variant.weight),
@@ -186,6 +184,12 @@ function getOptionByIndex(
   return deferWith(
     [product, variant],
     (product: SwellRecord, variant: SwellRecord) => {
+      const value = variant.option_value_ids?.[index];
+
+      if (!value) {
+        return;
+      }
+
       const optionValuesById = product.options?.reduce(
         (acc: any, option: any) => {
           for (const value of option.values || []) {
@@ -198,9 +202,7 @@ function getOptionByIndex(
         {},
       );
 
-      const value = variant.option_value_ids?.[index];
-
-      return value ? optionValuesById[value] : undefined;
+      return optionValuesById?.[value];
     },
   );
 }

@@ -36,15 +36,25 @@ export default function ShopifyFilter(
       : undefined,
     label: filter.label,
     max_value: isRange
-      ? ShopifyFilterValue(instance, { value: filter.range_max }, filter, 'lte')
+      ? ShopifyFilterValue(
+          instance,
+          { value: instance.toShopifyPrice(filter.range_max) },
+          filter,
+          'lte',
+        )
       : undefined,
     min_value: isRange
-      ? ShopifyFilterValue(instance, { value: filter.range_min }, filter, 'gte')
+      ? ShopifyFilterValue(
+          instance,
+          { value: instance.toShopifyPrice(filter.range_min) },
+          filter,
+          'gte',
+        )
       : undefined,
     operator: isRange ? 'AND' : 'OR',
     param_name: filter.param_name,
     presentation: isList ? 'text' : undefined, // TODO: image, swatch
-    range_max: filter.range_max,
+    range_max: instance.toShopifyPrice(filter.range_max),
     true_value: isBoolean
       ? ShopifyFilterValue(
           instance,
@@ -112,7 +122,7 @@ function filterOptionValue(
 
   return filter.type === 'range'
     ? queryValue !== undefined && queryValue !== ''
-      ? queryValue
+      ? instance.toShopifyPrice(Number(queryValue))
       : null
     : filterOption.value;
 }

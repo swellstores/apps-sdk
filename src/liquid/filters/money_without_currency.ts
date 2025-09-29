@@ -1,4 +1,4 @@
-import MoneyDrop from '@/compatibility/drops/money';
+import { getMoneyAmount } from './money';
 
 import type { FilterHandler } from 'liquidjs/dist/template';
 import type { LiquidSwell } from '..';
@@ -7,8 +7,7 @@ import type { LiquidSwell } from '..';
 
 export default function bind(liquidSwell: LiquidSwell): FilterHandler {
   return function filterMoneyWithoutCurrency(value: unknown) {
-    const amount =
-      value instanceof MoneyDrop ? value.toFloat() : Number(value || 0);
+    const amount = getMoneyAmount(liquidSwell, value);
 
     return liquidSwell.renderCurrency(amount).replace(/[^0-9.,]/g, '');
   };

@@ -4,6 +4,7 @@ import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyVariant from './variant';
 import ShopifyImage from './image';
 import ShopifyMedia from './media';
+import ShopifyCollection from './collection';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellData, SwellRecord } from 'types/swell';
@@ -57,13 +58,23 @@ export default function ShopifyProduct(
     return null;
   }
 
-  const compareAtPrice = defer<number>(() => product.orig_price);
+  const compareAtPrice = deferWith(product, (product) =>
+    instance.toShopifyPrice(product.orig_price || false),
+  );
 
   return new ShopifyResource<ShopifyProduct>({
     available: deferWith(product, (product: SwellProduct) =>
       isProductAvailable(product),
     ),
-    collections: [], // TODO: need to support this in the resource class somehow
+    collections: deferWith(product, (product: SwellProduct) => {
+      if (!Array.isArray(product.categories)) {
+        return [];
+      }
+
+      return product.categories.map((category) =>
+        ShopifyCollection(instance, category),
+      );
+    }),
     compare_at_price: compareAtPrice, // Note: This field hasn't been standardized as of May 2024
     compare_at_price_max: compareAtPrice,
     compare_at_price_min: compareAtPrice,
@@ -111,14 +122,13 @@ export default function ShopifyProduct(
       }
 
       return product.images.map((image: SwellData, index) =>
-        ShopifyMedia(image, {
-          media_type: 'image',
-          position: index + 1,
-        }),
+        ShopifyMedia(image, { media_type: 'image', position: index + 1 }),
       );
     }),
     metafields: {},
     options: deferWith(product, (product: SwellProduct): string[] => {
+      adjustProduct(instance, product);
+
       if (!Array.isArray(product.options)) {
         return [];
       }
@@ -130,6 +140,8 @@ export default function ShopifyProduct(
         .map((option: SwellData) => option.name);
     }),
     options_by_name: deferWith(product, (product: SwellProduct) => {
+      adjustProduct(instance, product);
+
       if (!Array.isArray(product.options)) {
         return {};
       }
@@ -166,6 +178,8 @@ export default function ShopifyProduct(
     options_with_values: deferWith<ShopifyProductOption[], SwellProduct>(
       product,
       (product: SwellProduct) => {
+        adjustProduct(instance, product);
+
         if (!Array.isArray(product.options)) {
           return [];
         }
@@ -189,26 +203,32 @@ export default function ShopifyProduct(
           );
       },
     ),
-    price: deferWith(product, (product) => product.price),
+    price: deferWith(product, (product) =>
+      instance.toShopifyPrice(product.price),
+    ),
     price_max: deferWith<number, SwellRecord>(product, (product) => {
       if (!Array.isArray(product.variants?.results)) {
-        return product.price;
+        return instance.toShopifyPrice(product.price);
       }
 
-      return product.variants.results.reduce(
+      const max = product.variants.results.reduce(
         (max: number, variant: SwellRecord) => Math.max(max, variant.price),
         0,
       );
+
+      return instance.toShopifyPrice(max);
     }),
     price_min: deferWith<number, SwellRecord>(product, (product) => {
       if (!Array.isArray(product.variants?.results)) {
-        return product.price;
+        return instance.toShopifyPrice(product.price);
       }
 
-      return product.variants.results.reduce(
+      const min = product.variants.results.reduce(
         (min: number, variant: SwellRecord) => Math.min(min, variant.price),
         Infinity,
       );
+
+      return instance.toShopifyPrice(min);
     }),
     price_varies: deferWith<boolean, SwellRecord>(product, (product) => {
       if (!Array.isArray(product.variants?.results)) {
@@ -235,15 +255,11 @@ export default function ShopifyProduct(
         inventory = 0;
       }
       const max = !product.stock_status ? null : inventory;
-      return {
-        min: 1,
-        max,
-        increment: 1,
-      };
+      return { min: 1, max, increment: 1 };
     }),
     inventory_quantity: deferWith(product, (product) => {
       if (!product.stock_status) {
-        return Infinity;
+        return null;
       }
 
       let inventory = product.stock_level || 0;
@@ -257,6 +273,8 @@ export default function ShopifyProduct(
     selected_or_first_available_variant: deferWith(
       product,
       (product: SwellProduct) => {
+        adjustProduct(instance, product);
+
         const variant = getSelectedVariant(product, instance.swell.queryParams);
 
         return variant
@@ -272,7 +290,9 @@ export default function ShopifyProduct(
     title: defer(() => product.name),
     type: defer(() => product.type),
     url: deferWith(product, (product) => `/products/${product.slug}`), // TODO: pass theme settings to get this correctly
-    variants: deferWith(product, (product: SwellRecord) => {
+    variants: deferWith(product, (product: SwellProduct) => {
+      adjustProduct(instance, product);
+
       if (!Array.isArray(product.variants?.results)) {
         return [];
       }
@@ -286,7 +306,9 @@ export default function ShopifyProduct(
 
       return variants;
     }),
-    variants_count: deferWith(product, (product) => {
+    variants_count: deferWith(product, (product: SwellProduct) => {
+      adjustProduct(instance, product);
+
       return product.variants?.count || 0;
     }),
     vendor: undefined,
@@ -347,5 +369,60 @@ function getOption(
         ),
       }),
     ),
+  };
+}
+
+function adjustProduct(instance: ShopifyCompatibility, product: SwellProduct) {
+  adjustProductVariants(instance, product);
+}
+
+function adjustProductVariants(
+  instance: ShopifyCompatibility,
+  product: SwellProduct,
+) {
+  // If Swell variants are supported directly, no adjustment is needed
+  if (instance.supportsSwellVariants()) {
+    return;
+  }
+
+  const hasVariants =
+    Array.isArray(product.variants?.results) &&
+    product.variants.results.length > 0;
+
+  if (hasVariants) {
+    // Product already has variants, nothing to adjust
+    return;
+  }
+
+  // Shopify requires every product to have at least one variant.
+  // If missing, create a default "Title / Default Title" variant.
+  const optionName = 'Title';
+  const valueName = 'Default Title';
+  const defaultShopifyOptionValueId = 'default_option_value_id';
+
+  product.options = [
+    {
+      active: true,
+      variant: true,
+      name: optionName,
+      input_type: 'select',
+      values: [{ id: defaultShopifyOptionValueId, name: valueName }],
+    },
+  ];
+
+  product.variants = {
+    page: 1,
+    count: 1,
+    page_count: 1,
+    limit: 1000,
+    results: [
+      {
+        id: product.id,
+        name: valueName,
+        price: product.price,
+        option_value_ids: [defaultShopifyOptionValueId],
+        selected_option_values: [defaultShopifyOptionValueId],
+      },
+    ],
   };
 }

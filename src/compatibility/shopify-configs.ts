@@ -23,13 +23,21 @@ import type {
   ThemeSettingSectionSchema,
 } from 'types/swell';
 
+export const SHOPIFY_TO_SWELL_SORTING: Record<string, string> = {
+  'best-selling': 'popularity',
+  'title-ascending': 'name_asc',
+  'price-ascending': 'price_asc',
+  'price-descending': 'price_desc',
+  'created-ascending': 'date_asc',
+  'created-descending': 'date_desc',
+  manual: '',
+};
+
 export function convertShopifySettingsSchema(
   settingsSchema: ShopifySettingsSchema,
   locale: string,
 ): ThemeEditorConfigSchema {
-  const editor: ThemeEditorConfigSchema = {
-    settings: [],
-  };
+  const editor: ThemeEditorConfigSchema = { settings: [] };
 
   if (!Array.isArray(settingsSchema)) {
     return editor;
@@ -70,15 +78,10 @@ export function convertShopifySettingsData(
 
   if (typeof settingsData.current === 'object') {
     // Shopify's current settings in the first object
-    return {
-      ...(settingsData.current || {}),
-      custom_css: customCss,
-    };
+    return { ...(settingsData.current || {}), custom_css: customCss };
   }
 
-  return {
-    custom_css: customCss,
-  };
+  return { custom_css: customCss };
 }
 
 export function convertShopifySettingsPresets(
@@ -184,15 +187,11 @@ function shopifySchemaSettingToSwellSettingField(
 
   switch (setting.type) {
     case 'text':
-      swellProps = {
-        type: 'text',
-      };
+      swellProps = { type: 'text' };
       break;
 
     case 'textarea':
-      swellProps = {
-        type: 'textarea',
-      };
+      swellProps = { type: 'textarea' };
       break;
 
     case 'paragraph':
@@ -215,9 +214,7 @@ function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'checkbox':
-      swellProps = {
-        type: 'checkbox',
-      };
+      swellProps = { type: 'checkbox' };
       break;
 
     case 'radio':
@@ -231,9 +228,7 @@ function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'number':
-      swellProps = {
-        type: 'integer',
-      };
+      swellProps = { type: 'integer' };
       break;
 
     case 'range':
@@ -263,9 +258,7 @@ function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'collection':
-      swellProps = {
-        type: 'category_lookup',
-      };
+      swellProps = { type: 'category_lookup' };
       break;
 
     case 'collection_list':
@@ -278,15 +271,11 @@ function shopifySchemaSettingToSwellSettingField(
 
     case 'color':
     case 'color_background':
-      swellProps = {
-        type: 'color',
-      };
+      swellProps = { type: 'color' };
       break;
 
     case 'color_scheme':
-      swellProps = {
-        type: 'color_scheme',
-      };
+      swellProps = { type: 'color_scheme' };
       break;
 
     case 'color_scheme_group':
@@ -303,39 +292,27 @@ function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'font_picker':
-      swellProps = {
-        type: 'font',
-      };
+      swellProps = { type: 'font' };
       break;
 
     case 'html':
-      swellProps = {
-        type: 'basic_html',
-      };
+      swellProps = { type: 'basic_html' };
       break;
 
     case 'image_picker':
-      swellProps = {
-        type: 'image',
-      };
+      swellProps = { type: 'image' };
       break;
 
     case 'inline_richtext':
-      swellProps = {
-        type: 'rich_text',
-      };
+      swellProps = { type: 'rich_text' };
       break;
 
     case 'link_list':
-      swellProps = {
-        type: 'menu',
-      };
+      swellProps = { type: 'menu' };
       break;
 
     case 'liquid':
-      swellProps = {
-        type: 'liquid',
-      };
+      swellProps = { type: 'liquid' };
       break;
 
     case 'page':
@@ -347,9 +324,7 @@ function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'product':
-      swellProps = {
-        type: 'product_lookup',
-      };
+      swellProps = { type: 'product_lookup' };
       break;
 
     case 'product_list':
@@ -361,9 +336,7 @@ function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'richtext':
-      swellProps = {
-        type: 'rich_html',
-      };
+      swellProps = { type: 'rich_html' };
       break;
 
     case 'text_alignment':
@@ -378,21 +351,15 @@ function shopifySchemaSettingToSwellSettingField(
       break;
 
     case 'url':
-      swellProps = {
-        type: 'url',
-      };
+      swellProps = { type: 'url' };
       break;
 
     case 'video':
-      swellProps = {
-        type: 'video',
-      };
+      swellProps = { type: 'video' };
       break;
 
     case 'video_url':
-      swellProps = {
-        type: 'url',
-      };
+      swellProps = { type: 'url' };
       break;
 
     case 'header':

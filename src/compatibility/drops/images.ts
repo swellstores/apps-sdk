@@ -5,14 +5,13 @@ import { StorefrontResource } from '@/resources';
 import ShopifyImage from '../shopify-objects/image';
 
 import type { ShopifyCompatibility } from '../shopify';
-import type { ShopifyResource } from '../shopify-objects';
 import type { ShopifyImage as ShopifyImageType } from 'types/shopify';
 import type { SwellData } from 'types/swell';
 import type { Swell } from '@/api';
 
 export default class ImagesDrop extends Drop {
   #instance: ShopifyCompatibility;
-  #map: Map<string, ShopifyResource<ShopifyImageType>>;
+  #map: Map<string, ShopifyImageType>;
 
   constructor(instance: ShopifyCompatibility) {
     super();
@@ -46,7 +45,7 @@ export default class ImagesDrop extends Drop {
     }
   }
 
-  getImage(name: string): ShopifyResource<ShopifyImageType> {
+  getImage(name: string): ShopifyImageType {
     let resource = this.#map.get(name);
 
     if (resource === undefined) {

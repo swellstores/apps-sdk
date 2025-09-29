@@ -9,6 +9,7 @@ import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 import ShopifyImage from './image';
 import ShopifyFilter from './filter';
+import { SHOPIFY_TO_SWELL_SORTING } from '../shopify-configs';
 
 import type { ShopifyCompatibility } from '../shopify';
 import type {
@@ -17,7 +18,7 @@ import type {
   SwellRecord,
   SwellProductQuery,
 } from 'types/swell';
-import type { ShopifyCollection } from 'types/shopify';
+import type { ShopifyCollection, ShopifySorting } from 'types/shopify';
 
 export default function ShopifyCollection(
   instance: ShopifyCompatibility,
@@ -131,25 +132,12 @@ function getFirstImage(category: SwellData) {
   return image ? ShopifyImage(image) : undefined;
 }
 
-function convertToShopifySorting(value: string) {
-  switch (value) {
-    case 'popularity':
-      return 'best-selling';
-    case 'name_asc':
-      return 'title-ascending';
-    case 'price_asc':
-      return 'price-ascending';
-    case 'price_desc':
-      return 'price-descending';
-    case 'date_asc':
-      return 'created-ascending';
-    case 'date_desc':
-      return 'created-descending';
+function convertToShopifySorting(swellValue: string): ShopifySorting {
+  const entry = Object.entries(SHOPIFY_TO_SWELL_SORTING).find(
+    ([, value]) => value === swellValue,
+  );
 
-    case '':
-    default:
-      return 'manual';
-  }
+  return entry ? entry[0] : 'manual';
 }
 
 function getProducts<T extends SwellData>(

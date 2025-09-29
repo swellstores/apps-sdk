@@ -1,3 +1,4 @@
+import { Drop } from 'liquidjs';
 import qs from 'qs';
 import { cloneDeep, reduce } from 'lodash-es';
 import JSON5 from 'json5';
@@ -475,6 +476,8 @@ export async function resolveAsyncResources(
       if (!array.some((item) => item !== undefined)) {
         return resolveStorefrontResources ? [] : undefined;
       }
+    } else if (result instanceof Drop) {
+      return result;
     } else if (
       typeof result === 'object' &&
       result !== null &&

@@ -42,7 +42,27 @@ export class ShopifyResource<T extends object> {
 
         switch (prop) {
           case 'toJSON':
-            return props;
+            return () => {
+              function serialize(value: any): any {
+                if (value && typeof value.toJSON === 'function') {
+                  return value.toJSON();
+                }
+
+                if (Array.isArray(value)) {
+                  return value.map(serialize);
+                }
+
+                if (value && typeof value === 'object') {
+                  return Object.fromEntries(
+                    Object.entries(value).map(([k, v]) => [k, serialize(v)]),
+                  );
+                }
+
+                return value;
+              }
+
+              return serialize(props);
+            };
 
           case 'clone':
             return () => {
