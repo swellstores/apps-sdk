@@ -790,7 +790,7 @@ ${injects.join('\n')}</script>`;
           return param === 'sort_by';
         },
         to(_param, value) {
-          return { sort: SHOPIFY_TO_SWELL_SORTING[value] || '' };
+          return { sort: SHOPIFY_TO_SWELL_SORTING[value] ?? value };
         },
       },
       {

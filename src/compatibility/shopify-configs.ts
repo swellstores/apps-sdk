@@ -32,13 +32,6 @@ export const SHOPIFY_TO_SWELL_SORTING: Record<string, string> = {
   'created-ascending': 'date_asc',
   'created-descending': 'date_desc',
   manual: '',
-  popularity: 'popularity',
-  name_asc: 'name_asc',
-  name_desc: 'name_desc',
-  price_asc: 'price_asc',
-  price_desc: 'price_desc',
-  date_asc: 'date_asc',
-  date_desc: 'date_desc',
 };
 
 export function convertShopifySettingsSchema(
