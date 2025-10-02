@@ -26,6 +26,7 @@ import type {
 export const SHOPIFY_TO_SWELL_SORTING: Record<string, string> = {
   'best-selling': 'popularity',
   'title-ascending': 'name_asc',
+  'title-descending': 'name_desc',
   'price-ascending': 'price_asc',
   'price-descending': 'price_desc',
   'created-ascending': 'date_asc',
