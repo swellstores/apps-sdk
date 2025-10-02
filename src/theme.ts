@@ -172,6 +172,15 @@ export class SwellTheme {
     }
   }
 
+  /**
+   * Setter for theme record - directly sets theme record in the loader.
+   */
+  set themeRecord(themeRecord: SwellThemeRecord) {
+    if (themeRecord) {
+      this.themeLoader.setThemeRecord(themeRecord);
+    }
+  }
+
   getSwellAppThemeProps(
     swellConfig?: SwellAppConfig,
   ): SwellAppStorefrontThemeProps {
