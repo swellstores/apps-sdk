@@ -104,6 +104,14 @@ export class ThemeLoader {
   }
 
   /**
+   * Load theme record from internal data, typically in the editor.
+   * Used when theme record is provided externally (e.g., from editor).
+   */
+  setThemeRecord(themeRecord: SwellThemeRecord) {
+    this.themeRecord = themeRecord;
+  }
+
+  /**
    * Updates KV with file_data for provided theme configs (warmup path).
    * Uses the new ThemeFileStorage abstraction for optimized operations.
    */
