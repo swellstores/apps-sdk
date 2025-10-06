@@ -385,6 +385,14 @@ function adjustProductVariants(
     return;
   }
 
+  const hasOptions =
+    Array.isArray(product.options) && product.options.length > 0;
+
+  if (hasOptions) {
+    // Shopify does not support non-variant options, so filter them out
+    product.options = product.options?.filter((option) => option.variant);
+  }
+
   const hasVariants =
     Array.isArray(product.variants?.results) &&
     product.variants.results.length > 0;
