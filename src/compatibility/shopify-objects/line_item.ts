@@ -127,6 +127,9 @@ export default function ShopifyLineItem(
 
       return ShopifyVariant(instance, variant, item.product);
     }),
+    variant_id: deferWith([item.product, item.variant], (product, variant) => {
+      return variant?.id || product?.id;
+    }),
     vendor: undefined,
   });
 }
