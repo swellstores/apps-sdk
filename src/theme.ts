@@ -1356,8 +1356,8 @@ ${content.slice(pos)}`;
       );
     }
 
+    // Fall back to default template if alt not found
     if (!templateConfig) {
-      // Use sync helper internally
       templateConfig = this._getTemplateConfigByType('templates', name);
     }
 
@@ -1819,11 +1819,16 @@ ${content.slice(pos)}`;
     altTemplate?: string,
   ): Promise<ThemeSectionGroupInfo[]> {
     // Use sync helper internally
-    const pageConfig = this._getTemplateConfigByType(
+    let pageConfig = this._getTemplateConfigByType(
       'templates',
       pageId,
       altTemplate,
     );
+
+    // Fall back to default template if alt not found
+    if (!pageConfig) {
+      pageConfig = this._getTemplateConfigByType('templates', pageId);
+    }
 
     if (pageConfig === null) {
       return [];
