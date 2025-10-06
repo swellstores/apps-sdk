@@ -425,6 +425,15 @@ export class HtmlCache {
 
     if (request.headers.get('cache-control')?.includes('no-cache'))
       return false;
+
+    // Reject caching if critical headers are missing to prevent cache poisoning
+    const storefrontId = request.headers.get('swell-storefront-id');
+    const themeVersionHash = request.headers.get('swell-theme-version-hash');
+
+    if (!storefrontId || !themeVersionHash) {
+      return false;
+    }
+
     return true;
   }
 
