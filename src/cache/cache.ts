@@ -59,7 +59,7 @@ export class Cache {
   /**
    * Always fetches fresh data and updates cache
    * Deduplicates concurrent requests with the same key
-   * 
+   *
    * @param key Cache key
    * @param fetchFn Function to fetch fresh data
    * @param ttl Time to live in milliseconds (default: DEFAULT_SWR_TTL)
@@ -73,7 +73,7 @@ export class Cache {
   ): Promise<T> {
     // Check for concurrent request deduplication
     let promise = FETCH_PROMISE_MAP.get(key) as Promise<T> | undefined;
-    
+
     if (!promise) {
       promise = Promise.resolve()
         .then(fetchFn)
@@ -89,10 +89,10 @@ export class Cache {
         .finally(() => {
           FETCH_PROMISE_MAP.delete(key);
         });
-      
+
       FETCH_PROMISE_MAP.set(key, promise);
     }
-    
+
     return await promise;
   }
 
@@ -107,7 +107,7 @@ export class Cache {
     ttl: number = DEFAULT_SWR_TTL,
     isCacheble = true,
   ): Promise<T> {
-    const cacheValue = isCacheble ? await this.client.get(key) : undefined;
+    const cacheValue = isCacheble ? await this.client.get<T>(key) : undefined;
 
     // Do not create duplicate requests
     let promise = SWR_PROMISE_MAP.get(key);
