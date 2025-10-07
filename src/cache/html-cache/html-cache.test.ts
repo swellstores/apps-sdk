@@ -58,6 +58,19 @@ const jsonResponse = () =>
     headers: { 'content-type': 'application/json' },
   });
 
+// Helper to create requests with required cache headers
+const makeRequest = (url: string, init?: RequestInit) => {
+  const headers = new Headers(init?.headers);
+  // Add required headers if not already present
+  if (!headers.has('swell-storefront-id')) {
+    headers.set('swell-storefront-id', 'test-store-123');
+  }
+  if (!headers.has('swell-theme-version-hash')) {
+    headers.set('swell-theme-version-hash', 'test-theme-hash-456');
+  }
+  return new Request(url, { ...init, headers });
+};
+
 describe('HtmlCache (backend agnostic)', () => {
   const EPOCH = 'e1';
   let backend;
@@ -75,7 +88,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('MISS on empty backend → {found:false, cacheable:true}', async () => {
-    const req = new Request('https://site.test/');
+    const req = makeRequest('https://site.test/');
     const res = await cache.get(req);
     expect(res).toEqual(
       expect.objectContaining({ found: false, cacheable: true }),
@@ -83,7 +96,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('PUT then GET → HIT with correct client caching headers', async () => {
-    const req = new Request('https://site.test/pages/a');
+    const req = makeRequest('https://site.test/pages/a');
     await cache.put(req, htmlResponse());
 
     const hit = await cache.get(req);
@@ -102,7 +115,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('Age ≥ TTL but < TTL+SWR → STALE still served', async () => {
-    const req = new Request('https://site.test/pages/stale');
+    const req = makeRequest('https://site.test/pages/stale');
     await cache.put(req, htmlResponse());
 
     jest.setSystemTime(new Date('2025-01-01T00:00:21Z')); // TTL=20s
@@ -114,7 +127,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('Age ≥ TTL+SWR → treated as expired (MISS)', async () => {
-    const req = new Request('https://site.test/pages/expired');
+    const req = makeRequest('https://site.test/pages/expired');
     await cache.put(req, htmlResponse());
 
     // TTL=20s, SWR=604800s (1 week), so expire after 604820s
@@ -126,14 +139,14 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('getWithConditionals returns 304 when If-None-Match matches stored ETag', async () => {
-    const req = new Request('https://site.test/pages/cond');
+    const req = makeRequest('https://site.test/pages/cond');
     await cache.put(req, htmlResponse('<html>etagme</html>'));
 
     const first = await cache.get(req);
     const etag = first.response.headers.get('ETag');
     expect(etag).toBeTruthy();
 
-    const condReq = new Request(req.url, {
+    const condReq = makeRequest(req.url, {
       headers: { 'If-None-Match': etag },
     });
     const result = await cache.getWithConditionals(condReq);
@@ -147,7 +160,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('put skips non-HTML responses (no write)', async () => {
-    const req = new Request('https://site.test/pages/json');
+    const req = makeRequest('https://site.test/pages/json');
 
     const spyWrite = jest.spyOn(backend, 'write');
 
@@ -161,10 +174,10 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('Query normalization ignores UTM params (same key → HIT)', async () => {
-    const putReq = new Request('https://site.test/pages/u?q=1&utm_source=ads');
+    const putReq = makeRequest('https://site.test/pages/u?q=1&utm_source=ads');
     await cache.put(putReq, htmlResponse('norm'));
 
-    const getReq = new Request('https://site.test/pages/u?q=1'); // no UTM
+    const getReq = makeRequest('https://site.test/pages/u?q=1'); // no UTM
     const hit = await cache.get(getReq);
 
     expect(hit?.found).toBe(true);
@@ -172,7 +185,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('editor mode → not cacheable on get/put', async () => {
-    const req = new Request('https://site.test/pages/e', {
+    const req = makeRequest('https://site.test/pages/e', {
       headers: { 'swell-deployment-mode': 'editor' },
     });
 
@@ -187,7 +200,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('request with Cache-Control:no-cache → non-cacheable get/put', async () => {
-    const req = new Request('https://site.test/pages/cc', {
+    const req = makeRequest('https://site.test/pages/cc', {
       headers: { 'cache-control': 'no-cache' },
     });
     const writeSpy = jest.spyOn(backend, 'write');
@@ -213,7 +226,7 @@ describe('HtmlCache (backend agnostic)', () => {
       headers: { ...baseHeaders, 'cache-control': 'no-store' },
     });
 
-    const req = (p: string) => new Request(`https://site.test/pages/${p}`);
+    const req = (p: string) => makeRequest(`https://site.test/pages/${p}`);
 
     const spy = jest.spyOn(backend, 'write');
 
@@ -225,12 +238,12 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('getWithConditionals (If-Modified-Since) returns 304 when not modified', async () => {
-    const req = new Request('https://site.test/pages/ims');
+    const req = makeRequest('https://site.test/pages/ims');
     await cache.put(req, htmlResponse('<p>x</p>'));
 
     const first = await cache.get(req);
     const lastModified = first!.response!.headers.get('Last-Modified')!;
-    const imsReq = new Request(req.url, {
+    const imsReq = makeRequest(req.url, {
       headers: { 'If-Modified-Since': lastModified },
     });
 
@@ -240,9 +253,9 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('invalid If-Modified-Since does not 304', async () => {
-    const req = new Request('https://site.test/pages/ims-bad');
+    const req = makeRequest('https://site.test/pages/ims-bad');
     await cache.put(req, htmlResponse());
-    const bad = new Request(req.url, {
+    const bad = makeRequest(req.url, {
       headers: { 'If-Modified-Since': 'nonsense' },
     });
     const result = await cache.getWithConditionals(bad);
@@ -250,20 +263,20 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('If-None-Match matches weak/strong ETags per spec', async () => {
-    const req = new Request('https://site.test/pages/etag-weak');
+    const req = makeRequest('https://site.test/pages/etag-weak');
     await cache.put(req, htmlResponse('<html>same</html>'));
 
     const hit = await cache.get(req);
     const etag = hit!.response!.headers.get('ETag')!; // e.g., "...."
     const weakHeader = `W/${etag}`;
 
-    const weakReq = new Request(req.url, {
+    const weakReq = makeRequest(req.url, {
       headers: { 'If-None-Match': weakHeader },
     });
     const r1 = await cache.getWithConditionals(weakReq);
     expect(r1?.notModified).toBe(true);
 
-    const listReq = new Request(req.url, {
+    const listReq = makeRequest(req.url, {
       headers: { 'If-None-Match': '"foo", ' + etag + ', "bar"' },
     });
     const r2 = await cache.getWithConditionals(listReq);
@@ -274,10 +287,10 @@ describe('HtmlCache (backend agnostic)', () => {
     const url = 'https://site.test/pages/i18n';
 
     // Different Accept-Language headers but same locale in cookie should hit same cache
-    const enReq1 = new Request(url, {
+    const enReq1 = makeRequest(url, {
       headers: { 'accept-language': 'en-US,en;q=0.9' },
     });
-    const enReq2 = new Request(url, {
+    const enReq2 = makeRequest(url, {
       headers: { 'accept-language': 'en-GB,en;q=0.8' },
     });
 
@@ -287,7 +300,7 @@ describe('HtmlCache (backend agnostic)', () => {
     expect(await hitEn!.response!.text()).toBe('en');
 
     // Different locale in swell-data cookie should use different cache key
-    const frReq = new Request(url, {
+    const frReq = makeRequest(url, {
       headers: {
         'cookie': 'swell-data=' + encodeURIComponent(JSON.stringify({ 'swell-locale': 'fr-FR' }))
       },
@@ -297,7 +310,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('client response strips content-encoding/length from stored headers', async () => {
-    const req = new Request('https://site.test/pages/enc');
+    const req = makeRequest('https://site.test/pages/enc');
     // Simulate origin sending encoding we won’t preserve in body
     const res = new Response('<h1>x</h1>', {
       headers: {
@@ -314,7 +327,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('delete removes entry', async () => {
-    const req = new Request('https://site.test/pages/del');
+    const req = makeRequest('https://site.test/pages/del');
     await cache.put(req, htmlResponse('bye'));
     let before = await cache.get(req);
     expect(before?.found).toBe(true);
@@ -325,7 +338,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('expired entry → getWithConditionals returns MISS path', async () => {
-    const req = new Request('https://site.test/pages/expired304');
+    const req = makeRequest('https://site.test/pages/expired304');
     await cache.put(req, htmlResponse());
     // TTL=20s, SWR=604800s (1 week) → expire after 604820s
     jest.setSystemTime(new Date('2025-01-08T00:00:21Z')); // 7 days + 21 seconds later
@@ -335,7 +348,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('client response strips internal metadata headers', async () => {
-    const req = new Request('https://site.test/pages/meta');
+    const req = makeRequest('https://site.test/pages/meta');
     await cache.put(req, htmlResponse());
     const hit = await cache.get(req);
     const h = hit!.response!.headers;
@@ -345,18 +358,18 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('non-GET requests are not cacheable', async () => {
-    const req = new Request('https://site.test/pages/post', { method: 'POST' });
+    const req = makeRequest('https://site.test/pages/post', { method: 'POST' });
     const res = await cache.get(req);
     expect(res).toEqual(
       expect.objectContaining({ found: false, cacheable: false }),
     );
     await cache.put(req, htmlResponse()); // should be a no-op
-    const res2 = await cache.get(new Request(req.url));
+    const res2 = await cache.get(makeRequest(req.url));
     expect(res2?.found).toBe(false);
   });
 
   test('skip paths (e.g., /checkout) are never cacheable', async () => {
-    const req = new Request('https://site.test/checkout/step');
+    const req = makeRequest('https://site.test/checkout/step');
     await cache.put(req, htmlResponse());
     const res = await cache.get(req);
     expect(res).toEqual(
@@ -365,16 +378,16 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('If-None-Match: "*" triggers 304 when representation exists', async () => {
-    const req = new Request('https://site.test/pages/star');
+    const req = makeRequest('https://site.test/pages/star');
     await cache.put(req, htmlResponse('<p>star</p>'));
-    const starReq = new Request(req.url, { headers: { 'If-None-Match': '*' } });
+    const starReq = makeRequest(req.url, { headers: { 'If-None-Match': '*' } });
     const result = await cache.getWithConditionals(starReq);
     expect(result?.notModified).toBe(true);
     expect(result?.conditional304?.status).toBe(304);
   });
 
   test('origin ETag is preserved and not double-quoted', async () => {
-    const req = new Request('https://site.test/pages/etag-origin');
+    const req = makeRequest('https://site.test/pages/etag-origin');
     const origin = new Response('<h1>e</h1>', {
       headers: { 'content-type': 'text/html; charset=utf-8', ETag: '"abc123"' },
     });
@@ -384,7 +397,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('invalid cacheTimeISO makes entry effectively expired (MISS)', async () => {
-    const req = new Request('https://site.test/pages/bad-time');
+    const req = makeRequest('https://site.test/pages/bad-time');
     await cache.put(req, htmlResponse('x'));
 
     // Corrupt the stored entry’s timestamp
@@ -404,16 +417,16 @@ describe('HtmlCache (backend agnostic)', () => {
     const c2 = new HtmlCache('e2', sharedBackend);
 
     const url = 'https://site.test/pages/epoch';
-    await c1.put(new Request(url), htmlResponse('e1'));
-    const missOnE2 = await c2.get(new Request(url));
+    await c1.put(makeRequest(url), htmlResponse('e1'));
+    const missOnE2 = await c2.get(makeRequest(url));
     expect(missOnE2?.found).toBe(false);
 
-    const hitOnE1 = await c1.get(new Request(url));
+    const hitOnE1 = await c1.get(makeRequest(url));
     expect(await hitOnE1!.response!.text()).toBe('e1');
   });
 
   test('304 response preserves Vary header (if set)', async () => {
-    const req = new Request('https://site.test/pages/vary', {
+    const req = makeRequest('https://site.test/pages/vary', {
       headers: { 'accept-language': 'en' },
     });
     await cache.put(req, htmlResponse('v'));
@@ -422,7 +435,7 @@ describe('HtmlCache (backend agnostic)', () => {
     // Pretend we set Vary in buildClientResponse (future-proof)
     const vary = first!.response!.headers.get('Vary');
 
-    const condReq = new Request(req.url, {
+    const condReq = makeRequest(req.url, {
       headers: { 'If-None-Match': first!.response!.headers.get('ETag')! },
     });
     const result = await cache.getWithConditionals(condReq);
@@ -432,7 +445,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('X-Cache-Age reflects passage of time', async () => {
-    const req = new Request('https://site.test/pages/age');
+    const req = makeRequest('https://site.test/pages/age');
     await cache.put(req, htmlResponse());
     const t0 = await cache.get(req);
     const age0 = Number(t0!.response!.headers.get('X-Cache-Age'));
@@ -443,7 +456,7 @@ describe('HtmlCache (backend agnostic)', () => {
   });
 
   test('hop-by-hop headers are stripped from client response', async () => {
-    const req = new Request('https://site.test/pages/hbh');
+    const req = makeRequest('https://site.test/pages/hbh');
     const res = new Response('<h1>x</h1>', {
       headers: {
         'content-type': 'text/html; charset=utf-8',
