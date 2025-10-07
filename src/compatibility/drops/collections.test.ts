@@ -1,11 +1,10 @@
-import SwellJS from 'swell-js';
-
 import { describeFilter } from '../../liquid/test-helpers';
 
 import { ShopifyCompatibility } from '../shopify';
 
 import CollectionsDrop from './collections';
 
+import type { SwellClient } from 'swell-js';
 import type { SwellData } from 'types/swell';
 
 describeFilter('compatibility/drops/collections', (render, liquid) => {
@@ -40,7 +39,7 @@ describeFilter('compatibility/drops/collections', (render, liquid) => {
           }
         },
       } as unknown,
-    } as typeof SwellJS);
+    } as SwellClient);
   });
 
   it('should render collections drop', async () => {

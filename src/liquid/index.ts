@@ -1,5 +1,7 @@
 import { Liquid, type FS } from 'liquidjs';
 
+import { unescapeLiquidSyntax } from '../utils/escape';
+
 import { SwellTheme } from '../theme';
 import { bindTags } from './tags';
 import { bindFilters } from './filters';
@@ -81,14 +83,17 @@ export class LiquidSwell extends Liquid {
   }: LiquidSwellOptions) {
     getThemeConfig = getThemeConfig || theme.getThemeConfig.bind(theme);
     extName = extName || 'liquid';
+    const fs = new LiquidFS(extName);
 
     super({
-      cache: false,
+      cache: true,
       relativeReference: false,
-      fs: getLiquidFS(getThemeConfig, extName),
+      fs,
       ownPropertyOnly: false,
       operators: swellOperators,
     });
+
+    fs.liquidSwell = this;
 
     this.theme = theme;
     this.getThemeConfig = getThemeConfig;
@@ -158,40 +163,42 @@ function resolveFilePath(fileName: string, extName: string): string {
   return `theme/${fileName}.${extName}`;
 }
 
-function getLiquidFS(getThemeConfig: GetThemeConfig, extName: string): FS {
-  return {
-    /** read a file asynchronously */
-    async readFile(filePath: string): Promise<string> {
-      const resolvedPath = resolveFilePath(filePath, extName);
-      return getThemeConfig(resolvedPath).then(
-        (template) =>
-          template?.file_data ||
-          `<!-- theme template not found: ${resolvedPath} -->`,
-      );
-    },
-    /** check if a file exists asynchronously */
-    async exists(_filePath: string): Promise<boolean> {
-      return true;
-    },
-    /** read a file synchronously */
-    readFileSync(_filePath: string): string {
-      return '';
-    },
-    /** check if a file exists synchronously */
-    existsSync(_filePath: string): boolean {
-      return false;
-    },
-    /** check if file is contained in `root`, always return `true` by default. Warning: not setting this could expose path traversal vulnerabilities. */
-    contains(_root: string, _file: string): boolean {
-      return true;
-    },
-    /** resolve a file against directory, for given `ext` option */
-    resolve(_dir: string, file: string, _ext: string): string {
-      return file;
-    },
-    /** fallback file for lookup failure */
-    fallback(_filePath: string): string | undefined {
-      return;
-    },
-  };
+class LiquidFS implements FS {
+  public liquidSwell!: LiquidSwell;
+
+  constructor(_extName: string) {}
+
+  async readFile(filePath: string): Promise<string> {
+    const template = await this.liquidSwell.getThemeConfig(filePath);
+
+    return unescapeLiquidSyntax(
+      template?.file_data || `<!-- theme template not found: ${filePath} -->`,
+    );
+  }
+
+  async exists(filePath: string): Promise<boolean> {
+    const template = await this.liquidSwell.getThemeConfig(filePath);
+
+    return Boolean(template);
+  }
+
+  readFileSync(_filePath: string): string {
+    return '';
+  }
+
+  existsSync(_filePath: string): boolean {
+    return false;
+  }
+
+  contains(_root: string, _file: string): boolean {
+    return true;
+  }
+
+  resolve(_dir: string, file: string, _ext: string): string {
+    return file;
+  }
+
+  fallback(_filePath: string): string | undefined {
+    return;
+  }
 }

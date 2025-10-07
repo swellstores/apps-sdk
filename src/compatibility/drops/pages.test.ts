@@ -1,11 +1,10 @@
-import SwellJS from 'swell-js';
-
 import { describeFilter } from '../../liquid/test-helpers';
 
 import { ShopifyCompatibility } from '../shopify';
 
 import PagesDrop from './pages';
 
+import type { SwellClient } from 'swell-js';
 import type { SwellData } from 'types/swell';
 
 describeFilter('compatibility/drops/pages', (render, liquid) => {
@@ -54,7 +53,7 @@ describeFilter('compatibility/drops/pages', (render, liquid) => {
           }
         },
       } as unknown,
-    } as typeof SwellJS);
+    } as SwellClient);
   });
 
   it('should render pages drop', async () => {

@@ -30,6 +30,7 @@ import {
   getSectionLocation,
 } from './utils';
 
+import { unescapeLiquidSyntax } from './utils/escape';
 import { logger, createTraceId } from './utils/logger';
 
 import {
@@ -2267,14 +2268,6 @@ function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {
     logger.warn(err);
     return {} as T;
   }
-}
-
-function replacerUnescape(match: string): string {
-  return match.includes('\\"') ? (JSON.parse(`"${match}"`) as string) : match;
-}
-
-function unescapeLiquidSyntax(template: string): string {
-  return template.replace(/\{\{.*?\}\}/g, replacerUnescape);
 }
 
 function extractSchemaTag(template: string): string {
