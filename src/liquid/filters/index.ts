@@ -29,6 +29,7 @@ import inline_asset_content from './inline_asset_content';
 import json from './json';
 import json_pretty from './json_pretty';
 import locale_flag from './locale_flag';
+import minus from './minus';
 import money from './money';
 import money_with_currency from './money_with_currency';
 import money_without_currency from './money_without_currency';
@@ -96,6 +97,7 @@ export const filters = {
   json,
   json_pretty,
   locale_flag,
+  minus,
   money,
   money_with_currency,
   money_without_currency,
