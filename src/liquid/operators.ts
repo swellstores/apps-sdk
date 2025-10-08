@@ -2,8 +2,16 @@ import { defaultOperators } from 'liquidjs';
 
 import { isComparable, toValue, isArray, isFunction } from './utils';
 
-import type { Operators } from 'liquidjs';
+import type { Context } from 'liquidjs';
+type UnaryOperatorHandler = (operand: any, ctx: Context) => boolean;
+type BinaryOperatorHandler = (lhs: any, rhs: any, ctx: Context) => boolean;
+type CustomOperatorHandler = (lhs: any, rhs: any, ctx: Context) => any;
+type OperatorHandler =
+  | UnaryOperatorHandler
+  | BinaryOperatorHandler
+  | CustomOperatorHandler;
 
+type Operators = Record<string, OperatorHandler>;
 export const swellOperators: Operators = {
   ...defaultOperators,
   '==': equal,
@@ -14,6 +22,7 @@ export const swellOperators: Operators = {
     if (isFunction(l?.indexOf)) return l.indexOf(toValue(r)) > -1;
     return false;
   },
+  ',': (l: any, r: any) => `${l},${r}`,
 };
 
 export function equal(lhs: unknown, rhs: unknown): boolean {
