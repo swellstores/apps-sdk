@@ -212,7 +212,13 @@ export default function ShopifyProduct(
       }
 
       const max = product.variants.results.reduce(
-        (max: number, variant: SwellRecord) => Math.max(max, variant.price),
+        (max: number, variant: SwellRecord) => {
+          if (variant.price === undefined || variant.price === null) {
+            return max;
+          }
+
+          return Math.max(max, variant.price);
+        },
         0,
       );
 
@@ -224,7 +230,13 @@ export default function ShopifyProduct(
       }
 
       const min = product.variants.results.reduce(
-        (min: number, variant: SwellRecord) => Math.min(min, variant.price),
+        (min: number, variant: SwellRecord) => {
+          if (variant.price === undefined || variant.price === null) {
+            return min;
+          }
+
+          return Math.min(min, variant.price);
+        },
         Infinity,
       );
 
@@ -236,7 +248,10 @@ export default function ShopifyProduct(
       }
 
       return product.variants.results.some(
-        (variant: SwellRecord) => variant.price !== product.price,
+        (variant: SwellRecord) =>
+          variant.price !== undefined &&
+          variant.price !== null &&
+          variant.price !== product.price,
       );
     }),
     published_at: deferWith(
