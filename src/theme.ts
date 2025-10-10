@@ -1460,14 +1460,12 @@ ${content.slice(pos)}`;
     return Boolean(pageId === 'index' && typeof pageContent === 'string');
   }
 
-  getSectionClassName(hasCompatibility?: boolean): string {
-    const withCompatibility = hasCompatibility ?? !!this.shopifyCompatibility;
-    return withCompatibility ? 'shopify-section' : 'swell-section';
+  getSectionClassName(): string {
+    return this.shopifyCompatibility ? 'shopify-section' : 'swell-section';
   }
 
-  getSectionIdPrefix(hasCompatibility?: boolean): string {
-    const withCompatibility = hasCompatibility ?? !!this.shopifyCompatibility;
-    return withCompatibility ? 'shopify-section' : 'swell-section';
+  getSectionIdPrefix(): string {
+    return this.shopifyCompatibility ? 'shopify-section' : 'swell-section';
   }
 
   async renderAllSections(

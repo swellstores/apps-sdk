@@ -53,13 +53,8 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
           sectionGroup,
         )) as ThemeSectionConfig[];
 
-        const { shopify_compatibility: shopifyCompatibility } =
-          liquidSwell.theme.globals;
-
-        const sectionClassName =
-          liquidSwell.theme.getSectionClassName(!!shopifyCompatibility);
-        const sectionIdPrefix =
-          liquidSwell.theme.getSectionIdPrefix(!!shopifyCompatibility);
+        const sectionClassName = liquidSwell.theme.getSectionClassName();
+        const sectionIdPrefix = liquidSwell.theme.getSectionIdPrefix();
 
         emitter.write(
           `<div id="swell-section-group__${this.fileName}">${sectionConfigs
