@@ -82,14 +82,14 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
 
         const tag = schema.tag || 'div';
 
-        const id = `${shopifyCompatibility ? 'shopify' : 'swell'}-section-${settings.id || this.fileName}`;
-
-        const className = shopifyCompatibility
-          ? 'shopify-section'
-          : 'swell-section';
+        const sectionClassName =
+          liquidSwell.theme.getSectionClassName(!!shopifyCompatibility);
+        const sectionIdPrefix =
+          liquidSwell.theme.getSectionIdPrefix(!!shopifyCompatibility);
+        const id = `${sectionIdPrefix}-${settings.id || this.fileName}`;
 
         emitter.write(
-          `<${tag} id="${id}" class="${className} ${schema.class || ''}">${output}</${tag}>`,
+          `<${tag} id="${id}" class="${sectionClassName} ${schema.class || ''}">${output}</${tag}>`,
         );
 
         // TODO: if we decide to support static sections
