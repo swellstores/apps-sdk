@@ -271,8 +271,8 @@ const SORT_OPTIONS = Object.freeze<SwellSortOption[]>([
   { value: 'popularity', name: 'Popularity', query: 'popularity desc' },
   { value: 'price_asc', name: 'Price, low to high', query: 'price asc' },
   { value: 'price_desc', name: 'Price, high to low', query: 'price desc' },
-  { value: 'date_asc', name: 'Date, old to new', query: 'date asc' },
-  { value: 'date_desc', name: 'Date, new to old', query: 'date desc' },
+  { value: 'date_asc', name: 'Date, old to new', query: 'date_created asc' },
+  { value: 'date_desc', name: 'Date, new to old', query: 'date_created desc' },
   { value: 'name_asc', name: 'Product name, A-Z', query: 'name asc' },
   { value: 'name_desc', name: 'Product name, Z-A', query: 'name desc' },
 ]);

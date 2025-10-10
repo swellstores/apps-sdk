@@ -48,7 +48,9 @@ export default function ShopifyVariant(
     ),
     barcode: undefined,
     compare_at_price: defer<number>(() =>
-      instance.toShopifyPrice(variant.orig_price),
+      instance.toShopifyPrice(
+        getPriceField(product as SwellRecord, variant, 'orig_price'),
+      ),
     ),
     featured_image: deferWith(
       [product, variant],
@@ -92,14 +94,14 @@ export default function ShopifyVariant(
     option1: getOptionByIndex(product, variant, 0), // Deprecated by Shopify
     option2: getOptionByIndex(product, variant, 1), // Deprecated by Shopify
     option3: getOptionByIndex(product, variant, 2), // Deprecated by Shopify
-    price: deferWith([product, variant], (product, variant) => {
-      let price = product.price;
-      if (variant.price !== null && variant.price !== undefined) {
-        price = variant.price;
-      }
-
-      return instance.toShopifyPrice(price);
-    }),
+    price: deferWith(
+      [product, variant],
+      (product: SwellRecord, variant: SwellRecord) => {
+        return instance.toShopifyPrice(
+          getPriceField(product, variant, 'price'),
+        );
+      },
+    ),
     product: deferWith(product, (product: SwellRecord) => {
       return ShopifyProduct(
         instance,
@@ -139,7 +141,11 @@ export default function ShopifyVariant(
     store_availabilities: [],
     taxable: true,
     title: defer<string>(() => variant.name),
-    unit_price: defer<number>(() => instance.toShopifyPrice(variant.price)),
+    unit_price: defer<number>(() =>
+      instance.toShopifyPrice(
+        getPriceField(product as SwellRecord, variant, 'price'),
+      ),
+    ),
     unit_price_measurement: undefined,
     url: defer<string>(() => product.url),
     weight: defer<number>(() => variant.weight),
@@ -173,6 +179,14 @@ function getOptions(
       .map((id: string) => optionValuesById[id])
       .filter(Boolean);
   });
+}
+
+function getPriceField(
+  product: StorefrontResource | SwellRecord,
+  variant: StorefrontResource | SwellRecord,
+  field: string,
+): number {
+  return (variant[field] ?? product[field]) as number;
 }
 
 // deprecated
