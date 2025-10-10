@@ -48,7 +48,9 @@ export default function ShopifyVariant(
     ),
     barcode: undefined,
     compare_at_price: defer<number>(() =>
-      instance.toShopifyPrice(getPriceField(product, variant, 'orig_price')),
+      instance.toShopifyPrice(
+        getPriceField(product as SwellRecord, variant, 'orig_price'),
+      ),
     ),
     featured_image: deferWith(
       [product, variant],
@@ -140,7 +142,9 @@ export default function ShopifyVariant(
     taxable: true,
     title: defer<string>(() => variant.name),
     unit_price: defer<number>(() =>
-      instance.toShopifyPrice(getPriceField(product, variant, 'price')),
+      instance.toShopifyPrice(
+        getPriceField(product as SwellRecord, variant, 'price'),
+      ),
     ),
     unit_price_measurement: undefined,
     url: defer<string>(() => product.url),
@@ -181,13 +185,8 @@ function getPriceField(
   product: StorefrontResource | SwellRecord,
   variant: StorefrontResource | SwellRecord,
   field: string,
-): any {
-  let value = product[field];
-  if (variant[field] !== undefined && variant[field] !== null) {
-    value = variant[field];
-  }
-
-  return value;
+): number {
+  return (variant[field] ?? product[field]) as number;
 }
 
 // deprecated
