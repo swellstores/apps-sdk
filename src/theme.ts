@@ -1460,6 +1460,14 @@ ${content.slice(pos)}`;
     return Boolean(pageId === 'index' && typeof pageContent === 'string');
   }
 
+  getSectionClassName(): string {
+    return this.shopifyCompatibility ? 'shopify-section' : 'swell-section';
+  }
+
+  getSectionIdPrefix(): string {
+    return this.shopifyCompatibility ? 'shopify-section' : 'swell-section';
+  }
+
   async renderAllSections(
     sectionsIds: string | Array<string>,
     pageData?: SwellData,
@@ -1475,19 +1483,16 @@ ${content.slice(pos)}`;
       }),
     );
 
+    const sectionClassName = this.getSectionClassName();
+    const sectionIdPrefix = this.getSectionIdPrefix();
     return sectionsRendered.reduce(
       (acc, section, index) => {
         const sectionId = sections[index];
-        if (this.shopifyCompatibility) {
-          // TODO: figure out a way to use compatibility class for this
-          acc[sectionId] = `
-          <div id="shopify-section-${sectionId}" class="shopify-section">${String(section)}</div>
+        // TODO: figure out a way to use compatibility class for this
+        acc[sectionId] = `
+          <div id="${sectionIdPrefix}-${sectionId}" class="${sectionClassName}">${String(section)}</div>
         `.trim();
-        } else {
-          acc[sectionId] = `
-          <div id="swell-section-${sectionId}" class="swell-section">${String(section)}</div>
-        `.trim();
-        }
+
         return acc;
       },
       {} as Record<string, string>,
