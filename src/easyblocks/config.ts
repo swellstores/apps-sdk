@@ -1,5 +1,6 @@
 import JSON5 from 'json5';
 import { reduce } from 'lodash-es';
+import ShopifyTemplate from '@/compatibility/shopify-objects/template';
 
 import { SECTION_GROUP_CONTENT, getSectionGroupProp } from '../utils';
 
@@ -23,6 +24,7 @@ import type {
 import type { SwellTheme } from '../theme';
 
 import type {
+  SwellData,
   SwellThemeConfig,
   ThemeGlobals,
   ThemeLayoutSectionGroupConfig,
@@ -45,22 +47,37 @@ export async function getEasyblocksPageTemplate<T>(
 ): Promise<T | string | undefined> {
   let templateConfig: SwellThemeConfig | null = null;
 
+  let templateData = {
+    name: pageId,
+  } as SwellData;
+
+  if (theme.shopifyCompatibility) {
+    templateData = ShopifyTemplate(theme.shopifyCompatibility, templateData);
+  }
+
+  const { name } = templateData;
+
   templateConfig = await theme.getThemeTemplateConfigByType(
     'templates',
-    pageId,
+    name as string,
     altTemplate,
   );
 
   if (templateConfig) {
-    if (templateConfig.file_path.endsWith('.liquid')) {
-      return templateConfig.file_data;
+    let result = templateConfig.file_data;
+    if (!templateConfig.file_path.endsWith('.liquid')) {
+      try {
+        result = JSON5.parse<string>(templateConfig.file_data);
+      } catch {
+        // use templateConfig.file_data
+      }
     }
 
-    try {
-      return JSON5.parse<T>(templateConfig.file_data);
-    } catch {
-      return templateConfig.file_data;
+    if (result && typeof result === 'object') {
+      (result as { id: string }).id = name as string;
     }
+
+    return result;
   }
 }
 
