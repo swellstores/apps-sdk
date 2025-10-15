@@ -24,7 +24,7 @@ export default function ShopifyPredictiveSearch(
   return new ShopifyResource<ShopifyPredictiveSearch>({
     performed: deferWith(search, (search) => search.performed),
     resources: ShopifyPredictiveSearchResources(instance, search),
-    terms: defer(() => search.query),
+    terms: deferWith(search, (search) => search.query),
     types: ['product'],
   });
 }
