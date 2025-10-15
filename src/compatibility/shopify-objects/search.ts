@@ -3,7 +3,7 @@ import { makeProductsCollectionResolve } from './collection';
 import ShopifyProduct from './product';
 import ShopifyFilter from './filter';
 
-import type { StorefrontResource } from '@/resources';
+import { cloneStorefrontResource, StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { ShopifySearch } from 'types/shopify';
 import type { SwellRecord } from 'types/swell';
@@ -14,6 +14,10 @@ export default function ShopifySearch(
 ): ShopifyResource<ShopifySearch> {
   if (search instanceof ShopifyResource) {
     return search.clone() as ShopifyResource<ShopifySearch>;
+  }
+
+  if (search instanceof StorefrontResource) {
+    search = cloneStorefrontResource(search);
   }
 
   const resolveProducts = makeProductsCollectionResolve(
