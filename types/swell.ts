@@ -340,6 +340,7 @@ export interface ThemeSettings {
 }
 
 export interface ThemeSettingsBlock {
+  id?: string;
   type: string;
   settings: ThemeSettings;
   disabled?: boolean;
