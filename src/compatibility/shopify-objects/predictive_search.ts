@@ -1,7 +1,7 @@
 import { ShopifyResource, defer, deferWith } from './resource';
 import ShopifyProduct from './product';
 
-import type { StorefrontResource } from '@/resources';
+import { cloneStorefrontResource, StorefrontResource } from '@/resources';
 import type { ShopifyCompatibility } from '../shopify';
 import type { SwellCollection, SwellRecord } from 'types/swell';
 import type {
@@ -15,6 +15,10 @@ export default function ShopifyPredictiveSearch(
 ): ShopifyResource<ShopifyPredictiveSearch> {
   if (search instanceof ShopifyResource) {
     return search.clone() as ShopifyResource<ShopifyPredictiveSearch>;
+  }
+
+  if (search instanceof StorefrontResource) {
+    search = cloneStorefrontResource(search);
   }
 
   return new ShopifyResource<ShopifyPredictiveSearch>({
