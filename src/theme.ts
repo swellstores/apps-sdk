@@ -2275,10 +2275,10 @@ function getBlockAttributes(theme: SwellTheme, block: ThemeSettingsBlock) {
   const { id } = block;
   const attributes = `data-editor-block="${JSON.stringify({ id }).replaceAll('"', '&quot;')}"`;
 
-  return !theme.shopifyCompatibility ||
-    theme.shopifyCompatibility.supportsSwellAttributes()
-    ? { swell_attributes: attributes }
-    : { shopify_attributes: attributes };
+  return {
+    swell_attributes: attributes,
+    shopify_attributes: attributes,
+  };
 }
 
 function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {

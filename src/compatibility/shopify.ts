@@ -829,12 +829,6 @@ ${injects.join('\n')}</script>`;
     return Boolean(features?.swell_variants);
   }
 
-  supportsSwellAttributes(): boolean {
-    const features = this.getCompatibilityFeatures();
-
-    return Boolean(features?.swell_attributes);
-  }
-
   toShopifyPrice<T>(amount: T): number | T {
     if (typeof amount !== 'number' || this.supportsSwellPrices()) {
       return amount;
