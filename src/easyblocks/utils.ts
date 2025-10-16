@@ -542,14 +542,21 @@ export function getSectionSettingsFromProps(
     blocks: props.Blocks?.filter((propBlock) =>
       Boolean(propBlock.props.compiled?._component),
     ).map((propBlock): ThemeSettingsBlock => {
-      const blockProps = propBlock.props.compiled.props;
-      const blockType = propBlock.props.compiled._component.split('__')[2];
+      const {
+        _id: id,
+        _component: component,
+        disabled: isDisabled,
+        props: blockProps,
+      } = propBlock.props.compiled;
+      const blockType = component.split('__')[2];
       const blockSchema = sectionSchema.blocks?.find(
         (block) => block.type === blockType,
       );
 
       return {
+        id,
         type: blockType,
+        disabled: isDisabled,
         settings:
           blockSchema?.fields?.reduce<ThemeSettings>(
             (acc, field) => {

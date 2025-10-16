@@ -110,10 +110,7 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
           const value = yield evalToken(valueToken, ctx, ctx.opts.lenientIf);
           if (target === value) {
             const blockOutput = yield r.renderTemplates(branch.templates, ctx);
-            output +=
-              this.isBlock && liquidSwell.isEditor
-                ? `<span class="swell-block">${blockOutput}</span>`
-                : blockOutput;
+            output += blockOutput;
             branchHit = true;
             break;
           }

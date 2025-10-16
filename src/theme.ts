@@ -2065,6 +2065,7 @@ export function resolveSectionSettings(
 
   blocks = blocks?.map((block) => ({
     ...block,
+    ...getBlockAttributes(theme, block),
     settings: resolveThemeSettings(
       theme,
       block.settings,
@@ -2264,6 +2265,20 @@ export function findEditorSetting(
   }
 
   return null;
+}
+
+function getBlockAttributes(theme: SwellTheme, block: ThemeSettingsBlock) {
+  if (!theme.swell.isEditor) {
+    return;
+  }
+
+  const { id } = block;
+  const attributes = `data-editor-block="${JSON.stringify({ id }).replaceAll('"', '&quot;')}"`;
+
+  return {
+    swell_attributes: attributes,
+    shopify_attributes: attributes,
+  };
 }
 
 function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {
