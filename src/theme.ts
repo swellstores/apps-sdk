@@ -2268,6 +2268,10 @@ export function findEditorSetting(
 }
 
 function getBlockAttributes(theme: SwellTheme, block: ThemeSettingsBlock) {
+  if (!theme.swell.isEditor) {
+    return;
+  }
+
   const { id } = block;
   const attributes = `data-editor-block="${JSON.stringify({ id }).replaceAll('"', '&quot;')}"`;
 
