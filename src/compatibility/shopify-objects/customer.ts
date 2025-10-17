@@ -24,7 +24,7 @@ export default function ShopifyCustomer(
   return new ShopifyResource<ShopifyCustomer>({
     accepts_marketing: defer(() => account.email_optin),
     addresses: deferWith(account.addresses, (addresses) =>
-      addresses.results.map((address: SwellRecord) =>
+      (addresses?.results || []).map((address: SwellRecord) =>
         ShopifyAddress(instance, address),
       ),
     ),
@@ -53,7 +53,9 @@ export default function ShopifyCustomer(
     last_order: defer(() => resolveLastOrder(instance, account)),
     name: defer(() => account.name),
     orders: deferWith(account.orders, (orders) =>
-      orders.results.map((order: SwellRecord) => ShopifyOrder(instance, order)),
+      (orders?.results || []).map((order: SwellRecord) =>
+        ShopifyOrder(instance, order),
+      ),
     ),
     orders_count: defer(() => account.order_count),
     payment_methods: [],
