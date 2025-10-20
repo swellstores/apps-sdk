@@ -554,7 +554,7 @@ export function getSectionSettingsFromProps(
       );
 
       return {
-        id,
+        id: toBlockId(id),
         type: blockType,
         disabled: isDisabled,
         settings:
@@ -587,4 +587,12 @@ export function toSchemaFieldId(fieldId?: string): string {
   }
 
   return fieldId.replace(/·/g, '.');
+}
+
+export function toBlockId(id: string): string {
+  if (!id) {
+    return id;
+  }
+
+  return id.replace(/\./g, '_');
 }

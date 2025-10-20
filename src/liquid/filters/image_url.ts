@@ -58,7 +58,7 @@ function getCountryFlagUrl(countryIsoCode: string): string {
   return `https://cdnjs.cloudflare.com/ajax/libs/flag-icons/7.3.2/flags/1x1/${countryIsoCode.toLowerCase()}.svg`;
 }
 
-async function getImageUrlFromInput(
+export async function getImageUrlFromInput(
   input: unknown,
   liquidSwell: LiquidSwell,
 ): Promise<unknown> {
