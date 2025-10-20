@@ -1,3 +1,5 @@
+import { getImageUrlFromInput } from '../image_url';
+
 import type { FilterHandler } from 'liquidjs/dist/template';
 import type { LiquidSwell } from '../..';
 
@@ -7,23 +9,15 @@ interface ImgSrcObject {
   height?: number;
 }
 
-export default function bind(_liquidSwell: LiquidSwell): FilterHandler {
-  return function filterImgUrl(
+export default function bind(liquidSwell: LiquidSwell): FilterHandler {
+  return async function filterImgUrl(
     input: string | ImgSrcObject,
     ...params: string[]
-  ): string {
-    if (!input) return '';
+  ): Promise<string> {
+    const url = await getImageUrlFromInput(input, liquidSwell);
 
-    let url: string;
-
-    if (typeof input === 'object') {
-      if (input.url) {
-        url = input.url;
-      } else {
-        return '';
-      }
-    } else {
-      url = String(input);
+    if (typeof url !== 'string' || url === '') {
+      return '';
     }
 
     const query: string[] = [];
