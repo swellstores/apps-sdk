@@ -5,6 +5,6 @@ import { LiquidSwell } from '../..';
 export default function bind(_liquidSwell: LiquidSwell) {
   return (form: any) => {
     // TODO
-    return null;
+    return `<button style="display: block; visibility: hidden;"></button>`;
   };
 }
