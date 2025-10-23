@@ -1,5 +1,5 @@
 import JSON5 from 'json5';
-import { reduce } from 'lodash-es';
+import { reduce, set } from 'lodash-es';
 import ShopifyTemplate from '@/compatibility/shopify-objects/template';
 
 import { SECTION_GROUP_CONTENT, getSectionGroupProp } from '../utils';
@@ -425,92 +425,98 @@ function getAllSectionComponentTemplates(
 ): InternalTemplate[] {
   const list: InternalTemplate[] = [];
 
-  for (const section of allSections) {
-    if (section.presets) {
-      list.push(
-        ...section.presets.map<InternalTemplate>((preset, index) => ({
-          id: `${section.id}__preset_${index}`,
-          entry: {
-            _id: `${section.id}__preset_${index}`,
-            _component: section.id,
-            custom_css: (preset.settings?.['custom_css'] || '') as string,
-            ...reduce(
-              section.fields,
-              (acc, field) => {
-                if (field.id) {
-                  acc[field.id] = schemaToEasyblocksValue(
-                    section.fields,
-                    field.id,
-                    preset.settings?.[field.id],
-                  );
-                }
+  // Helper to convert fields + $locale into easyblocks object
+  const processFields = (
+    fields: ThemeSettingFieldSchema[],
+    settings: Record<string, unknown> = {},
+  ): Record<string, unknown> => {
+    const result: Record<string, unknown> = {};
 
-                return acc;
-              },
-              {} as Record<string, unknown>,
-            ),
-            Blocks: preset.blocks?.reduce<NoCodeComponentEntry[]>(
-              (acc, block) => {
-                const blockDef = section.blocks?.find(
-                  ({ type }) => type === block.type,
-                );
+    for (const field of fields) {
+      if (!field?.id) {
+        continue;
+      }
 
-                if (blockDef) {
-                  acc.push({
-                    _id: `Block__${section.id}__${block.type}__preset_${index}`,
-                    _component: `Block__${section.id}__${block.type}`,
-                    ...reduce(
-                      blockDef.fields,
-                      (acc, blockField) => {
-                        if (blockField.id) {
-                          acc[blockField.id] = schemaToEasyblocksValue(
-                            blockDef.fields,
-                            blockField.id,
-                            block.settings?.[blockField.id],
-                          );
-                        }
+      const { id: fieldId, $locale } = field;
 
-                        return acc;
-                      },
-                      {} as Record<string, unknown>,
-                    ),
-                  });
-                }
-
-                return acc;
-              },
-              [],
-            ),
-          },
-        })),
+      // Convert field to easyblocks value
+      result[fieldId] = schemaToEasyblocksValue(
+        fields,
+        fieldId,
+        settings[fieldId],
       );
+
+      // Add localized values to $locale
+      if ($locale) {
+        for (const [locale, localeValues] of Object.entries($locale)) {
+          const defaultValue = localeValues?.default;
+
+          if (defaultValue) {
+            set(result, `$locale.${locale}.${fieldId}`, defaultValue);
+          }
+        }
+      }
     }
 
+    return result;
+  };
+
+  for (const section of allSections) {
+    // Process section presets
+    if (section.presets) {
+      for (let index = 0; index < section.presets.length; index++) {
+        const preset = section.presets[index];
+
+        const entry: InternalTemplate['entry'] = {
+          _id: `${section.id}__preset_${index}`,
+          _component: section.id,
+          custom_css: (preset.settings?.['custom_css'] || '') as string,
+          ...processFields(section.fields, preset.settings),
+          // Process blocks inside the preset
+          Blocks: (preset.blocks || [])
+            .map((block) => {
+              const blockSchema = section.blocks?.find(
+                ({ type }) => type === block.type,
+              );
+
+              if (!blockSchema) {
+                return null;
+              }
+
+              return {
+                _id: `Block__${section.id}__${block.type}__preset_${index}`,
+                _component: `Block__${section.id}__${block.type}`,
+                ...processFields(blockSchema.fields, block.settings),
+              };
+            })
+            .filter(Boolean) as NoCodeComponentEntry[],
+        };
+
+        list.push({
+          id: `${section.id}__preset_${index}`,
+          entry,
+        });
+      }
+    }
+
+    // Process standalone blocks
     if (section.blocks) {
-      list.push(
-        ...section.blocks.map<InternalTemplate>((block) => ({
+      for (const block of section.blocks) {
+        list.push({
           id: `Block__${section.id}__${block.type}`,
           entry: {
             _id: `Block__${section.id}__${block.type}`,
             _component: `Block__${section.id}__${block.type}`,
-            ...reduce(
+            ...processFields(
               block.fields,
-              (acc, field) => {
-                if (field.id) {
-                  acc[field.id] = schemaToEasyblocksValue(
-                    block.fields,
-                    field.id,
-                    field.default,
-                  );
-                }
-
+              block.fields.reduce<Record<string, unknown>>((acc, f) => {
+                if (f.id) acc[f.id] = f.default;
                 return acc;
-              },
-              {} as Record<string, unknown>,
+              }, {}),
             ),
           },
-        })),
-      );
+        });
+      }
     }
   }
 
