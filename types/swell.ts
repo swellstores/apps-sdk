@@ -646,6 +646,9 @@ export interface ThemeSettingFieldSchema {
 
   // swell field conditions
   conditions?: Record<string, any>;
+
+  // locale values
+  $locale?: Record<string, { default?: string }>;
 }
 
 export interface ThemeSettingSectionSchema {

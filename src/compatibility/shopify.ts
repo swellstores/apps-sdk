@@ -1,4 +1,4 @@
-import { get, isObject, merge } from 'lodash-es';
+import { get, set, isObject, merge } from 'lodash-es';
 
 import { Swell, StorefrontResource } from '@/api';
 import { ThemeFont } from '@/liquid/font';
@@ -488,33 +488,43 @@ ${injects.join('\n')}</script>`;
       return schema;
     }
 
-    const editorLocaleConfig = await this.getEditorLocaleConfig(
-      theme,
+    // Fetch all available locales from the storefront
+    const locales = await theme.swell.storefront.locale.list();
+    // Combine the default locale with other locale codes
+    const localeCodes = new Set([
       localeCode,
-    );
+      ...locales.map((locale) => locale.code),
+    ]);
+
+    // Load editor locale configurations for each locale
+    const localeConfigs: Record<string, ThemeLocaleConfig> = {};
+    for (const locale of localeCodes) {
+      localeConfigs[locale] = await this.getEditorLocaleConfig(theme, locale);
+    }
 
     return this.renderSchemaTranslationValue(
       theme,
       schema,
       localeCode,
-      editorLocaleConfig,
+      localeConfigs,
     );
   }
 
-  async renderSchemaTranslationValue<T>(
+  renderSchemaTranslationValue<T>(
     theme: SwellTheme,
     schemaValue: T,
-    localCode: string,
-    editorLocaleConfig: ThemeLocaleConfig,
-  ): Promise<T> {
+    localeCode: string,
+    localeConfigs: Record<string, ThemeLocaleConfig>,
+  ): T {
     switch (typeof schemaValue) {
       case 'string': {
         if (schemaValue.startsWith('t:')) {
+          const localeConfig = localeConfigs[localeCode];
           const key = schemaValue.slice(2);
           const keyParts = key?.split('.');
           const keyName = keyParts.pop() || '';
           const keyPath = keyParts.join('.');
-          const langObject = get(editorLocaleConfig, keyPath);
+          const langObject = get(localeConfig, keyPath);
 
           return (langObject?.[keyName] ?? key) as T;
         }
@@ -528,11 +538,11 @@ ${injects.join('\n')}</script>`;
 
           for (const value of schemaValue) {
             result.push(
-              await this.renderSchemaTranslationValue(
+              this.renderSchemaTranslationValue(
                 theme,
                 value,
-                localCode,
-                editorLocaleConfig,
+                localeCode,
+                localeConfigs,
               ),
             );
           }
@@ -544,12 +554,31 @@ ${injects.join('\n')}</script>`;
           const result = { ...schemaValue } as Record<string, unknown>;
 
           for (const [key, value] of Object.entries(schemaValue)) {
-            result[key] = await this.renderSchemaTranslationValue<unknown>(
+            result[key] = this.renderSchemaTranslationValue<unknown>(
               theme,
               value,
-              localCode,
-              editorLocaleConfig,
+              localeCode,
+              localeConfigs,
             );
+
+            // Handle other locales for fields starting with "t:"
+            if (typeof value === 'string' && value.startsWith('t:')) {
+              for (const locale of Object.keys(localeConfigs)) {
+                if (locale === localeCode) {
+                  continue;
+                }
+
+                const localeValue = this.renderSchemaTranslationValue<unknown>(
+                  theme,
+                  value,
+                  locale,
+                  localeConfigs,
+                );
+
+                // Store translation in $locale key
+                set(result, `$locale.${locale}.${key}`, localeValue);
+              }
+            }
           }
 
           return result as T;
