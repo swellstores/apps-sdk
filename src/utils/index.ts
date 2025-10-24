@@ -311,13 +311,13 @@ export function arrayToObject<
 }
 
 export function getCountryCodeFromLocale(locale: string): string {
-  const split = locale.split(/-|_/);
-  const country = split.pop()?.toUpperCase();
-  const lang = split.join('-');
+  const [lang, country] = locale.split(/-|_/);
 
-  const code = country ? country : LANG_TO_COUNTRY_CODES[lang] || '';
+  if (country) {
+    return country.toLowerCase();
+  }
 
-  return code.toLowerCase();
+  return (LANG_TO_COUNTRY_CODES[lang] || '').toLowerCase();
 }
 
 export function getCountryByCurrency(
