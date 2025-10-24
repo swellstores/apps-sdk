@@ -528,7 +528,11 @@ export class SwellStorefrontCollection<
     return this._resolve().then(() => this.makeIterator());
   }
 
-  private makeIterator() {
+  private async makeIterator() {
+    if (isLikePromise(this.results)) {
+      await this.results;
+    }
+
     return (this.results || []).values();
   }
 

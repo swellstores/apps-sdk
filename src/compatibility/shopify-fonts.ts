@@ -1,6 +1,10 @@
 export function shopifyFontToThemeFront(
-  shopifyFontSetting: string,
+  shopifyFontSetting: string | null,
 ): string | null {
+  if (typeof shopifyFontSetting !== 'string') {
+    return null;
+  }
+
   const pos = shopifyFontSetting.lastIndexOf('_');
   const familyId = shopifyFontSetting.substring(0, pos);
   const variantId = shopifyFontSetting.substring(pos + 1);
