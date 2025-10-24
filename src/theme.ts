@@ -2063,15 +2063,17 @@ export function resolveSectionSettings(
     (block) => block.disabled !== true,
   );
 
-  blocks = blocks?.map((block) => ({
-    ...block,
-    ...getBlockAttributes(theme, block),
-    settings: resolveThemeSettings(
-      theme,
-      block.settings,
-      schema.blocks?.filter((schemaBlock) => schemaBlock.type === block.type),
-    ),
-  }));
+  blocks = blocks
+    ?.filter((block) => Boolean(block.type))
+    .map((block) => ({
+      ...block,
+      ...getBlockAttributes(theme, block),
+      settings: resolveThemeSettings(
+        theme,
+        block.settings,
+        schema.blocks?.filter((schemaBlock) => schemaBlock.type === block.type),
+      ),
+    }));
 
   return {
     ...settings,
