@@ -48,18 +48,11 @@ class CollectionsDrop extends Drop {
     switch (typeof key) {
       case 'string': {
         if (key === 'all') {
-          let resource = this.#map.get(key);
+          return this.getAllCollection();
+        }
 
-          if (resource === undefined) {
-            resource = ShopifyCollection(
-              this.#instance,
-              new AllCategoryResource(this.#instance),
-            );
-
-            this.#map.set(key, resource);
-          }
-
-          return resource;
+        if (key === 'size') {
+          return this.getAllCollectionsSize();
         }
 
         return this.getCollection(key);
@@ -98,6 +91,27 @@ class CollectionsDrop extends Drop {
     }
 
     return resource;
+  }
+
+  getAllCollection(): ShopifyResource<ShopifyCollectionType> {
+    let resource = this.#map.get('all');
+
+    if (resource === undefined) {
+      resource = ShopifyCollection(
+        this.#instance,
+        new AllCategoryResource(this.#instance),
+      );
+
+      this.#map.set('all', resource);
+    }
+
+    return resource;
+  }
+
+  getAllCollectionsSize(): Promise<number> | number {
+    const count = this.#instance.theme.globals.shop
+      ?.collections_count as number;
+    return count || 0;
   }
 }
 
