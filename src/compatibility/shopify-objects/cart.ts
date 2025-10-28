@@ -43,7 +43,7 @@ export default function ShopifyCart(
       );
     }),
     items_subtotal_price: defer(() => instance.toShopifyPrice(cart.sub_total)),
-    note: defer(() => cart.comments),
+    note: deferWith(cart, (cart) => cart.comments),
     original_total_price: deferWith(cart, (cart) =>
       instance.toShopifyPrice(cart.sub_total),
     ),
