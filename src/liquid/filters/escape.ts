@@ -6,7 +6,7 @@ import type { LiquidSwell } from '..';
 
 export default function bind(_liquidSwell: LiquidSwell): FilterHandler {
   return function escapeTag(input: string): string {
-    if (!input) {
+    if (!input?.startsWith) {
       return input;
     }
 
