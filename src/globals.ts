@@ -128,14 +128,14 @@ export function getRobotsGlobals(canonicalUrl: string): ShopifyRobots {
     default_groups: [
       {
         user_agent: RobotsRule.from('User-agent', '*'),
-        // sitemap: RobotsRule.from('Sitemap', sitemapUrl),
+        sitemap: RobotsRule.from('Sitemap', sitemapUrl),
         rules: defaultRules.map((rule) =>
           RobotsRule.from(rule.directive, rule.value),
         ),
       },
       {
         user_agent: RobotsRule.from('User-agent', 'AhrefsBot'),
-        // sitemap: RobotsRule.from('Sitemap', sitemapUrl),
+        sitemap: RobotsRule.from('Sitemap', sitemapUrl),
         rules: [
           RobotsRule.from('Crawl-delay', '10'),
           ...defaultRules.map((rule) =>
@@ -145,7 +145,7 @@ export function getRobotsGlobals(canonicalUrl: string): ShopifyRobots {
       },
       {
         user_agent: RobotsRule.from('User-agent', 'AhrefsSiteAudit'),
-        // sitemap: RobotsRule.from('Sitemap', sitemapUrl),
+        sitemap: RobotsRule.from('Sitemap', sitemapUrl),
         rules: [
           RobotsRule.from('Crawl-delay', '10'),
           ...defaultRules.map((rule) =>

@@ -1,5 +1,7 @@
 import { HtmlCache } from './html-cache';
 
+import type { CacheBackend, CachedEntry } from './html-cache-backend';
+
 // --- Mocks for md5 + logger ---
 jest.mock('../../utils', () => ({
   md5: (s: string) => {
@@ -17,33 +19,35 @@ jest.mock('../../utils/logger', () => ({
 // In Node <18, uncomment a fetch polyfill:
 // import 'cross-fetch/polyfill';
 
+interface CacheBackendStore extends CacheBackend {
+  __store: Map<string, CachedEntry>;
+}
+
 /**
  * In-memory backend (structural type, no imported TS types).
  * Returns a duck-typed CacheBackend without importing the interface.
  */
-const makeMemoryBackend = () => {
-  /** @type {Map<string, any>} */
-  const store = new Map();
+function makeMemoryBackend(): CacheBackendStore {
+  const store = new Map<string, CachedEntry>();
 
   return {
-    /** @param {string} key */
-    read(key) {
+    read(key: string) {
       return Promise.resolve(store.get(key) ?? null);
     },
-    /** @param {string} key @param {any} entry @param {number} _hardExpireSeconds */
-    write(key, entry, _hardExpireSeconds) {
+
+    write(key: string, entry: CachedEntry, _hardExpireSeconds: number) {
       store.set(key, entry);
       return Promise.resolve();
     },
-    /** @param {string} key */
-    delete(key) {
+
+    delete(key: string) {
       store.delete(key);
       return Promise.resolve();
     },
     // expose store for debug if needed:
     __store: store,
   };
-};
+}
 
 // Helpers
 const htmlResponse = (body = '<html>ok</html>') =>
@@ -73,8 +77,8 @@ const makeRequest = (url: string, init?: RequestInit) => {
 
 describe('HtmlCache (backend agnostic)', () => {
   const EPOCH = 'e1';
-  let backend;
-  let cache;
+  let backend: CacheBackendStore;
+  let cache: HtmlCache;
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -103,15 +107,13 @@ describe('HtmlCache (backend agnostic)', () => {
     expect(hit?.found).toBe(true);
     expect(hit?.stale).toBe(false);
 
-    const h = hit.response.headers;
-    expect(h.get('Cache-Control')).toBe(
-      'public, max-age=1, must-revalidate',
-    );
-    expect(h.get('Cloudflare-CDN-Cache-Control')).toBe(
+    const h = hit?.response?.headers;
+    expect(h?.get('Cache-Control')).toBe('public, max-age=1, must-revalidate');
+    expect(h?.get('Cloudflare-CDN-Cache-Control')).toBe(
       'public, s-maxage=20, stale-while-revalidate=604800, stale-if-error=60',
     );
-    expect(h.get('X-Cache-Status')).toBe('HIT');
-    expect(Number(h.get('X-Cache-Age'))).toBeGreaterThanOrEqual(0);
+    expect(h?.get('X-Cache-Status')).toBe('HIT');
+    expect(Number(h?.get('X-Cache-Age'))).toBeGreaterThanOrEqual(0);
   });
 
   test('Age ≥ TTL but < TTL+SWR → STALE still served', async () => {
@@ -123,7 +125,7 @@ describe('HtmlCache (backend agnostic)', () => {
     const result = await cache.get(req);
     expect(result?.found).toBe(true);
     expect(result?.stale).toBe(true);
-    expect(result?.response.headers.get('X-Cache-Status')).toBe('STALE');
+    expect(result?.response?.headers.get('X-Cache-Status')).toBe('STALE');
   });
 
   test('Age ≥ TTL+SWR → treated as expired (MISS)', async () => {
@@ -143,7 +145,7 @@ describe('HtmlCache (backend agnostic)', () => {
     await cache.put(req, htmlResponse('<html>etagme</html>'));
 
     const first = await cache.get(req);
-    const etag = first.response.headers.get('ETag');
+    const etag = first?.response?.headers.get('ETag') ?? '';
     expect(etag).toBeTruthy();
 
     const condReq = makeRequest(req.url, {
@@ -181,7 +183,8 @@ describe('HtmlCache (backend agnostic)', () => {
     const hit = await cache.get(getReq);
 
     expect(hit?.found).toBe(true);
-    expect(await hit.response.text()).toContain('norm');
+
+    await expect(hit?.response?.text()).resolves.toContain('norm');
   });
 
   test('editor mode → not cacheable on get/put', async () => {
@@ -302,7 +305,9 @@ describe('HtmlCache (backend agnostic)', () => {
     // Different locale in swell-data cookie should use different cache key
     const frReq = makeRequest(url, {
       headers: {
-        'cookie': 'swell-data=' + encodeURIComponent(JSON.stringify({ 'swell-locale': 'fr-FR' }))
+        cookie:
+          'swell-data=' +
+          encodeURIComponent(JSON.stringify({ 'swell-locale': 'fr-FR' })),
       },
     });
     const missFr = await cache.get(frReq);
@@ -329,7 +334,7 @@ describe('HtmlCache (backend agnostic)', () => {
   test('delete removes entry', async () => {
     const req = makeRequest('https://site.test/pages/del');
     await cache.put(req, htmlResponse('bye'));
-    let before = await cache.get(req);
+    const before = await cache.get(req);
     expect(before?.found).toBe(true);
 
     await cache.delete(req);
@@ -403,8 +408,11 @@ describe('HtmlCache (backend agnostic)', () => {
     // Corrupt the stored entry’s timestamp
     const [onlyKey] = Array.from(backend.__store.keys());
     const ent = backend.__store.get(onlyKey);
-    ent.cacheTimeISO = 'not-a-date';
-    backend.__store.set(onlyKey, ent);
+
+    if (ent) {
+      ent.cacheTimeISO = 'not-a-date';
+      backend.__store.set(onlyKey, ent);
+    }
 
     const res = await cache.get(req);
     expect(res?.found).toBe(false);
@@ -439,9 +447,7 @@ describe('HtmlCache (backend agnostic)', () => {
       headers: { 'If-None-Match': first!.response!.headers.get('ETag')! },
     });
     const result = await cache.getWithConditionals(condReq);
-    if (vary) {
-      expect(result!.conditional304!.headers.get('Vary')).toBe(vary);
-    }
+    expect(result!.conditional304!.headers.get('Vary')).toBe(vary);
   });
 
   test('X-Cache-Age reflects passage of time', async () => {

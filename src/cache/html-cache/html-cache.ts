@@ -1,32 +1,43 @@
 import { md5 } from '../../utils';
 import { logger, createTraceId } from '../../utils/logger';
+
 import type { CacheBackend, CachedEntry } from './html-cache-backend';
 
 const CACHE_KEY_ORIGIN = 'https://cache.swell.store';
 
 /**
  * Configuration for path-specific cache behavior.
+ *
  * Paths support wildcards:
- *   - * matches any characters except /
- *   - ** matches any characters including /
- * Examples: '/account/*', '/api/**', '*.json'
+ *   - `*` matches any characters except `/`
+ *   - `**` matches any characters including `/`
+ *
+ * Examples: `/account/*`, `/api/**`, `*.json`
+ *
  * First matching rule wins.
  */
 export interface PathRule {
   path: string;
-  ttl?: number; // Time-to-live in seconds
-  swr?: number; // Stale-while-revalidate in seconds
-  skip?: boolean; // If true, skip caching for this path
-  // Optional list of allowed Content-Types for caching.
-  // If provided, responses whose Content-Type starts with one of these values are cacheable.
-  // If omitted, defaults to only allowing 'text/html'.
+  /** Time-to-live in seconds */
+  ttl?: number;
+  /** Stale-while-revalidate in seconds */
+  swr?: number;
+  /** If true, skip caching for this path */
+  skip?: boolean;
+  /**
+   * Optional list of allowed Content-Types for caching.
+   *
+   * If provided, responses whose Content-Type starts with one of these values are cacheable.
+   *
+   * If omitted, defaults to only allowing `text/html`.
+   */
   contentTypes?: string[];
 }
 
 export interface CacheRules {
-  defaults?: {
-    live?: { ttl: number; swr: number };
-    preview?: { ttl: number; swr: number };
+  defaults: {
+    live: { ttl: number; swr: number };
+    preview: { ttl: number; swr: number };
   };
   pathRules?: PathRule[];
 }
@@ -38,6 +49,18 @@ export const DEFAULT_CACHE_RULES: CacheRules = {
   },
   pathRules: [{ path: '/checkout/*', skip: true }],
 };
+
+interface PathRuleInner extends PathRule {
+  regex: RegExp;
+}
+
+interface CacheRulesInner {
+  defaults: {
+    live: { ttl: number; swr: number };
+    preview: { ttl: number; swr: number };
+  };
+  pathRules?: PathRuleInner[];
+}
 
 type DeploymentMode = 'live' | 'preview';
 
@@ -51,6 +74,37 @@ export interface CacheResult {
   conditional304?: Response;
 }
 
+const SANITIZE_CLIENT_HEADERS = Object.freeze([
+  'connection',
+  'proxy-connection',
+  'keep-alive',
+  'transfer-encoding',
+  'upgrade',
+  'proxy-authenticate',
+  'proxy-authorization',
+  'te',
+  'trailers',
+  'via',
+  'alt-svc',
+  'content-length',
+  'content-encoding',
+  // Also strip any legacy internal metadata keys
+  'x-original-ttl',
+  'x-original-swr',
+  'x-cache-time',
+]);
+
+const CACHE_KEY_HEADERS = Object.freeze([
+  'cookie',
+  'swell-storefront-id',
+  'swell-app-id',
+  'swell-access-token',
+  'swell-theme-version-hash',
+  'swell-cache-modified',
+  'x-locale',
+  'swell-storefront-context',
+]);
+
 /**
  * Contains all the storage-agnostic HTML caching logic.
  * It determines what to cache, for how long, how to build cache keys,
@@ -60,7 +114,7 @@ export interface CacheResult {
 export class HtmlCache {
   protected epoch: string;
   protected backend: CacheBackend;
-  protected cacheRules: CacheRules;
+  protected cacheRules: CacheRulesInner;
 
   constructor(
     epoch: string,
@@ -69,7 +123,31 @@ export class HtmlCache {
   ) {
     this.epoch = epoch;
     this.backend = backend;
-    this.cacheRules = cacheRules;
+
+    this.cacheRules = {
+      ...cacheRules,
+      pathRules: cacheRules.pathRules?.map((rule) => ({
+        ...rule,
+        regex: this.convertPathToRegex(rule.path),
+      })),
+    };
+  }
+
+  /**
+   * Converts wildcard pattern to regex and tests against path.
+   *
+   * - `*` matches any characters except `/`
+   * - `**` matches any characters including `/`
+   */
+  protected convertPathToRegex(pattern: string): RegExp {
+    // Escape special regex chars except * and /
+    const regex = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special chars
+      .replace(/\*\*/g, '___DOUBLE_STAR___') // Temporarily replace **
+      .replace(/\*/g, '[^/]*') // * matches anything except /
+      .replace(/___DOUBLE_STAR___/g, '.*'); // ** matches anything
+
+    return new RegExp(`^${regex}$`);
   }
 
   async get(request: Request): Promise<CacheResult | null> {
@@ -184,8 +262,8 @@ export class HtmlCache {
         );
         return;
       }
-      const cacheTimeISO = new Date().toISOString();
 
+      const date = new Date();
       const headers = this.normalizeHeaders(response.headers);
 
       const entry: CachedEntry = {
@@ -193,12 +271,11 @@ export class HtmlCache {
         statusText: response.statusText,
         headers,
         body,
-        cacheTimeISO,
+        cacheTimeISO: date.toISOString(),
         ttl,
         swr,
         etag: this.quoteETag(headers['etag'] || md5(body)),
-        lastModifiedUTC:
-          headers['last-modified'] || new Date(cacheTimeISO).toUTCString(),
+        lastModifiedUTC: headers['last-modified'] || date.toUTCString(),
       };
 
       const hardExpireSeconds = ttl + swr;
@@ -230,8 +307,15 @@ export class HtmlCache {
   }
 
   public canReadFromCache(request: Request): boolean {
-    const method = request.method.toUpperCase();
-    if (!(method === 'GET' || method === 'HEAD')) return false;
+    switch (request.method.toUpperCase()) {
+      case 'GET':
+      case 'HEAD':
+        break;
+
+      default:
+        return false;
+    }
+
     const res = this.resolvePathRule(request);
     if (res.skip) return false;
     return this.isRequestCacheable(request);
@@ -321,7 +405,10 @@ export class HtmlCache {
       try {
         const ifModDate = new Date(ifModifiedSince);
         const lastModDate = new Date(lastModified);
-        if (isNaN(ifModDate.getTime()) || isNaN(lastModDate.getTime())) {
+        if (
+          Number.isNaN(ifModDate.getTime()) ||
+          Number.isNaN(lastModDate.getTime())
+        ) {
           return false;
         }
         return ifModDate >= lastModDate;
@@ -358,36 +445,31 @@ export class HtmlCache {
   }
 
   protected sanitizeClientHeaders(headers: Headers): void {
-    const HOP_BY_HOP = [
-      'connection',
-      'proxy-connection',
-      'keep-alive',
-      'transfer-encoding',
-      'upgrade',
-      'proxy-authenticate',
-      'proxy-authorization',
-      'te',
-      'trailers',
-      'via',
-      'alt-svc',
-      'content-length',
-    ];
-    for (const h of HOP_BY_HOP) headers.delete(h);
+    for (const name of SANITIZE_CLIENT_HEADERS) {
+      headers.delete(name);
+    }
+  }
 
-    headers.delete('content-encoding');
-    // Also strip any legacy internal metadata keys
-    headers.delete('x-original-ttl');
-    headers.delete('x-original-swr');
-    headers.delete('x-cache-time');
+  public getCacheKeyHeaders(headers: Headers): Headers {
+    const acc = new Headers();
+
+    for (const name of CACHE_KEY_HEADERS) {
+      const value = headers.get(name);
+
+      if (value) {
+        acc.set(name, value);
+      }
+    }
+
+    return acc;
   }
 
   protected generateVersionHash(headers: Headers): string {
-    const swellData = this.extractSwellData(headers);
+    const swellData = this.extractSwellData(headers.get('cookie'));
 
     const versionFactors = {
       store: headers.get('swell-storefront-id') || '',
-      app:
-        (headers.get('swell-app-id') || '') + '@' + (headers.get('host') || ''),
+      app: headers.get('swell-app-id') || '',
       auth: headers.get('swell-access-token') || '',
       theme: headers.get('swell-theme-version-hash') || '',
       modified: headers.get('swell-cache-modified') || '',
@@ -403,8 +485,7 @@ export class HtmlCache {
     return md5(JSON.stringify(versionFactors));
   }
 
-  protected extractSwellData(headers: Headers): Record<string, unknown> {
-    const cookie = headers.get('cookie');
+  protected extractSwellData(cookie: string | null): Record<string, unknown> {
     if (!cookie) return {};
     const swellDataMatch = cookie.match(/swell-data=([^;]+)/);
     if (!swellDataMatch) return {};
@@ -477,21 +558,6 @@ export class HtmlCache {
     return age < 0 ? 0 : age;
   }
 
-  /**
-   * Converts wildcard pattern to regex and tests against path.
-   * - * matches any characters except /
-   * - ** matches any characters including /
-   */
-  protected pathMatches(pattern: string, path: string): boolean {
-    // Escape special regex chars except * and /
-    const regex = pattern
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special chars
-      .replace(/\*\*/g, '___DOUBLE_STAR___') // Temporarily replace **
-      .replace(/\*/g, '[^/]*') // * matches anything except /
-      .replace(/___DOUBLE_STAR___/g, '.*'); // ** matches anything
-    return new RegExp(`^${regex}$`).test(path);
-  }
-
   protected normalizeHeaders(headers: Headers): Record<string, string> {
     const normalized: Record<string, string> = {};
     headers.forEach((value, key) => {
@@ -510,18 +576,11 @@ export class HtmlCache {
     const url = new URL(request.url);
     const mode = this.getDeploymentMode(request.headers);
     const defaults =
-      this.cacheRules.defaults?.[mode] ??
-      (DEFAULT_CACHE_RULES.defaults as any)[mode];
+      this.cacheRules.defaults?.[mode] ?? DEFAULT_CACHE_RULES.defaults?.[mode];
 
-    let rule: PathRule | undefined;
-    if (this.cacheRules.pathRules) {
-      for (const r of this.cacheRules.pathRules) {
-        if (this.pathMatches(r.path, url.pathname)) {
-          rule = r;
-          break;
-        }
-      }
-    }
+    const rule = this.cacheRules.pathRules?.find((r) =>
+      r.regex.test(url.pathname),
+    );
 
     const effectiveTTL =
       (rule?.ttl !== undefined ? rule.ttl : defaults?.ttl) ?? defaults.ttl;
@@ -538,29 +597,36 @@ export class HtmlCache {
   }
 
   protected normalizeSearchParams(searchParams: URLSearchParams): string {
-    const ignoredParams = [
-      'utm_source',
-      'utm_medium',
-      'utm_campaign',
-      'utm_content',
-      'utm_term',
-      'fbclid',
-      'gclid',
-      'gbraid',
-      'wbraid',
-      'ref',
-      'source',
-      'mc_cid',
-      'mc_eid',
-    ];
     const relevantParams: string[] = [];
+
     searchParams.forEach((value, key) => {
-      if (!ignoredParams.includes(key)) {
-        relevantParams.push(
-          `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
-        );
+      switch (key) {
+        case 'utm_source':
+        case 'utm_medium':
+        case 'utm_campaign':
+        case 'utm_content':
+        case 'utm_term':
+        case 'fbclid':
+        case 'gclid':
+        case 'gbraid':
+        case 'wbraid':
+        case 'ref':
+        case 'source':
+        case 'mc_cid':
+        case 'mc_eid':
+          // Ignore params
+          break;
+
+        default: {
+          relevantParams.push(
+            `${encodeURIComponent(key)}=${encodeURIComponent(value)}`,
+          );
+
+          break;
+        }
       }
     });
+
     return relevantParams.sort().join('&');
   }
 }
