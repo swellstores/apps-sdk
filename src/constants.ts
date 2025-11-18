@@ -1796,7 +1796,7 @@ export const LANG_TO_COUNTRY_CODES: Record<string, string | undefined> = {
 export const CURRENCY_COUNTRIES = Object.freeze({
   USD: { name: 'United States', iso: 'US' },
   EUR: { name: 'Europe', iso: 'EU' },
-  GBP: { name: 'United Kingdom', iso: 'UK' },
+  GBP: { name: 'United Kingdom', iso: 'GB' },
   JPY: { name: 'Japan', iso: 'JP' },
   CAD: { name: 'Canada', iso: 'CA' },
   AUD: { name: 'Australia', iso: 'AU' },

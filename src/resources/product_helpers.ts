@@ -267,7 +267,7 @@ function getSelectedSubscriptionPurchaseOptionPlan(
 }
 
 const SORT_OPTIONS = Object.freeze<SwellSortOption[]>([
-  { value: '', name: 'Featured' },
+  { value: 'manual', name: 'Featured' },
   { value: 'popularity', name: 'Popularity', query: 'popularity desc' },
   { value: 'price_asc', name: 'Price, low to high', query: 'price asc' },
   { value: 'price_desc', name: 'Price, high to low', query: 'price desc' },
@@ -281,7 +281,7 @@ export async function getProductFilters(
   swell: Swell,
   productQuery?: SwellData,
 ) {
-  const sortBy = swell.queryParams.sort || '';
+  const sortBy = swell.queryParams.sort || 'manual';
   const filterQuery = productQueryWithFilters(swell, productQuery);
 
   return {
@@ -357,7 +357,7 @@ export function productQueryWithFilters(swell: Swell, query?: SwellData) {
     {},
   );
 
-  const sortBy = swell.queryParams.sort || '';
+  const sortBy = swell.queryParams.sort || 'manual';
 
   return {
     sort:
