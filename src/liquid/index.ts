@@ -40,6 +40,7 @@ interface LiquidSwellOptions {
   extName?: string;
   componentsDir?: string;
   sectionsDir?: string;
+  blocksDir?: string;
 }
 
 export class LiquidSwell extends Liquid {
@@ -60,6 +61,7 @@ export class LiquidSwell extends Liquid {
   public extName: string;
   public componentsDir: string;
   public sectionsDir: string;
+  public blocksDir: string;
 
   public lastSchema: ThemeSectionSchema | undefined;
 
@@ -80,6 +82,7 @@ export class LiquidSwell extends Liquid {
     extName,
     componentsDir,
     sectionsDir,
+    blocksDir,
   }: LiquidSwellOptions) {
     getThemeConfig = getThemeConfig || theme.getThemeConfig.bind(theme);
     extName = extName || 'liquid';
@@ -116,6 +119,7 @@ export class LiquidSwell extends Liquid {
     this.extName = extName;
     this.componentsDir = componentsDir || 'components';
     this.sectionsDir = sectionsDir || 'sections';
+    this.blocksDir = blocksDir || 'blocks';
     this.lastSchema = undefined;
 
     bindTags(this);
@@ -155,6 +159,13 @@ export class LiquidSwell extends Liquid {
     return (
       (await this.resolveFilePathByType('sections', `${sectionName}.json`)) ||
       resolveFilePath(`${this.sectionsDir}/${sectionName}`, 'json')
+    );
+  }
+
+  async getThemeBlockPath(blockName: string): Promise<string> {
+    return (
+      (await this.resolveFilePathByType('blocks', blockName)) ||
+      resolveFilePath(`${this.sectionsDir}/${blockName}`, this.extName)
     );
   }
 }
