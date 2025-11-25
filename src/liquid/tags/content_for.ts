@@ -7,7 +7,13 @@ import type {
   TopLevelToken,
   Parser,
 } from 'liquidjs';
-import type { TagClass, Template } from 'liquidjs/dist/template';
+
+import type { QuotedToken } from 'liquidjs/dist/tokens';
+import type {
+  TagClass,
+  TagRenderReturn,
+  Template,
+} from 'liquidjs/dist/template';
 
 import type { LiquidSwell } from '..';
 
@@ -27,20 +33,19 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       super(token, remainTokens, liquid);
 
       const tokenizer = token.tokenizer;
-      const firstArg = tokenizer.readValue();
 
-      this.name = firstArg ? (firstArg as any).content : 'blocks';
+      this.name = (tokenizer.readValue() as QuotedToken)?.content || 'blocks';
       this.hash = new Hash(tokenizer.remaining());
       this.templates = [];
 
       parser
         .parseStream(remainTokens)
-        .on('template', (tpl) => this.templates.push(tpl))
+        .on('template', (tpl: Template) => this.templates.push(tpl))
         .on('end', () => {})
         .start();
     }
 
-    *render(ctx: Context, emitter: Emitter) {
+    *render(ctx: Context, emitter: Emitter): TagRenderReturn {
       const hash = yield this.hash.render(ctx);
       let blocks: any[] = [];
 
