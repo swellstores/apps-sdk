@@ -165,7 +165,7 @@ export class LiquidSwell extends Liquid {
   async getThemeBlockPath(blockName: string): Promise<string> {
     return (
       (await this.resolveFilePathByType('blocks', blockName)) ||
-      resolveFilePath(`${this.sectionsDir}/${blockName}`, this.extName)
+      resolveFilePath(`${this.blocksDir}/${blockName}`, this.extName)
     );
   }
 }
