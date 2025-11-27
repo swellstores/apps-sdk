@@ -1,4 +1,5 @@
 import { SHOPIFY_TO_SWELL_SORTING } from '@/compatibility/shopify-configs';
+import type { ShopifySwellContent } from '@/compatibility/shopify-objects/content';
 
 import type { SwellData, ThemeSectionEnabledDisabled } from './swell';
 
@@ -523,7 +524,7 @@ export interface ShopifyProduct {
   compare_at_price_max: number;
   compare_at_price_min: number;
   compare_at_price_varies: boolean;
-  content: string;
+  content: ShopifySwellContent;
   created_at: string;
   description: string;
   featured_image?: ShopifyImage;
