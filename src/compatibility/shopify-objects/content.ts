@@ -21,11 +21,7 @@ export class ShopifySwellContent extends Drop {
   }
 
   toObject() {
-    const combined = Object.assign(
-      {},
-      { description: this.description },
-      this.content,
-    );
+    const combined = Object.assign({}, this.content);
 
     return combined;
   }
