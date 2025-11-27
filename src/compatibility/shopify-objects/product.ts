@@ -28,6 +28,7 @@ import {
   isOptionAvailable,
   isGiftcard,
 } from '@/resources/product_helpers';
+import { ShopifySwellContent } from './content';
 
 export default function ShopifyProduct(
   instance: ShopifyCompatibility,
@@ -79,7 +80,7 @@ export default function ShopifyProduct(
     compare_at_price_max: compareAtPrice,
     compare_at_price_min: compareAtPrice,
     compare_at_price_varies: false,
-    content: defer(() => product.description),
+    content: defer(() => new ShopifySwellContent(product)),
     created_at: defer(() => product.date_created),
     description: defer(() => product.description),
     featured_image: deferWith(product, (product: SwellRecord) => {
