@@ -739,6 +739,8 @@ ${injects.join('\n')}</script>`;
         return `templates/${this.getPageType(name)}`;
       case 'sections':
         return `sections/${name}`;
+      case 'blocks':
+        return `blocks/${name}`;
       default:
         throw new Error(`Theme file type not supported: ${type}`);
     }

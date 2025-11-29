@@ -55,7 +55,11 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
         liquidSwell.lastSchema = undefined;
 
         if (typeof jsonOutput === 'string') {
+          // Parse the JSON schema from the rendered {% schema %} tag
           liquidSwell.lastSchema = JSON5.parse(jsonOutput);
+
+          // Replace any "@theme" in blocks with actual theme blocks
+          expandThemeBlocks(liquidSwell);
         }
       } catch (err) {
         console.warn(err);
@@ -66,4 +70,22 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
       return;
     }
   };
+}
+
+/**
+ * Replaces any "@theme" entries in section.blocks
+ * with the actual theme block schemas from /blocks.
+ */
+function expandThemeBlocks(liquidSwell: LiquidSwell) {
+  const blocks = liquidSwell.lastSchema?.blocks;
+
+  if (!Array.isArray(blocks)) {
+    return;
+  }
+
+  for (let i = 0; i < blocks.length; i++) {
+    if (blocks[i].type === '@theme') {
+      blocks.splice(i, 1, ...liquidSwell.theme.getAllThemeBlockSchemas());
+    }
+  }
 }

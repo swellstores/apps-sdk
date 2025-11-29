@@ -60,6 +60,7 @@ import type {
   ThemeSectionSchema,
   ThemeSectionConfig,
   ThemeSectionSettings,
+  ThemeBlockSchema,
   ThemeSettingFieldSchema,
   ThemeSettingSectionSchema,
   ThemeSettingsBlock,
@@ -1767,6 +1768,38 @@ ${content.slice(pos)}`;
     return getAllSections(configs, this.getTemplateSchema.bind(this));
   }
 
+  /**
+   * Returns all theme block schemas from /blocks folder.
+   */
+  getAllThemeBlockSchemas(): ThemeBlockSchema[] {
+    const schemas: ThemeBlockSchema[] = [];
+    const configs = this.getThemeConfigsByPath('theme/blocks/');
+
+    for (const config of configs.values()) {
+      const { name, file_path: filePath, file_data: fileData } = config;
+      const rawSchema = extractSchemaTag(fileData, true);
+
+      if (!rawSchema) {
+        continue;
+      }
+
+      try {
+        const schema = JSON5.parse<ThemeBlockSchema>(rawSchema);
+
+        // If a block schema has no `type`, uses the config `name` as fallback
+        if (!schema.type) {
+          schema.type = name;
+        }
+
+        schemas.push(schema);
+      } catch (error) {
+        console.warn(`Invalid schema in block: ${filePath}`, error);
+      }
+    }
+
+    return schemas;
+  }
+
   async getPageSections(
     sectionGroup: ThemeSectionGroup,
     resolveSettings: boolean = true,
@@ -2292,7 +2325,7 @@ function parseJsonConfig<T>(config?: SwellThemeConfig | null): T {
   }
 }
 
-function extractSchemaTag(template: string): string {
+function extractSchemaTag(template: string, inner = false): string {
   const list = template.match(
     /\{%-?\s*schema\s*-?%\}(.*)\{%-?\s*endschema\s*-?%\}/s,
   );
@@ -2301,7 +2334,7 @@ function extractSchemaTag(template: string): string {
     return template;
   }
 
-  return list[0];
+  return inner ? list[1] : list[0];
 }
 
 function withSuffix(path: string, suffix?: string) {
