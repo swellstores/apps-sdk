@@ -703,7 +703,7 @@ export interface ThemeBlockSchema {
 export interface ThemePresetSchema {
   label: string;
   settings?: ThemeSettings;
-  blocks?: ThemeSettingsBlock[];
+  blocks?: ThemeSettingsBlock[] | Record<string, ThemeSettingsBlock>;
 }
 
 export interface ThemeSectionEnabledDisabled {

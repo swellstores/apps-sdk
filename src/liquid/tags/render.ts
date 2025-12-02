@@ -50,11 +50,20 @@ export default function bind(liquidSwell: LiquidSwell): TagClass {
 
       const childCtx = ctx.spawn();
       const scope = childCtx.bottom() as Record<string, unknown>;
-      assign(scope, yield hash.render(ctx));
+
+      // Append parent scope
+      assign(scope, ctx.bottom());
 
       // Append section from parent scope if present
       const parentSection = yield ctx._get(['section']);
       if (parentSection) assign(scope, { section: parentSection });
+
+      // Append block from parent scope if present
+      const parentBlock = yield ctx._get(['block']);
+      if (parentBlock) assign(scope, { block: parentBlock });
+
+      // Append hash
+      assign(scope, yield hash.render(ctx));
 
       if (self['with']) {
         const { value, alias } = self['with'];

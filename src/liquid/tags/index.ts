@@ -4,6 +4,7 @@ import assignTag from './assign';
 import caseTag from './case';
 import comment from './comment';
 import contentFor from './content_for';
+import doc from './doc';
 import forTag from './for';
 import form from './form';
 import ifTag from './if';
@@ -28,6 +29,7 @@ export const tags = {
   case: caseTag,
   comment,
   content_for: contentFor,
+  doc,
   for: forTag,
   form,
   if: ifTag,

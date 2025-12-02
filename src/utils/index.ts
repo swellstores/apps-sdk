@@ -104,8 +104,22 @@ function resolveSectionPresets(
       }, {}),
       ...(preset.settings || undefined),
     },
-    blocks: preset.blocks?.map((block) => {
+    blocks: resolveSectionBlockPresets(preset, schema),
+  }));
+}
+
+function resolveSectionBlockPresets(
+  preset: ThemePresetSchema,
+  schema: ThemeSectionSchema,
+): ThemeSettingsBlock[] | undefined {
+  if (!preset.blocks) {
+    return;
+  }
+
+  if (Array.isArray(preset.blocks)) {
+    return preset.blocks.map((block) => {
       const blockDef = schema.blocks?.find((b) => b.type === block.type);
+
       return blockDef
         ? {
             ...block,
@@ -120,8 +134,10 @@ function resolveSectionPresets(
             },
           }
         : block;
-    }),
-  }));
+    });
+  }
+
+  return Object.values(preset.blocks);
 }
 
 export async function getLayoutSectionGroups(
@@ -246,7 +262,16 @@ export async function getPageSections(
       : Object.keys(section.blocks || {});
 
     const blocks: ThemeSettingsBlock[] = blockOrder
-      .map((key: string) => section.blocks?.[key])
+      .map((key: string) => {
+        const block = section.blocks?.[key];
+
+        if (block) {
+          return {
+            ...block,
+            id: `${schema.id}__${key}`,
+          };
+        }
+      })
       .filter(Boolean) as ThemeSettingsBlock[];
 
     const settings: ThemeSectionSettings = {
