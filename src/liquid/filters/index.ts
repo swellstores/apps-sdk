@@ -35,6 +35,7 @@ import money from './money';
 import money_with_currency from './money_with_currency';
 import money_without_currency from './money_without_currency';
 import money_without_trailing_zeros from './money_without_trailing_zeros';
+import preload_tag from './preload_tag';
 import script_tag from './script_tag';
 import stylesheet_tag from './stylesheet_tag';
 import time_tag from './time_tag';
@@ -104,6 +105,7 @@ export const filters = {
   money_with_currency,
   money_without_currency,
   money_without_trailing_zeros,
+  preload_tag,
   script_tag,
   stylesheet_tag,
   time_tag,

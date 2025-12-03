@@ -74,11 +74,19 @@ export class ThemeColor extends Drop {
   }
 
   rgb(): string {
-    return this.color.rgb().toString();
+    return `${this.red} ${this.green} ${this.blue}`;
   }
 
-  rgba(alpha: number): string {
-    return this.color.alpha(alpha).rgb().toString();
+  rgba(alpha?: number): string {
+    const colorValues = this.color.object();
+    const alphaValue = alpha || colorValues.alpha;
+    const rgb = this.rgb();
+
+    if (alphaValue === undefined) {
+      return rgb;
+    }
+
+    return `${rgb} / ${Number(alphaValue).toFixed(2)}`;
   }
 
   hsl(): string {

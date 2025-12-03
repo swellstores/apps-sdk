@@ -224,7 +224,7 @@ function getAllSectionComponents(
                 // TODO: figure out how to make this work, doesn't work for collections normally
                 defaultValue: section.presets?.reduce<NoCodeComponentEntry[]>(
                   (acc, preset, index) => {
-                    if (!preset.blocks) {
+                    if (!preset.blocks || !Array.isArray(preset.blocks)) {
                       return acc;
                     }
 
@@ -473,7 +473,7 @@ function getAllSectionComponentTemplates(
           custom_css: (preset.settings?.['custom_css'] || '') as string,
           ...processFields(section.fields, preset.settings),
           // Process blocks inside the preset
-          Blocks: (preset.blocks || [])
+          Blocks: (Array.isArray(preset.blocks) ? preset.blocks : [])
             .map((block) => {
               const blockSchema = section.blocks?.find(
                 ({ type }) => type === block.type,
