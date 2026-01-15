@@ -41,13 +41,23 @@ export default class SwellVariant extends SwellStorefrontRecord<SwellVariantType
     id: string,
     query?: SwellData,
   ) {
+    // current search parameters
+    const params = swell.queryParams;
+
     super(swell, 'products:variants', id, query, async function () {
       const variant = await this._swell.get<SwellVariantType>(
-        '/products:variants/{id}',
-        { id: this._id },
+        '/products:variants/:last',
+        { $or: [{ id: this._id }, { sku: this._id }] },
       );
 
-      return variant ?? null;
+      // add swell properties to the resolved object
+      return transformSwellVariant(
+        params,
+        product instanceof SwellStorefrontRecord
+          ? ((await product.resolve()) as SwellProduct)
+          : product,
+        variant as SwellVariantType,
+      );
     });
 
     this.product = product;

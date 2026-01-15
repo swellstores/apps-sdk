@@ -34,6 +34,7 @@ export interface SwellProductOption {
 
 export interface SwellVariant {
   id: string;
+  sku?: string;
   name: string;
   option_value_ids: string[];
   selected_option_values: string[];
