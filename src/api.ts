@@ -204,8 +204,9 @@ export class Swell {
   }
 
   /**
-   * Returns a cache key for this instance
-   * Key includes instance information (store-environment-deployment-theme-branch) and current account_id
+   * Returns the cache key for this instance
+   * The key includes instance information (store-environment-deployment-theme-branch) and the current account_id
+   * It is preferable to use the account_id from storefrontContext rather than the swell-session cookie, as the cookie contains a lot of other data
    */
   getCacheKey(): string {
     const storefrontContext = this.storefrontContext as unknown as {
