@@ -204,18 +204,17 @@ export class Swell {
   }
 
   /**
-   * Returns the cache key for this instance
-   * The key includes instance information (store-environment-deployment-theme-branch) and the current account_id
+   * Returns the currently logged account id
    * It is preferable to use the account_id from storefrontContext rather than the swell-session cookie, as the cookie contains a lot of other data
    * This increases the overall cache size
    */
-  private getInstanceCacheKey(): string {
+  private getAccountId(): string {
     const storefrontContext = this.storefrontContext as {
       account?: { id: string };
     };
     const accountId = storefrontContext?.account?.id || '';
 
-    return `${this.instanceId}:${accountId}`;
+    return accountId;
   }
 
   /**
@@ -228,7 +227,11 @@ export class Swell {
     handler: () => T | Promise<T>,
     isCacheble = true,
   ): Promise<T | undefined> {
-    const cacheKey = getCacheKey(key, [this.getInstanceCacheKey(), args]);
+    const cacheKey = getCacheKey(key, [
+      this.instanceId,
+      this.getAccountId(),
+      args,
+    ]);
     const cache = this.getResourceCache();
 
     // Use fetch for cache bypass, fetchSWR for normal operation
@@ -458,7 +461,8 @@ export class Swell {
     return (method: string, url: string, id?: any, data?: any, opt?: any) => {
       if (this.isStorefrontRequestCacheable(method, url, opt)) {
         const key = getCacheKey('request', [
-          this.getInstanceCacheKey(),
+          this.instanceId,
+          this.getAccountId(),
           method,
           url,
           id,
@@ -503,14 +507,13 @@ export class Swell {
    * Caches client resources in memory.
    */
   private getResourceCache(): Cache {
-    const instanceCacheKey = this.getInstanceCacheKey();
-    let cache = resourceCaches.get(instanceCacheKey);
+    let cache = resourceCaches.get(this.instanceId);
     if (cache === undefined) {
       cache = new ResourceCache({
         kvStore: this.workerEnv?.THEME,
         workerCtx: this.workerCtx,
       });
-      resourceCaches.set(instanceCacheKey, cache);
+      resourceCaches.set(this.instanceId, cache);
     }
     return cache;
   }
@@ -519,14 +522,13 @@ export class Swell {
    * Caches client storefront API requests in memory.
    */
   private getRequestCache(): Cache {
-    const instanceCacheKey = this.getInstanceCacheKey();
-    let cache = requestCaches.get(instanceCacheKey);
+    let cache = requestCaches.get(this.instanceId);
     if (cache === undefined) {
       cache = new RequestCache({
         kvStore: this.workerEnv?.THEME,
         workerCtx: this.workerCtx,
       });
-      requestCaches.set(instanceCacheKey, cache);
+      requestCaches.set(this.instanceId, cache);
     }
     return cache;
   }
