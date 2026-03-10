@@ -204,17 +204,18 @@ export class Swell {
   }
 
   /**
-   * Returns the currently logged account id
+   * Returns fields from the current account that may affect requests.
+   * Currently, only the 'group' field is returned.
    * It is preferable to use the account_id from storefrontContext rather than the swell-session cookie, as the cookie contains a lot of other data
    * This increases the overall cache size
    */
-  private getAccountId(): string {
+  private getAccountCacheKey(): string {
     const storefrontContext = this.storefrontContext as {
-      account?: { id: string };
+      account?: { group: string };
     };
-    const accountId = storefrontContext?.account?.id || '';
+    const group = storefrontContext?.account?.group || '';
 
-    return accountId;
+    return `${group}`;
   }
 
   /**
@@ -229,7 +230,7 @@ export class Swell {
   ): Promise<T | undefined> {
     const cacheKey = getCacheKey(key, [
       this.instanceId,
-      this.getAccountId(),
+      this.getAccountCacheKey(),
       args,
     ]);
     const cache = this.getResourceCache();
@@ -462,7 +463,7 @@ export class Swell {
       if (this.isStorefrontRequestCacheable(method, url, opt)) {
         const key = getCacheKey('request', [
           this.instanceId,
-          this.getAccountId(),
+          this.getAccountCacheKey(),
           method,
           url,
           id,
