@@ -204,6 +204,19 @@ export class Swell {
   }
 
   /**
+   * Returns a cache key for this instance
+   * Key includes instance information (store-environment-deployment-theme-branch) and current account_id
+   */
+  getCacheKey(): string {
+    const storefrontContext = this.storefrontContext as unknown as {
+      account?: { id: string };
+    };
+    const accountId = storefrontContext?.account?.id || '';
+
+    return `${this.instanceId}:${accountId}`;
+  }
+
+  /**
    * Fetches a resource.
    * First attempts to fetch from cache.
    */
@@ -213,7 +226,7 @@ export class Swell {
     handler: () => T | Promise<T>,
     isCacheble = true,
   ): Promise<T | undefined> {
-    const cacheKey = getCacheKey(key, [this.instanceId, args]);
+    const cacheKey = getCacheKey(key, [this.getCacheKey(), args]);
     const cache = this.getResourceCache();
 
     // Use fetch for cache bypass, fetchSWR for normal operation
@@ -443,7 +456,7 @@ export class Swell {
     return (method: string, url: string, id?: any, data?: any, opt?: any) => {
       if (this.isStorefrontRequestCacheable(method, url, opt)) {
         const key = getCacheKey('request', [
-          this.instanceId,
+          this.getCacheKey(),
           method,
           url,
           id,
@@ -488,13 +501,13 @@ export class Swell {
    * Caches client resources in memory.
    */
   private getResourceCache(): Cache {
-    let cache = resourceCaches.get(this.instanceId);
+    let cache = resourceCaches.get(this.getCacheKey());
     if (cache === undefined) {
       cache = new ResourceCache({
         kvStore: this.workerEnv?.THEME,
         workerCtx: this.workerCtx,
       });
-      resourceCaches.set(this.instanceId, cache);
+      resourceCaches.set(this.getCacheKey(), cache);
     }
     return cache;
   }
@@ -503,13 +516,13 @@ export class Swell {
    * Caches client storefront API requests in memory.
    */
   private getRequestCache(): Cache {
-    let cache = requestCaches.get(this.instanceId);
+    let cache = requestCaches.get(this.getCacheKey());
     if (cache === undefined) {
       cache = new RequestCache({
         kvStore: this.workerEnv?.THEME,
         workerCtx: this.workerCtx,
       });
-      requestCaches.set(this.instanceId, cache);
+      requestCaches.set(this.getCacheKey(), cache);
     }
     return cache;
   }
