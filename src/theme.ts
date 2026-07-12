@@ -1544,7 +1544,7 @@ ${content.slice(pos)}`;
           pageData,
         );
 
-        return pageSection.output || '';
+        return pageSection?.output ?? '';
       }
 
       return sectionContent;
