@@ -299,7 +299,8 @@ export class SwellTheme {
       presets: [],
       ...Array.from(settingConfigs.values()).reduce(
         (acc, config) => {
-          const configName = String(config?.name || '').split('.')[0];
+          const fileName = config?.file_path?.split('/').pop() || '';
+          const configName = fileName.split('.')[0];
           if (configName && config?.file_data) {
             let configValue: unknown;
             try {
