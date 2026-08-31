@@ -27,7 +27,7 @@ export default function ShopifyShop(
     customer_accounts_enabled: true, // TODO: consider if we should provide a standard option
     customer_accounts_optional: true, // TODO
     description: store.description as string, // TODO
-    domain: store.url.replace(/^http[s]?:\/\//, '') as string,
+    domain: (store.url || `https://${store.id}.swell.store`).replace(/^http[s]?:\/\//, '') as string,
     email: store.support_email as string,
     enabled_currencies: store.currencies.map((currency: any) => ({
       // currency object
