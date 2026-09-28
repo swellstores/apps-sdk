@@ -4,7 +4,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-const output = resolve('../sdk-experiment-artifacts/session-2-client-scope');
+const output = resolve('.verification');
 await mkdir(output, { recursive: true });
 const { fixture } = JSON.parse(await readFile(join(output, 'package.json'), 'utf8'));
 const sdk = join(fixture, 'node_modules/@swell/apps-sdk');

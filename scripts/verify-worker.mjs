@@ -3,7 +3,7 @@ import { build } from 'esbuild';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { resolve, join } from 'node:path';
 import assert from 'node:assert/strict';
-const output = resolve('../sdk-experiment-artifacts/session-2-client-scope');
+const output = resolve('.verification');
 await mkdir(output, { recursive: true });
 const packed = JSON.parse(await readFile(join(output, 'package.json'), 'utf8'));
 for (const name of ['core-worker.mjs']) {

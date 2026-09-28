@@ -1,25 +1,36 @@
-name: Publish to npm
+name: Publish alpha to npm
 
 on:
   release:
-    types: [created]
+    types: [published]
+
+permissions:
+  contents: read
 
 jobs:
   publish:
+    if: github.event.release.prerelease
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        node-version: [16.20.2]
-
     steps:
-      - uses: actions/checkout@v3
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v2
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: '22.22.2'
+          cache: npm
           registry-url: 'https://registry.npmjs.org'
+      - name: Check alpha release metadata
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          node --input-type=module <<'JS'
+          import { readFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          if (pkg.private) throw new Error('Remove private: true when preparing an approved release');
+          if (!/-alpha\.\d+$/.test(pkg.version)) throw new Error('This workflow only publishes alpha versions');
+          if (process.env.RELEASE_TAG.replace(/^v/, '') !== pkg.version) throw new Error('Release tag must match package.json');
+          JS
       - run: npm ci
-      - run: npm publish
+      - run: npm run verify
+      - run: npm publish --tag next --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

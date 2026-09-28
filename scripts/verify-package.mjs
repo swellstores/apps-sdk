@@ -1,17 +1,19 @@
-import { mkdtemp, writeFile, readFile, mkdir } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, mkdir, rm } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { resolve, join } from 'node:path';
-import { tmpdir } from 'node:os';
 import assert from 'node:assert/strict';
 const root = process.cwd();
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
-const output = resolve('../sdk-experiment-artifacts/session-2-client-scope');
-process.env.npm_config_cache = resolve('../sdk-experiment-artifacts/npm-cache');
+const output = resolve('.verification');
+await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const packed = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { encoding: 'utf8' }))[0];
+for (const path of ['dist/index.js', 'dist/storefront.js', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/storefront.d.ts', 'dist/storefront.d.cts']) {
+  assert.ok(packed.files.some(file => file.path === path), `Missing packed file: ${path}; run npm run build first`);
+}
 assert.ok(!packed.files.some(({ path }) => /(?:^|\/)(?:functions|function-types)(?:\.|\/)/.test(path)), 'Function runtime leaked into packed files');
 assert.ok(!packed.files.some(({ path }) => path.startsWith('test/') || path.startsWith('experiments/')), 'Experimental code leaked into packed files');
-const fixture = await mkdtemp(join(tmpdir(), 'apps-sdk-packed-'));
+const fixture = await mkdtemp(join(output, 'consumer-'));
 await writeFile(join(fixture, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: {
   '@swell/apps-sdk': `file:${join(output, packed.filename)}`,
   'swell-js': pkg.devDependencies['swell-js'],

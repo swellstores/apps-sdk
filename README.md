@@ -192,15 +192,11 @@ error handling; `message` is for people and may change.
 
 ```sh
 npm ci
-npm test
-npm run typecheck
-npm run test:package
-npm run test:boundaries
-npm run test:worker
+npm run verify
 ```
 
-Run package checks before boundary and Worker checks. Tests intercept commerce requests;
-the Worker check runs workerd locally.
+`verify` builds the SDK, runs unit tests and typechecks, then checks the packed package,
+browser/Worker boundaries and workerd execution.
 
 ## License
 
