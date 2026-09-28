@@ -1,304 +1,207 @@
 # Swell Apps SDK
 
-The Swell Apps SDK is a TypeScript-based library designed to simplify the development of isomorphic Swell apps by providing streamlined API access, theme rendering capabilities, and comprehensive caching solutions.
+The Swell Apps SDK is a TypeScript library for building server-side Swell apps. It
+provides access to the Backend and Storefront APIs, along with helpers for app
+configuration, customer sessions and staff identity.
 
-## Features
-
-### Core functionality
-- **Unified API access** - Seamless integration with both Swell Backend API and Storefront API
-- **Authentication handling** - Automatic scoped access token management based on app permissions
-- **Theme rendering** - Complete Shopify-compatible theme system with Liquid templating
-- **Resource management** - Deferred loading of storefront resources (products, categories, etc.)
-- **Caching system** - Multi-tier caching with Cloudflare KV integration
-- **Shopify compatibility** - Full compatibility layer for migrating Shopify themes and apps
-
-### Theme capabilities
-- **Liquid templating** - Enhanced Liquid engine with Swell-specific objects and filters
-- **Section rendering** - Dynamic section management with schema support
-- **Settings resolution** - Automatic theme and section settings processing
-- **Layout system** - Flexible layout rendering with section groups
-- **Asset management** - Optimized asset loading and URL generation
-- **Localization** - Multi-language support with translation rendering
-
-### Developer experience
-- **TypeScript support** - Full type safety with comprehensive type definitions
-- **Isomorphic design** - Works seamlessly in both browser and server environments
-- **Error handling** - Robust error management with detailed debugging information
-- **Performance optimized** - Built-in caching and resource optimization
-- **Extensible architecture** - Plugin system for custom resource types
+Use it in Swell-hosted apps, Cloudflare Workers or Node.js servers. For browser
+applications, use [`swell-js`](https://github.com/swellstores/swell-js).
 
 ## Installation
 
-```bash
-npm install @swell/apps-sdk
+```sh
+npm install @swell/apps-sdk@next swell-js@^5.9.0
 ```
+
+Supports Node.js 22.22.2+ and Cloudflare Workers, with no Node compatibility flags
+needed in Workers. Includes ES modules, CommonJS and TypeScript declarations.
+
+Version 2 replaces the 1.x theme API. Existing theme applications should remain on
+1.x until migrated to `@swell/themes-sdk`.
 
 ## Getting started
 
-### Basic setup
-
-```typescript
-import { Swell } from '@swell/apps-sdk';
-
-// Initialize Swell instance in your app frontend
-const swell = new Swell({
-  serverHeaders: context.request.headers, // Headers from worker environment
-});
-
-// Make backend API calls
-const products = await swell.backend.get('/products');
-
-// Make storefront API calls
-const cart = await swell.storefront.get('/cart');
-```
-
 ### Headers and app proxying
 
-When your Swell app is deployed, it runs behind Swell's proxy infrastructure. The proxy automatically injects essential headers that contain authentication tokens, store configuration, and storefront context. These headers are critical for the SDK to function properly:
+When your app runs on Swell, the platform supplies request headers with API
+credentials, store configuration and storefront context. Pass the request's headers
+to the SDK to work with the current store. Create clients for each incoming request.
 
-```typescript
-// Headers passed from Swell's proxy contain:
-// - swell-store-id: The store identifier
-// - swell-public-key: Frontend API access key
-// - swell-access-token: Backend API access token (scoped to app permissions)
-// - swell-storefront-id: Current storefront instance
-// - swell-environment-id: Environment (development, staging, production)
-// - swell-theme-id: Active theme identifier
-// - swell-storefront-context: Preloaded cart/account data
+Only use these headers when they come through Swell's trusted proxy. On other servers,
+use explicit credentials as shown below.
 
-const swell = new Swell({
-  serverHeaders: context.request.headers, // Contains all proxy-injected headers
-  getCookie: (name) => getCookieValue(name),
-  setCookie: (name, value, options) => setCookieValue(name, value, options),
-});
+### Backend API calls
+
+```ts
+import { SwellBackendAPI } from '@swell/apps-sdk';
+
+// Use the credentials supplied to your Swell-hosted app.
+const backend = new SwellBackendAPI({ headers: request.headers });
+
+// Fetch products from the Backend API.
+const products = await backend.get('/products', { limit: 10 });
 ```
 
-Without these headers, the SDK cannot:
-- Authenticate with Swell APIs
-- Determine which store and storefront to operate on
-- Access cached resources or maintain session state
-- Render themes with proper configuration
+For an external server, read credentials from your server configuration:
 
-The `serverHeaders` parameter should always be passed the complete headers object from your app's request context to ensure full functionality.
+```ts
+const backend = new SwellBackendAPI({ storeId, secretKey, apiHost });
+```
 
-### Theme rendering
+### Storefront API calls
 
-```typescript
-import { Swell, SwellTheme, SwellProduct } from '@swell/apps-sdk';
+Use the Storefront API for customer-facing data and cart or account operations.
+In this example, `cookies` is your framework's cookie jar. Its reads must include
+pending writes and deletions.
 
-const swell = new Swell({
-  serverHeaders: context.request.headers,
-  ...options,
+```ts
+import { getStorefrontConfig } from '@swell/apps-sdk';
+import { createStorefrontClient } from '@swell/apps-sdk/storefront';
+
+// Build the storefront config from the platform headers.
+const config = getStorefrontConfig(request.headers);
+const storefront = createStorefrontClient(config, {
+  cookies: {
+    get: name => cookies.get(name)?.value,
+    set: (name, value, options) => { cookies.set(name, value, options); },
+  },
 });
 
-// Initialize theme with optional configuration
-const theme = new SwellTheme(swell, {
-  forms: formConfigs,
-  resources: customResources,
-  globals: additionalGlobals,
+// Use the same methods available in swell-js.
+const products = await storefront.products.list({ limit: 10 });
+```
+
+External servers can supply `storeId`, `publicKey` and `swell-js` options such as
+`url`, `locale` or `currency` directly as the config. Only the `/storefront` entry
+loads the `swell-js` runtime.
+
+### Browser configuration
+
+Send the public config from `getStorefrontConfig` to your browser app through a
+loader or endpoint with `Cache-Control: private, no-store`. Then initialize swell-js:
+
+```ts
+import swell from 'swell-js';
+
+swell.init(config.storeId, config.publicKey, config);
+```
+
+This config excludes backend credentials. For server-side metadata, use
+`parseSwellHeaders(headers)`. It reads headers without verifying their signature;
+keep its result on the server because it includes the backend token.
+
+### Staff identity
+
+Use `requireStaff` to check that a request belongs to a staff member of the current
+store before applying your application's permission checks:
+
+```ts
+import { requireStaff } from '@swell/apps-sdk';
+
+const staff = await requireStaff({
+  headers: request.headers,
+  method: request.method,
+  origin: appOrigin, // Your configured app origin.
+  cookies: { get: name => cookies.get(name)?.value },
 });
-
-// Fetch settings and set global context
-await theme.initGlobals('product'); // page ID
-
-// Create page data with deferred resource loading
-const data = {
-  product: new SwellProduct(swell, context.params.id),
-};
-
-// Render theme page
-const renderedPage = await theme.renderPage(data);
 ```
 
 ## API reference
 
-### Swell class
+### Backend client
 
-The main entry point for SDK functionality:
+`apiHost` is a required absolute HTTP(S) URL. Use either `secretKey` or `accessToken`;
+do not mix explicit credentials with `headers`. Invalid constructor options throw
+immediately. All backend methods return promises and reject on failure.
 
-```typescript
-class Swell {
-  // API access
-  backend: SwellBackendAPI;
-  storefront: typeof SwellJS;
-  
-  // Configuration
-  config: SwellAppConfig;
-  url: URL;
-  headers: Record<string, string>;
-  queryParams: ParsedQs;
-  
-  // State
-  isEditor: boolean;
-  isPreview: boolean;
-  storefrontContext: SwellData;
-  
-  // Methods
-  get<T>(url: string, query?: SwellData): Promise<T>;
-  post<T>(url: string, data: SwellData): Promise<T>;
-  put<T>(url: string, data: SwellData): Promise<T>;
-  delete<T>(url: string, data?: SwellData): Promise<T>;
-  getCachedResource<T>(key: string, args: unknown[], handler: () => T, isCacheble = true): Promise<T>;
-}
-```
+| Method | Result |
+| --- | --- |
+| `get(path, query?)` | Response data |
+| `post(path, data?)`, `put(path, data?)`, `delete(path, data?)` | Response data |
+| `settings(appId?)` | Installed-app settings; defaults to the configured app ID |
+| `workflows.create(name, params?)` | Created workflow instance |
+| `transaction(ops, options?)` | Operation results in input order |
+| `functions.call(appId, name, data?, options?)` | Function response payload |
 
-### SwellTheme class
+Response generics describe expected data without validating it. `SwellCollection<T>`
+is for ordinary paginated lists; aggregations and `page: false` return other shapes.
 
-Handles theme rendering and management:
+Requests stay on the configured host; redirects are refused. Use endpoint paths,
+not absolute URLs. Request IDs are forwarded when supplied. GET queries use bracket
+notation, omit undefined values, encode Dates as ISO strings, and preserve native
+null separately from the string `'null'`. Other methods send JSON.
 
-```typescript
-class SwellTheme {
-  // Core properties
-  swell: Swell;
-  globals: ThemeGlobals;
-  liquidSwell: LiquidSwell;
-  
-  // Methods
-  initGlobals(pageId: string, altTemplate?: string): Promise<void>;
-  renderPage(pageData?: SwellData, altTemplate?: string): Promise<string>;
-  renderSection(sectionId: string, pageData?: SwellData): Promise<string>;
-  renderLayout(layoutName?: string, data?: SwellData): Promise<string>;
-  getSectionSchema(sectionName: string): Promise<ThemeSectionSchema>;
-  setGlobals(globals: Partial<ThemeGlobals>): void;
-}
-```
+**Workflows:** supplied parameters must be JSON-safe and at most 128 KiB of serialized
+UTF-8 JSON. Omitted parameters are not sent. Invalid or oversized parameters reject
+with `workflow_params_unserializable` or `workflow_params_too_large`.
 
-### Resource classes
+**Transactions:** each operation contains `method`, `url` and optional `data`.
+Retries are off by default. Set `retry: true` or
+`retry: { limit: 3, base: 100, max: 5000, jitter: true }` to enable them. These are the
+defaults: `limit` counts additional attempts, and delays are in milliseconds. Only
+`transaction_conflict` and `transaction_throttled` retry. Ordinary requests and network
+failures are not retried.
 
-Built-in storefront resource classes for deferred loading:
+**Private functions:** use the app slug from `Swell-App-Id` and authorize the caller
+first. `options.method` defaults to `post`; `get`, `put` and `delete` are also supported.
+GET data must contain only flat string, number or boolean values. Caller headers are
+not forwarded; response status and headers are not returned. Function errors and
+non-2xx statuses reject with `SwellError`.
 
-#### Standard resources
-- `SwellAccount` - Customer account management
-- `SwellBlog` - Blog post content
-- `SwellBlogCategory` - Blog categorization
-- `SwellCart` - Shopping cart state
-- `SwellCategory` - Product categories
-- `SwellOrder` - Order information
-- `SwellPage` - Static pages
-- `SwellProduct` - Product details
-- `SwellVariant` - Product variants
+Private-app calls require platform support for app-slug lookup and fail on deployments
+without it. Function execution and `req.swell` remain managed by the CLI and platform.
 
-#### Primitive resources
-- `SwellStorefrontCollection` - Collection results with pagination
-- `SwellStorefrontRecord` - Individual records
-- `SwellStorefrontSingleton` - Unique resources (cart, account)
+### Cookies and caching
 
-```typescript
-// Create custom resource class
-class MyAppCollection extends SwellStorefrontCollection {
-  constructor(swell: Swell, query: SwellData = {}) {
-    super(swell, 'my-app-collection', query);
-    return this._getProxy();
-  }
-}
+Cookie adapters exchange decoded values and own the current state. If your framework
+reads only incoming cookies, track pending writes and deletions in request-local state.
+The SDK keeps no cookie cache.
 
-// Usage in theme data
-const data = {
-  myCollection: new MyAppCollection(swell, { limit: 20 }),
-};
-```
+Native cookie names and defaults apply: path `/`, one week, `sameSite: 'lax'`.
+`cookieOptions` replaces these defaults; `{}` delegates attributes to the adapter.
+Per-write attributes take precedence.
 
-## Caching
+Omit `cookies.set` for read-only access. Attempted writes then throw, including session
+rotation during GET requests. A supplied writer may throw or skip a write; after a skip,
+its reader must still report the actual state. Writer return values are ignored.
+Persist cookies in writable route handlers or actions.
 
-### Memory caching
-Resources are automatically cached in memory per worker instance:
+For caching, replace `storefront.request` before first use. The SDK has no built-in cache.
 
-```typescript
-// Cached resource with custom handler
-const cachedData = await swell.getCachedResource(
-  'expensive-operation',
-  [param1, param2],
-  async () => {
-    return await performExpensiveOperation(param1, param2);
-  }
-);
-```
+### Staff verification
 
-### Cloudflare KV caching
-For production scalability, enable KV caching:
+`requireStaff` verifies `_swell_admin_session` against the current store and returns
+`{ userId, storeId }`. Use a trusted `appOrigin`: every non-GET request requires a
+matching `Origin` and, when present, `Sec-Fetch-Site: same-origin`. Failures reject.
+The helper checks identity and request origin; your application enforces permissions.
 
-```typescript
-const swell = new Swell({
-  serverHeaders: context.request.headers,
-  workerEnv: context.locals.runtime.env, // Contains THEME KV binding
-  workerCtx: context.locals.runtime.ctx,  // Worker context
-});
-```
+### Errors
 
-### Cache invalidation
-Caches are automatically invalidated based on:
-- Session cookies (for cart/account data)
-- Theme configuration versions
-- Storefront environment changes
+Import `SwellError` from the root package. Use `status` and optional `code`/`body` for
+error handling; `message` is for people and may change.
 
-## Shopify compatibility
-
-The SDK includes comprehensive Shopify compatibility for theme migration.
-
-### Supported Shopify features
-- **Template mapping** - Direct file path compatibility
-- **Liquid objects** - Full object structure compatibility
-- **Form handling** - Compatible form endpoints and validation
-- **Section schemas** - Shopify section configuration format
-- **Settings data** - `settings_data.json` and `settings_schema.json`
-
-## Liquid templating
-
-Enhanced Liquid templating with Swell-specific features. See [Swell Liquid documentation](https://developers.swell.is/storefronts/swell-liquid-reference) for details.
-
-## Performance optimization
-
-### Lazy loading
-Resources are loaded only when accessed in templates:
-
-```liquid
-<!-- Product data is fetched only when this line executes -->
-{{ product.name }}
-
-<!-- Collection is fetched only when iteration begins -->
-{% for item in collection.products %}
-  {{ item.name }}
-{% endfor %}
-```
+- Structured backend errors retain their body; string errors have no body.
+- HTTP-200 non-GET validation failures use status 400 and the `errors` field map as
+  `body`. Successful GET responses containing `errors` are returned as data.
+- Function invocation failures retain the response payload, or the invocation envelope
+  when the payload is null or absent, in `body`.
+- Network errors remain native. Local configuration errors may be ordinary `Error`
+  instances; not every failure is a `SwellError`.
 
 ## Development
 
-### Building the SDK
-```bash
-# Install dependencies
-npm install
-
-# Build for production
-npm run build
-
-# Watch for changes
-npm run watch
-
-# Run tests
+```sh
+npm ci
 npm test
+npm run typecheck
+npm run test:package
+npm run test:boundaries
+npm run test:worker
 ```
 
-### Project structure
-```
-src/
-├── api.ts              # Core Swell class and API handling
-├── theme.ts            # SwellTheme class and rendering
-├── resources.ts        # Storefront resource classes
-├── liquid/             # Liquid templating engine
-├── compatibility/      # Shopify compatibility layer
-├── cache/              # Caching implementations
-├── utils/              # Utility functions
-└── index.ts            # Main exports
-```
+Run package checks before boundary and Worker checks. Tests intercept commerce requests;
+the Worker check runs workerd locally.
 
-## Resources
+## License
 
-- [Swell Documentation](https://developers.swell.is/)
-- [Apps Development Guide](https://developers.swell.is/apps/overview)
-- [Proxima Example App](https://developers.swell.is/storefronts/proxima)
-- [Swell Liquid Reference](https://developers.swell.is/storefronts/swell-liquid-reference)
-- [GitHub Repository](https://github.com/swellstores/swell-apps-sdk)
-
-## 📄 License
-
-See the [LICENSE](LICENSE) file for details.
+[MIT](LICENSE)

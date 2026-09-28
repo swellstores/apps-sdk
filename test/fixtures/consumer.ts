@@ -1,0 +1,44 @@
+import { SwellBackendAPI, SwellError, getStorefrontConfig, parseSwellHeaders, requireStaff } from '@swell/apps-sdk';
+import type { SwellCollection, SwellContext, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
+import { createStorefrontClient } from '@swell/apps-sdk/storefront';
+import type { CookieOptions } from '@swell/apps-sdk/storefront';
+import type { PublicConfig, SwellClient } from 'swell-js';
+const headers = new Headers();
+const context: SwellContext = parseSwellHeaders(headers);
+const config: PublicConfig = getStorefrontConfig(headers);
+const backend = new SwellBackendAPI({ headers });
+const explicit = new SwellBackendAPI({ storeId: 's', secretKey: 'k', apiHost: 'https://api.test' });
+const result: Promise<{ count: number }> = backend.get<{ count: number }>('/products');
+const list: Promise<SwellCollection<{ id: string }>> = backend.get<SwellCollection<{ id: string }>>('/products');
+const updated: Promise<{ id: string }> = backend.put<{ id: string }>('/products/1', { name: 'Updated' });
+const created: Promise<{ id: string }> = backend.post<{ id: string }>('/products', { name: 'New' });
+const deleted: Promise<null> = backend.delete<null>('/products/1');
+const settings: Promise<{ enabled: boolean }> = backend.settings<{ enabled: boolean }>('app');
+const workflow: Promise<SwellData> = backend.workflows.create('sync', { id: '1' });
+const operations: TransactionOperation[] = [{ method: 'put', url: '/products/1', data: { name: 'Updated' } }];
+const retryOptions: TransactionOptions = { retry: { limit: 2, base: 100, max: 1000, jitter: false } };
+const transaction: Promise<any[]> = backend.transaction(operations, retryOptions);
+backend.transaction(operations, { retry: true });
+// @ts-expect-error retry delays are milliseconds, not strings
+backend.transaction(operations, { retry: { base: '100' } });
+const called: Promise<{ ok: boolean }> = backend.functions.call<{ ok: boolean }>('multiseller', 'sync', { id: 1 });
+backend.functions.call('multiseller', 'report', { month: 9 }, { method: 'get' });
+// @ts-expect-error only the four route methods are supported
+backend.functions.call('multiseller', 'report', {}, { method: 'patch' });
+const cookies = { get(name: string) { return name; }, set(name: string, value: string, options: CookieOptions) { const age: number | undefined = options.maxAge; } };
+const snake: SwellClient<'snake'> = createStorefrontClient(config, { cookies });
+const camel: SwellClient<'camel'> = createStorefrontClient({ ...config, useCamelCase: true }, { cookies });
+const originalRequest = snake.request;
+snake.request = <T,>(...args: Parameters<SwellClient['request']>): Promise<T> => originalRequest<T>(...args);
+const wrapped: Promise<{ ok: boolean }> = snake.request<{ ok: boolean }>('get', '/custom', 'id', { limit: 1 }, { force: true });
+createStorefrontClient(config, { cookieOptions: {}, cookies: { get() { return undefined; }, set() {} } });
+// @ts-expect-error a cookie reader is required even when a writer is supplied
+createStorefrontClient(config, { cookies: { set() {} } });
+// @ts-expect-error explicit and header credentials are mutually exclusive
+new SwellBackendAPI({ headers, ...{ storeId: 's', secretKey: 'k', apiHost: 'https://api.test' } });
+// @ts-expect-error exactly one credential is required
+new SwellBackendAPI({ storeId: 's', secretKey: 'k', accessToken: 't', apiHost: 'https://api.test' });
+requireStaff({ headers, method: 'GET', origin: 'https://app.test', cookies });
+new SwellError('no');
+// @ts-expect-error Function execution is not part of the public SDK.
+import type { SwellRequest } from '@swell/apps-sdk/functions';
