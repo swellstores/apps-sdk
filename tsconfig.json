@@ -1,28 +1,15 @@
 {
   "compilerOptions": {
-    "skipLibCheck": true,
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "target": "esnext",
-    "module": "esnext",
-    "moduleResolution": "node",
-    "resolveJsonModule": true,
+    "skipLibCheck": false,
     "verbatimModuleSyntax": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "baseUrl": "./",
-    "paths": {
-      "@/*": ["src/*"]
-    },
-    "lib": ["es2022", "dom"],
-    "jsxImportSource": "react"
+    "declaration": true,
+    "rootDir": "src",
+    "outDir": "dist"
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    "jest",
-    "scripts",
-    "eslint.config.mjs"
-  ]
+  "include": ["src/**/*.ts"]
 }

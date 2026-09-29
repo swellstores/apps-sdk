@@ -1,34 +1,21 @@
 name: Test
 
-on:
-  push:
-    branches-ignore: [master]
-  pull_request:
-    branches-ignore: [master]
+on: [push, pull_request]
+
+permissions:
+  contents: read
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    
     strategy:
       matrix:
-        node-version: [18.x]
-    
+        node-version: ['22.22.2', '24.x']
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Setup Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-        
-    - name: Install dependencies
-      run: npm install
-      
-    - name: Build project
-      run: npm run build
-      
-    - name: Run tests
-      run: npm run test
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
