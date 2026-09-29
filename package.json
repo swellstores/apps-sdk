@@ -1,8 +1,7 @@
 {
   "name": "@swell/apps-sdk",
   "version": "2.0.0-alpha.0",
-  "private": true,
-  "description": "Server SDK for Swell apps — local implementation experiment.",
+  "description": "Server SDK for Swell apps.",
   "type": "module",
   "license": "MIT",
   "engines": {
