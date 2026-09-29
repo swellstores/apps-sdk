@@ -17,25 +17,33 @@ const fixtures = {
 const reports = {};
 const forbidden = /(?:node:|themes-sdk|liquid|cache-manager|keyv|lodash(?:-es)?(?:\/|$))/i;
 const baseOptions = { bundle: true, format: 'esm', platform: 'browser', target: 'es2022', conditions: ['workerd', 'browser'], minify: true, metafile: true, write: false, logLevel: 'silent' };
-for (const [name, contents] of Object.entries(fixtures)) {
-  const options = { ...baseOptions, stdin: { contents, resolveDir: fixture, sourcefile: `${name}.mjs` } };
-  const result = await build(options);
-  const inputs = Object.keys(result.metafile.inputs);
-  assert.ok(!inputs.some(path => forbidden.test(path)), inputs.join('\n'));
-  if (name !== 'storefront') assert.ok(!inputs.some(path => /swell-js|storefront\.js/.test(path)), inputs.join('\n'));
-  assert.ok(!inputs.some(path => /(?:functions|function-types)\.js/.test(path)));
-  assert.ok(!inputs.some(path => /\.cjs$/.test(path)), 'Worker selected CJS');
-  const bytes = result.outputFiles[0].contents;
-  // Exact same input, resolving directly to ESM as the no-require baseline.
-  const baseline = await build({ ...options, alias: {
-    '@swell/apps-sdk/storefront': join(sdk, 'dist/storefront.js'),
-    '@swell/apps-sdk': join(sdk, 'dist/index.js'),
-  } });
-  assert.equal(bytes.length, baseline.outputFiles[0].contents.length);
-  assert.equal(gzipSync(bytes).length, gzipSync(baseline.outputFiles[0].contents).length);
-  reports[name] = { raw: bytes.length, gzip: gzipSync(bytes).length, esmOnlyRaw: baseline.outputFiles[0].contents.length, inputs };
-  await writeFile(join(output, `${name}.mjs`), bytes);
-  await writeFile(join(output, `${name}.graph.json`), JSON.stringify(result.metafile, null, 2));
+const profiles = {
+  browser: {},
+  server: { platform: 'neutral', mainFields: ['module', 'main'], conditions: ['workerd', 'worker', 'module'] },
+};
+for (const [profile, resolution] of Object.entries(profiles)) {
+  for (const [name, contents] of Object.entries(fixtures)) {
+    const label = profile === 'browser' ? name : `${name}-server`;
+    const options = { ...baseOptions, ...resolution, stdin: { contents, resolveDir: fixture, sourcefile: `${name}.mjs` } };
+    const result = await build(options);
+    const inputs = Object.keys(result.metafile.inputs);
+    assert.ok(!inputs.some(path => forbidden.test(path)), inputs.join('\n'));
+    if (name !== 'storefront') assert.ok(!inputs.some(path => /swell-js|storefront\.js/.test(path)), inputs.join('\n'));
+    assert.ok(!inputs.some(path => /(?:functions|function-types)\.js/.test(path)));
+    assert.ok(!inputs.some(path => /\.cjs$/.test(path)), 'Worker selected CJS');
+    assert.ok(Object.values(result.metafile.outputs).every(output => output.imports.length === 0), 'SDK Worker bundle has external imports');
+    const bytes = result.outputFiles[0].contents;
+    // Exact same input, resolving directly to ESM as the no-require baseline.
+    const baseline = await build({ ...options, alias: {
+      '@swell/apps-sdk/storefront': join(sdk, 'dist/storefront.js'),
+      '@swell/apps-sdk': join(sdk, 'dist/index.js'),
+    } });
+    assert.equal(bytes.length, baseline.outputFiles[0].contents.length);
+    assert.equal(gzipSync(bytes).length, gzipSync(baseline.outputFiles[0].contents).length);
+    reports[label] = { raw: bytes.length, gzip: gzipSync(bytes).length, esmOnlyRaw: baseline.outputFiles[0].contents.length, inputs };
+    await writeFile(join(output, `${label}.mjs`), bytes);
+    await writeFile(join(output, `${label}.graph.json`), JSON.stringify(result.metafile, null, 2));
+  }
 }
 for (const [entry, symbol] of [['', 'SwellBackendAPI'], ['/storefront', 'createStorefrontClient']]) {
   await assert.rejects(build({ ...baseOptions, conditions: ['browser'], stdin: { contents: `import {${symbol}} from '@swell/apps-sdk${entry}'; console.log(${symbol});`, resolveDir: fixture } }), /No matching export/);
@@ -51,7 +59,7 @@ await assert.rejects(build({ ...baseOptions, stdin: { contents: `import '@swell/
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 assert.deepEqual(Object.keys(pkg.exports).sort(), ['.', './storefront']);
 assert.deepEqual(pkg.dependencies ?? {}, {});
-assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.0' });
+assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.1' });
 await writeFile(join(output, 'bundles.json'), JSON.stringify(reports, null, 2));
 console.table(Object.fromEntries(Object.entries(reports).map(([name, { raw, gzip }]) => [name, { raw, gzip }])));
 console.log('ESM graphs, ESM-only size parity and every browser refusal passed');

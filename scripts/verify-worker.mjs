@@ -10,8 +10,6 @@ for (const name of ['core-worker.mjs']) {
   await writeFile(join(packed.fixture, name), await readFile(join('test/fixtures', name)));
 }
 const options = { bundle: true, format: 'esm', platform: 'browser', target: 'es2022', conditions: ['workerd', 'browser'], write: false, metafile: true };
-const core = await build({ ...options, entryPoints: [join(packed.fixture, 'core-worker.mjs')] });
-await writeFile(join(output, 'core-worker.mjs'), core.outputFiles[0].contents);
 const outbound = async request => {
   const url = new URL(request.url);
   if (url.pathname === '/admin/api/session') return Response.json({ client_id: request.headers.get('X-Session'), user_id: 'staff' });
@@ -22,22 +20,30 @@ const outbound = async request => {
   return Response.json({ results: [], id, session: request.headers.get('X-Session') }, { headers: { 'X-Session': `${id}:updated` } });
 };
 const flags = ['no_nodejs_compat', 'no_nodejs_compat_v2'];
-const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
-  { name: 'core', modules: true, script: core.outputFiles[0].text, compatibilityDate: '2026-09-11', compatibilityFlags: flags, outboundService: outbound },
-] }));
-try {
-  const coreWorker = await mf.getWorker('core');
-  const results = await Promise.all(['one', 'two'].map(async id => (await coreWorker.fetch(`https://app.test/?id=${id}`)).json()));
-  for (const result of results) {
-    assert.equal(result.storefront.id, result.id);
-    assert.equal(result.storefront.session, `${result.id}:swell-session`);
-    assert.equal(result.session, `${result.id}:updated`);
-    assert.equal(result.backend.auth, `Basic ${Buffer.from(`${result.id}:token-${result.id}`).toString('base64')}`);
-    assert.equal(result.backend.query, '?null');
-    assert.deepEqual(result.staff, { userId: 'staff', storeId: result.id });
-    assert.deepEqual(result.writes[0], ['swell-session', `${result.id}:updated`, { path: '/', maxAge: 604800, sameSite: 'lax' }]);
-    assert.equal(result.readOnly, true); assert.equal(result.redirect, true);
-  }
-  await writeFile(join(output, 'workerd.json'), JSON.stringify({ miniflare: JSON.parse(await readFile('node_modules/miniflare/package.json')).version, coreFlags: flags, results }, null, 2));
-  console.log('Packed SDK: real workerd core isolation without Node compatibility passed');
-} finally { await mf.dispose(); }
+const profiles = {
+  browser: {},
+  server: { platform: 'neutral', mainFields: ['module', 'main'], conditions: ['workerd', 'worker', 'module'] },
+};
+for (const [profile, resolution] of Object.entries(profiles)) {
+  const core = await build({ ...options, ...resolution, entryPoints: [join(packed.fixture, 'core-worker.mjs')] });
+  await writeFile(join(output, `core-worker-${profile}.mjs`), core.outputFiles[0].contents);
+  const mf = new Miniflare(convertV4MiniflareOptions({ workers: [
+    { name: 'core', modules: true, script: core.outputFiles[0].text, compatibilityDate: '2026-09-11', compatibilityFlags: flags, outboundService: outbound },
+  ] }));
+  try {
+    const coreWorker = await mf.getWorker('core');
+    const results = await Promise.all(['one', 'two'].map(async id => (await coreWorker.fetch(`https://app.test/?id=${id}`)).json()));
+    for (const result of results) {
+      assert.equal(result.storefront.id, result.id);
+      assert.equal(result.storefront.session, `${result.id}:swell-session`);
+      assert.equal(result.session, `${result.id}:updated`);
+      assert.equal(result.backend.auth, `Basic ${Buffer.from(`${result.id}:token-${result.id}`).toString('base64')}`);
+      assert.equal(result.backend.query, '?null');
+      assert.deepEqual(result.staff, { userId: 'staff', storeId: result.id });
+      assert.deepEqual(result.writes[0], ['swell-session', `${result.id}:updated`, { path: '/', maxAge: 604800, sameSite: 'lax' }]);
+      assert.equal(result.readOnly, true); assert.equal(result.redirect, true);
+    }
+    await writeFile(join(output, `workerd-${profile}.json`), JSON.stringify({ miniflare: JSON.parse(await readFile('node_modules/miniflare/package.json')).version, coreFlags: flags, results }, null, 2));
+    console.log(`Packed SDK (${profile} resolution): real workerd core isolation without Node compatibility passed`);
+  } finally { await mf.dispose(); }
+}
