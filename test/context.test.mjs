@@ -1,6 +1,6 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { verifySwellContext, requireStaff, parseSwellHeaders, getStorefrontConfig, SwellBackendAPI, SwellError } from '../dist/index.js';
+import { verifySwellContext, requireStaff, getStorefrontConfig, SwellBackendAPI, SwellError } from '../dist/index.js';
 import { createSigner } from './helpers/context.mjs';
 
 const nativeFetch = globalThis.fetch;
@@ -43,7 +43,9 @@ test('claims drive client routing and public projection despite conflicting unsi
   assert.equal(context.environmentId, 'test'); assert.equal(context.installationId, 'installation');
   assert.equal(context.isLocalDev, undefined); assert.equal(context.vaultUrl, undefined);
   assert.deepEqual(requireStaff(context), { userId: 'staff', storeId: 'store' });
-  assert.equal(parseSwellHeaders(headers).staff, undefined);
+  assert.throws(() => getStorefrontConfig(headers), /storeId/);
+  assert.notEqual(getStorefrontConfig(context), getStorefrontConfig(context));
+  assert.throws(() => new SwellBackendAPI({ context, headers }), /raw headers/);
   assert.deepEqual(getStorefrontConfig(context), { storeId: 'store', publicKey: 'pk', url: 'https://store.test',
     vaultUrl: 'https://vault.schema.io', headers: { 'Swell-Storefront-Id': 'front' } });
   globalThis.fetch = async (url, options) => {
@@ -53,7 +55,7 @@ test('claims drive client routing and public projection despite conflicting unsi
     return Response.json({ ok: true });
   };
   assert.deepEqual(await new SwellBackendAPI({ context }).settings(), { ok: true });
-  for (const extra of [{ headers }, { accessToken: 'override' }, { storeId: 'override' }, { secretKey: 'override' }]) {
+  for (const extra of [{ accessToken: 'override' }, { storeId: 'override' }, { secretKey: 'override' }]) {
     assert.throws(() => new SwellBackendAPI({ context, ...extra }), /mutually exclusive/);
   }
 });
@@ -66,6 +68,7 @@ test('context and staff do not require API credentials; each client validates it
   assert.throws(() => getStorefrontConfig(staff), /publicKey/);
   const configOnly = await verifySwellContext(new Headers({ 'Swell-Context': signer.token({ admin: null }), 'Swell-Public-Key': 'pk' }), { env, vaultUrl: 'http://vault.test' });
   assert.equal(getStorefrontConfig(configOnly).vaultUrl, 'http://vault.test');
+  assert.equal(getStorefrontConfig(configOnly).headers, undefined);
   assert.equal(configOnly.staff, null);
   assert.throws(() => requireStaff(configOnly), error => error.status === 401 && error.code === 'staff_required');
 });
@@ -88,12 +91,23 @@ test('claim validation binds issuer and optional trusted destination, and enforc
     { installation_id: null }, { api_host: 'ftp://bad' }, { admin_url: '/relative' }, { environment_id: 7 }, { storefront_id: {} },
     { admin: {} }, { admin: false }, { admin: { user_id: '' } }, { admin: undefined },
     { exp: now - 6, iat: now - 66 }, { exp: null }, { exp: 'tomorrow' }, { iat: null },
-    { iat: now + 10, exp: now + 60 }, { exp: now + 61 }, { exp: now }, { nbf: now + 10 }, { nbf: 'soon' },
+    { iat: now + 10, exp: now + 60 }, { exp: now }, { nbf: now + 10 }, { nbf: 'soon' },
   ]) await assert.rejects(resolve(claims), invalid);
   await assert.rejects(resolve({}, { appId: 'other' }), invalid);
   await assert.rejects(resolve({}, { storeId: 'other' }), invalid);
   assert.ok(await resolve({}, { appId: 'app', storeId: 'store' }));
   assert.ok(await resolve({ iat: now - 61, exp: now - 1 })); // small clock skew
+});
+
+test('the issuer controls token lifetime; expiry is still enforced', async t => {
+  const { resolve } = fixture();
+  let now = Math.floor(Date.now() / 1000) * 1000; t.mock.method(Date, 'now', () => now);
+  const claims = { iat: now / 1000, exp: now / 1000 + 120 };
+  assert.ok(await resolve(claims));
+  now += 90_000;
+  assert.ok(await resolve(claims));
+  now += 36_000; // expired beyond the five-second clock tolerance
+  await assert.rejects(resolve(claims), invalid);
 });
 
 test('malformed JWTs and unsupported JOSE headers fail without fetching keys', async () => {
@@ -182,8 +196,24 @@ test('expired keys fail closed during outages and failed fetches have a cooldown
   now += 300_001;
   await assert.rejects(resolve(), unavailable);
   await assert.rejects(resolve(), unavailable); assert.equal(calls, 1);
-  now += 30_001;
+  now += 1_001;
   await assert.rejects(resolve(), unavailable); assert.equal(calls, 2);
+});
+
+test('a cold key fetch recovers one second after failure and deduplicates retries', async t => {
+  const { resolve, signer } = fixture();
+  let now = Date.now(); t.mock.method(Date, 'now', () => now);
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; now += 5000; throw new Error('timeout'); };
+  await Promise.all(Array.from({ length: 8 }, () => assert.rejects(resolve(), unavailable)));
+  assert.equal(calls, 1);
+  globalThis.fetch = async () => { calls++; return Response.json({ keys: [signer.jwk] }); };
+  now += 999;
+  await assert.rejects(resolve(), unavailable); assert.equal(calls, 1);
+  now += 1;
+  const contexts = await Promise.all(Array.from({ length: 8 }, () => resolve()));
+  assert.ok(contexts.every(context => context.signatureVerified));
+  assert.equal(calls, 2);
 });
 
 test('JWKS failures, empty keys and invalid key material are service errors, never bypass', async () => {

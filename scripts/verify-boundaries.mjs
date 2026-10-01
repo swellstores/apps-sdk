@@ -10,8 +10,8 @@ const { fixture } = JSON.parse(await readFile(join(output, 'package.json'), 'utf
 const sdk = join(fixture, 'node_modules/@swell/apps-sdk');
 const fixtures = {
   empty: `export default {fetch(){return Response.json({ok:true})}}`,
-  config: `import {getStorefrontConfig} from '@swell/apps-sdk'; export default {fetch(r){return Response.json(getStorefrontConfig(r.headers))}}`,
-  backend: `import {SwellBackendAPI} from '@swell/apps-sdk'; export default {async fetch(r){return Response.json(await new SwellBackendAPI({headers:r.headers}).get('/products'))}}`,
+  config: `export {getStorefrontConfig} from '@swell/apps-sdk';`,
+  backend: `import {SwellBackendAPI} from '@swell/apps-sdk'; export default {async fetch(r){return Response.json(await new SwellBackendAPI({storeId:'s',secretKey:'k',apiHost:'https://api.test'}).get('/products'))}}`,
   verified: `import {verifySwellContext,getStorefrontConfig,requireStaff} from '@swell/apps-sdk'; export default {async fetch(r,env){const context=await verifySwellContext(r.headers,{env});requireStaff(context);return Response.json(getStorefrontConfig(context))}}`,
   storefront: `import {createStorefrontClient} from '@swell/apps-sdk/storefront'; export default {async fetch(){return Response.json(await createStorefrontClient({storeId:'s',publicKey:'k'},{cookies:{get(){}}}).products.list())}}`,
 };

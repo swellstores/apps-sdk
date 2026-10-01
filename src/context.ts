@@ -2,32 +2,6 @@ import type { PublicConfig } from 'swell-js';
 import type { SwellRequestContext } from './request-context.js';
 
 export type HeaderReader = Pick<Headers, 'get'>;
-export interface SwellContext {
-  storeId?: string;
-  appId?: string;
-  environmentId?: string;
-  storefrontId?: string;
-  accessToken?: string;
-  publicKey?: string;
-  apiHost?: string;
-  adminUrl?: string;
-  vaultUrl?: string;
-  requestId?: string;
-  isLocalDev: boolean;
-}
-
-/** Parses already-trusted ingress headers; does not verify signatures or expose staff identity. */
-export function parseSwellHeaders(headers: HeaderReader): SwellContext {
-  const read = (name: string) => headers.get(`Swell-${name}`) ?? undefined;
-  return {
-    storeId: read('Store-Id'), appId: read('App-Id'),
-    environmentId: read('Environment-Id'), storefrontId: read('Storefront-Id'),
-    accessToken: read('Access-Token'), publicKey: read('Public-Key'),
-    apiHost: read('API-Host'), adminUrl: read('Admin-Url'),
-    vaultUrl: read('Vault-Url'), requestId: read('Request-ID'),
-    isLocalDev: read('Local-Dev') === 'true',
-  };
-}
 
 export function requireString(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`Missing or invalid ${field}`);
@@ -44,8 +18,7 @@ export function validateUrl(value: unknown, field: string): string {
 }
 
 /** Projects only public configuration. Deliver it with Cache-Control: private, no-store. */
-export function getStorefrontConfig(source: HeaderReader | SwellRequestContext): PublicConfig {
-  const context = 'get' in source ? parseSwellHeaders(source) : source;
+export function getStorefrontConfig(context: SwellRequestContext): PublicConfig {
   requireString(context.storeId, 'storeId');
   requireString(context.publicKey, 'publicKey');
   return {

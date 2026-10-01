@@ -2,6 +2,7 @@ import { SwellError } from './error.js';
 
 const CACHE_TTL = 300_000;
 const REFRESH_INTERVAL = 30_000;
+const FAILURE_RETRY_INTERVAL = 1000;
 const MAX_URLS = 8;
 interface KeySet {
   keys: Map<string, CryptoKey>;
@@ -32,6 +33,7 @@ async function refresh(url: string, entry: KeySet): Promise<void> {
     entry.expiresAt = Date.now() + CACHE_TTL;
     entry.error = undefined;
   } catch {
+    entry.refreshAfter = Date.now() + FAILURE_RETRY_INTERVAL;
     entry.error = new SwellError('Swell verification keys unavailable', { status: 503, code: 'swell_jwks_unavailable' });
     throw entry.error;
   }

@@ -1,5 +1,4 @@
-import { parseSwellHeaders, requireString, validateUrl } from './context.js';
-import type { HeaderReader } from './context.js';
+import { requireString, validateUrl } from './context.js';
 import type { SwellRequestContext } from './request-context.js';
 import { SwellError } from './error.js';
 import { validateWorkflowParams } from './workflow.js';
@@ -7,14 +6,10 @@ import { USER_AGENT } from './version.js';
 
 export type SwellData = Record<string, any>;
 export type BackendOptions = {
-  headers: HeaderReader;
-  context?: never;
-  storeId?: never; apiHost?: never; accessToken?: never; secretKey?: never; appId?: never; requestId?: never;
-} | {
   context: SwellRequestContext;
-  headers?: never; storeId?: never; apiHost?: never; accessToken?: never; secretKey?: never; appId?: never; requestId?: never;
+  storeId?: never; apiHost?: never; accessToken?: never; secretKey?: never; appId?: never; requestId?: never;
 } | ({
-  headers?: never; context?: never; storeId: string; apiHost: string; appId?: string; requestId?: string;
+  context?: never; storeId: string; apiHost: string; appId?: string; requestId?: string;
 } & ({ accessToken: string; secretKey?: never } | { secretKey: string; accessToken?: never }));
 /** Envelope of an ordinary paginated backend list. `page: false` and aggregations return other shapes. */
 export interface SwellCollection<T = SwellData> {
@@ -44,7 +39,7 @@ function queryParts(query: SwellData, prefix = ''): string[] {
   });
 }
 
-/** Per-request backend client. Use explicit credentials outside trusted platform ingress. */
+/** Backend client from a frontend request context or explicit server credentials. */
 export class SwellBackendAPI {
   #baseUrl: string;
   #authorization: string;
@@ -63,7 +58,7 @@ export class SwellBackendAPI {
     /**
      * Invokes an app's private function from server code and resolves to its response payload,
      * without the envelope's status or headers.
-     * `appId` is the app identifier from `Swell-App-Id` (`parseSwellHeaders(headers).appId`).
+     * `appId` is the app identifier from the request context (`context.appId`).
      * `method` (default `post`) selects the function's handler. GET data reaches the function
      * as query parameters, so its values must be flat strings, numbers or booleans.
      * Throws `SwellError` when the function reports a non-2xx status or an error.
@@ -90,11 +85,11 @@ export class SwellBackendAPI {
   };
 
   constructor(options: BackendOptions) {
-    if ((options.headers || options.context) &&
-        ((options.headers && options.context) || ['storeId', 'apiHost', 'accessToken', 'secretKey', 'appId', 'requestId'].some(key => key in options))) {
-      throw new Error('headers, context and explicit backend credentials are mutually exclusive');
+    if ('headers' in options) throw new Error('Pass a request context or explicit credentials, not raw headers');
+    if (options.context && ['storeId', 'apiHost', 'accessToken', 'secretKey', 'appId', 'requestId'].some(key => key in options)) {
+      throw new Error('context and explicit backend credentials are mutually exclusive');
     }
-    const config = options.context ?? (options.headers ? parseSwellHeaders(options.headers) : options);
+    const config = options.context ?? options;
     const secretKey = 'secretKey' in config ? config.secretKey : undefined;
     requireString(config.storeId, 'storeId');
     if ((config.accessToken !== undefined) === (secretKey !== undefined)) throw new Error('Provide exactly one accessToken or secretKey');

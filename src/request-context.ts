@@ -86,10 +86,10 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
 
   try {
     const now = Date.now() / 1000;
-    // Match the proxy's one-minute lifetime, with five seconds for clock skew.
+    // The issuer controls token lifetime; allow five seconds for clock skew.
     if (typeof payload.iat !== 'number' || !Number.isFinite(payload.iat) || payload.iat > now + 5 ||
         typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= now - 5 ||
-        payload.exp <= payload.iat || payload.exp - payload.iat > 60) throw invalidContext();
+        payload.exp <= payload.iat) throw invalidContext();
     if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || !Number.isFinite(payload.nbf) || payload.nbf > now + 5)) throw invalidContext();
     requireString(payload.iss, 'iss');
     if (verify && payload.iss !== issuer) throw invalidContext();

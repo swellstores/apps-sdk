@@ -1,6 +1,6 @@
 import './guard.js';
-export { parseSwellHeaders, getStorefrontConfig } from './context.js';
-export type { HeaderReader, SwellContext } from './context.js';
+export { getStorefrontConfig } from './context.js';
+export type { HeaderReader } from './context.js';
 export { verifySwellContext } from './request-context.js';
 export type { SwellRequestContext, SwellHeadersEnv, VerifySwellContextOptions } from './request-context.js';
 export { SwellBackendAPI } from './backend.js';

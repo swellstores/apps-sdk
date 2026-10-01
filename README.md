@@ -189,12 +189,14 @@ Node compatibility should pass their bindings as `env`.
 | `SWELL_HEADERS_JWKS_URL` | `https://swell.store/.well-known/jwks.json` | Override the verification-key endpoint; its origin must match the token's issuer. |
 
 For local development against a local Swell instance, put `SWELL_VERIFY_HEADERS=false`
-in `.dev.vars`. Remove it or set it to `"true"` to restore verification. This still
-requires a valid context from Swell and does not sign a visitor in as staff.
+in `.dev.vars`. Remove it or set it to `"true"` to restore verification. Token structure
+and claim validation still apply, but the context is no longer authenticated: anyone
+who can reach the frontend directly can supply forged context, including staff identity.
+Use this bypass only for local development.
 
-For integrations whose ingress already authenticates headers, `parseSwellHeaders`,
-`getStorefrontConfig(headers)` and `new SwellBackendAPI({ headers })` remain available.
-These synchronous paths do not verify headers or provide staff identity.
+For server integrations, construct `SwellBackendAPI` with explicit credentials and
+`createStorefrontClient` with explicit public configuration. These clients do not
+require an HTTP request or staff identity.
 
 ### Staff identity
 
