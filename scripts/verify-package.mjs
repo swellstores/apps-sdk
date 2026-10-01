@@ -27,7 +27,7 @@ for (const [mode, file] of [['NodeNext', 'consumer.mts'], ['NodeNext', 'consumer
 await writeFile(join(fixture, 'runtime.cjs'), `const assert = require('node:assert/strict');
 const root = require('@swell/apps-sdk');
 const storefront = require('@swell/apps-sdk/storefront');
-assert.deepEqual(Object.keys(root).sort(), ['SwellBackendAPI', 'SwellError', 'getStorefrontConfig', 'parseSwellHeaders', 'requireStaff'].sort());
+assert.deepEqual(Object.keys(root).sort(), ['SwellBackendAPI', 'SwellError', 'getStorefrontConfig', 'requireStaff', 'verifySwellContext'].sort());
 assert.deepEqual(Object.keys(storefront), ['createStorefrontClient']);
 assert.equal(typeof storefront.createStorefrontClient, 'function');
 assert.throws(() => require('@swell/apps-sdk/functions'), { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });

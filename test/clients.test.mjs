@@ -1,35 +1,18 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SwellBackendAPI, SwellError, parseSwellHeaders, getStorefrontConfig, requireStaff } from '../dist/index.js';
+import { SwellBackendAPI, SwellError } from '../dist/index.js';
 import { createStorefrontClient } from '../dist/storefront.js';
 const nativeFetch = globalThis.fetch;
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 afterEach(() => { globalThis.fetch = nativeFetch; });
 const credentials = { storeId: 'store', secretKey: 'secret', apiHost: 'https://api.example.test' };
-const platform = () => new Headers({ 'Swell-Store-Id': 'store', 'Swell-Public-Key': 'pk_test', 'Swell-Admin-Url': 'https://store.example.test', 'Swell-Access-Token': 'token', 'Swell-API-Host': credentials.apiHost, 'Swell-App-Id': 'app', 'Swell-Request-ID': 'request', 'Swell-Storefront-Id': 'front' });
 const config = { storeId: 'store', publicKey: 'pk_test' };
 const backend = () => new SwellBackendAPI(credentials);
 
-test('context is optional, synchronous and public config is an allowlist', () => {
-  assert.deepEqual(Object.values(parseSwellHeaders(new Headers())).filter(x => x !== undefined), [false]);
-  const headers = platform();
-  const publicConfig = getStorefrontConfig(headers);
-  assert.deepEqual(publicConfig, { ...config, url: 'https://store.example.test', vaultUrl: 'https://vault.schema.io', headers: { 'Swell-Storefront-Id': 'front' } });
-  assert.notEqual(getStorefrontConfig(headers), publicConfig);
-  headers.delete('Swell-Storefront-Id');
-  assert.equal(getStorefrontConfig(headers).headers, undefined);
-  for (const field of ['Swell-Store-Id', 'Swell-Public-Key', 'Swell-Admin-Url']) {
-    const invalid = platform(); invalid.delete(field); assert.throws(() => getStorefrontConfig(invalid));
-  }
-  for (const value of ['', 'garbage', '/relative', 'ftp://host', 'https://u:p@host']) {
-    headers.set('Swell-Vault-Url', value); assert.throws(() => getStorefrontConfig(headers));
-  }
-});
-
-test('backend validates credentials, mutually exclusive headers, host and endpoint before fetch', async () => {
+test('backend validates credentials, host and endpoint before fetch', async () => {
   globalThis.fetch = () => assert.fail('unexpected fetch');
-  for (const bad of [{}, { ...credentials, secretKey: '' }, { ...credentials, accessToken: 'extra' }, { ...credentials, apiHost: undefined }, { ...credentials, apiHost: 'ftp://host' }, { headers: platform(), storeId: 'override' }]) assert.throws(() => new SwellBackendAPI(bad));
+  for (const bad of [{}, { ...credentials, secretKey: '' }, { ...credentials, accessToken: 'extra' }, { ...credentials, apiHost: undefined }, { ...credentials, apiHost: 'ftp://host' }, { headers: new Headers() }, { ...credentials, headers: new Headers() }]) assert.throws(() => new SwellBackendAPI(bad));
   const api = backend();
   for (const path of ['https://other.test/x', '//other.test/x', '\\other.test', 'https:foo', '/x#frag', '/x\ty', '/x\ny', '/x\u007f', 42]) await assert.rejects(api.get(path), /endpoint/);
 });
@@ -43,7 +26,6 @@ test('backend normalizes empty and spaced paths and keeps dot segments on the co
 });
 
 test('backend auth is UTF-8, forwards request ID and encodes nested/array/null/undefined/Date GET values', async () => {
-  const headers = platform(); headers.set('Swell-Access-Token', 'tökén');
   globalThis.fetch = async (url, options) => {
     assert.equal(url, 'https://api.example.test/products?where%5Bid%5D&where%5Bname%5D=null&where%5Bdate_created%5D%5B%24gte%5D=2026-01-01T00%3A00%3A00.000Z&expand%5B0%5D=items&expand%5B1%5D=images');
     assert.equal(options.headers.Authorization, `Basic ${Buffer.from('store:tökén').toString('base64')}`);
@@ -54,7 +36,7 @@ test('backend auth is UTF-8, forwards request ID and encodes nested/array/null/u
     return Response.json({ count: 1 });
   };
   const where = { id: null, name: 'null', search: undefined, date_created: { $gte: new Date('2026-01-01') } };
-  assert.deepEqual(await new SwellBackendAPI({ headers }).get('/products', { where, expand: ['items', 'images'], search: undefined }), { count: 1 });
+  assert.deepEqual(await new SwellBackendAPI({ storeId: 'store', accessToken: 'tökén', apiHost: credentials.apiHost, requestId: 'request' }).get('/products', { where, expand: ['items', 'images'], search: undefined }), { count: 1 });
 });
 
 test('backend verbs, JSON/text bodies and structured errors preserve wrapper contracts', async () => {
@@ -105,7 +87,7 @@ test('settings, workflow JSON safety and transaction retries are opt-in and boun
   const api = backend(); const seen = [];
   globalThis.fetch = async (url, options) => { seen.push([url, options]); return Response.json({ success: true }); };
   await assert.rejects(api.settings(), /appId/);
-  await api.settings('app'); await new SwellBackendAPI({ headers: platform() }).settings();
+  await api.settings('app'); await new SwellBackendAPI({ ...credentials, appId: 'app' }).settings();
   assert.ok(seen.every(([url]) => url.endsWith('/settings/app')));
   await api.settings('some/app ?#');
   assert.equal(seen.at(-1)[0], 'https://api.example.test/settings/some%2Fapp%20%3F%23');
@@ -258,37 +240,6 @@ test('storefront validates configuration and retains explicit defaults', () => {
   for (const value of [{}, { ...config, url: '' }, { ...config, vaultUrl: 'invalid' }, { ...config, timeout: NaN }, { ...config, headers: { x: 1 } }, { ...config, locale: 1 }, { ...config, getCart: () => {} }]) assert.throws(() => createStorefrontClient(value, { cookies: { get() {} } }));
   assert.throws(() => createStorefrontClient(config, { cookies: {} }));
   assert.ok(createStorefrontClient(config, { cookies: { get() {} } }));
-});
-
-test('staff identity verifies only store and user; forwards session and server attribution', async () => {
-  globalThis.fetch = async (url, options) => {
-    assert.equal(String(url), 'https://store.example.test/admin/api/session');
-    assert.deepEqual(options, { headers: { 'X-Session': 'session', 'User-Agent': `swell-apps-sdk/${version}` }, redirect: 'manual' });
-    return Response.json({ user_id: 'user', client_id: 'store', permissions: ['ignored'] });
-  };
-  assert.deepEqual(await requireStaff({ headers: platform(), method: 'GET', origin: 'https://app.test', cookies: { get: () => 'session' } }), { userId: 'user', storeId: 'store' });
-});
-
-test('staff origin matrix rejects missing/null/mismatched Origin and cross-site metadata', async () => {
-  for (const origin of [null, 'null', 'https://evil.test', 'https://app.test']) {
-    for (const site of [null, 'same-origin', 'same-site', 'cross-site']) {
-      const headers = platform(); if (origin) headers.set('Origin', origin); if (site) headers.set('Sec-Fetch-Site', site);
-      const allowed = origin === 'https://app.test' && (site === null || site === 'same-origin');
-      globalThis.fetch = async () => { assert.ok(allowed); return Response.json({ user_id: 'user', client_id: 'store' }); };
-      const result = requireStaff({ headers, method: 'POST', origin: 'https://app.test', cookies: { get: () => 'session' } });
-      if (allowed) await result; else await assert.rejects(result, error => error.status === 403);
-    }
-  }
-});
-
-test('staff missing/wrong-store/invalid sessions, redirects and upstream failures stay failures', async () => {
-  const input = { headers: platform(), method: 'GET', origin: 'https://app.test', cookies: { get: () => undefined } };
-  await assert.rejects(requireStaff(input), error => error.status === 401);
-  input.cookies.get = () => 'session';
-  for (const body of [null, {}, { user_id: 'user', client_id: 'other' }]) { globalThis.fetch = async () => Response.json(body); await assert.rejects(requireStaff(input), error => error.status === 401); }
-  for (const status of [302, 401, 403, 500]) { globalThis.fetch = async () => new Response('', { status }); await assert.rejects(requireStaff(input), error => error.status === (status === 403 ? 401 : status)); }
-  const network = new Error('offline'); globalThis.fetch = async () => { throw network; }; await assert.rejects(requireStaff(input), error => error === network);
-  globalThis.fetch = async () => new Response('invalid json'); await assert.rejects(requireStaff(input), SyntaxError);
 });
 
 test('a themes-style request wrapper can delegate all five arguments, skip fetch on cache hit and retain errors', async () => {

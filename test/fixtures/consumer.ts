@@ -1,13 +1,20 @@
-import { SwellBackendAPI, SwellError, getStorefrontConfig, parseSwellHeaders, requireStaff } from '@swell/apps-sdk';
-import type { SwellCollection, SwellContext, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
+import { SwellBackendAPI, SwellError, getStorefrontConfig, requireStaff, verifySwellContext } from '@swell/apps-sdk';
+import type { SwellCollection, SwellRequestContext, StaffIdentity, SwellHeadersEnv, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
 import { createStorefrontClient } from '@swell/apps-sdk/storefront';
 import type { CookieOptions } from '@swell/apps-sdk/storefront';
 import type { PublicConfig, SwellClient } from 'swell-js';
 const headers = new Headers();
-const context: SwellContext = parseSwellHeaders(headers);
-const config: PublicConfig = getStorefrontConfig(headers);
-const backend = new SwellBackendAPI({ headers });
-const explicit = new SwellBackendAPI({ storeId: 's', secretKey: 'k', apiHost: 'https://api.test' });
+const config: PublicConfig = { storeId: 's', publicKey: 'pk' };
+const backend = new SwellBackendAPI({ storeId: 's', secretKey: 'k', apiHost: 'https://api.test' });
+const explicit = new SwellBackendAPI({ storeId: 's', accessToken: 't', apiHost: 'https://api.test' });
+// @ts-expect-error raw header parsing is not part of the public API
+import { parseSwellHeaders } from '@swell/apps-sdk';
+// @ts-expect-error the unverified context type is not part of the public API
+import type { SwellContext } from '@swell/apps-sdk';
+// @ts-expect-error public config requires a request context
+getStorefrontConfig(headers);
+// @ts-expect-error backend clients do not accept raw headers
+new SwellBackendAPI({ headers });
 const result: Promise<{ count: number }> = backend.get<{ count: number }>('/products');
 const list: Promise<SwellCollection<{ id: string }>> = backend.get<SwellCollection<{ id: string }>>('/products');
 const updated: Promise<{ id: string }> = backend.put<{ id: string }>('/products/1', { name: 'Updated' });
@@ -34,11 +41,25 @@ const wrapped: Promise<{ ok: boolean }> = snake.request<{ ok: boolean }>('get', 
 createStorefrontClient(config, { cookieOptions: {}, cookies: { get() { return undefined; }, set() {} } });
 // @ts-expect-error a cookie reader is required even when a writer is supplied
 createStorefrontClient(config, { cookies: { set() {} } });
-// @ts-expect-error explicit and header credentials are mutually exclusive
+// @ts-expect-error raw headers are not a backend option
 new SwellBackendAPI({ headers, ...{ storeId: 's', secretKey: 'k', apiHost: 'https://api.test' } });
 // @ts-expect-error exactly one credential is required
 new SwellBackendAPI({ storeId: 's', secretKey: 'k', accessToken: 't', apiHost: 'https://api.test' });
-requireStaff({ headers, method: 'GET', origin: 'https://app.test', cookies });
+async function requestContext(env: SwellHeadersEnv) {
+  const resolved: SwellRequestContext = await verifySwellContext(headers, { env, appId: 'app', storeId: 'store' });
+  const staff: StaffIdentity = requireStaff(resolved);
+  const optional: StaffIdentity | null = resolved.staff;
+  const publicConfig: PublicConfig = getStorefrontConfig(resolved);
+  const client = new SwellBackendAPI({ context: resolved });
+  // @ts-expect-error verified context and raw credentials cannot be mixed
+  new SwellBackendAPI({ context: resolved, secretKey: 'override' });
+  // @ts-expect-error context and headers cannot be mixed
+  new SwellBackendAPI({ context: resolved, headers });
+  // @ts-expect-error request identity is immutable
+  resolved.storeId = 'different';
+  // @ts-expect-error raw headers do not provide staff identity
+  requireStaff(headers);
+}
 new SwellError('no');
 // @ts-expect-error Function execution is not part of the public SDK.
 import type { SwellRequest } from '@swell/apps-sdk/functions';
