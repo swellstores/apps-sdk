@@ -21,22 +21,30 @@ Version 2 replaces the 1.x theme API. Existing theme applications should remain 
 
 ## Getting started
 
-### Headers and app proxying
+### Request context
 
-When your app runs on Swell, the platform supplies request headers with API
-credentials, store configuration and storefront context. Pass the request's headers
-to the SDK to work with the current store. Create clients for each incoming request.
+Swell supplies the current store's configuration, credentials and staff identity with
+each request. Verify this context once, then reuse it to create clients and check staff
+access. Use the same pattern for Swell-hosted and self-hosted frontends.
 
-Only use these headers when they come through Swell's trusted proxy. On other servers,
-use explicit credentials as shown below.
+```ts
+import { verifySwellContext } from '@swell/apps-sdk';
+
+const context = await verifySwellContext(request.headers, {
+  appId: 'my-app', // Your app's configured slug.
+});
+```
+
+In a server component, pass `await headers()`. Keep the context and clients on the
+server, scoped to the incoming request.
 
 ### Backend API calls
 
 ```ts
 import { SwellBackendAPI } from '@swell/apps-sdk';
 
-// Use the credentials supplied to your Swell-hosted app.
-const backend = new SwellBackendAPI({ headers: request.headers });
+// Reuse the context resolved for this request.
+const backend = new SwellBackendAPI({ context });
 
 // Fetch products from the Backend API.
 const products = await backend.get('/products', { limit: 10 });
@@ -58,8 +66,8 @@ pending writes and deletions.
 import { getStorefrontConfig } from '@swell/apps-sdk';
 import { createStorefrontClient } from '@swell/apps-sdk/storefront';
 
-// Build the storefront config from the platform headers.
-const config = getStorefrontConfig(request.headers);
+// Build public storefront configuration from the request context.
+const config = getStorefrontConfig(context);
 const storefront = createStorefrontClient(config, {
   cookies: {
     get: name => cookies.get(name)?.value,
@@ -86,9 +94,7 @@ import swell from 'swell-js';
 swell.init(config.storeId, config.publicKey, config);
 ```
 
-This config excludes backend credentials. For server-side metadata, use
-`parseSwellHeaders(headers)`. It reads headers without verifying their signature;
-keep its result on the server because it includes the backend token.
+Send only this public config to the browser; the request context contains server credentials.
 
 ### Staff identity
 
@@ -98,21 +104,18 @@ store before applying your application's permission checks:
 ```ts
 import { requireStaff } from '@swell/apps-sdk';
 
-const staff = await requireStaff({
-  headers: request.headers,
-  method: request.method,
-  origin: appOrigin, // Your configured app origin.
-  cookies: { get: name => cookies.get(name)?.value },
-});
+const staff = requireStaff(context); // { userId, storeId }, or a 401 SwellError.
+const optionalStaff = context.staff; // null for a visitor; no exception needed.
 ```
 
 ## API reference
 
 ### Backend client
 
-`apiHost` is a required absolute HTTP(S) URL. Use either `secretKey` or `accessToken`;
-do not mix explicit credentials with `headers`. Invalid constructor options throw
-immediately. All backend methods return promises and reject on failure.
+Pass `{ context }` for a frontend request, or explicit credentials for an external
+server. Backend calls require an access token or secret key and an absolute HTTP(S)
+`apiHost`. Do not mix input sources. Invalid constructor options throw immediately;
+all backend methods return promises and reject on failure.
 
 | Method | Result |
 | --- | --- |
@@ -142,7 +145,7 @@ defaults: `limit` counts additional attempts, and delays are in milliseconds. On
 `transaction_conflict` and `transaction_throttled` retry. Ordinary requests and network
 failures are not retried.
 
-**Private functions:** use the app slug from `Swell-App-Id` and authorize the caller
+**Private functions:** use the app slug from `context.appId` and authorize the caller
 first. `options.method` defaults to `post`; `get`, `put` and `delete` are also supported.
 GET data must contain only flat string, number or boolean values. Caller headers are
 not forwarded; response status and headers are not returned. Function errors and
@@ -166,14 +169,42 @@ rotation during GET requests. A supplied writer may throw or skip a write; after
 its reader must still report the actual state. Writer return values are ignored.
 Persist cookies in writable route handlers or actions.
 
-For caching, replace `storefront.request` before first use. The SDK has no built-in cache.
+For API response caching, replace `storefront.request` before first use. The SDK
+leaves response caching to your application.
 
-### Staff verification
+### Request context options
 
-`requireStaff` verifies `_swell_admin_session` against the current store and returns
-`{ userId, storeId }`. Use a trusted `appOrigin`: every non-GET request requires a
-matching `Origin` and, when present, `Sec-Fetch-Site: same-origin`. Failures reject.
-The helper checks identity and request origin; your application enforces permissions.
+`verifySwellContext(headers, { env?, appId?, storeId?, vaultUrl? })` returns the request
+context or throws if verification fails. Set `appId` and, for a single-store app,
+`storeId` from trusted configuration to reject contexts intended for another app or
+store. Without these options, it verifies the source but does not restrict the
+destination. `vaultUrl` provides an optional vault endpoint override.
+
+Configuration is read from `process.env`, or from `env` when supplied. Workers without
+Node compatibility should pass their bindings as `env`.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `SWELL_VERIFY_HEADERS` | enabled | Set exactly `"false"` to skip signature verification during local development. |
+| `SWELL_HEADERS_JWKS_URL` | `https://swell.store/.well-known/jwks.json` | Override the verification-key endpoint; its origin must match the token's issuer. |
+
+For local development against a local Swell instance, put `SWELL_VERIFY_HEADERS=false`
+in `.dev.vars`. Remove it or set it to `"true"` to restore verification. This still
+requires a valid context from Swell and does not sign a visitor in as staff.
+
+For integrations whose ingress already authenticates headers, `parseSwellHeaders`,
+`getStorefrontConfig(headers)` and `new SwellBackendAPI({ headers })` remain available.
+These synchronous paths do not verify headers or provide staff identity.
+
+### Staff identity
+
+`requireStaff(context)` returns `{ userId, storeId }` or throws `SwellError` with
+status 401 and code `staff_required`. For optional staff access, read `context.staff`,
+which is null for visitors.
+
+Staff includes any signed-in dashboard user of the store, including partners and Swell
+support. Swell's proxy handles staff authentication and write-origin checks; your
+application decides what each staff member may do.
 
 ### Errors
 
@@ -185,8 +216,10 @@ error handling; `message` is for people and may change.
   `body`. Successful GET responses containing `errors` are returned as data.
 - Function invocation failures retain the response payload, or the invocation envelope
   when the payload is null or absent, in `body`.
-- Network errors remain native. Local configuration errors may be ordinary `Error`
-  instances; not every failure is a `SwellError`.
+- Header verification uses 401 / `invalid_swell_context` for absent, malformed, expired
+  or rejected tokens, and 503 / `swell_jwks_unavailable` for key-service failures.
+- Backend/storefront network errors remain native. Local configuration errors may be
+  ordinary `Error` instances; not every failure is a `SwellError`.
 
 ## Development
 

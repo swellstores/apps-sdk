@@ -1,7 +1,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SwellBackendAPI, SwellError, parseSwellHeaders, getStorefrontConfig, requireStaff } from '../dist/index.js';
+import { SwellBackendAPI, SwellError, parseSwellHeaders, getStorefrontConfig } from '../dist/index.js';
 import { createStorefrontClient } from '../dist/storefront.js';
 const nativeFetch = globalThis.fetch;
 const { version } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -258,37 +258,6 @@ test('storefront validates configuration and retains explicit defaults', () => {
   for (const value of [{}, { ...config, url: '' }, { ...config, vaultUrl: 'invalid' }, { ...config, timeout: NaN }, { ...config, headers: { x: 1 } }, { ...config, locale: 1 }, { ...config, getCart: () => {} }]) assert.throws(() => createStorefrontClient(value, { cookies: { get() {} } }));
   assert.throws(() => createStorefrontClient(config, { cookies: {} }));
   assert.ok(createStorefrontClient(config, { cookies: { get() {} } }));
-});
-
-test('staff identity verifies only store and user; forwards session and server attribution', async () => {
-  globalThis.fetch = async (url, options) => {
-    assert.equal(String(url), 'https://store.example.test/admin/api/session');
-    assert.deepEqual(options, { headers: { 'X-Session': 'session', 'User-Agent': `swell-apps-sdk/${version}` }, redirect: 'manual' });
-    return Response.json({ user_id: 'user', client_id: 'store', permissions: ['ignored'] });
-  };
-  assert.deepEqual(await requireStaff({ headers: platform(), method: 'GET', origin: 'https://app.test', cookies: { get: () => 'session' } }), { userId: 'user', storeId: 'store' });
-});
-
-test('staff origin matrix rejects missing/null/mismatched Origin and cross-site metadata', async () => {
-  for (const origin of [null, 'null', 'https://evil.test', 'https://app.test']) {
-    for (const site of [null, 'same-origin', 'same-site', 'cross-site']) {
-      const headers = platform(); if (origin) headers.set('Origin', origin); if (site) headers.set('Sec-Fetch-Site', site);
-      const allowed = origin === 'https://app.test' && (site === null || site === 'same-origin');
-      globalThis.fetch = async () => { assert.ok(allowed); return Response.json({ user_id: 'user', client_id: 'store' }); };
-      const result = requireStaff({ headers, method: 'POST', origin: 'https://app.test', cookies: { get: () => 'session' } });
-      if (allowed) await result; else await assert.rejects(result, error => error.status === 403);
-    }
-  }
-});
-
-test('staff missing/wrong-store/invalid sessions, redirects and upstream failures stay failures', async () => {
-  const input = { headers: platform(), method: 'GET', origin: 'https://app.test', cookies: { get: () => undefined } };
-  await assert.rejects(requireStaff(input), error => error.status === 401);
-  input.cookies.get = () => 'session';
-  for (const body of [null, {}, { user_id: 'user', client_id: 'other' }]) { globalThis.fetch = async () => Response.json(body); await assert.rejects(requireStaff(input), error => error.status === 401); }
-  for (const status of [302, 401, 403, 500]) { globalThis.fetch = async () => new Response('', { status }); await assert.rejects(requireStaff(input), error => error.status === (status === 403 ? 401 : status)); }
-  const network = new Error('offline'); globalThis.fetch = async () => { throw network; }; await assert.rejects(requireStaff(input), error => error === network);
-  globalThis.fetch = async () => new Response('invalid json'); await assert.rejects(requireStaff(input), SyntaxError);
 });
 
 test('a themes-style request wrapper can delegate all five arguments, skip fetch on cache hit and retain errors', async () => {

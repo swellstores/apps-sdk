@@ -1,4 +1,5 @@
 import type { PublicConfig } from 'swell-js';
+import type { SwellRequestContext } from './request-context.js';
 
 export type HeaderReader = Pick<Headers, 'get'>;
 export interface SwellContext {
@@ -15,7 +16,7 @@ export interface SwellContext {
   isLocalDev: boolean;
 }
 
-/** Parses trusted ingress headers; does not verify their signature. */
+/** Parses already-trusted ingress headers; does not verify signatures or expose staff identity. */
 export function parseSwellHeaders(headers: HeaderReader): SwellContext {
   const read = (name: string) => headers.get(`Swell-${name}`) ?? undefined;
   return {
@@ -43,8 +44,8 @@ export function validateUrl(value: unknown, field: string): string {
 }
 
 /** Projects only public configuration. Deliver it with Cache-Control: private, no-store. */
-export function getStorefrontConfig(headers: HeaderReader): PublicConfig {
-  const context = parseSwellHeaders(headers);
+export function getStorefrontConfig(source: HeaderReader | SwellRequestContext): PublicConfig {
+  const context = 'get' in source ? parseSwellHeaders(source) : source;
   requireString(context.storeId, 'storeId');
   requireString(context.publicKey, 'publicKey');
   return {

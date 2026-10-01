@@ -1,5 +1,5 @@
-import { SwellBackendAPI, SwellError, getStorefrontConfig, parseSwellHeaders, requireStaff } from '@swell/apps-sdk';
-import type { SwellCollection, SwellContext, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
+import { SwellBackendAPI, SwellError, getStorefrontConfig, parseSwellHeaders, requireStaff, verifySwellContext } from '@swell/apps-sdk';
+import type { SwellCollection, SwellContext, SwellRequestContext, StaffIdentity, SwellHeadersEnv, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
 import { createStorefrontClient } from '@swell/apps-sdk/storefront';
 import type { CookieOptions } from '@swell/apps-sdk/storefront';
 import type { PublicConfig, SwellClient } from 'swell-js';
@@ -38,7 +38,21 @@ createStorefrontClient(config, { cookies: { set() {} } });
 new SwellBackendAPI({ headers, ...{ storeId: 's', secretKey: 'k', apiHost: 'https://api.test' } });
 // @ts-expect-error exactly one credential is required
 new SwellBackendAPI({ storeId: 's', secretKey: 'k', accessToken: 't', apiHost: 'https://api.test' });
-requireStaff({ headers, method: 'GET', origin: 'https://app.test', cookies });
+async function requestContext(env: SwellHeadersEnv) {
+  const resolved: SwellRequestContext = await verifySwellContext(headers, { env, appId: 'app', storeId: 'store' });
+  const staff: StaffIdentity = requireStaff(resolved);
+  const optional: StaffIdentity | null = resolved.staff;
+  const publicConfig: PublicConfig = getStorefrontConfig(resolved);
+  const client = new SwellBackendAPI({ context: resolved });
+  // @ts-expect-error verified context and raw credentials cannot be mixed
+  new SwellBackendAPI({ context: resolved, secretKey: 'override' });
+  // @ts-expect-error context and headers cannot be mixed
+  new SwellBackendAPI({ context: resolved, headers });
+  // @ts-expect-error request identity is immutable
+  resolved.storeId = 'different';
+  // @ts-expect-error unverified parsing does not produce staff identity
+  requireStaff(context);
+}
 new SwellError('no');
 // @ts-expect-error Function execution is not part of the public SDK.
 import type { SwellRequest } from '@swell/apps-sdk/functions';
