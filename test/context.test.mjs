@@ -25,7 +25,7 @@ function fixture() {
 
 test('default verification pins production JWKS and shares keys, never request identity', async () => {
   const signer = createSigner(); let calls = 0;
-  globalThis.fetch = async url => { assert.equal(url, 'https://swell.store/.well-known/jwks.json'); calls++; return Response.json({ keys: [signer.jwk] }); };
+  globalThis.fetch = async url => { assert.equal(url, 'https://keys.swell.store/jwks.json'); calls++; return Response.json({ keys: [signer.jwk] }); };
   const contexts = await Promise.all(['one', 'two'].map(store_id => verifySwellContext(new Headers({ 'Swell-Context': signer.token({ store_id, admin: { user_id: store_id } }) }), { env: {} })));
   assert.equal(calls, 1);
   assert.deepEqual(contexts.map(requireStoreUser), [{ storeId: 'one', userId: 'one' }, { storeId: 'two', userId: 'two' }]);
