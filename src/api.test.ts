@@ -1,4 +1,7 @@
-import { Swell } from './api';
+import * as http from 'node:http';
+import type { AddressInfo } from 'node:net';
+
+import { Swell, SwellBackendAPI } from './api';
 
 describe('Swell', () => {
   describe('concerning headers', () => {
@@ -105,4 +108,60 @@ describe('Swell', () => {
       expect(swell.storefrontContext).toEqual(context);
     });
   }); // concerning storefrontContext
+});
+
+describe('SwellBackendAPI', () => {
+  let server: http.Server;
+  let apiHost: string;
+  let received: { method?: string; contentLength?: string; body: string };
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => {
+        received = {
+          method: req.method,
+          contentLength: req.headers['content-length'],
+          body: Buffer.concat(chunks).toString('utf8'),
+        };
+        res.setHeader('Content-Type', 'application/json');
+        res.end(received.body || '{}');
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    apiHost = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  });
+
+  const api = () =>
+    new SwellBackendAPI({ storeId: 'test', accessToken: 'token', apiHost });
+
+  it('sends a body with non-ASCII characters intact', async () => {
+    const data = {
+      $set: { values: { heading: 'People’s favorites — printed in Montréal' } },
+    };
+
+    const result = await api().put('/:storefronts/sf/configs/settings', data);
+
+    expect(received.method).toBe('PUT');
+    expect(JSON.parse(received.body)).toEqual(data);
+    expect(Number(received.contentLength)).toBe(
+      Buffer.byteLength(received.body, 'utf8'),
+    );
+    expect(result).toEqual(data);
+  });
+
+  it('sends an ASCII body as before', async () => {
+    const data = { data: { $base64: 'iVBORw0KGgo=' }, filename: 'logo.png' };
+
+    await api().post('/:files', data);
+
+    expect(received.method).toBe('POST');
+    expect(JSON.parse(received.body)).toEqual(data);
+  });
 });
