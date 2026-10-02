@@ -58,7 +58,7 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
   const runtime = globalThis as typeof globalThis & { process?: { env?: SwellHeadersEnv } };
   const env = options.env ?? runtime.process?.env ?? {};
   const verify = env.SWELL_VERIFY_HEADERS !== 'false';
-  const jwksUrl = validateUrl(env.SWELL_HEADERS_JWKS_URL ?? 'https://swell.store/.well-known/jwks.json', 'SWELL_HEADERS_JWKS_URL');
+  const jwksUrl = validateUrl(env.SWELL_HEADERS_JWKS_URL ?? 'https://keys.swell.store/jwks.json', 'SWELL_HEADERS_JWKS_URL');
   for (const field of ['appId', 'storeId'] as const) {
     if (options[field] !== undefined) requireString(options[field], field);
   }
