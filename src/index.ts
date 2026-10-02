@@ -7,5 +7,5 @@ export { SwellBackendAPI } from './backend.js';
 export type { BackendOptions, SwellCollection, SwellData, TransactionOperation, TransactionOptions } from './backend.js';
 export { SwellError } from './error.js';
 export type { SwellErrorOptions } from './error.js';
-export { requireStaff } from './staff.js';
-export type { StaffIdentity } from './staff.js';
+export { requireStoreUser } from './store-user.js';
+export type { StoreUser } from './store-user.js';

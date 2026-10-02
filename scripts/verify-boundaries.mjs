@@ -12,7 +12,7 @@ const fixtures = {
   empty: `export default {fetch(){return Response.json({ok:true})}}`,
   config: `export {getStorefrontConfig} from '@swell/apps-sdk';`,
   backend: `import {SwellBackendAPI} from '@swell/apps-sdk'; export default {async fetch(r){return Response.json(await new SwellBackendAPI({storeId:'s',secretKey:'k',apiHost:'https://api.test'}).get('/products'))}}`,
-  verified: `import {verifySwellContext,getStorefrontConfig,requireStaff} from '@swell/apps-sdk'; export default {async fetch(r,env){const context=await verifySwellContext(r.headers,{env});requireStaff(context);return Response.json(getStorefrontConfig(context))}}`,
+  verified: `import {verifySwellContext,getStorefrontConfig,requireStoreUser} from '@swell/apps-sdk'; export default {async fetch(r,env){const context=await verifySwellContext(r.headers,{env});requireStoreUser(context);return Response.json(getStorefrontConfig(context))}}`,
   storefront: `import {createStorefrontClient} from '@swell/apps-sdk/storefront'; export default {async fetch(){return Response.json(await createStorefrontClient({storeId:'s',publicKey:'k'},{cookies:{get(){}}}).products.list())}}`,
 };
 const reports = {};
