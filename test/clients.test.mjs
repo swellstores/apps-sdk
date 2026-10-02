@@ -1,6 +1,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
 import { SwellBackendAPI, SwellError } from '../dist/index.js';
 import { createStorefrontClient } from '../dist/storefront.js';
 const nativeFetch = globalThis.fetch;
@@ -67,6 +68,25 @@ test('backend verbs, JSON/text bodies and structured errors preserve wrapper con
   await assert.rejects(api.put('/products/1', {}), error => error.status === 400 && error.code === undefined && error.body.name.code === 'REQUIRED');
   const error = new SwellError({ error: { code: 'transaction_conflict', message: 'Conflict' } }, { retry: false });
   assert.equal(error.message, 'Conflict'); assert.equal(error.isRetryable, true); assert.equal(error.retry, false);
+});
+
+test('backend sends non-ASCII bodies intact, with Content-Length counted in bytes', async () => {
+  // 1.x hand-set Content-Length from the JSON string's UTF-16 length, so one
+  // curly apostrophe or em dash made it short and the request hung.
+  const server = createServer((req, res) => {
+    const chunks = []; req.on('data', chunk => chunks.push(chunk));
+    req.on('end', () => { const body = Buffer.concat(chunks).toString('utf8'); res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ length: req.headers['content-length'], bytes: Buffer.byteLength(body), body })); });
+  });
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  try {
+    const data = { $set: { values: { heading: 'People’s favorites — printed in Montréal' } } };
+    const api = new SwellBackendAPI({ ...credentials, apiHost: `http://127.0.0.1:${server.address().port}` });
+    const echoed = await api.put('/:storefronts/sf/configs/settings', data);
+    assert.equal(Number(echoed.length), echoed.bytes);
+    assert.deepEqual(JSON.parse(echoed.body), data);
+  } finally {
+    server.closeAllConnections(); await new Promise(resolve => server.close(resolve));
+  }
 });
 
 test('helper validation failures support direct catch without making requests', async () => {
