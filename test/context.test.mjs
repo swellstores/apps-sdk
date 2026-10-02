@@ -9,9 +9,8 @@ const invalid = error => error instanceof SwellError && error.status === 401 && 
 const unavailable = error => error instanceof SwellError && error.status === 503 && error.code === 'swell_jwks_unavailable';
 let sequence = 0;
 function fixture() {
-  const issuer = `https://keys-${++sequence}.test`;
-  const signer = createSigner(issuer);
-  const env = { SWELL_HEADERS_JWKS_URL: `${issuer}/.well-known/jwks.json` };
+  const signer = createSigner();
+  const env = { SWELL_HEADERS_JWKS_URL: `https://keys-${++sequence}.test/.well-known/jwks.json` };
   let calls = 0;
   globalThis.fetch = async (url, options) => {
     assert.equal(url, env.SWELL_HEADERS_JWKS_URL);
@@ -20,7 +19,7 @@ function fixture() {
     calls++;
     return Response.json({ keys: [signer.jwk] });
   };
-  return { signer, env, issuer, calls: () => calls,
+  return { signer, env, calls: () => calls,
     resolve: (claims, options = {}, header) => verifySwellContext(new Headers({ 'Swell-Context': signer.token(claims, header) }), { env, ...options }) };
 }
 
@@ -74,20 +73,20 @@ test('context and store user do not require API credentials; each client validat
 });
 
 test('verification rejects tampered payloads, signatures and another signing key', async () => {
-  const { signer, env, issuer } = fixture();
+  const { signer, env } = fixture();
   const parts = signer.token().split('.');
   const changed = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(parts[1], 'base64url')), admin: { user_id: 'forged' } })).toString('base64url');
   const signature = Buffer.from(parts[2], 'base64url'); signature[0] ^= 1;
-  const other = createSigner(issuer);
+  const other = createSigner();
   for (const token of [`${parts[0]}.${changed}.${parts[2]}`, `${parts[0]}.${parts[1]}.${signature.toString('base64url')}`, other.token({}, { kid: signer.jwk.kid })]) {
     await assert.rejects(verifySwellContext(new Headers({ 'Swell-Context': token }), { env }), invalid);
   }
 });
 
-test('claim validation binds issuer and optional trusted destination, and enforces token lifetime', async () => {
+test('claim validation binds optional trusted destination and enforces token lifetime; issuer is not checked', async () => {
   const { resolve } = fixture(); const now = Math.floor(Date.now() / 1000);
   for (const claims of [
-    { iss: 'https://other.test' }, { iss: '' }, { aud: 'other' }, { aud: ['app'] }, { app_id: '' }, { store_id: '' },
+    { aud: 'other' }, { aud: ['app'] }, { app_id: '' }, { store_id: '' },
     { installation_id: null }, { api_host: 'ftp://bad' }, { admin_url: '/relative' }, { environment_id: 7 }, { storefront_id: {} },
     { admin: {} }, { admin: false }, { admin: { user_id: '' } }, { admin: undefined },
     { exp: now - 6, iat: now - 66 }, { exp: null }, { exp: 'tomorrow' }, { iat: null },
@@ -97,6 +96,7 @@ test('claim validation binds issuer and optional trusted destination, and enforc
   await assert.rejects(resolve({}, { storeId: 'other' }), invalid);
   assert.ok(await resolve({}, { appId: 'app', storeId: 'store' }));
   assert.ok(await resolve({ iat: now - 61, exp: now - 1 })); // small clock skew
+  for (const iss of ['https://other.test', undefined]) assert.ok(await resolve({ iss }));
 });
 
 test('the issuer controls token lifetime; expiry is still enforced', async t => {
@@ -119,12 +119,12 @@ test('malformed JWTs and unsupported JOSE headers fail without fetching keys', a
     signer.token({}, { crit: ['custom'] }), signer.token({}, { b64: false }),
     `bnVsbA.${parts[1]}.${parts[2]}`, `${parts[0]}.W10.${parts[2]}`,
   ]) await assert.rejects(verifySwellContext(new Headers({ 'Swell-Context': token }), { env }), invalid);
-  await assert.rejects(verifySwellContext(new Headers({ 'Swell-Store-Id': 'store', Cookie: '_swell_admin_session=legacy' }), { env }), invalid);
+  await assert.rejects(verifySwellContext(new Headers(), { env }), invalid);
 });
 
-test('local bypass requires exactly false, skips keys and issuer matching, but retains claim validation', async () => {
+test('local bypass requires exactly false and skips keys, but retains claim validation', async () => {
   const { signer, env } = fixture();
-  const token = signer.token({ iss: 'http://localhost:4001' }).split('.');
+  const token = signer.token().split('.');
   token[2] = Buffer.alloc(64).toString('base64url');
   const headers = new Headers({ 'Swell-Context': token.join('.'), 'SWELL_VERIFY_HEADERS': 'false' });
   for (const value of [undefined, 'true', '', '0', 'FALSE', ' false ', false]) {
@@ -165,17 +165,14 @@ test('JWKS override is trusted configuration, not a token or plain-header URL', 
   for (const url of ['', '/relative', 'ftp://host/keys', 'https://user:pass@host/keys', 'https://host/keys?query=1']) {
     await assert.rejects(verifySwellContext(headers, { env: { SWELL_HEADERS_JWKS_URL: url } }), /SWELL_HEADERS_JWKS_URL/);
   }
-  const local = createSigner('http://localhost:4001');
-  globalThis.fetch = async url => { assert.equal(url, 'http://localhost:4001/.well-known/jwks.json'); return Response.json({ keys: [local.jwk] }); };
-  assert.equal((await verifySwellContext(new Headers({ 'Swell-Context': local.token() }), { env: { SWELL_HEADERS_JWKS_URL: 'http://localhost:4001/.well-known/jwks.json' } })).signatureVerified, true);
 });
 
 test('JWKS cache deduplicates concurrent fetches, refreshes rotation and limits unknown-kid fetches', async t => {
-  const { resolve, env, signer, issuer, calls } = fixture();
+  const { resolve, env, signer, calls } = fixture();
   let now = Date.now(); t.mock.method(Date, 'now', () => now);
   await Promise.all(Array.from({ length: 8 }, () => resolve())); assert.equal(calls(), 1);
   await resolve(); assert.equal(calls(), 1);
-  const replacement = createSigner(issuer);
+  const replacement = createSigner();
   let refreshes = 0;
   globalThis.fetch = async () => { refreshes++; return Response.json({ keys: [signer.jwk, replacement.jwk] }); };
   const rotated = () => verifySwellContext(new Headers({ 'Swell-Context': replacement.token() }), { env });

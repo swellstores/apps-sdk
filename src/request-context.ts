@@ -59,7 +59,6 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
   const env = options.env ?? runtime.process?.env ?? {};
   const verify = env.SWELL_VERIFY_HEADERS !== 'false';
   const jwksUrl = validateUrl(env.SWELL_HEADERS_JWKS_URL ?? 'https://swell.store/.well-known/jwks.json', 'SWELL_HEADERS_JWKS_URL');
-  const issuer = new URL(jwksUrl).origin;
   for (const field of ['appId', 'storeId'] as const) {
     if (options[field] !== undefined) requireString(options[field], field);
   }
@@ -91,8 +90,6 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
         typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= now - 5 ||
         payload.exp <= payload.iat) throw invalidContext();
     if (payload.nbf !== undefined && (typeof payload.nbf !== 'number' || !Number.isFinite(payload.nbf) || payload.nbf > now + 5)) throw invalidContext();
-    requireString(payload.iss, 'iss');
-    if (verify && payload.iss !== issuer) throw invalidContext();
     for (const field of ['store_id', 'app_id', 'installation_id']) requireString(payload[field], field);
     if (payload.aud !== payload.app_id || (options.appId !== undefined && payload.aud !== options.appId) ||
         (options.storeId !== undefined && payload.store_id !== options.storeId)) throw invalidContext();

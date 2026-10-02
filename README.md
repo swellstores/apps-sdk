@@ -187,7 +187,7 @@ Node compatibility should pass their bindings as `env`.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `SWELL_VERIFY_HEADERS` | enabled | Set exactly `"false"` to skip signature verification during local development. |
-| `SWELL_HEADERS_JWKS_URL` | `https://swell.store/.well-known/jwks.json` | Override the verification-key endpoint; its origin must match the token's issuer. |
+| `SWELL_HEADERS_JWKS_URL` | `https://swell.store/.well-known/jwks.json` | Override the verification-key endpoint. |
 
 For local development against a local Swell instance, put `SWELL_VERIFY_HEADERS=false`
 in `.dev.vars`. Remove it or set it to `"true"` to restore verification. Token structure
