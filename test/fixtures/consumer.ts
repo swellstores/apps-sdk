@@ -1,5 +1,5 @@
-import { SwellBackendAPI, SwellError, getStorefrontConfig, requireStaff, verifySwellContext } from '@swell/apps-sdk';
-import type { SwellCollection, SwellRequestContext, StaffIdentity, SwellHeadersEnv, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
+import { SwellBackendAPI, SwellError, getStorefrontConfig, requireStoreUser, verifySwellContext } from '@swell/apps-sdk';
+import type { SwellCollection, SwellRequestContext, StoreUser, SwellHeadersEnv, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
 import { createStorefrontClient } from '@swell/apps-sdk/storefront';
 import type { CookieOptions } from '@swell/apps-sdk/storefront';
 import type { PublicConfig, SwellClient } from 'swell-js';
@@ -47,8 +47,8 @@ new SwellBackendAPI({ headers, ...{ storeId: 's', secretKey: 'k', apiHost: 'http
 new SwellBackendAPI({ storeId: 's', secretKey: 'k', accessToken: 't', apiHost: 'https://api.test' });
 async function requestContext(env: SwellHeadersEnv) {
   const resolved: SwellRequestContext = await verifySwellContext(headers, { env, appId: 'app', storeId: 'store' });
-  const staff: StaffIdentity = requireStaff(resolved);
-  const optional: StaffIdentity | null = resolved.staff;
+  const storeUser: StoreUser = requireStoreUser(resolved);
+  const optional: StoreUser | null = resolved.storeUser;
   const publicConfig: PublicConfig = getStorefrontConfig(resolved);
   const client = new SwellBackendAPI({ context: resolved });
   // @ts-expect-error verified context and raw credentials cannot be mixed
@@ -57,8 +57,8 @@ async function requestContext(env: SwellHeadersEnv) {
   new SwellBackendAPI({ context: resolved, headers });
   // @ts-expect-error request identity is immutable
   resolved.storeId = 'different';
-  // @ts-expect-error raw headers do not provide staff identity
-  requireStaff(headers);
+  // @ts-expect-error raw headers do not provide a store user
+  requireStoreUser(headers);
 }
 new SwellError('no');
 // @ts-expect-error Function execution is not part of the public SDK.

@@ -48,7 +48,7 @@ for (const [profile, resolution] of Object.entries(profiles)) {
       assert.equal(result.session, `${result.id}:updated`);
       assert.equal(result.backend.auth, `Basic ${Buffer.from(`${result.id}:token-${result.id}`).toString('base64')}`);
       assert.equal(result.backend.query, '?null');
-      assert.deepEqual(result.staff, { userId: 'staff', storeId: result.id });
+      assert.deepEqual(result.storeUser, { userId: 'user', storeId: result.id });
       assert.deepEqual(result.writes[0], ['swell-session', `${result.id}:updated`, { path: '/', maxAge: 604800, sameSite: 'lax' }]);
       assert.equal(result.readOnly, true); assert.equal(result.redirect, true);
     }
@@ -62,7 +62,7 @@ for (const [profile, resolution] of Object.entries(profiles)) {
       const token = (verify ? signer : localSigner).token({ store_id: 'one' });
       const response = await target.fetch('https://app.test/context?id=one', { headers: { 'Swell-Context': token } });
       assert.equal(response.status, 200);
-      assert.deepEqual(await response.json(), { staff: { userId: 'staff', storeId: 'one' }, signatureVerified: verify });
+      assert.deepEqual(await response.json(), { storeUser: { userId: 'user', storeId: 'one' }, signatureVerified: verify });
     }
     await writeFile(join(output, `workerd-${profile}.json`), JSON.stringify({ miniflare: JSON.parse(await readFile('node_modules/miniflare/package.json')).version, coreFlags: flags, results }, null, 2));
     console.log(`Packed SDK (${profile} resolution): real workerd core isolation without Node compatibility passed`);

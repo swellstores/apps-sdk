@@ -2,7 +2,7 @@
 
 The Swell Apps SDK is a TypeScript library for building server-side Swell apps. It
 provides access to the Backend and Storefront APIs, along with helpers for app
-configuration, customer sessions and staff identity.
+configuration, customer sessions and store user identity.
 
 Use it in Swell-hosted apps, Cloudflare Workers or Node.js servers. For browser
 applications, use [`swell-js`](https://github.com/swellstores/swell-js).
@@ -23,9 +23,9 @@ Version 2 replaces the 1.x theme API. Existing theme applications should remain 
 
 ### Request context
 
-Swell supplies the current store's configuration, credentials and staff identity with
-each request. Verify this context once, then reuse it to create clients and check staff
-access. Use the same pattern for Swell-hosted and self-hosted frontends.
+Swell supplies the current store's configuration, credentials and store user identity
+with each request. Verify this context once, then reuse it to create clients and check
+store user access. Use the same pattern for Swell-hosted and self-hosted frontends.
 
 ```ts
 import { verifySwellContext } from '@swell/apps-sdk';
@@ -96,16 +96,17 @@ swell.init(config.storeId, config.publicKey, config);
 
 Send only this public config to the browser; the request context contains server credentials.
 
-### Staff identity
+### Store users
 
-Use `requireStaff` to check that a request belongs to a staff member of the current
-store before applying your application's permission checks:
+A store user is someone signed in to the store's Swell dashboard. Use
+`requireStoreUser` to check that a request belongs to one before applying your
+application's permission checks:
 
 ```ts
-import { requireStaff } from '@swell/apps-sdk';
+import { requireStoreUser } from '@swell/apps-sdk';
 
-const staff = requireStaff(context); // { userId, storeId }, or a 401 SwellError.
-const optionalStaff = context.staff; // null for a visitor; no exception needed.
+const storeUser = requireStoreUser(context); // { userId, storeId }, or a 401 SwellError.
+const optional = context.storeUser; // null for a visitor; no exception needed.
 ```
 
 ## API reference
@@ -191,22 +192,23 @@ Node compatibility should pass their bindings as `env`.
 For local development against a local Swell instance, put `SWELL_VERIFY_HEADERS=false`
 in `.dev.vars`. Remove it or set it to `"true"` to restore verification. Token structure
 and claim validation still apply, but the context is no longer authenticated: anyone
-who can reach the frontend directly can supply forged context, including staff identity.
+who can reach the frontend directly can supply forged context, including a store user.
 Use this bypass only for local development.
 
 For server integrations, construct `SwellBackendAPI` with explicit credentials and
 `createStorefrontClient` with explicit public configuration. These clients do not
-require an HTTP request or staff identity.
+require an HTTP request or a store user.
 
-### Staff identity
+### Store users
 
-`requireStaff(context)` returns `{ userId, storeId }` or throws `SwellError` with
-status 401 and code `staff_required`. For optional staff access, read `context.staff`,
-which is null for visitors.
+`requireStoreUser(context)` returns `{ userId, storeId }` or throws `SwellError` with
+status 401 and code `store_user_required`. For optional access, read
+`context.storeUser`, which is null for visitors.
 
-Staff includes any signed-in dashboard user of the store, including partners and Swell
-support. Swell's proxy handles staff authentication and write-origin checks; your
-application decides what each staff member may do.
+A store user is anyone signed in to the store's dashboard, including partners and Swell
+support, who may not appear in the store's own user list. Swell's proxy handles their
+authentication and write-origin checks; your application decides what each store user
+may do.
 
 ### Errors
 

@@ -2,7 +2,7 @@ import { requireString, validateUrl } from './context.js';
 import type { HeaderReader } from './context.js';
 import { SwellError } from './error.js';
 import { getVerificationKey } from './jwks.js';
-import type { StaffIdentity } from './staff.js';
+import type { StoreUser } from './store-user.js';
 
 export interface SwellHeadersEnv {
   SWELL_VERIFY_HEADERS?: string;
@@ -32,7 +32,7 @@ export interface SwellRequestContext {
   readonly publicKey?: string;
   readonly requestId?: string;
   readonly vaultUrl?: string;
-  readonly staff: Readonly<StaffIdentity> | null;
+  readonly storeUser: Readonly<StoreUser> | null;
   /** False only when trusted runtime configuration explicitly disables verification. */
   readonly signatureVerified: boolean;
 }
@@ -52,7 +52,7 @@ function object(value: unknown): asserts value is Record<string, unknown> {
 
 /**
  * Resolves Swell-Context once per request. Uses ES256 and a pinned JWKS endpoint;
- * never discovers keys from the request. No fallback to plain headers or staff cookies.
+ * never discovers keys from the request. No fallback to plain headers or dashboard cookies.
  */
 export async function verifySwellContext(headers: HeaderReader, options: VerifySwellContextOptions = {}): Promise<SwellRequestContext> {
   const runtime = globalThis as typeof globalThis & { process?: { env?: SwellHeadersEnv } };
@@ -99,11 +99,11 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
     for (const field of ['environment_id', 'storefront_id']) {
       if (payload[field] != null) requireString(payload[field], field);
     }
-    let staff: Readonly<StaffIdentity> | null = null;
+    let storeUser: Readonly<StoreUser> | null = null;
     if (payload.admin !== null) {
       object(payload.admin);
       requireString(payload.admin.user_id, 'admin.user_id');
-      staff = Object.freeze({ userId: payload.admin.user_id, storeId: payload.store_id as string });
+      storeUser = Object.freeze({ userId: payload.admin.user_id, storeId: payload.store_id as string });
     }
     return Object.freeze({
       storeId: payload.store_id as string, appId: payload.app_id as string,
@@ -114,7 +114,7 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
       accessToken: headers.get('Swell-Access-Token') ?? undefined,
       publicKey: headers.get('Swell-Public-Key') ?? undefined,
       requestId: headers.get('Swell-Request-ID') ?? undefined,
-      vaultUrl, staff, signatureVerified: verify,
+      vaultUrl, storeUser, signatureVerified: verify,
     });
   } catch { throw invalidContext(); }
 }

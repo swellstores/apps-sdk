@@ -1,6 +1,6 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { verifySwellContext, requireStaff, getStorefrontConfig, SwellBackendAPI, SwellError } from '../dist/index.js';
+import { verifySwellContext, requireStoreUser, getStorefrontConfig, SwellBackendAPI, SwellError } from '../dist/index.js';
 import { createSigner } from './helpers/context.mjs';
 
 const nativeFetch = globalThis.fetch;
@@ -29,8 +29,8 @@ test('default verification pins production JWKS and shares keys, never request i
   globalThis.fetch = async url => { assert.equal(url, 'https://swell.store/.well-known/jwks.json'); calls++; return Response.json({ keys: [signer.jwk] }); };
   const contexts = await Promise.all(['one', 'two'].map(store_id => verifySwellContext(new Headers({ 'Swell-Context': signer.token({ store_id, admin: { user_id: store_id } }) }), { env: {} })));
   assert.equal(calls, 1);
-  assert.deepEqual(contexts.map(requireStaff), [{ storeId: 'one', userId: 'one' }, { storeId: 'two', userId: 'two' }]);
-  assert.ok(contexts.every(context => context.signatureVerified && Object.isFrozen(context) && Object.isFrozen(context.staff)));
+  assert.deepEqual(contexts.map(requireStoreUser), [{ storeId: 'one', userId: 'one' }, { storeId: 'two', userId: 'two' }]);
+  assert.ok(contexts.every(context => context.signatureVerified && Object.isFrozen(context) && Object.isFrozen(context.storeUser)));
 });
 
 test('claims drive client routing and public projection despite conflicting unsigned headers', async () => {
@@ -42,7 +42,7 @@ test('claims drive client routing and public projection despite conflicting unsi
   const context = await verifySwellContext(headers, { env, appId: 'app', storeId: 'store' });
   assert.equal(context.environmentId, 'test'); assert.equal(context.installationId, 'installation');
   assert.equal(context.isLocalDev, undefined); assert.equal(context.vaultUrl, undefined);
-  assert.deepEqual(requireStaff(context), { userId: 'staff', storeId: 'store' });
+  assert.deepEqual(requireStoreUser(context), { userId: 'user', storeId: 'store' });
   assert.throws(() => getStorefrontConfig(headers), /storeId/);
   assert.notEqual(getStorefrontConfig(context), getStorefrontConfig(context));
   assert.throws(() => new SwellBackendAPI({ context, headers }), /raw headers/);
@@ -60,17 +60,17 @@ test('claims drive client routing and public projection despite conflicting unsi
   }
 });
 
-test('context and staff do not require API credentials; each client validates its own needs', async () => {
+test('context and store user do not require API credentials; each client validates its own needs', async () => {
   const { resolve, signer, env } = fixture();
-  const staff = await resolve();
-  assert.deepEqual(requireStaff(staff), { storeId: 'store', userId: 'staff' });
-  assert.throws(() => new SwellBackendAPI({ context: staff }), /accessToken/);
-  assert.throws(() => getStorefrontConfig(staff), /publicKey/);
+  const context = await resolve();
+  assert.deepEqual(requireStoreUser(context), { storeId: 'store', userId: 'user' });
+  assert.throws(() => new SwellBackendAPI({ context }), /accessToken/);
+  assert.throws(() => getStorefrontConfig(context), /publicKey/);
   const configOnly = await verifySwellContext(new Headers({ 'Swell-Context': signer.token({ admin: null }), 'Swell-Public-Key': 'pk' }), { env, vaultUrl: 'http://vault.test' });
   assert.equal(getStorefrontConfig(configOnly).vaultUrl, 'http://vault.test');
   assert.equal(getStorefrontConfig(configOnly).headers, undefined);
-  assert.equal(configOnly.staff, null);
-  assert.throws(() => requireStaff(configOnly), error => error.status === 401 && error.code === 'staff_required');
+  assert.equal(configOnly.storeUser, null);
+  assert.throws(() => requireStoreUser(configOnly), error => error.status === 401 && error.code === 'store_user_required');
 });
 
 test('verification rejects tampered payloads, signatures and another signing key', async () => {
@@ -134,7 +134,7 @@ test('local bypass requires exactly false, skips keys and issuer matching, but r
   const disabled = { ...env, SWELL_VERIFY_HEADERS: 'false' };
   const context = await verifySwellContext(headers, { env: disabled });
   assert.equal(context.signatureVerified, false);
-  assert.deepEqual(requireStaff(context), { userId: 'staff', storeId: 'store' });
+  assert.deepEqual(requireStoreUser(context), { userId: 'user', storeId: 'store' });
   await assert.rejects(verifySwellContext(headers, { env: disabled, appId: 'other' }), invalid);
   for (const claims of [{ exp: 1 }, { admin: true }, { store_id: '' }]) {
     await assert.rejects(verifySwellContext(new Headers({ 'Swell-Context': signer.token(claims) }), { env: disabled }), invalid);
