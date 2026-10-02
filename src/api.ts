@@ -586,10 +586,10 @@ export class SwellBackendAPI {
         if (method === 'GET') {
           query = `?${this.stringifyQuery(data)}`;
         } else {
+          // No Content-Length: fetch sets it from the encoded body. The
+          // string's length counts UTF-16 units, not bytes, so any non-ASCII
+          // character made a hand-set header short and the request hung.
           requestOptions.body = JSON.stringify(data);
-          requestOptions.headers['Content-Length'] = String(
-            requestOptions.body.length,
-          );
         }
       } catch {
         throw new Error(`Error serializing data: ${data}`);
