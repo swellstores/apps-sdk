@@ -166,21 +166,25 @@ test('destroy removes the layer and restores the page', (t) => {
   assert.equal(placeholder.style.height, '');
 });
 
+// happy-dom does not create windows for iframes when page loading is off; stand in for the frame.
+function attachFrame(win) {
+  const iframe = win.document.querySelector('iframe');
+  const channel = new URL(iframe.src).searchParams.get('channel');
+  const sent = [];
+  const frameWindow = { postMessage(data, origin) { sent.push({ message: unwrap(structuredClone(data), channel), origin }); } };
+  Object.defineProperty(iframe, 'contentWindow', { value: frameWindow, configurable: true });
+  const receive = (message, { origin = FRAME, source = frameWindow, channel: target = channel } = {}) =>
+    win.dispatchEvent(new win.MessageEvent('message', { data: wrap(target, message), origin, source }));
+  return { iframe, channel, sent, receive };
+}
+
 function embed(t, options = {}) {
   const win = hostWindow(t);
   const placeholder = win.document.createElement('div');
   win.document.body.appendChild(placeholder);
   const handle = embedComponent(placeholder, { src: SRC, value: 'red', context: { id: 'r1' }, settings: { theme: 'dark' }, ...options });
   t.after(() => handle.unmount());
-  const iframe = win.document.querySelector('iframe');
-  const channel = new URL(iframe.src).searchParams.get('channel');
-  const sent = [];
-  // happy-dom does not create windows for iframes when page loading is off; stand in for the frame.
-  const frameWindow = { postMessage(data, origin) { sent.push({ message: unwrap(structuredClone(data), channel), origin }); } };
-  Object.defineProperty(iframe, 'contentWindow', { value: frameWindow, configurable: true });
-  const receive = (message, { origin = FRAME, source = frameWindow, channel: target = channel } = {}) =>
-    win.dispatchEvent(new win.MessageEvent('message', { data: wrap(target, message), origin, source }));
-  return { win, placeholder, handle, iframe, channel, sent, receive };
+  return { win, placeholder, handle, ...attachFrame(win) };
 }
 
 test('host frame URL carries the host origin and a channel', (t) => {
@@ -471,9 +475,10 @@ test('createComponents loads an app once with the public key and mounts componen
   const slots = [0, 1].map(() => win.document.body.appendChild(win.document.createElement('div')));
   const tokens = [];
   const components = createComponents({ storeId: 'store', publicKey: 'pk_test', getToken: async app => { tokens.push(app); return { token: 't', expires: Date.now() / 1000 + 600 }; } });
-  const picker = await components.mount(slots[0], { app: 'my_app', component: 'Picker', value: '#fff' });
-  const badge = await components.mount(slots[1], { app: 'my_app', component: 'Badge' });
+  const picker = components.mount(slots[0], { app: 'my_app', component: 'Picker', value: '#fff' });
+  const badge = components.mount(slots[1], { app: 'my_app', component: 'Badge' });
   t.after(() => { picker.unmount(); badge.unmount(); });
+  await flush();
   assert.deepEqual(requests, [['https://store.swell.store/api/apps/my_app/components', `Basic ${Buffer.from('pk_test').toString('base64')}`]]);
   const frames = [...win.document.querySelectorAll('iframe')];
   assert.deepEqual(frames.map(iframe => new URL(iframe.src).pathname), ['/.swell/components/Picker', '/.swell/components/Badge']);
@@ -493,15 +498,93 @@ test('mount reports missing containers and components, and retries failed app lo
   const win = hostWindow(t);
   const slot = win.document.body.appendChild(win.document.createElement('div'));
   const components = createComponents({ storeId: 'store', publicKey: 'pk', url: 'https://shop.test/' });
-  await assert.rejects(components.mount('#missing', { app: 'my_app', component: 'Picker' }), /Component container "#missing" not found/);
-  await assert.rejects(components.mount(slot, { app: 'my_app', component: 'Picker' }), /Cannot load components of app "my_app" \(503\)/);
+  assert.throws(() => components.mount('#missing', { app: 'my_app', component: 'Picker' }), /Component container "#missing" not found/);
+  await assert.rejects(components.mount(slot, { app: 'my_app', component: 'Picker' }).ready, /Cannot load components of app "my_app" \(503\)/);
   status = 200;
-  await assert.rejects(components.mount(slot, { app: 'my_app', component: 'Nope' }), /Component "Nope" not found in app "my_app"/);
-  const handle = await components.mount(slot, { app: 'my_app', component: 'Picker' });
+  await assert.rejects(components.mount(slot, { app: 'my_app', component: 'Nope' }).ready, /Component "Nope" not found in app "my_app"/);
+  const handle = components.mount(slot, { app: 'my_app', component: 'Picker' });
   t.after(() => handle.unmount());
+  await flush();
   assert.equal(urls[0], 'https://shop.test/api/apps/my_app/components');
   assert.equal(urls.length, 2);
   assert.ok(win.document.querySelector('iframe'));
+});
+
+function gatedApp(t) {
+  let release;
+  globalThis.fetch = () => new Promise(resolve => {
+    release = () => resolve(Response.json({ settings: { theme: 'dark' }, components: [{ name: 'Picker', src: SRC }] }));
+  });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { app: 'my_app', component: 'Picker', value: 'red', context: { id: 'r1' } });
+  t.after(() => handle.unmount());
+  return { win, handle, release: () => release() };
+}
+
+test('mount returns the handle at once and keeps updates and listeners made while the app loads', async (t) => {
+  const { win, handle, release } = gatedApp(t);
+  assert.equal(typeof handle.then, 'undefined');
+  const changes = [];
+  handle.on('change', value => changes.push(value));
+  handle.update({ value: 'blue', readonly: true });
+  await flush();
+  assert.equal(win.document.querySelector('iframe'), null);
+  release();
+  await flush();
+  const { sent, receive } = attachFrame(win);
+  receive({ type: 'hello' });
+  await tick();
+  assert.deepEqual(sent[0].message.props, { value: 'blue', context: { id: 'r1' }, params: {}, settings: { theme: 'dark' }, locale: 'en', readonly: true });
+  receive({ type: 'change', value: 'green' });
+  receive({ type: 'ready' });
+  await handle.ready;
+  assert.deepEqual(changes, ['green']);
+  const result = handle.emit('ping', 21);
+  await tick();
+  receive({ type: 'result', call: sent.at(-1).message.call, result: 42 });
+  assert.equal(await result, 42);
+});
+
+test('unmount before the app loads creates no frame and rejects ready and pending events', async (t) => {
+  const { win, handle, release } = gatedApp(t);
+  const pending = handle.emit('submit');
+  pending.catch(() => {});
+  handle.unmount();
+  release();
+  await flush();
+  assert.equal(win.document.querySelector('iframe'), null);
+  assert.equal((await settled(handle.ready)).error?.message, 'Component unmounted');
+  assert.equal((await settled(pending)).error?.message, 'Component unmounted');
+});
+
+test('a failed app load or an unknown component fires error and rejects ready', async (t) => {
+  let status = 503;
+  globalThis.fetch = async () => (status === 200 ? Response.json({ components: [] }) : new Response('', { status }));
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const components = createComponents({ storeId: 'store', publicKey: 'pk' });
+  for (const [code, message] of [[503, 'Cannot load components of app "my_app" (503)'], [200, 'Component "Picker" not found in app "my_app"']]) {
+    status = code;
+    const errors = [];
+    const handle = components.mount(slot, { app: 'my_app', component: 'Picker' });
+    handle.on('error', error => errors.push(error.message));
+    await flush();
+    assert.equal((await settled(handle.ready)).error?.message, message);
+    assert.deepEqual(errors, [message]);
+  }
+  assert.equal(win.document.querySelector('iframe'), null);
+});
+
+test('handles ignore listeners for unknown events', (t) => {
+  const { handle } = gatedApp(t);
+  const off = handle.on('focus', () => {});
+  assert.equal(typeof off, 'function');
+  off();
+  const { handle: embedded } = embed(t);
+  embedded.on('focus', () => {})();
 });
 
 test('createComponents requires a store and a public key', () => {

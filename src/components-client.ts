@@ -1,5 +1,5 @@
 import type { ComponentInput, ComponentToken } from './components-types.js';
-import { embedComponent } from './components-host.js';
+import { createListeners, deferred, embedComponent, pickInput, toError } from './components-host.js';
 import type { ComponentHandle } from './components-host.js';
 
 export interface ComponentsOptions {
@@ -7,7 +7,10 @@ export interface ComponentsOptions {
   publicKey: string;
   /** Storefront API origin. Defaults to https://<storeId>.swell.store */
   url?: string;
-  /** Token source for an app's components. Hosts with their own session, like the Swell admin, pass it. */
+  /**
+   * Token source for an app's components. Hosts with their own session, like the Swell admin, pass it.
+   * Without it the frame gets no token, and `props.fetch` sends no token header.
+   */
   getToken?: (app: string) => Promise<ComponentToken>;
 }
 
@@ -21,7 +24,12 @@ export interface MountOptions<TValue = unknown, TContext = Record<string, unknow
 }
 
 export interface Components {
-  mount<TValue = unknown, TContext = Record<string, unknown>>(target: string | HTMLElement, options: MountOptions<TValue, TContext>): Promise<ComponentHandle<TValue>>;
+  /**
+   * Renders a component over `target` and returns its handle right away. The app's component list
+   * loads in the background: `update` calls made meanwhile are kept, `unmount` cancels, and a failure
+   * fires `error` and rejects `handle.ready`. Throws when `target` does not exist.
+   */
+  mount<TValue = unknown, TContext = Record<string, unknown>>(target: string | HTMLElement, options: MountOptions<TValue, TContext>): ComponentHandle<TValue>;
 }
 
 interface AppComponents {
@@ -51,15 +59,51 @@ export function createComponents(options: ComponentsOptions): Components {
   };
 
   return {
-    async mount<TValue = unknown, TContext = Record<string, unknown>>(target: string | HTMLElement, mountOptions: MountOptions<TValue, TContext>): Promise<ComponentHandle<TValue>> {
+    mount<TValue = unknown, TContext = Record<string, unknown>>(target: string | HTMLElement, mountOptions: MountOptions<TValue, TContext>): ComponentHandle<TValue> {
       const placeholder = typeof target === 'string' ? globalThis.document?.querySelector<HTMLElement>(target) : target;
       if (!placeholder) throw new Error(`Component container "${String(target)}" not found`);
       const { app, component, title, ...input } = mountOptions;
-      const { settings, components = [] } = await load(app);
-      const found = components.find(item => item.name === component);
-      if (!found) throw new Error(`Component "${component}" not found in app "${app}"`);
       const { getToken } = options;
-      return embedComponent<TValue, TContext>(placeholder, { ...input, src: found.src, settings, title: title ?? component, getToken: getToken && (() => getToken(app)) });
+      const { on, notify } = createListeners();
+      const { promise: ready, resolve: markReady, reject: failReady } = deferred();
+      let inner: ComponentHandle<TValue> | null = null;
+      let unmounted = false;
+
+      load(app).then(({ settings, components = [] }) => {
+        if (unmounted) return;
+        const found = components.find(item => item.name === component);
+        if (!found) throw new Error(`Component "${component}" not found in app "${app}"`);
+        // `input` carries the updates made while the metadata loaded
+        inner = embedComponent<TValue, TContext>(placeholder, { ...input, src: found.src, settings, title: title ?? component, getToken: getToken && (() => getToken(app)) });
+        inner.on('change', value => notify('change', value));
+        inner.on('validity', error => notify('validity', error));
+        inner.on('error', error => notify('error', error));
+        inner.ready.then(markReady, failReady);
+      }).catch((error) => {
+        if (unmounted) return;
+        const reported = toError(error);
+        notify('error', reported);
+        failReady(reported);
+      });
+
+      return {
+        ready,
+        on,
+        update(next) {
+          if (inner) inner.update(next);
+          else Object.assign(input, pickInput(next));
+        },
+        async emit<T = unknown>(name: string, data?: unknown): Promise<T> {
+          await ready;
+          return (inner as ComponentHandle<TValue>).emit<T>(name, data);
+        },
+        unmount() {
+          if (unmounted) return;
+          unmounted = true;
+          inner?.unmount();
+          failReady(new Error('Component unmounted'));
+        },
+      };
     },
   };
 }

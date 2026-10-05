@@ -30,7 +30,7 @@ const HOST_PAGE = `<!doctype html>
     getToken: async () => ({ token: 'tok-1', expires: Date.now() / 1000 + 600 }),
   });
   window.events = [];
-  window.handle = await components.mount('#slot', { app: 'demo', component: 'Echo', value: 'a', context: { id: 'r1' } });
+  window.handle = components.mount('#slot', { app: 'demo', component: 'Echo', value: 'a', context: { id: 'r1' } });
   handle.on('change', value => events.push(['change', value]));
   handle.on('validity', error => events.push(['validity', error]));
   await handle.ready;
@@ -48,7 +48,7 @@ const MODAL_PAGE = `<!doctype html>
 <script type="module">
   import { createComponents } from '/dist/components.js';
   const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
-  window.handle = await components.mount('#slot', { app: 'demo', component: 'Paragraphs' });
+  window.handle = components.mount('#slot', { app: 'demo', component: 'Paragraphs' });
   await handle.ready;
   window.mounted = true;
 </script>

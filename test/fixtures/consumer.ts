@@ -66,11 +66,15 @@ import type { SwellRequest } from '@swell/apps-sdk/functions';
 import { createComponents, startComponentFrame } from '@swell/apps-sdk/components';
 import type { ComponentConfig, ComponentHandle, ComponentProps, ComponentToken } from '@swell/apps-sdk/components';
 const components = createComponents({ storeId: 's', publicKey: 'pk', getToken: async (app: string): Promise<ComponentToken> => ({ token: app, expires: 0 }) });
-async function mountComponent(element: HTMLElement) {
-  const handle: ComponentHandle<string> = await components.mount<string>(element, { app: 'app', component: 'ColorPicker', value: '#fff', context: { id: '1' } });
+function mountComponent(element: HTMLElement) {
+  const handle: ComponentHandle<string> = components.mount<string>(element, { app: 'app', component: 'ColorPicker', value: '#fff', context: { id: '1' } });
+  const ready: Promise<void> = handle.ready;
   handle.on('change', (value: string) => value.toUpperCase());
   handle.on('validity', (error: string | null) => error);
+  handle.on('error', (error: Error) => error.message);
   handle.update({ value: '#000', readonly: true });
+  // @ts-expect-error mount returns the handle, not a promise
+  components.mount(element, { app: 'app', component: 'ColorPicker' }).then;
   const result: Promise<{ ok: boolean }> = handle.emit<{ ok: boolean }>('submit', { cart: {} });
   // @ts-expect-error the component name is required
   components.mount(element, { app: 'app' });
