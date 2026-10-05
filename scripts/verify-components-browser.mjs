@@ -181,6 +181,14 @@ try {
   modalPage.on('pageerror', error => pageErrors.push(error));
   await modalPage.goto(`${hostOrigin}/modal`);
   await modalPage.waitForFunction(() => window.mounted === true && parseFloat(document.querySelector('iframe').parentElement.style.height) > 0, null, { timeout: 15000 });
+
+  // The frame height includes the paragraphs' margins, so both show without an inner scroll.
+  const paragraphs = modalPage.frames().find(item => item.url().startsWith(frameOrigin));
+  const fit = await paragraphs.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight, clientHeight: document.documentElement.clientHeight,
+    lastBottom: document.querySelector('#last').getBoundingClientRect().bottom, innerHeight,
+  }));
+  assert.ok(fit.scrollHeight <= fit.clientHeight && fit.lastBottom <= fit.innerHeight, `the component is cut off: ${JSON.stringify(fit)}`);
   assert.equal(await modalPage.evaluate(() => {
     const slot = document.querySelector('#slot').getBoundingClientRect();
     return document.elementFromPoint(slot.left + slot.width / 2, slot.top + slot.height / 2) === document.querySelector('iframe');

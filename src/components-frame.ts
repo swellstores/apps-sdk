@@ -3,19 +3,20 @@ import { TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, Rect, WireProps } from './components-protocol.js';
 
 export interface FrameOptions {
-  /** URL of the component bundle: an ES module exporting mount, update and unmount. */
+  /** URL of the component bundle: an ES module exporting mount, update and unmount. Relative URLs resolve against the frame page. */
   bundleUrl: string;
   /** Render target. Defaults to #root, created when missing. */
   root?: HTMLElement;
-  /** Test seam: the frame window. */
+  /** @internal Test seam: the frame window. */
   window?: Window & typeof globalThis;
-  /** Test seam: the host window. Defaults to window.parent. */
+  /** @internal Test seam: the host window. Defaults to window.parent. */
   parent?: Pick<Window, 'postMessage'>;
-  /** Test seam: loads the bundle. */
+  /** @internal Test seam: loads the bundle. */
   importModule?: (url: string) => Promise<unknown>;
 }
 
-const BASE_STYLE = 'html,body{margin:0;padding:0;background:transparent}';
+// #root is a flow root, so its children's margins count in the height reported to the host
+const BASE_STYLE = 'html,body{margin:0;padding:0;background:transparent}#root{display:flow-root}';
 
 function isModule(value: unknown): value is ComponentModule {
   const module = value as Partial<ComponentModule> | null;
@@ -32,6 +33,7 @@ export function startComponentFrame(options: FrameOptions): void {
   const parentOrigin = params.get('parent');
   const channel = params.get('channel');
   if (!parentOrigin || !channel || parent === win) throw new Error('App component frames must be embedded by a Swell host');
+  const bundleUrl = new URL(options.bundleUrl, win.location.href).href;
   const document = win.document;
   const style = document.createElement('style');
   style.textContent = BASE_STYLE;
@@ -48,9 +50,11 @@ export function startComponentFrame(options: FrameOptions): void {
   let props: WireProps | null = null;
   let token: string | null = null;
   let module: ComponentModule | null = null;
+  let mounting: Promise<void> | null = null;
   let overlay = false;
   let lastHeight = -1;
   let scheduled = 0;
+  let mayTurnOn = false;
   const handlers = new Map<string, ((data: unknown) => unknown)[]>();
 
   const post = (message: FrameMessage) => parent.postMessage(wrap(channel, message), parentOrigin);
@@ -65,8 +69,8 @@ export function startComponentFrame(options: FrameOptions): void {
     return win.fetch(input, { ...init, headers });
   };
 
-  const componentProps = () => ({
-    ...(props as WireProps),
+  // Created once, so the component gets the same functions on every render
+  const callbacks = {
     setValue: (value: unknown) => post({ type: 'change', value }),
     setValidity: (error: string | null) => post({ type: 'validity', error: typeof error === 'string' ? error : null }),
     fetch: fetchWithToken,
@@ -76,7 +80,8 @@ export function startComponentFrame(options: FrameOptions): void {
         handlers.set(event, (handlers.get(event) ?? []).filter(item => item !== handler));
       };
     },
-  }) as ComponentProps;
+  };
+  const componentProps = () => ({ ...(props as WireProps), ...callbacks }) as ComponentProps;
 
   const reportHeight = () => {
     if (overlay) return;
@@ -102,18 +107,29 @@ export function startComponentFrame(options: FrameOptions): void {
   };
 
   // An SDK opened a modal: a fixed element covering the frame viewport (Stripe 3DS, QR codes, vendor modals).
+  // An element without area covers nothing, even while the frame itself is zero high.
   const isBlocking = (element: Element) => {
     if (element === target || element.tagName === 'SCRIPT' || element.tagName === 'STYLE') return false;
     const computed = win.getComputedStyle(element);
     if (computed.position !== 'fixed' || computed.display === 'none' || computed.visibility === 'hidden' || computed.opacity === '0') return false;
     const box = element.getBoundingClientRect();
-    return box.width >= win.innerWidth * 0.9 && box.height >= win.innerHeight * 0.9;
+    return box.width > 0 && box.height > 0 && box.width >= win.innerWidth * 0.9 && box.height >= win.innerHeight * 0.9;
   };
 
-  new win.MutationObserver(() => {
+  // DOM changes can switch overlay on and off. A frame resize can only switch it off: overlay itself
+  // resizes the frame, and an element that covers only the small frame would otherwise flip it forever.
+  const detectOverlay = (turnOn: boolean) => {
+    mayTurnOn ||= turnOn;
     win.cancelAnimationFrame(scheduled);
-    scheduled = win.requestAnimationFrame(() => setOverlay(Array.from(document.body.children).some(isBlocking)));
-  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+    scheduled = win.requestAnimationFrame(() => {
+      const blocking = Array.from(document.body.children).some(isBlocking);
+      if (mayTurnOn || !blocking) setOverlay(blocking);
+      mayTurnOn = false;
+    });
+  };
+
+  new win.MutationObserver(() => detectOverlay(true)).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+  win.addEventListener('resize', () => detectOverlay(false));
 
   new win.ResizeObserver(reportHeight).observe(target);
 
@@ -121,34 +137,40 @@ export function startComponentFrame(options: FrameOptions): void {
 
   // One import per frame: an init that arrives while the bundle loads waits for the same import
   const loadModule = () => {
-    loading ??= importModule(options.bundleUrl).then((loaded) => {
+    loading ??= importModule(bundleUrl).then((loaded) => {
       if (!isModule(loaded)) throw new Error('Component bundle must export mount, update and unmount');
       return loaded;
     });
     return loading;
   };
 
+  // Mounts with the latest props (updates may arrive while the bundle loads) and reports ready once mount resolves
+  async function mount() {
+    const loaded = await loadModule();
+    const mountedProps = props;
+    await loaded.mount(target, componentProps());
+    module = loaded;
+    if (props !== mountedProps) await loaded.update(target, componentProps());
+    post({ type: 'ready' });
+    reportHeight();
+  }
+
   async function handle(message: HostMessage) {
     switch (message.type) {
-      case 'init': {
+      case 'init':
         props = message.props;
         token = message.token;
-        const loaded = await loadModule();
-        if (module) {
-          module.update(target, componentProps());
-          return;
+        if (!mounting) {
+          mounting = mount();
+          return mounting;
         }
-        // Mount with the latest props: updates may have arrived while the bundle loaded
-        loaded.mount(target, componentProps());
-        module = loaded;
-        post({ type: 'ready' });
-        reportHeight();
+        await mounting;
+        await module?.update(target, componentProps());
         return;
-      }
       case 'update':
         if (!props) return;
         props = { ...props, ...message.props };
-        module?.update(target, componentProps());
+        await module?.update(target, componentProps());
         return;
       case 'token':
         token = message.token;

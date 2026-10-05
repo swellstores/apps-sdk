@@ -511,7 +511,7 @@ test('createComponents requires a store and a public key', () => {
 
 const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };
 
-function startFrame(t, { module, search, gate } = {}) {
+function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/picker.js' } = {}) {
   const win = new Window({ url: `${FRAME}/.swell/components/Picker?${search ?? `v=abc&parent=${encodeURIComponent(HOST)}&channel=c1`}` });
   t.after(() => win.happyDOM.close());
   const posted = [];
@@ -524,7 +524,7 @@ function startFrame(t, { module, search, gate } = {}) {
   };
   const imported = [];
   startComponentFrame({
-    bundleUrl: 'https://cdn.test/picker.js', window: win, parent,
+    bundleUrl, window: win, parent,
     importModule: async url => { imported.push(url); await gate; if (component instanceof Error) throw component; return component; },
   });
   const send = (message, { origin = HOST, source = parent, channel = 'c1' } = {}) =>
@@ -724,4 +724,94 @@ test('a component whose mount throws is reported and never updated', async (t) =
   assert.deepEqual(calls, []);
   assert.ok(!types().includes('ready'));
   assert.ok(posted.some(({ message }) => message.type === 'error' && message.message === 'Mount failed'));
+});
+
+const overlayMessages = posted => posted.filter(({ message }) => message.type === 'overlay').map(({ message }) => message.on);
+
+test('a fixed element without area does not switch overlay on, even in a frame that is zero high', async (t) => {
+  const { win, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  win.happyDOM.setViewport({ width: 1024, height: 0 });
+  const toasts = win.document.createElement('div');
+  toasts.style.position = 'fixed';
+  toasts.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: 0 });
+  win.document.body.appendChild(toasts);
+  await tick();
+  await animationFrame(win);
+  assert.deepEqual(overlayMessages(posted), []);
+  assert.equal(win.document.documentElement.style.overflow, '');
+});
+
+test('a frame resize switches overlay off when the element no longer covers the frame, and never back on', async (t) => {
+  const { win, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  win.happyDOM.setViewport({ width: 1024, height: 60 });
+  const bar = win.document.createElement('div');
+  bar.style.position = 'fixed';
+  bar.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: 60 });
+  win.document.body.appendChild(bar);
+  await tick();
+  await animationFrame(win);
+  assert.deepEqual(overlayMessages(posted), [true]);
+  // Overlay makes the frame cover the host viewport, where the bar covers little
+  win.happyDOM.setViewport({ width: 1024, height: 768 });
+  await animationFrame(win);
+  assert.deepEqual(overlayMessages(posted), [true, false]);
+  assert.equal(win.document.documentElement.style.overflow, '');
+  // Back at the component size the bar covers the frame again, but a resize does not flip overlay back on
+  win.happyDOM.setViewport({ width: 1024, height: 60 });
+  await animationFrame(win);
+  assert.deepEqual(overlayMessages(posted), [true, false]);
+});
+
+test('component callbacks keep their identity across renders', async (t) => {
+  const { calls, send } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  send({ type: 'update', props: { value: 'green' } });
+  await tick();
+  const [[, mounted], [, updated]] = calls;
+  for (const name of ['setValue', 'setValidity', 'on', 'fetch']) assert.equal(updated[name], mounted[name], name);
+});
+
+test('a relative bundle URL resolves against the frame page', async (t) => {
+  const { imported, send } = startFrame(t, { bundleUrl: '/bundles/picker.js' });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.deepEqual(imported, [`${FRAME}/bundles/picker.js`]);
+});
+
+test('the frame reports ready once an async mount resolves and applies updates made meanwhile', async (t) => {
+  let finish;
+  const calls = [];
+  const module = {
+    mount(root, props) {
+      calls.push(['mount', props.value]);
+      return new Promise(resolve => { finish = resolve; });
+    },
+    update(root, props) { calls.push(['update', props.value]); },
+    unmount() {},
+  };
+  const { send, types } = startFrame(t, { module });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  send({ type: 'update', props: { value: 'blue' } });
+  await tick();
+  assert.deepEqual(calls, [['mount', 'red']]);
+  assert.ok(!types().includes('ready'));
+  finish();
+  await tick();
+  assert.deepEqual(calls, [['mount', 'red'], ['update', 'blue']]);
+  assert.equal(types().filter(type => type === 'ready').length, 1);
+});
+
+test('an async mount that rejects is reported and never reports ready', async (t) => {
+  const module = { mount: async () => { throw new Error('Async mount failed'); }, update() {}, unmount() {} };
+  const { send, posted, types } = startFrame(t, { module });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.ok(!types().includes('ready'));
+  assert.ok(posted.some(({ message }) => message.type === 'error' && message.message === 'Async mount failed'));
 });

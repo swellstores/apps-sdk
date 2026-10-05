@@ -14,7 +14,10 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
   setValidity(error: string | null): void;
   /** fetch that adds the component token to requests to the frame's own origin. */
   readonly fetch: typeof fetch;
-  /** Handles a host event; the first handler's result is returned to the host. */
+  /**
+   * Handles a host event. Only the first handler registered for an event runs, and its result
+   * (or thrown error) answers the host's `emit`; later handlers for the same event are not called.
+   */
   on(event: string, handler: (data: unknown) => unknown): () => void;
 }
 
@@ -25,8 +28,9 @@ export interface ComponentConfig {
 
 /** Module the CLI builds for each component. */
 export interface ComponentModule {
-  mount(root: HTMLElement, props: ComponentProps): void;
-  update(root: HTMLElement, props: ComponentProps): void;
+  /** The frame reports the component ready once a returned promise resolves. */
+  mount(root: HTMLElement, props: ComponentProps): void | Promise<void>;
+  update(root: HTMLElement, props: ComponentProps): void | Promise<void>;
   unmount(root: HTMLElement): void;
 }
 
