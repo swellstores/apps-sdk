@@ -128,7 +128,10 @@ export function startComponentFrame(options: FrameOptions): void {
     });
   };
 
-  new win.MutationObserver(() => detectOverlay(true)).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
+  // The frame moves the root itself during overlay; that is no new modal
+  new win.MutationObserver((records) => {
+    if (records.some(record => record.target !== target || record.type !== 'attributes')) detectOverlay(true);
+  }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class'] });
   win.addEventListener('resize', () => detectOverlay(false));
 
   new win.ResizeObserver(reportHeight).observe(target);

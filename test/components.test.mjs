@@ -838,13 +838,17 @@ test('a frame resize switches overlay off when the element no longer covers the 
   await tick();
   await animationFrame(win);
   assert.deepEqual(overlayMessages(posted), [true]);
-  // Overlay makes the frame cover the host viewport, where the bar covers little
+  // Overlay makes the frame cover the host viewport, where the bar covers little; the host places the root
+  send({ type: 'rect', rect: { top: 50, left: 10, width: 400 } });
   win.happyDOM.setViewport({ width: 1024, height: 768 });
+  await animationFrame(win);
   await animationFrame(win);
   assert.deepEqual(overlayMessages(posted), [true, false]);
   assert.equal(win.document.documentElement.style.overflow, '');
-  // Back at the component size the bar covers the frame again, but a resize does not flip overlay back on
+  // Back at the component size the bar covers the frame again, but neither the resize nor the frame's own
+  // root moves flip overlay back on
   win.happyDOM.setViewport({ width: 1024, height: 60 });
+  await animationFrame(win);
   await animationFrame(win);
   assert.deepEqual(overlayMessages(posted), [true, false]);
 });
