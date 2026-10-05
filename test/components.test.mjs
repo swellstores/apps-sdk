@@ -11,6 +11,7 @@ const SRC = `${FRAME}/.swell/components/Picker?v=abc`;
 const nativeFetch = globalThis.fetch;
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 const animationFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
+const flush = () => new Promise(resolve => setImmediate(resolve));
 
 function hostWindow(t) {
   const win = new Window({ url: `${HOST}/admin`, settings: { disableIframePageLoading: true } });
@@ -190,13 +191,83 @@ test('emit resolves with the component result and rejects with its error', async
 });
 
 test('token is loaded before init and refreshed a minute before it expires', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
   let calls = 0;
-  const { sent, receive } = embed(t, { getToken: async () => ({ token: `t${++calls}`, expires: Date.now() / 1000 + 60.2 }) });
+  const { sent, receive } = embed(t, { getToken: async () => ({ token: `t${++calls}`, expires: Date.now() / 1000 + 600 }) });
+  receive({ type: 'hello' });
+  await flush();
+  assert.deepEqual(sent.map(({ message }) => [message.type, message.token]), [['init', 't1']]);
+  t.mock.timers.tick(539_999);
+  await flush();
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1);
+  await flush();
+  assert.deepEqual(sent.map(({ message }) => [message.type, message.token]), [['init', 't1'], ['token', 't2']]);
+});
+
+test('a token inside the refresh window or without a valid expiry is not refreshed in a loop', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const tokens = [{ token: 'short', expires: 1_030 }, { token: 'bad', expires: 'soon' }, { token: 'ok', expires: 1_600 }];
+  let calls = 0;
+  const errors = [];
+  const { handle, sent, receive } = embed(t, { getToken: async () => tokens[calls++] });
+  handle.on('error', error => errors.push(error.message));
+  receive({ type: 'hello' });
+  await flush();
+  t.mock.timers.tick(4_999);
+  await flush();
+  assert.equal(calls, 1);
+  t.mock.timers.tick(1);
+  await flush();
+  assert.equal(calls, 2);
+  assert.deepEqual(errors, ['getToken must resolve to { token: string, expires: number }']);
+  t.mock.timers.tick(10_000);
+  await flush();
+  assert.equal(calls, 3);
+  assert.deepEqual(sent.map(({ message }) => [message.type, message.token]), [['init', 'short'], ['token', 'ok']]);
+});
+
+test('a failed refresh keeps the current token and retries with backoff', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+  const results = [{ token: 't1', expires: 1_600 }, new Error('Offline'), new Error('Offline'), { token: 't2', expires: 2_200 }];
+  let calls = 0;
+  const errors = [];
+  const { handle, sent, receive } = embed(t, {
+    getToken: async () => {
+      const result = results[calls++];
+      if (result instanceof Error) throw result;
+      return result;
+    },
+  });
+  handle.on('error', error => errors.push(error.message));
+  receive({ type: 'hello' });
+  await flush();
+  t.mock.timers.tick(540_000);
+  await flush();
+  t.mock.timers.tick(10_000);
+  await flush();
+  t.mock.timers.tick(19_999);
+  await flush();
+  assert.equal(calls, 3);
+  t.mock.timers.tick(1);
+  await flush();
+  assert.equal(calls, 4);
+  assert.deepEqual(errors, ['Offline', 'Offline']);
+  assert.deepEqual(sent.map(({ message }) => [message.type, message.token]), [['init', 't1'], ['token', 't2']]);
+});
+
+test('init waits for the token and carries updates made meanwhile', async (t) => {
+  let resolveToken;
+  const { handle, sent, receive } = embed(t, { getToken: () => new Promise(resolve => { resolveToken = resolve; }) });
   receive({ type: 'hello' });
   await tick();
-  assert.equal(sent[0].message.token, 't1');
-  await new Promise(resolve => setTimeout(resolve, 400));
-  assert.ok(sent.some(({ message }) => message.type === 'token' && message.token === 't2'));
+  handle.update({ value: 'blue' });
+  await tick();
+  assert.equal(sent.length, 0);
+  resolveToken({ token: 't', expires: Date.now() / 1000 + 600 });
+  await tick();
+  assert.deepEqual(sent.map(({ message }) => message.type), ['init']);
+  assert.equal(sent[0].message.props.value, 'blue');
 });
 
 test('token failures are reported and the frame gets no token', async (t) => {

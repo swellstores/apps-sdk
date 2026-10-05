@@ -27,6 +27,9 @@ export interface EmbedOptions<TValue = unknown, TContext = Record<string, unknow
 
 type Listener = (value: never) => void;
 const REFRESH_SECONDS = 60;
+const MIN_REFRESH_MS = 5_000;
+const RETRY_MS = 10_000;
+const MAX_RETRY_MS = 5 * 60_000;
 const MAX_TIMEOUT = 2 ** 31 - 1;
 
 /** Embeds a component frame over `placeholder`. Internal: hosts use createComponents().mount(). */
@@ -47,6 +50,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   let calls = 0;
   let token: string | null = null;
   let tokenTimer: ReturnType<typeof setTimeout> | undefined;
+  let tokenFailures = 0;
   let started = false;
   let destroyed = false;
   let markReady!: () => void;
@@ -72,18 +76,30 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     }
   }
 
+  // A failed refresh keeps the current token, which can still be valid, and retries with backoff
   async function loadToken() {
     if (!options.getToken || destroyed) return;
+    let next: ComponentToken | undefined;
+    let error: unknown;
     try {
-      const next = await options.getToken();
-      if (destroyed) return;
+      next = await options.getToken();
+      if (!next || typeof next.token !== 'string' || !Number.isFinite(next.expires)) {
+        throw new TypeError('getToken must resolve to { token: string, expires: number }');
+      }
+    } catch (caught) {
+      next = undefined;
+      error = caught;
+    }
+    if (destroyed) return;
+    const delay = next
+      ? Math.max(MIN_REFRESH_MS, (next.expires - REFRESH_SECONDS) * 1000 - Date.now())
+      : Math.min(MAX_RETRY_MS, RETRY_MS * 2 ** tokenFailures);
+    tokenFailures = next ? 0 : tokenFailures + 1;
+    tokenTimer = setTimeout(() => void loadToken(), Math.min(MAX_TIMEOUT, delay));
+    if (next) {
       token = next.token;
-      const delay = Math.min(MAX_TIMEOUT, Math.max(0, (next.expires - REFRESH_SECONDS) * 1000 - Date.now()));
-      tokenTimer = setTimeout(() => {
-        void loadToken().then(() => send({ type: 'token', token }));
-      }, delay);
-    } catch (error) {
-      token = null;
+      send({ type: 'token', token });
+    } else {
       fail(error);
     }
   }
@@ -95,8 +111,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     if (!message) return;
     switch (message.type) {
       case 'hello':
-        started = true;
         await tokenLoaded;
+        started = true;
         send({ type: 'init', props, token });
         return;
       case 'ready':
