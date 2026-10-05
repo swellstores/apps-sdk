@@ -5,8 +5,12 @@ import type { FrameMessage, HostMessage, WireProps } from './components-protocol
 
 /** Controls one mounted component. */
 export interface ComponentHandle<TValue = unknown> {
-  /** Resolves when the component has mounted in its frame; rejects when it fails or is unmounted first. */
+  /**
+   * Resolves when the component has mounted in its frame. Rejects when the component cannot be
+   * loaded or started, or is unmounted first; the `error` event fires as well.
+   */
   readonly ready: Promise<void>;
+  /** Listens to the component. Returns a function that removes the listener; unknown events are ignored. */
   on(event: 'change', handler: (value: TValue) => void): () => void;
   on(event: 'validity', handler: (error: string | null) => void): () => void;
   on(event: 'error', handler: (error: Error) => void): () => void;
@@ -26,11 +30,54 @@ export interface EmbedOptions<TValue = unknown, TContext = Record<string, unknow
 }
 
 type Listener = (value: never) => void;
+type HandleEvent = 'change' | 'validity' | 'error';
 const REFRESH_SECONDS = 60;
 const MIN_REFRESH_MS = 5_000;
 const RETRY_MS = 10_000;
 const MAX_RETRY_MS = 5 * 60_000;
 const MAX_TIMEOUT = 2 ** 31 - 1;
+const START_MS = 10_000;
+const INPUT_KEYS = ['value', 'context', 'params', 'readonly', 'locale'] as const;
+
+export const toError = (error: unknown) => (error instanceof Error ? error : new Error(String(error)));
+
+/** The props a handle update changes: only the keys the host passed. */
+export function pickInput(input: ComponentInput<unknown, unknown>): Partial<WireProps> {
+  const changed: Partial<WireProps> = {};
+  for (const key of INPUT_KEYS) {
+    if (key in input) Object.assign(changed, { [key]: input[key] });
+  }
+  return changed;
+}
+
+/** Handle event listeners. Unknown event names subscribe to nothing. */
+export function createListeners() {
+  const sets = new Map<string, Set<Listener>>([['change', new Set()], ['validity', new Set()], ['error', new Set()]]);
+  return {
+    on(event: string, handler: Listener) {
+      const set = sets.get(event);
+      set?.add(handler);
+      return () => {
+        set?.delete(handler);
+      };
+    },
+    notify(event: HandleEvent, value: unknown) {
+      for (const handler of sets.get(event) ?? []) (handler as (value: unknown) => void)(value);
+    },
+  };
+}
+
+/** A promise with its settle functions. Rejections are handled, so an unobserved one is not reported. */
+export function deferred() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((done, fail) => {
+    resolve = done;
+    reject = fail;
+  });
+  promise.catch(() => {});
+  return { promise, resolve, reject };
+}
 
 /** Embeds a component frame over `placeholder`. Internal: hosts use createComponents().mount(). */
 export function embedComponent<TValue = unknown, TContext = Record<string, unknown>>(placeholder: HTMLElement, options: EmbedOptions<TValue, TContext>): ComponentHandle<TValue> {
@@ -45,32 +92,37 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     value: options.value, context: options.context ?? {}, params: options.params ?? {},
     settings: options.settings ?? {}, locale: options.locale ?? 'en', readonly: options.readonly ?? false,
   };
-  const listeners: Record<'change' | 'validity' | 'error', Set<Listener>> = { change: new Set(), validity: new Set(), error: new Set() };
+  const { on, notify } = createListeners();
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
   let calls = 0;
   let token: string | null = null;
   let tokenTimer: ReturnType<typeof setTimeout> | undefined;
   let tokenFailures = 0;
+  let startTimer: ReturnType<typeof setTimeout> | undefined;
+  let greeted = false;
   let started = false;
   let destroyed = false;
-  let markReady!: () => void;
-  let failReady!: (error: Error) => void;
-  const ready = new Promise<void>((resolve, reject) => {
-    markReady = resolve;
-    failReady = reject;
-  });
-  ready.catch(() => {});
+  const { promise: ready, resolve: markReady, reject: failReady } = deferred();
 
-  const notify = (event: keyof typeof listeners, value: unknown) => {
-    for (const handler of listeners[event]) (handler as (value: unknown) => void)(value);
+  const fail = (error: unknown) => {
+    const reported = toError(error);
+    notify('error', reported);
+    return reported;
   };
-  const fail = (error: unknown) => notify('error', error instanceof Error ? error : new Error(String(error)));
+  const rejectPending = (error: Error) => {
+    for (const call of pending.values()) call.reject(error);
+    pending.clear();
+  };
   const layer = createFrameLayer(placeholder, url.href, options.title ?? 'App component', rect => send({ type: 'rect', rect }));
 
+  // Throws when the message cannot be cloned
+  function post(message: HostMessage) {
+    if (started && !destroyed) layer.iframe.contentWindow?.postMessage(wrap(channel, message), frameOrigin);
+  }
+
   function send(message: HostMessage) {
-    if (!started || destroyed) return;
     try {
-      layer.iframe.contentWindow?.postMessage(wrap(channel, message), frameOrigin);
+      post(message);
     } catch (error) {
       fail(error);
     }
@@ -105,15 +157,35 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   }
   const tokenLoaded = loadToken();
 
+  // A frame page that never says hello (404, CSP, frame-ancestors) fails ready instead of leaving it pending
+  layer.iframe.addEventListener('load', () => {
+    if (greeted || destroyed) return;
+    clearTimeout(startTimer);
+    startTimer = setTimeout(() => {
+      if (!greeted && !destroyed) failReady(fail(new Error('Component frame did not start')));
+    }, START_MS);
+  });
+
   async function onMessage(event: MessageEvent) {
     if (event.origin !== frameOrigin || event.source !== layer.iframe.contentWindow) return;
     const message = unwrap<FrameMessage>(event.data, channel);
     if (!message) return;
     switch (message.type) {
       case 'hello':
+        clearTimeout(startTimer);
+        if (greeted) {
+          // The frame reloaded: its new runtime starts without overlay and cannot answer earlier events
+          layer.setOverlay(false);
+          rejectPending(new Error('Component reloaded'));
+        }
+        greeted = true;
         await tokenLoaded;
         started = true;
-        send({ type: 'init', props, token });
+        try {
+          post({ type: 'init', props, token });
+        } catch (error) {
+          failReady(fail(error));
+        }
         return;
       case 'ready':
         markReady();
@@ -150,36 +222,34 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
 
   return {
     ready,
-    on(event: keyof typeof listeners, handler: Listener) {
-      listeners[event].add(handler);
-      return () => {
-        listeners[event].delete(handler);
-      };
-    },
+    on,
     update(input) {
-      const changed: Partial<WireProps> = {};
-      for (const key of ['value', 'context', 'params', 'readonly', 'locale'] as const) {
-        if (key in input) Object.assign(changed, { [key]: input[key] });
-      }
+      const changed = pickInput(input);
       Object.assign(props, changed);
       send({ type: 'update', props: changed });
     },
     async emit<T = unknown>(name: string, data?: unknown): Promise<T> {
       await ready;
       if (destroyed) throw new Error('Component unmounted');
-      return new Promise<T>((resolve, reject) => {
-        const call = ++calls;
+      const call = ++calls;
+      const result = new Promise<T>((resolve, reject) => {
         pending.set(call, { resolve: resolve as (value: unknown) => void, reject });
-        send({ type: 'event', call, name, data });
       });
+      try {
+        post({ type: 'event', call, name, data });
+      } catch (error) {
+        pending.delete(call);
+        throw error;
+      }
+      return result;
     },
     unmount() {
       if (destroyed) return;
       destroyed = true;
       window.removeEventListener('message', onMessage);
       clearTimeout(tokenTimer);
-      for (const call of pending.values()) call.reject(new Error('Component unmounted'));
-      pending.clear();
+      clearTimeout(startTimer);
+      rejectPending(new Error('Component unmounted'));
       failReady(new Error('Component unmounted'));
       layer.destroy();
     },

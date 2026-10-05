@@ -14,6 +14,8 @@ const nativeFetch = globalThis.fetch;
 const tick = () => new Promise(resolve => setTimeout(resolve, 0));
 const animationFrame = win => new Promise(resolve => win.requestAnimationFrame(resolve));
 const flush = () => new Promise(resolve => setImmediate(resolve));
+// Settles a promise that should already have settled, without hanging when it has not.
+const settled = promise => Promise.race([promise.then(value => ({ value }), error => ({ error })), flush().then(() => 'pending')]);
 
 function hostWindow(t) {
   const win = new Window({ url: `${HOST}/admin`, settings: { disableIframePageLoading: true } });
@@ -352,13 +354,82 @@ test('token failures are reported and the frame gets no token', async (t) => {
   assert.deepEqual(errors, ['No session']);
 });
 
-test('props that cannot be cloned are reported as errors', async (t) => {
+test('props that cannot be cloned reject ready and are reported as errors', async (t) => {
   const errors = [];
   const { handle, receive } = embed(t, { context: { format() {} } });
   handle.on('error', error => errors.push(error.name));
   receive({ type: 'hello' });
   await tick();
   assert.deepEqual(errors, ['DataCloneError']);
+  assert.equal((await settled(handle.ready)).error?.name, 'DataCloneError');
+});
+
+test('an event with data that cannot be cloned rejects that emit', async (t) => {
+  const { handle, sent, receive } = embed(t);
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'ready' });
+  await handle.ready;
+  assert.equal((await settled(handle.emit('submit', { format() {} }))).error?.name, 'DataCloneError');
+  const next = handle.emit('submit', { ok: true });
+  await tick();
+  const event = sent.at(-1).message;
+  assert.deepEqual([event.type, event.data], ['event', { ok: true }]);
+  receive({ type: 'result', call: event.call, result: 'done' });
+  assert.equal(await next, 'done');
+});
+
+test('ready fails when the frame does not say hello within 10 seconds of loading', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const errors = [];
+  const { win, iframe, handle, sent, receive } = embed(t);
+  handle.on('error', error => errors.push(error.message));
+  iframe.dispatchEvent(new win.Event('load'));
+  t.mock.timers.tick(9_999);
+  assert.equal(await settled(handle.ready), 'pending');
+  t.mock.timers.tick(1);
+  assert.match((await settled(handle.ready)).error?.message ?? '', /Component frame did not start/);
+  assert.deepEqual(errors, ['Component frame did not start']);
+  // A frame that starts late still works
+  receive({ type: 'hello' });
+  await flush();
+  assert.equal(sent.at(-1).message.type, 'init');
+});
+
+test('a frame that says hello in time is not failed by the start timeout', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const errors = [];
+  const { win, iframe, handle, receive } = embed(t);
+  handle.on('error', error => errors.push(error.message));
+  iframe.dispatchEvent(new win.Event('load'));
+  receive({ type: 'hello' });
+  await flush();
+  t.mock.timers.tick(10_000);
+  receive({ type: 'ready' });
+  assert.deepEqual(await settled(handle.ready), { value: undefined });
+  assert.deepEqual(errors, []);
+});
+
+test('a frame that says hello again leaves overlay, rejects pending events and gets init again', async (t) => {
+  const { win, iframe, handle, sent, receive } = embed(t);
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'ready' });
+  await handle.ready;
+  win.document.documentElement.style.overflow = 'auto';
+  receive({ type: 'overlay', on: true });
+  await tick();
+  assert.deepEqual([iframe.parentElement.style.position, win.document.documentElement.style.overflow], ['fixed', 'hidden']);
+  const pending = handle.emit('submit');
+  await tick();
+  handle.update({ value: 'blue' });
+  receive({ type: 'hello' });
+  assert.equal((await settled(pending)).error?.message, 'Component reloaded');
+  await tick();
+  assert.deepEqual([iframe.parentElement.style.position, win.document.documentElement.style.overflow], ['absolute', 'auto']);
+  const inits = sent.filter(({ message }) => message.type === 'init');
+  assert.equal(inits.length, 2);
+  assert.equal(inits[1].message.props.value, 'blue');
 });
 
 test('a frame error rejects ready and notifies listeners', async (t) => {
