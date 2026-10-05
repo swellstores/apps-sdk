@@ -52,6 +52,13 @@
       "node": "./dist/storefront.js",
       "browser": "./dist/browser-refusal.js",
       "default": "./dist/storefront.js"
+    },
+    "./components": {
+      "types": {
+        "import": "./dist/components.d.ts",
+        "require": "./dist/components.d.cts"
+      },
+      "default": "./dist/components.js"
     }
   },
   "sideEffects": [

@@ -8,7 +8,7 @@ const output = resolve('.verification');
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const packed = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { encoding: 'utf8' }))[0];
-for (const path of ['dist/index.js', 'dist/storefront.js', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/storefront.d.ts', 'dist/storefront.d.cts']) {
+for (const path of ['dist/index.js', 'dist/storefront.js', 'dist/components.js', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/storefront.d.ts', 'dist/storefront.d.cts', 'dist/components.d.ts', 'dist/components.d.cts']) {
   assert.ok(packed.files.some(file => file.path === path), `Missing packed file: ${path}; run npm run build first`);
 }
 assert.ok(!packed.files.some(({ path }) => /(?:^|\/)(?:functions|function-types)(?:\.|\/)/.test(path)), 'Function runtime leaked into packed files');
@@ -27,6 +27,9 @@ for (const [mode, file] of [['NodeNext', 'consumer.mts'], ['NodeNext', 'consumer
 await writeFile(join(fixture, 'runtime.cjs'), `const assert = require('node:assert/strict');
 const root = require('@swell/apps-sdk');
 const storefront = require('@swell/apps-sdk/storefront');
+const components = require('@swell/apps-sdk/components');
+assert.deepEqual(Object.keys(components).sort(), ['createComponents', 'startComponentFrame']);
+assert.equal(typeof components.createComponents, 'function');
 assert.deepEqual(Object.keys(root).sort(), ['SwellBackendAPI', 'SwellError', 'getStorefrontConfig', 'requireStoreUser', 'verifySwellContext'].sort());
 assert.deepEqual(Object.keys(storefront), ['createStorefrontClient']);
 assert.equal(typeof storefront.createStorefrontClient, 'function');

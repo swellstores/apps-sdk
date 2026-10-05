@@ -14,6 +14,8 @@ const fixtures = {
   backend: `import {SwellBackendAPI} from '@swell/apps-sdk'; export default {async fetch(r){return Response.json(await new SwellBackendAPI({storeId:'s',secretKey:'k',apiHost:'https://api.test'}).get('/products'))}}`,
   verified: `import {verifySwellContext,getStorefrontConfig,requireStoreUser} from '@swell/apps-sdk'; export default {async fetch(r,env){const context=await verifySwellContext(r.headers,{env});requireStoreUser(context);return Response.json(getStorefrontConfig(context))}}`,
   storefront: `import {createStorefrontClient} from '@swell/apps-sdk/storefront'; export default {async fetch(){return Response.json(await createStorefrontClient({storeId:'s',publicKey:'k'},{cookies:{get(){}}}).products.list())}}`,
+  componentsHost: `import {createComponents} from '@swell/apps-sdk/components'; export const components = createComponents({storeId:'s',publicKey:'pk'});`,
+  componentsFrame: `import {startComponentFrame} from '@swell/apps-sdk/components'; startComponentFrame({bundleUrl:'https://cdn.test/c.js'});`,
 };
 const reports = {};
 const forbidden = /(?:node:|themes-sdk|liquid|cache-manager|keyv|lodash(?:-es)?(?:\/|$))/i;
@@ -34,9 +36,17 @@ for (const [profile, resolution] of Object.entries(profiles)) {
     assert.ok(!inputs.some(path => /\.cjs$/.test(path)), 'Worker selected CJS');
     assert.ok(Object.values(result.metafile.outputs).every(output => output.imports.length === 0), 'SDK Worker bundle has external imports');
     const bytes = result.outputFiles[0].contents;
+    const text = result.outputFiles[0].text;
+    if (name.startsWith('components')) {
+      assert.ok(!/server-only/.test(text), 'Components must not include the server guard');
+      assert.ok(gzipSync(bytes).length < 8192, `${label} exceeds the 8 KB gzip budget`);
+    } else {
+      assert.ok(!inputs.some(path => /components/.test(path)), `${label} pulled in component code`);
+    }
     if (name !== 'verified') assert.ok(!/swell_jwks_unavailable|invalid_swell_context|subtle\.verify/.test(result.outputFiles[0].text), 'Verifier leaked into transport-only bundle');
     // Exact same input, resolving directly to ESM as the no-require baseline.
     const baseline = await build({ ...options, alias: {
+      '@swell/apps-sdk/components': join(sdk, 'dist/components.js'),
       '@swell/apps-sdk/storefront': join(sdk, 'dist/storefront.js'),
       '@swell/apps-sdk': join(sdk, 'dist/index.js'),
     } });
@@ -59,7 +69,9 @@ for (const [entry, symbol] of [['', 'SwellBackendAPI'], ['/storefront', 'createS
 }
 await assert.rejects(build({ ...baseOptions, stdin: { contents: `import '@swell/apps-sdk/functions';`, resolveDir: fixture } }), /not exported|Could not resolve/);
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
-assert.deepEqual(Object.keys(pkg.exports).sort(), ['.', './storefront']);
+assert.deepEqual(Object.keys(pkg.exports).sort(), ['.', './components', './storefront']);
+const componentsBrowser = await build({ ...baseOptions, conditions: ['browser'], stdin: { contents: `import {createComponents} from '@swell/apps-sdk/components'; console.log(createComponents);`, resolveDir: fixture } });
+assert.ok(!/server-only/.test(componentsBrowser.outputFiles[0].text), 'Components resolved to the browser refusal');
 assert.deepEqual(pkg.dependencies ?? {}, {});
 assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.1' });
 await writeFile(join(output, 'bundles.json'), JSON.stringify(reports, null, 2));
