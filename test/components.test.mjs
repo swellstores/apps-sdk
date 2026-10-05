@@ -5,6 +5,7 @@ import { PROTOCOL, PROTOCOL_VERSION, TOKEN_HEADER, wrap, unwrap } from '../dist/
 import { createFrameLayer } from '../dist/components-layer.js';
 import { embedComponent } from '../dist/components-host.js';
 import { createComponents } from '../dist/components-client.js';
+import { startComponentFrame } from '../dist/components-frame.js';
 
 const HOST = 'https://store.swell.test';
 const FRAME = 'https://store--inst--app.swell.test';
@@ -365,4 +366,164 @@ test('mount reports missing containers and components, and retries failed app lo
 test('createComponents requires a store and a public key', () => {
   assert.throws(() => createComponents({ storeId: 'store' }), /requires storeId and publicKey/);
   assert.throws(() => createComponents({ publicKey: 'pk' }), /requires storeId and publicKey/);
+});
+
+const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };
+
+function startFrame(t, { module, search } = {}) {
+  const win = new Window({ url: `${FRAME}/.swell/components/Picker?${search ?? `v=abc&parent=${encodeURIComponent(HOST)}&channel=c1`}` });
+  t.after(() => win.happyDOM.close());
+  const posted = [];
+  const parent = { postMessage(data, origin) { posted.push({ message: unwrap(data, 'c1'), origin }); } };
+  const calls = [];
+  const component = module ?? {
+    mount(root, props) { calls.push(['mount', props]); root.textContent = String(props.value); },
+    update(root, props) { calls.push(['update', props]); root.textContent = String(props.value); },
+    unmount() { calls.push(['unmount']); },
+  };
+  const imported = [];
+  startComponentFrame({
+    bundleUrl: 'https://cdn.test/picker.js', window: win, parent,
+    importModule: async url => { imported.push(url); if (component instanceof Error) throw component; return component; },
+  });
+  const send = (message, { origin = HOST, source = parent, channel = 'c1' } = {}) =>
+    win.dispatchEvent(new win.MessageEvent('message', { data: wrap(channel, message), origin, source }));
+  const types = () => posted.map(({ message }) => message.type);
+  return { win, posted, calls, imported, send, types, root: () => win.document.getElementById('root') };
+}
+
+test('frame refuses to run outside a Swell host', (t) => {
+  const plain = new Window({ url: `${FRAME}/.swell/components/Picker` });
+  t.after(() => plain.happyDOM.close());
+  assert.throws(() => startComponentFrame({ bundleUrl: 'x', window: plain, parent: { postMessage() {} } }), /must be embedded/);
+  const top = new Window({ url: `${FRAME}/.swell/components/Picker?parent=${encodeURIComponent(HOST)}&channel=c1` });
+  t.after(() => top.happyDOM.close());
+  assert.throws(() => startComponentFrame({ bundleUrl: 'x', window: top }), /must be embedded/);
+});
+
+test('frame says hello, mounts the bundle with host props and reports ready', async (t) => {
+  const { posted, calls, imported, send, types, root } = startFrame(t);
+  assert.deepEqual([posted[0].message.type, posted[0].origin], ['hello', HOST]);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.deepEqual(imported, ['https://cdn.test/picker.js']);
+  const [[name, props]] = calls;
+  assert.equal(name, 'mount');
+  assert.deepEqual([props.value, props.context, props.params, props.settings, props.locale, props.readonly], ['red', { id: 'r1' }, { max: 3 }, { theme: 'dark' }, 'en', false]);
+  assert.equal(root().textContent, 'red');
+  // happy-dom may or may not fire ResizeObserver on observe(), so check the set, not the order.
+  assert.equal(types()[0], 'hello');
+  assert.equal(types().filter(type => type === 'ready').length, 1);
+  assert.equal(types().filter(type => type === 'resize').length, 1);
+});
+
+test('component props send values and validity to the host', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const props = calls[0][1];
+  props.setValue('blue');
+  props.setValidity('Required');
+  props.setValidity(undefined);
+  assert.deepEqual(posted.slice(-3).map(({ message }) => [message.type, message.type === 'change' ? message.value : message.error]),
+    [['change', 'blue'], ['validity', 'Required'], ['validity', null]]);
+});
+
+test('updates re-render with merged props and a repeated init does not mount twice', async (t) => {
+  const { calls, send, root } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  send({ type: 'update', props: { value: 'green', readonly: true } });
+  await tick();
+  assert.deepEqual([calls[1][0], calls[1][1].value, calls[1][1].readonly, calls[1][1].context], ['update', 'green', true, { id: 'r1' }]);
+  assert.equal(root().textContent, 'green');
+  send({ type: 'init', props: { ...HOST_PROPS, value: 'again' }, token: null });
+  await tick();
+  assert.deepEqual(calls.map(([name]) => name), ['mount', 'update', 'update']);
+});
+
+test('host events run the first handler and return its result or error', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const props = calls[0][1];
+  props.on('submit', data => ({ ok: data.n * 2 }));
+  props.on('submit', () => 'second');
+  props.on('fail', () => { throw new Error('Declined'); });
+  send({ type: 'event', call: 1, name: 'submit', data: { n: 2 } });
+  send({ type: 'event', call: 2, name: 'fail', data: null });
+  send({ type: 'event', call: 3, name: 'unknown', data: null });
+  await tick();
+  const results = posted.filter(({ message }) => message.type === 'result').map(({ message }) => [message.call, message.result, message.error]);
+  assert.deepEqual(results, [[1, { ok: 4 }, undefined], [2, undefined, 'Declined'], [3, undefined, undefined]]);
+});
+
+test('fetch adds the component token only to requests to the frame origin', async (t) => {
+  const { win, calls, send } = startFrame(t);
+  const seen = [];
+  win.fetch = async (input, init) => {
+    seen.push([String(input), new Headers(init?.headers).get(TOKEN_HEADER)]);
+    return new Response('{}');
+  };
+  send({ type: 'init', props: HOST_PROPS, token: 't1' });
+  await tick();
+  const { fetch } = calls[0][1];
+  await fetch('/functions/my_app/risk');
+  await fetch(`${FRAME}/app-api/risk`, { headers: { Accept: 'application/json' } });
+  await fetch('https://api.stripe.com/v1/tokens');
+  send({ type: 'token', token: 't2' });
+  await tick();
+  await fetch('/app-api/risk');
+  send({ type: 'token', token: null });
+  await tick();
+  await fetch('/app-api/risk');
+  assert.deepEqual(seen, [
+    ['/functions/my_app/risk', 't1'],
+    [`${FRAME}/app-api/risk`, 't1'],
+    ['https://api.stripe.com/v1/tokens', null],
+    ['/app-api/risk', 't2'],
+    ['/app-api/risk', null],
+  ]);
+});
+
+test('frame ignores messages from other origins, windows and channels', async (t) => {
+  const { win, imported, send } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null }, { origin: 'https://evil.test' });
+  send({ type: 'init', props: HOST_PROPS, token: null }, { source: win });
+  send({ type: 'init', props: HOST_PROPS, token: null }, { channel: 'other' });
+  await tick();
+  assert.deepEqual(imported, []);
+});
+
+test('bundles without the module shape, and failed imports, are reported to the host', async (t) => {
+  const bad = startFrame(t, { module: { mount() {} } });
+  bad.send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.deepEqual([bad.posted.at(-1).message.type, bad.posted.at(-1).message.message], ['error', 'Component bundle must export mount, update and unmount']);
+  const failing = startFrame(t, { module: new Error('404 bundle') });
+  failing.send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.deepEqual([failing.posted.at(-1).message.type, failing.posted.at(-1).message.message], ['error', '404 bundle']);
+});
+
+test('a viewport-covering fixed element switches overlay on and off', async (t) => {
+  const { win, send, posted, root } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const modal = win.document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  assert.equal(win.document.documentElement.style.overflow, 'hidden');
+  send({ type: 'rect', rect: { top: 50, left: 10, width: 400 } });
+  await tick();
+  assert.deepEqual([root().style.position, root().style.top, root().style.left, root().style.width], ['absolute', '50px', '10px', '400px']);
+  modal.remove();
+  await tick();
+  await animationFrame(win);
+  assert.deepEqual(posted.filter(({ message }) => message.type === 'overlay').map(({ message }) => message.on), [true, false]);
+  assert.equal(root().style.position, '');
+  assert.equal(win.document.documentElement.style.overflow, '');
 });
