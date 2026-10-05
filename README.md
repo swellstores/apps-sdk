@@ -35,6 +35,8 @@ const context = await verifySwellContext(request.headers, {
 });
 ```
 
+When an app component makes the request, `context.surface` says where it runs: `'admin'`, `'checkout'` or `'storefront'`. Treat `'storefront'` and `'checkout'` calls like public routes; check `context.surface === 'admin'` before doing anything that only a merchant may do.
+
 In a server component, pass `await headers()`. Keep the context and clients on the
 server, scoped to the incoming request.
 
@@ -108,6 +110,58 @@ import { requireStoreUser } from '@swell/apps-sdk';
 const storeUser = requireStoreUser(context); // { userId, storeId }, or a 401 SwellError.
 const optional = context.storeUser; // null for a visitor; no exception needed.
 ```
+
+## Components
+
+App components are small UI bundles from an app's `components/` folder. Swell renders each one in an isolated iframe on the app installation's origin, so app code never runs in the host page. `@swell/apps-sdk/components` is browser code and is only bundled when you import it.
+
+### Writing a component
+
+Components are Preact components. Import only the props type from the SDK:
+
+```tsx
+import type { ComponentProps } from '@swell/apps-sdk/components';
+
+export const config = { description: 'Brand color picker' };
+
+export default function ColorPicker({ value, setValue, readonly }: ComponentProps<string>) {
+  return <input type="color" value={value} disabled={readonly} onInput={(e) => setValue(e.currentTarget.value)} />;
+}
+```
+
+| Prop | Description |
+| --- | --- |
+| `value`, `setValue(value)` | The bound value, when the place provides one (for example a content field) |
+| `context` | Data of the place: for a content field `{ record, field }` |
+| `params` | Configuration from the place that uses the component |
+| `settings` | The app's public settings |
+| `locale`, `readonly` | Display locale and read-only state |
+| `setValidity(error)` | Report a validation error, or `null` when valid |
+| `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token, so they receive a verified `Swell-Context` with `surface` |
+| `on(event, handler)` | Handle a host event; the first handler's return value goes back to the host |
+
+### Rendering components
+
+Hosts render installed apps' components with `createComponents`:
+
+```ts
+import { createComponents } from '@swell/apps-sdk/components';
+
+const components = createComponents({ storeId: 'my-store', publicKey: 'pk_...' });
+
+const badge = await components.mount('#badge', {
+  app: 'my_app',
+  component: 'ProductBadge',
+  context: { product },
+});
+
+badge.on('change', (value) => { /* … */ });
+badge.update({ context: { product: nextProduct } });
+const result = await badge.emit('submit', data);
+badge.unmount();
+```
+
+Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries.
 
 ## API reference
 
