@@ -117,40 +117,38 @@ export function startComponentFrame(options: FrameOptions): void {
 
   new win.ResizeObserver(reportHeight).observe(target);
 
-  let eventQueue: HostMessage[] = [];
-  let processingEvent = false;
+  let loading: Promise<ComponentModule> | null = null;
 
-  async function processEventQueue() {
-    if (processingEvent || eventQueue.length === 0) return;
-    processingEvent = true;
-    while (eventQueue.length > 0) {
-      const message = eventQueue.shift()!;
-      await handle(message).catch(fail);
-    }
-    processingEvent = false;
-  }
+  // One import per frame: an init that arrives while the bundle loads waits for the same import
+  const loadModule = () => {
+    loading ??= importModule(options.bundleUrl).then((loaded) => {
+      if (!isModule(loaded)) throw new Error('Component bundle must export mount, update and unmount');
+      return loaded;
+    });
+    return loading;
+  };
 
   async function handle(message: HostMessage) {
     switch (message.type) {
       case 'init': {
         props = message.props;
         token = message.token;
+        const loaded = await loadModule();
         if (module) {
           module.update(target, componentProps());
           return;
         }
-        const loaded = await importModule(options.bundleUrl);
-        if (!isModule(loaded)) throw new Error('Component bundle must export mount, update and unmount');
+        // Mount with the latest props: updates may have arrived while the bundle loaded
+        loaded.mount(target, componentProps());
         module = loaded;
-        module.mount(target, componentProps());
         post({ type: 'ready' });
         reportHeight();
         return;
       }
       case 'update':
-        if (!props || !module) return;
+        if (!props) return;
         props = { ...props, ...message.props };
-        module.update(target, componentProps());
+        module?.update(target, componentProps());
         return;
       case 'token':
         token = message.token;
@@ -173,13 +171,7 @@ export function startComponentFrame(options: FrameOptions): void {
   win.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== parent || event.origin !== parentOrigin) return;
     const message = unwrap<HostMessage>(event.data, channel);
-    if (!message) return;
-    if (message.type === 'event') {
-      eventQueue.push(message);
-      processEventQueue();
-    } else {
-      handle(message).catch(fail);
-    }
+    if (message) handle(message).catch(fail);
   });
 
   post({ type: 'hello' });

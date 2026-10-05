@@ -370,7 +370,7 @@ test('createComponents requires a store and a public key', () => {
 
 const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };
 
-function startFrame(t, { module, search } = {}) {
+function startFrame(t, { module, search, gate } = {}) {
   const win = new Window({ url: `${FRAME}/.swell/components/Picker?${search ?? `v=abc&parent=${encodeURIComponent(HOST)}&channel=c1`}` });
   t.after(() => win.happyDOM.close());
   const posted = [];
@@ -384,7 +384,7 @@ function startFrame(t, { module, search } = {}) {
   const imported = [];
   startComponentFrame({
     bundleUrl: 'https://cdn.test/picker.js', window: win, parent,
-    importModule: async url => { imported.push(url); if (component instanceof Error) throw component; return component; },
+    importModule: async url => { imported.push(url); await gate; if (component instanceof Error) throw component; return component; },
   });
   const send = (message, { origin = HOST, source = parent, channel = 'c1' } = {}) =>
     win.dispatchEvent(new win.MessageEvent('message', { data: wrap(channel, message), origin, source }));
@@ -455,7 +455,7 @@ test('host events run the first handler and return its result or error', async (
   send({ type: 'event', call: 3, name: 'unknown', data: null });
   await tick();
   const results = posted.filter(({ message }) => message.type === 'result').map(({ message }) => [message.call, message.result, message.error]);
-  assert.deepEqual(results, [[1, { ok: 4 }, undefined], [2, undefined, 'Declined'], [3, undefined, undefined]]);
+  assert.deepEqual(results.sort(([a], [b]) => a - b), [[1, { ok: 4 }, undefined], [2, undefined, 'Declined'], [3, undefined, undefined]]);
 });
 
 test('fetch adds the component token only to requests to the frame origin', async (t) => {
@@ -526,4 +526,61 @@ test('a viewport-covering fixed element switches overlay on and off', async (t) 
   assert.deepEqual(posted.filter(({ message }) => message.type === 'overlay').map(({ message }) => message.on), [true, false]);
   assert.equal(root().style.position, '');
   assert.equal(win.document.documentElement.style.overflow, '');
+});
+
+test('a slow handler does not hold back other events', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const props = calls[0][1];
+  props.on('submit', () => new Promise(() => {}));
+  props.on('validate', () => 'ok');
+  send({ type: 'event', call: 1, name: 'submit', data: null });
+  send({ type: 'event', call: 2, name: 'validate', data: null });
+  await tick();
+  const results = posted.filter(({ message }) => message.type === 'result').map(({ message }) => [message.call, message.result]);
+  assert.deepEqual(results, [[2, 'ok']]);
+});
+
+test('an update while the bundle loads is applied at mount', async (t) => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const { calls, send } = startFrame(t, { gate });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  send({ type: 'update', props: { value: 'blue' } });
+  await tick();
+  assert.deepEqual(calls, []);
+  release();
+  await tick();
+  assert.deepEqual(calls.map(([type, props]) => [type, props.value]), [['mount', 'blue']]);
+});
+
+test('a second init while the bundle loads imports and mounts once', async (t) => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const { calls, imported, send, types } = startFrame(t, { gate });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  send({ type: 'init', props: { ...HOST_PROPS, value: 'green' }, token: null });
+  release();
+  await tick();
+  assert.equal(imported.length, 1);
+  assert.deepEqual(calls.map(([type, props]) => [type, props.value]), [['mount', 'green'], ['update', 'green']]);
+  assert.equal(types().filter(type => type === 'ready').length, 1);
+});
+
+test('a component whose mount throws is reported and never updated', async (t) => {
+  const calls = [];
+  const module = {
+    mount() { throw new Error('Mount failed'); },
+    update() { calls.push('update'); },
+    unmount() {},
+  };
+  const { send, posted, types } = startFrame(t, { module });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  send({ type: 'update', props: { value: 'blue' } });
+  await tick();
+  assert.deepEqual(calls, []);
+  assert.ok(!types().includes('ready'));
+  assert.ok(posted.some(({ message }) => message.type === 'error' && message.message === 'Mount failed'));
 });
