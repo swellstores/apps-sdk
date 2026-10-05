@@ -4,6 +4,7 @@ import { Window } from 'happy-dom';
 import { PROTOCOL, PROTOCOL_VERSION, TOKEN_HEADER, wrap, unwrap } from '../dist/components-protocol.js';
 import { createFrameLayer } from '../dist/components-layer.js';
 import { embedComponent } from '../dist/components-host.js';
+import { createComponents } from '../dist/components-client.js';
 
 const HOST = 'https://store.swell.test';
 const FRAME = 'https://store--inst--app.swell.test';
@@ -315,4 +316,53 @@ test('unmount rejects pending events, stops listening and removes the frame', as
   await new Promise(resolve => setTimeout(resolve, 250));
   assert.deepEqual(changes, []);
   assert.equal(sent.length, count);
+});
+
+test('createComponents loads an app once with the public key and mounts components by name', async (t) => {
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push([url, init.headers.Authorization]);
+    return Response.json({ settings: { theme: 'dark' }, components: [{ name: 'Picker', src: SRC }, { name: 'Badge', src: `${FRAME}/.swell/components/Badge?v=def` }] });
+  };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slots = [0, 1].map(() => win.document.body.appendChild(win.document.createElement('div')));
+  const tokens = [];
+  const components = createComponents({ storeId: 'store', publicKey: 'pk_test', getToken: async app => { tokens.push(app); return { token: 't', expires: Date.now() / 1000 + 600 }; } });
+  const picker = await components.mount(slots[0], { app: 'my_app', component: 'Picker', value: '#fff' });
+  const badge = await components.mount(slots[1], { app: 'my_app', component: 'Badge' });
+  t.after(() => { picker.unmount(); badge.unmount(); });
+  assert.deepEqual(requests, [['https://store.swell.store/api/apps/my_app/components', `Basic ${Buffer.from('pk_test').toString('base64')}`]]);
+  const frames = [...win.document.querySelectorAll('iframe')];
+  assert.deepEqual(frames.map(iframe => new URL(iframe.src).pathname), ['/.swell/components/Picker', '/.swell/components/Badge']);
+  assert.deepEqual(frames.map(iframe => iframe.title), ['Picker', 'Badge']);
+  await tick();
+  assert.deepEqual(tokens, ['my_app', 'my_app']);
+});
+
+test('mount reports missing containers and components, and retries failed app loads', async (t) => {
+  let status = 503;
+  const urls = [];
+  globalThis.fetch = async url => {
+    urls.push(url);
+    return status === 200 ? Response.json({ components: [{ name: 'Picker', src: SRC }] }) : new Response('', { status });
+  };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const components = createComponents({ storeId: 'store', publicKey: 'pk', url: 'https://shop.test/' });
+  await assert.rejects(components.mount('#missing', { app: 'my_app', component: 'Picker' }), /Component container "#missing" not found/);
+  await assert.rejects(components.mount(slot, { app: 'my_app', component: 'Picker' }), /Cannot load components of app "my_app" \(503\)/);
+  status = 200;
+  await assert.rejects(components.mount(slot, { app: 'my_app', component: 'Nope' }), /Component "Nope" not found in app "my_app"/);
+  const handle = await components.mount(slot, { app: 'my_app', component: 'Picker' });
+  t.after(() => handle.unmount());
+  assert.equal(urls[0], 'https://shop.test/api/apps/my_app/components');
+  assert.equal(urls.length, 2);
+  assert.ok(win.document.querySelector('iframe'));
+});
+
+test('createComponents requires a store and a public key', () => {
+  assert.throws(() => createComponents({ storeId: 'store' }), /requires storeId and publicKey/);
+  assert.throws(() => createComponents({ publicKey: 'pk' }), /requires storeId and publicKey/);
 });
