@@ -38,12 +38,28 @@ const HOST_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
+// A field inside a fixed, scrolling modal, like the admin's collection row editor.
+const MODAL_PAGE = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Modal host</title></head>
+<body style="margin:0">
+<div id="modal" style="position:fixed;top:100px;left:100px;width:600px;height:400px;z-index:99999;overflow-y:scroll;background:#fff">
+  <div style="height:150px"></div><div id="slot"></div><div style="height:2000px"></div>
+</div>
+<script type="module">
+  import { createComponents } from '/dist/components.js';
+  const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
+  window.handle = await components.mount('#slot', { app: 'demo', component: 'Paragraphs' });
+  await handle.ready;
+  window.mounted = true;
+</script>
+</body></html>`;
+
 const SHELL_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"></head>
 <body><div id="root"></div>
 <script type="module">
   import { startComponentFrame } from '/dist/components.js';
-  startComponentFrame({ bundleUrl: '/bundle/echo.js' });
+  startComponentFrame({ bundleUrl: '/bundle/' + location.pathname.split('/').pop() + '.js' });
 </script>
 </body></html>`;
 
@@ -70,14 +86,22 @@ export function update(root, props) {
 export function unmount(root) { root.innerHTML = ''; }
 `;
 
+const PARAGRAPHS_BUNDLE = `
+export function mount(root) { root.innerHTML = '<p>Hello</p><p id="last">World</p>'; }
+export function update() {}
+export function unmount(root) { root.innerHTML = ''; }
+`;
+const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE };
+
 let frameOrigin = '';
 const hostServer = createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://host');
   if (pathname === '/') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(HOST_PAGE);
+  if (pathname === '/modal') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(MODAL_PAGE);
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
   if (pathname === '/api/apps/demo/components') {
     if (req.headers.authorization !== `Basic ${Buffer.from('pk_test').toString('base64')}`) return res.writeHead(401).end();
-    return json(res, { settings: { color: 'red' }, components: [{ name: 'Echo', src: `${frameOrigin}/.swell/components/Echo?v=1` }] });
+    return json(res, { settings: { color: 'red' }, components: Object.keys(BUNDLES).map(name => ({ name, src: `${frameOrigin}/.swell/components/${name}?v=1` })) });
   }
   if (pathname === '/cors-echo') {
     const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' };
@@ -88,9 +112,10 @@ const hostServer = createServer(async (req, res) => {
 });
 const frameServer = createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://frame');
-  if (pathname === '/.swell/components/Echo') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(SHELL_PAGE);
+  if (pathname.startsWith('/.swell/components/')) return res.writeHead(200, { 'Content-Type': 'text/html' }).end(SHELL_PAGE);
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
-  if (pathname === '/bundle/echo.js') return res.writeHead(200, { 'Content-Type': 'text/javascript' }).end(ECHO_BUNDLE);
+  const bundle = /^\/bundle\/(\w+)\.js$/.exec(pathname)?.[1];
+  if (Object.hasOwn(BUNDLES, bundle ?? '')) return res.writeHead(200, { 'Content-Type': 'text/javascript' }).end(BUNDLES[bundle]);
   if (pathname === '/echo') return json(res, { token: req.headers['swell-component-token'] ?? null });
   res.writeHead(404).end();
 });
@@ -150,6 +175,38 @@ try {
   });
   await page.waitForTimeout(200);
   assert.equal(await page.evaluate(() => events.some(([, value]) => value === 'forged')), false);
+
+  // Inside a fixed, scrolling modal the layer stacks above the modal and is clipped to it.
+  const modalPage = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+  modalPage.on('pageerror', error => pageErrors.push(error));
+  await modalPage.goto(`${hostOrigin}/modal`);
+  await modalPage.waitForFunction(() => window.mounted === true && parseFloat(document.querySelector('iframe').parentElement.style.height) > 0, null, { timeout: 15000 });
+  assert.equal(await modalPage.evaluate(() => {
+    const slot = document.querySelector('#slot').getBoundingClientRect();
+    return document.elementFromPoint(slot.left + slot.width / 2, slot.top + slot.height / 2) === document.querySelector('iframe');
+  }), true, 'the component is hidden under the modal');
+  await modalPage.evaluate(() => {
+    const modal = document.querySelector('#modal');
+    const slot = document.querySelector('#slot');
+    modal.scrollTop = slot.getBoundingClientRect().top - modal.getBoundingClientRect().top + slot.offsetHeight / 2;
+  });
+  await modalPage.waitForFunction(() => Math.abs(document.querySelector('iframe').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top) < 1);
+  const clipped = await modalPage.evaluate(() => {
+    const layer = document.querySelector('iframe').parentElement;
+    const [top, right = top, bottom = top, left = right] = (layer.style.clipPath.match(/-?[\d.]+/g) ?? [0]).map(Number);
+    const box = layer.getBoundingClientRect();
+    const modal = document.querySelector('#modal').getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const hit = y => document.elementFromPoint(x, y) === document.querySelector('iframe');
+    return {
+      visible: { top: box.top + top, right: box.right - right, bottom: box.bottom - bottom, left: box.left + left },
+      modal: { top: modal.top, right: modal.right, bottom: modal.bottom, left: modal.left },
+      above: hit(modal.top - 5), inside: hit(modal.top + 5),
+    };
+  });
+  assert.ok(clipped.visible.top >= clipped.modal.top - 0.5 && clipped.visible.bottom <= clipped.modal.bottom + 0.5, `layer paints outside the modal: ${JSON.stringify(clipped)}`);
+  assert.ok(clipped.visible.left >= clipped.modal.left - 0.5 && clipped.visible.right <= clipped.modal.right + 0.5, `layer paints outside the modal: ${JSON.stringify(clipped)}`);
+  assert.deepEqual([clipped.above, clipped.inside], [false, true]);
 
   assert.deepEqual(pageErrors, []);
 } finally {

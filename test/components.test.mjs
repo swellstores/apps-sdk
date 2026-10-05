@@ -35,17 +35,19 @@ test('protocol wraps messages and only unwraps its own channel and version', () 
 
 function layerSetup(t) {
   const win = hostWindow(t);
+  const outer = win.document.createElement('div');
   const wrapper = win.document.createElement('div');
   wrapper.style.opacity = '0.5';
   const placeholder = win.document.createElement('div');
   wrapper.appendChild(placeholder);
-  win.document.body.appendChild(wrapper);
+  outer.appendChild(wrapper);
+  win.document.body.appendChild(outer);
   let rect = { top: 100, left: 20, width: 300, height: 0 };
   placeholder.getBoundingClientRect = () => rect;
   const moves = [];
   const layer = createFrameLayer(placeholder, SRC, 'Picker', next => moves.push(next));
   t.after(() => layer.destroy());
-  return { win, placeholder, layer, element: layer.iframe.parentElement, moves, move: next => { rect = { ...rect, ...next }; } };
+  return { win, outer, wrapper, placeholder, layer, element: layer.iframe.parentElement, moves, move: next => { rect = { ...rect, ...next }; } };
 }
 
 test('layer sits over the placeholder, outside it, and mirrors ancestor opacity', (t) => {
@@ -82,6 +84,74 @@ test('overlay covers the viewport, locks page scroll and reports placeholder mov
   layer.setOverlay(false);
   assert.equal(win.document.documentElement.style.overflow, 'scroll');
   assert.equal(element.style.position, 'absolute');
+});
+
+test('layer stacks with the outermost positioned ancestor that has a z-index', async (t) => {
+  const { win, outer, wrapper, layer, element } = layerSetup(t);
+  assert.equal(element.style.zIndex, '1');
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
+  Object.assign(wrapper.style, { position: 'relative', zIndex: '5' });
+  await animationFrame(win);
+  assert.equal(element.style.zIndex, '99999');
+  outer.style.zIndex = 'auto';
+  await animationFrame(win);
+  assert.equal(element.style.zIndex, '5');
+  // A z-index without positioning does not stack the element
+  wrapper.style.position = 'static';
+  await animationFrame(win);
+  assert.equal(element.style.zIndex, '1');
+  outer.style.zIndex = '99999';
+  layer.setOverlay(true);
+  assert.equal(element.style.zIndex, '2147483647');
+});
+
+test('layer is clipped to the visible part of scrolling ancestors and hidden when scrolled out', async (t) => {
+  const { win, outer, wrapper, layer, element, move } = layerSetup(t);
+  layer.setHeight(100);
+  assert.deepEqual([element.style.clipPath, element.style.visibility], ['none', 'visible']);
+  // Placeholder box: top 100, right 320, bottom 200, left 20
+  outer.style.overflowY = 'scroll';
+  outer.getBoundingClientRect = () => ({ top: 130, right: 1000, bottom: 180, left: 0 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(30px 0px 20px 0px)');
+  wrapper.style.overflowX = 'hidden';
+  wrapper.getBoundingClientRect = () => ({ top: 0, right: 300, bottom: 1000, left: 50 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(30px 20px 20px 30px)');
+  assert.equal(element.style.visibility, 'visible');
+  move({ top: 180 });
+  await animationFrame(win);
+  assert.equal(element.style.visibility, 'hidden');
+  layer.setOverlay(true);
+  assert.deepEqual([element.style.clipPath, element.style.visibility], ['none', 'visible']);
+  layer.setOverlay(false);
+  assert.deepEqual([element.style.clipPath, element.style.visibility], ['inset(0px 20px 100px 30px)', 'hidden']);
+});
+
+test('layer mirrors an inherited visibility: hidden', async (t) => {
+  const { win, outer, element } = layerSetup(t);
+  assert.equal(element.style.visibility, 'visible');
+  outer.style.visibility = 'hidden';
+  await animationFrame(win);
+  assert.equal(element.style.visibility, 'hidden');
+  outer.style.visibility = '';
+  await animationFrame(win);
+  assert.equal(element.style.visibility, 'visible');
+});
+
+test('layer writes only the styles that changed', async (t) => {
+  const { win, element, move } = layerSetup(t);
+  const writes = [];
+  const setProperty = element.style.setProperty.bind(element.style);
+  element.style.setProperty = (name, value) => {
+    writes.push(name);
+    setProperty(name, value);
+  };
+  await animationFrame(win);
+  assert.deepEqual(writes, []);
+  move({ top: 140 });
+  await animationFrame(win);
+  assert.deepEqual(writes, ['top']);
 });
 
 test('destroy removes the layer and restores the page', (t) => {
