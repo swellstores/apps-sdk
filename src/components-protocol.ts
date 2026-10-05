@@ -1,4 +1,9 @@
 export const PROTOCOL = 'swell:component';
+/**
+ * Protocol evolution: changes within version 1 are additive. Both sides ignore message types and
+ * fields they do not know, so new messages and fields need no version change. A breaking change
+ * (a removed or renamed message or field, or a changed meaning) needs a new version.
+ */
 export const PROTOCOL_VERSION = 1;
 export const TOKEN_HEADER = 'Swell-Component-Token';
 

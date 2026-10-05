@@ -137,8 +137,8 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 | `settings` | The app's public settings |
 | `locale`, `readonly` | Display locale and read-only state |
 | `setValidity(error)` | Report a validation error, or `null` when valid |
-| `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token, so they receive a verified `Swell-Context` with `surface` |
-| `on(event, handler)` | Handle a host event; the first handler's return value goes back to the host |
+| `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token when the host provides one, so they receive a verified `Swell-Context` with `surface` |
+| `on(event, handler)` | Handle a host event. Only the first handler registered for an event runs; its return value, or the error it throws, answers the host's `emit` |
 
 ### Rendering components
 
@@ -149,19 +149,38 @@ import { createComponents } from '@swell/apps-sdk/components';
 
 const components = createComponents({ storeId: 'my-store', publicKey: 'pk_...' });
 
-const badge = await components.mount('#badge', {
+const badge = components.mount('#badge', {
   app: 'my_app',
   component: 'ProductBadge',
   context: { product },
 });
 
 badge.on('change', (value) => { /* … */ });
+badge.on('error', (error) => { /* show that the component is unavailable */ });
 badge.update({ context: { product: nextProduct } });
+
+await badge.ready;
 const result = await badge.emit('submit', data);
 badge.unmount();
 ```
 
-Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries.
+`mount` returns the handle right away and loads the app's component list in the background. It throws only when the target element does not exist.
+
+| Handle | Description |
+| --- | --- |
+| `ready` | Resolves when the component has mounted in its frame. Rejects when the app or component cannot be loaded, when the frame page does not start within 10 seconds of loading, when the props cannot be sent, or when you unmount first |
+| `on(event, handler)` | Listen to `change` (new value), `validity` (error or `null`) and `error` (load, start, token and component failures, including the ones that reject `ready`). Returns a function that removes the listener; other event names are ignored |
+| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly` or `locale`. Updates made before the component list loads are kept |
+| `emit(event, data)` | Waits for `ready`, then resolves with the result of the component's first `on` handler for the event, or rejects with its error |
+| `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
+
+Props and event data must be structured-cloneable. Props that cannot be cloned fire `error`, and at mount they also reject `ready`; event data that cannot be cloned rejects that `emit` call.
+
+Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries. Without `getToken` the frame gets no token, and `props.fetch` sends requests without a token header.
+
+The frame lives in a body-level layer positioned over the target element, so styles on the target's ancestors (`transform`, `filter`, `overflow`) cannot break a modal the component opens. The layer mirrors what the target's containers do to it instead: it takes their opacity and the z-index of the outermost positioned ancestor that has one (so a component inside a fixed modal shows above the modal), is clipped to the visible part of scrolling ancestors, and hides while the target is `visibility: hidden`. The target's height follows the component's content.
+
+Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
 
 ## API reference
 
