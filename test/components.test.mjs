@@ -104,6 +104,11 @@ test('layer is fixed in viewport coordinates inside a fixed container, absolute 
   outer.style.transform = 'translateZ(0)';
   await animationFrame(win);
   assert.deepEqual([element.style.position, element.style.top], ['absolute', '600px']);
+  // So does a transform on the body, which also holds the layer
+  outer.style.transform = '';
+  win.document.body.style.transform = 'translateZ(0)';
+  await animationFrame(win);
+  assert.deepEqual([element.style.position, element.style.top], ['absolute', '600px']);
 });
 
 test('overlay covers the viewport, locks page scroll and reports placeholder moves', async (t) => {

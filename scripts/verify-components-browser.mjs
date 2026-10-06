@@ -113,6 +113,19 @@ const scrollerPage = ({ scroller, top, bottom }) => `<!doctype html>
 </script>
 </body></html>`;
 
+// A transformed body is the containing block of fixed elements: the fixed modal scrolls with the page
+const TRANSFORMED_PAGE = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Transformed host</title></head>
+<body style="margin:0;transform:translateZ(0)"><div style="height:3000px">page</div>
+<div id="modal" style="position:fixed;top:50px;left:50px;width:600px;height:400px;z-index:99999;background:#fff"><div id="slot"></div></div>
+<script type="module">
+  import { createComponents } from '/dist/components.js';
+  const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
+  await components.mount('#slot', { app: 'demo', component: 'Two' }).ready;
+  window.mounted = true;
+</script>
+</body></html>`;
+
 const SHELL_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"></head>
 <body><div id="root"></div>
@@ -187,6 +200,7 @@ const hostServer = createServer(async (req, res) => {
   if (pathname === '/') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(HOST_PAGE);
   if (pathname === '/focus') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(FOCUS_PAGE);
   if (pathname === '/modal') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(MODAL_PAGE);
+  if (pathname === '/transformed') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(TRANSFORMED_PAGE);
   if (pathname === '/scroller') {
     const variant = SCROLLER_VARIANTS[new URL(req.url, 'http://host').searchParams.get('variant') ?? 'plain'];
     return variant ? res.writeHead(200, { 'Content-Type': 'text/html' }).end(scrollerPage(variant)) : res.writeHead(404).end();
@@ -491,6 +505,25 @@ async function scrollerCases() {
       await page.keyboard.press(S);
       await waitForFocus(page, name => name === 'iframe0:y', 'scroller: Shift+Tab into the component');
       await waitUntilShown(page, 'scroller: Shift+Tab into the component');
+    } finally {
+      await page.close();
+    }
+  });
+  // Under a transformed body the layer stays over the placeholder when the page scrolls
+  await attempt(async () => {
+    const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    page.on('pageerror', error => pageErrors.push(error));
+    try {
+      await page.goto(`${hostOrigin}/transformed`);
+      await page.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
+      const offsets = [];
+      for (const y of [0, 500]) {
+        await page.evaluate(to => scrollTo(0, to), y);
+        await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
+        const off = await page.evaluate(() => document.querySelector('[data-swell-component-layer]').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top);
+        if (Math.abs(off) >= 1) offsets.push(`scrolled ${y}px: the layer is ${Math.round(off)}px off`);
+      }
+      assert.deepEqual(offsets, [], `transformed body: ${offsets.join('; ')}`);
     } finally {
       await page.close();
     }
