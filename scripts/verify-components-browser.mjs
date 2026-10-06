@@ -54,7 +54,7 @@ const MODAL_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
-// Components in a row between two host inputs; ?slots=A,B picks them, ?post=0 drops the last input.
+// Components in a row between two host inputs; ?slots=A,B picks them, ?pre=0 and ?post=0 drop the inputs.
 const FOCUS_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Focus host</title></head>
 <body style="margin:0">
@@ -64,6 +64,11 @@ const FOCUS_PAGE = `<!doctype html>
   const query = new URLSearchParams(location.search);
   const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
   if (query.get('pre') !== '0') document.body.insertAdjacentHTML('afterbegin', '<input id="pre">');
+  // ?shadow=1: two neighbours on each side whose inputs sit in open shadow roots
+  if (query.get('shadow') === '1') {
+    customElements.define('x-in', class extends HTMLElement { constructor() { super(); this.attachShadow({ mode: 'open' }).innerHTML = '<input id="i">'; } });
+    document.body.insertAdjacentHTML('afterbegin', '<x-in id="a1"></x-in><x-in id="a2"></x-in>');
+  }
   const handles = [];
   for (const name of query.get('slots').split(',')) {
     const slot = document.createElement('div');
@@ -71,6 +76,7 @@ const FOCUS_PAGE = `<!doctype html>
     handles.push(components.mount(slot, { app: 'demo', component: name }));
   }
   if (query.get('post') !== '0') document.body.insertAdjacentHTML('beforeend', '<input id="post">');
+  if (query.get('shadow') === '1') document.body.insertAdjacentHTML('beforeend', '<x-in id="b1"></x-in><x-in id="b2"></x-in>');
   await Promise.all(handles.map(handle => handle.ready));
   window.mounted = true;
 </script>
@@ -187,7 +193,8 @@ const frameServer = createServer(async (req, res) => {
   res.writeHead(404).end();
 });
 
-// Real Tab and Shift+Tab, one browser page at a time. Focus is named as: a host element id, or iframeN:<element>
+// Real Tab and Shift+Tab, one browser page at a time. Focus is named as: a host element id (host#inner inside its
+// open shadow root), or iframeN:<element>
 // where <element> is an id in the component frame, card>num inside a nested frame, host#inner inside a shadow root,
 // GUARD-prev / GUARD-next for the frame's own focus guards, BODY when nothing has focus.
 const T = 'Tab';
@@ -212,6 +219,8 @@ const FOCUS_CASES = [
   ['Shift+Tab right after a closed shadow entry leaves before the component', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [S, 'pre']]],
   ['Tab right after a closed shadow entry from below leaves after the component', 'slots=Closed', '#post', [[S, 'iframe0:GUARD-next'], [T, 'post']]],
   ['a delegatesFocus host without tabindex', 'slots=Delegates', '#pre', [[T, 'iframe0:dl#d1'], [T, 'iframe0:dl#d2'], [T, 'post'], [S, 'iframe0:dl#d2'], [S, 'iframe0:dl#d1'], [S, 'pre']]],
+  ['neighbours in open shadow roots', 'slots=Two&shadow=1', '#post', [[S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre'], [S, 'a2#i'], [T, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'post'], [T, 'b1#i']]],
+  ['neighbours in open shadow roots, with no light-DOM neighbours', 'slots=Two&shadow=1&pre=0&post=0', '#a2 #i', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'b1#i'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'a2#i']]],
   ['a radio group is one stop, the checked radio', 'slots=Radio', '#post', [[S, 'iframe0:r1'], [S, 'iframe0:x'], [S, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:r1'], [T, 'post']]],
   ['a dialog that wraps Tab keeps focus inside', 'slots=Dialog', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:d1'], [T, 'iframe0:d2'], [T, 'iframe0:d1'], [S, 'iframe0:d2']]],
 ];
@@ -285,7 +294,7 @@ async function whereIs(page) {
   const active = await page.evaluateHandle(() => document.activeElement);
   const element = active.asElement();
   const index = await page.evaluate(el => (el.tagName === 'IFRAME' ? [...document.querySelectorAll('iframe')].indexOf(el) : -1), element);
-  if (index < 0) return page.evaluate(el => el.id || el.tagName, element);
+  if (index < 0) return page.evaluate(el => (el.shadowRoot?.activeElement ? `${el.id}#${el.shadowRoot.activeElement.id}` : el.id || el.tagName), element);
   const owner = await element.contentFrame();
   if (!owner) return `iframe${index}:?`;
   return `iframe${index}:${await owner.evaluate(() => {

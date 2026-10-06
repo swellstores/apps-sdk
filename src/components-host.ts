@@ -171,8 +171,11 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   function leaveFrame(direction: 'next' | 'previous') {
     const document = placeholder.ownerDocument;
     if (overlayOn || document.activeElement !== layer.iframe) return;
-    const side = direction === 'next' ? sentinel.DOCUMENT_POSITION_FOLLOWING : sentinel.DOCUMENT_POSITION_PRECEDING;
-    const candidates = tabbableIn(document).filter(item => item !== sentinel && !placeholder.contains(item) && sentinel.compareDocumentPosition(item) & side);
+    // Composed order, by index: compareDocumentPosition cannot order controls in shadow roots against the sentinel
+    const stops = tabbableIn(document);
+    const at = stops.indexOf(sentinel);
+    if (at < 0) return layer.iframe.blur();
+    const candidates = (direction === 'next' ? stops.slice(at + 1) : stops.slice(0, at)).filter(item => !placeholder.contains(item));
     const target = candidates[direction === 'next' ? 0 : candidates.length - 1];
     if (!target) return layer.iframe.blur();
     // A neighbouring component's sentinel reads this to focus the edge we came from
