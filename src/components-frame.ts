@@ -74,7 +74,14 @@ export function startComponentFrame(options: FrameOptions): void {
 
   // Created once, so the component gets the same functions on every render
   const callbacks = {
-    setValue: (value: unknown) => post({ type: 'change', value }),
+    // The component sees its own value at once; hosts only send values that change elsewhere
+    setValue: (value: unknown) => {
+      if (props) {
+        props = { ...props, value };
+        if (module) Promise.resolve(module.update(target, componentProps())).catch(fail);
+      }
+      post({ type: 'change', value });
+    },
     setValidity: (error: string | null) => post({ type: 'validity', error: typeof error === 'string' ? error : null }),
     fetch: fetchWithToken,
     on(event: string, handler: (data: unknown) => unknown) {

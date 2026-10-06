@@ -1071,6 +1071,22 @@ test('component props send values and validity to the host', async (t) => {
     [['change', 'blue'], ['validity', 'Required'], ['validity', null]]);
 });
 
+test('setValue re-renders the component with its own value before the host answers', async (t) => {
+  const { calls, send, posted, root } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  calls[0][1].setValue('blue');
+  await tick();
+  const [name, props] = calls.at(-1);
+  assert.deepEqual([name, props.value, props.context], ['update', 'blue', { id: 'r1' }]);
+  assert.equal(root().textContent, 'blue');
+  assert.deepEqual(posted.filter(({ message }) => message.type === 'change').map(({ message }) => message.value), ['blue']);
+  // A value the host sends later, for example after rejecting this one, wins
+  send({ type: 'update', props: { value: 'red' } });
+  await tick();
+  assert.equal(root().textContent, 'red');
+});
+
 test('updates re-render with merged props and a repeated init does not mount twice', async (t) => {
   const { calls, send, root } = startFrame(t);
   send({ type: 'init', props: HOST_PROPS, token: null });
