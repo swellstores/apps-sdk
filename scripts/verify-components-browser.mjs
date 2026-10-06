@@ -216,6 +216,33 @@ try {
   assert.ok(clipped.visible.left >= clipped.modal.left - 0.5 && clipped.visible.right <= clipped.modal.right + 0.5, `layer paints outside the modal: ${JSON.stringify(clipped)}`);
   assert.deepEqual([clipped.above, clipped.inside], [false, true]);
 
+  // The component sits partly under the sticky header, which stays on top of it.
+  await modalPage.evaluate(() => {
+    const modal = document.querySelector('#modal');
+    const slot = document.querySelector('#slot');
+    const header = document.createElement('div');
+    header.id = 'bar';
+    header.setAttribute('data-swell-component-occluder', '');
+    header.style.cssText = 'position:sticky;top:0;height:60px;background:#ccc';
+    modal.prepend(header);
+    const bar = header.getBoundingClientRect();
+    modal.scrollTop += slot.getBoundingClientRect().top - bar.bottom + 10;
+  });
+  await modalPage.waitForFunction(() => {
+    const bar = document.querySelector('#bar').getBoundingClientRect();
+    return Math.abs(document.querySelector('iframe').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top) < 1
+      && document.querySelector('#slot').getBoundingClientRect().top < bar.bottom - 5;
+  });
+  const bar = await modalPage.evaluate(() => {
+    const iframe = document.querySelector('iframe');
+    const header = document.querySelector('#bar').getBoundingClientRect();
+    const slot = document.querySelector('#slot').getBoundingClientRect();
+    const x = header.left + header.width / 2;
+    const at = y => document.elementFromPoint(x, y);
+    return { onHeader: at(header.bottom - 3) === document.querySelector('#bar'), onFrame: at(header.bottom + 3) === iframe, slotTop: slot.top, headerBottom: header.bottom };
+  });
+  assert.deepEqual([bar.onHeader, bar.onFrame], [true, true], `the sticky header does not stay above the component: ${JSON.stringify(bar)}`);
+
   assert.deepEqual(pageErrors, []);
 } finally {
   await browser.close();

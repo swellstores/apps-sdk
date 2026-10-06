@@ -180,6 +180,14 @@ Hosts that have their own session, like the Swell admin, pass `getToken: (app) =
 
 The frame lives in a body-level layer positioned over the target element, so styles on the target's ancestors (`transform`, `filter`, `overflow`) cannot break a modal the component opens. The layer mirrors what the target's containers do to it instead: it takes their opacity and the z-index of the outermost positioned ancestor that has one (so a component inside a fixed modal shows above the modal), is clipped to the visible part of scrolling ancestors, and hides while the target is `visibility: hidden`. The target's height follows the component's content.
 
+Bars that cover scrolling content, such as a modal's sticky header or action bar, would otherwise be painted over by the layer. Mark them with `data-swell-component-occluder`:
+
+```html
+<div class="modal-header" data-swell-component-occluder>…</div>
+```
+
+The layer is clipped where such a bar overlaps the top or bottom edge of the target. Only bars in the same stacking context as the target count: descendants of the element whose z-index the layer takes, or of `body` when no ancestor has one. Hidden bars and bars beside the target are ignored.
+
 Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
 
 ## API reference

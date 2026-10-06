@@ -181,6 +181,65 @@ test('layer is clipped by an ancestor with a transform around a fixed placeholde
   assert.equal(element.style.clipPath, 'inset(0px 220px 0px 0px)');
 });
 
+function occluder(win, parent, rect) {
+  const bar = win.document.createElement('div');
+  bar.setAttribute('data-swell-component-occluder', '');
+  bar.style.position = 'sticky';
+  bar.getBoundingClientRect = () => ({ left: 0, right: 1000, ...rect });
+  parent.appendChild(bar);
+  return bar;
+}
+
+test('layer is clipped below a sticky header marked as an occluder', async (t) => {
+  const { win, outer, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  // Placeholder box: top 100, right 320, bottom 200, left 20
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
+  const header = occluder(win, outer, { top: 80, bottom: 120 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(20px 0px 0px 0px)');
+  assert.equal(element.style.visibility, 'visible');
+  header.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 80, bottom: 150 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(50px 0px 0px 0px)');
+  header.remove();
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'none');
+});
+
+test('layer is clipped above a sticky footer marked as an occluder', async (t) => {
+  const { win, outer, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
+  occluder(win, outer, { top: 170, bottom: 400 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(0px 0px 30px 0px)');
+});
+
+test('layer ignores occluders outside the stacking context it joins', async (t) => {
+  const { win, outer, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  const pageHeader = occluder(win, win.document.body, { top: 0, bottom: 150 });
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'none');
+  // Without a z-index anywhere the layer joins the page's stacking context
+  outer.style.zIndex = '';
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(50px 0px 0px 0px)');
+  pageHeader.remove();
+});
+
+test('layer ignores hidden occluders and occluders beside it', async (t) => {
+  const { win, outer, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
+  occluder(win, outer, { top: 0, bottom: 0 });
+  occluder(win, outer, { top: 80, bottom: 150, left: 400, right: 900 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'none');
+});
+
 test('layer mirrors an inherited visibility: hidden', async (t) => {
   const { win, outer, element } = layerSetup(t);
   assert.equal(element.style.visibility, 'visible');

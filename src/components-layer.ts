@@ -8,6 +8,7 @@ export interface FrameLayer {
   destroy(): void;
 }
 
+const OCCLUDER = '[data-swell-component-occluder]';
 const TOP_LAYER = '2147483647';
 const POSITIONED = /^(?:relative|absolute|fixed|sticky)$/;
 const CLIPS = /^(?:hidden|scroll|auto|clip)$/;
@@ -73,6 +74,7 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
     const bottom = top + height;
     let opacity = 1;
     let zIndex = '1';
+    let stackingRoot: HTMLElement = document.body;
     let hidden = width <= 0;
     let clipTop = -Infinity;
     let clipRight = Infinity;
@@ -84,7 +86,10 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
       const style = window.getComputedStyle(node);
       opacity *= Number(style.opacity || 1);
       // The outermost one wins. The layer comes later in the DOM, so an equal z-index paints above it.
-      if (POSITIONED.test(style.position) && /^-?\d+$/.test(style.zIndex)) zIndex = style.zIndex;
+      if (POSITIONED.test(style.position) && /^-?\d+$/.test(style.zIndex)) {
+        zIndex = style.zIndex;
+        stackingRoot = node;
+      }
       let ends = false;
       let clips = false;
       if (node === placeholder) {
@@ -108,6 +113,16 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
       }
       if (ends) escape = 'flow';
       if (escape === 'flow') escape = style.position === 'absolute' ? 'absolute' : style.position === 'fixed' ? 'fixed' : 'flow';
+    }
+    // Host bars (sticky headers, footers) in the same stacking context paint over the placeholder's content, but not over the layer
+    const bars = stackingRoot.querySelectorAll<HTMLElement>(OCCLUDER);
+    for (let index = 0; index < bars.length; index++) {
+      const bar = bars[index];
+      if (bar.contains(placeholder) || placeholder.contains(bar)) continue;
+      const box = bar.getBoundingClientRect();
+      if (box.right <= box.left || box.bottom <= box.top || box.left >= right || box.right <= left) continue;
+      if ((box.top + box.bottom) / 2 < top || (box.top < top && box.bottom > top)) clipTop = Math.max(clipTop, box.bottom);
+      else if (box.top < bottom && box.bottom > bottom) clipBottom = Math.min(clipBottom, box.top);
     }
     hidden ||= clipTop >= bottom || clipBottom <= top || clipLeft >= right || clipRight <= left;
     const insets = [clipTop - top, right - clipRight, bottom - clipBottom, clipLeft - left].map(inset => Math.max(0, inset));
