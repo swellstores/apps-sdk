@@ -14,6 +14,16 @@ const CLIPS = /^(?:hidden|scroll|auto|clip)$/;
 // overflow does not apply to these boxes, and display: contents has no rect to clip to
 const NO_CLIP_BOX = /^(?:inline|contents)$/;
 
+const isSet = (value: string | undefined) => !!value && value !== 'none';
+
+// Ancestors that become the containing block of fixed descendants (computed values missing in the environment count as unset)
+function makesFixedBlock(style: CSSStyleDeclaration): boolean {
+  return isSet(style.transform) || isSet(style.filter) || isSet(style.perspective) ||
+    /\b(?:paint|layout|strict|content)\b/.test(style.contain || '') ||
+    /\b(?:transform|filter|perspective)\b/.test(style.willChange || '') ||
+    isSet(style.getPropertyValue('backdrop-filter'));
+}
+
 function rectOf(element: HTMLElement): Rect {
   const { top, left, width } = element.getBoundingClientRect();
   return { top, left, width };
@@ -68,17 +78,23 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
     let clipRight = Infinity;
     let clipBottom = Infinity;
     let clipLeft = -Infinity;
+    // 'flow': ancestors clip as usual; 'absolute' / 'fixed': skipped until the containing block of the box below
+    let escape: 'flow' | 'absolute' | 'fixed' = 'flow';
     for (let node: HTMLElement | null = placeholder; node && node !== document.body; node = node.parentElement) {
       const style = window.getComputedStyle(node);
       opacity *= Number(style.opacity || 1);
       // The outermost one wins. The layer comes later in the DOM, so an equal z-index paints above it.
       if (POSITIONED.test(style.position) && /^-?\d+$/.test(style.zIndex)) zIndex = style.zIndex;
+      let ends = false;
+      let clips = false;
       if (node === placeholder) {
         hidden ||= style.visibility === 'hidden' || style.visibility === 'collapse';
-        continue;
+      } else {
+        ends = escape === 'absolute' ? POSITIONED.test(style.position) || makesFixedBlock(style) : escape === 'fixed' && makesFixedBlock(style);
+        clips = escape === 'flow' || ends;
       }
-      const clipX = CLIPS.test(style.overflowX);
-      const clipY = CLIPS.test(style.overflowY);
+      const clipX = clips && CLIPS.test(style.overflowX);
+      const clipY = clips && CLIPS.test(style.overflowY);
       if ((clipX || clipY) && !NO_CLIP_BOX.test(style.display)) {
         const box = node.getBoundingClientRect();
         if (clipX) {
@@ -90,6 +106,8 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
           clipBottom = Math.min(clipBottom, box.bottom);
         }
       }
+      if (ends) escape = 'flow';
+      if (escape === 'flow') escape = style.position === 'absolute' ? 'absolute' : style.position === 'fixed' ? 'fixed' : 'flow';
     }
     hidden ||= clipTop >= bottom || clipBottom <= top || clipLeft >= right || clipRight <= left;
     const insets = [clipTop - top, right - clipRight, bottom - clipBottom, clipLeft - left].map(inset => Math.max(0, inset));

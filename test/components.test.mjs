@@ -130,6 +130,57 @@ test('layer is clipped to the visible part of scrolling ancestors and hidden whe
   assert.deepEqual([element.style.clipPath, element.style.visibility], ['inset(0px 20px 100px 30px)', 'hidden']);
 });
 
+test('layer is not clipped by overflow that does not clip a fixed placeholder ancestor', async (t) => {
+  const { win, outer, wrapper, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  // wrapper is a fixed panel inside the overflow: hidden column
+  Object.assign(outer.style, { overflowX: 'hidden', overflowY: 'hidden' });
+  outer.getBoundingClientRect = () => ({ top: 0, right: 50, bottom: 1000, left: 0 });
+  wrapper.style.position = 'fixed';
+  await animationFrame(win);
+  assert.deepEqual([element.style.clipPath, element.style.visibility], ['none', 'visible']);
+  wrapper.style.position = 'static';
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(0px 270px 0px 0px)');
+});
+
+test('layer is clipped by an absolute ancestor chain only from its containing block up', async (t) => {
+  const { win, outer, wrapper, placeholder, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  const box = win.document.createElement('div');
+  wrapper.removeChild(placeholder);
+  box.appendChild(placeholder);
+  wrapper.appendChild(box);
+  // box (absolute) > wrapper (static, overflow hidden) > outer (relative, overflow hidden)
+  box.style.position = 'absolute';
+  Object.assign(wrapper.style, { overflowX: 'hidden', overflowY: 'hidden' });
+  wrapper.getBoundingClientRect = () => ({ top: 0, right: 40, bottom: 1000, left: 0 });
+  Object.assign(outer.style, { position: 'relative', overflowX: 'hidden', overflowY: 'hidden' });
+  outer.getBoundingClientRect = () => ({ top: 0, right: 100, bottom: 1000, left: 0 });
+  await animationFrame(win);
+  // Placeholder box: left 20, right 320; only outer (right 100) clips
+  assert.deepEqual([element.style.clipPath, element.style.visibility], ['inset(0px 220px 0px 0px)', 'visible']);
+  outer.style.position = 'static';
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'none');
+});
+
+test('layer is clipped by an ancestor with a transform around a fixed placeholder ancestor', async (t) => {
+  const { win, outer, wrapper, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  const column = win.document.createElement('div');
+  outer.removeChild(wrapper);
+  column.appendChild(wrapper);
+  outer.appendChild(column);
+  wrapper.style.position = 'fixed';
+  Object.assign(outer.style, { overflowX: 'hidden', overflowY: 'hidden' });
+  outer.getBoundingClientRect = () => ({ top: 0, right: 1000, bottom: 1000, left: 0 });
+  Object.assign(column.style, { overflowX: 'hidden', overflowY: 'hidden', transform: 'translateZ(0)' });
+  column.getBoundingClientRect = () => ({ top: 0, right: 100, bottom: 1000, left: 0 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(0px 220px 0px 0px)');
+});
+
 test('layer mirrors an inherited visibility: hidden', async (t) => {
   const { win, outer, element } = layerSetup(t);
   assert.equal(element.style.visibility, 'visible');
