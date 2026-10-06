@@ -220,14 +220,14 @@ export function startComponentFrame(options: FrameOptions): void {
     element.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:0;overflow:hidden;outline:none';
     element.addEventListener('focus', () => {
       if (moving) return;
-      if (awaitingEntry) {
-        // Tab came before the host's focus message: enter at this guard's own edge
-        enter(direction === 'previous' ? 'first' : 'last');
-      } else if (overlay) {
-        // The frame covers the viewport: keep focus inside the element that covers it
+      if (overlay) {
+        // The frame covers the viewport: keep focus inside the element that covers it, never on the root under it
         const stops = tabbableIn(blocker ?? document.body);
         const stop = stops[direction === 'previous' ? stops.length - 1 : 0];
         if (stop) focusQuietly(stop);
+      } else if (awaitingEntry) {
+        // Tab came before the host's focus message: enter at this guard's own edge
+        enter(direction === 'previous' ? 'first' : 'last');
       } else {
         post({ type: 'focus-exit', direction });
       }
@@ -267,19 +267,25 @@ export function startComponentFrame(options: FrameOptions): void {
       focusQuietly(guards[edge === 'first' ? 'previous' : 'next']);
     } else post({ type: 'focus-exit', direction: edge === 'last' ? 'previous' : 'next' });
   }
-  // Entry is pending when the frame gains focus with nothing focused in it, unless it was left from inside the root:
-  // focus comes back from a nested iframe with nothing focused too, and must not enter again.
-  let leftFromRoot = false;
+  // Entry is pending when the frame gains focus with nothing focused in it, unless focus went into a nested frame
+  // (in the root or in an overlay modal, such as a 3DS challenge): it comes back from there with nothing focused
+  // too, and must not enter again. A pointer press gives the frame focus as well, after pointerdown: no entry either.
+  let intoFrame = false;
+  let pressed = false;
   win.addEventListener('blur', () => {
-    leftFromRoot = target.contains(document.activeElement);
+    let active = document.activeElement;
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+    intoFrame = active?.localName === 'iframe';
+    pressed = false;
   });
   win.addEventListener('focus', () => {
     const none = !document.activeElement || document.activeElement === document.body;
-    awaitingEntry = none && !leftFromRoot;
-    leftFromRoot = false;
+    awaitingEntry = none && !intoFrame && !pressed;
+    intoFrame = pressed = false;
   });
   document.addEventListener('pointerdown', () => {
     awaitingEntry = false;
+    pressed = true;
   }, true);
   document.addEventListener('focusin', (event) => {
     if (event.target instanceof win.Element && !event.target.hasAttribute('data-swell-focus-guard')) awaitingEntry = false;

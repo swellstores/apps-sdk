@@ -116,8 +116,10 @@ export function unmount(root) { root.innerHTML = ''; }
 const mod = (html, extra = '') => `export function mount(root) { root.innerHTML = ${JSON.stringify(html)}; ${extra} } export function update() {} export function unmount(root) { root.innerHTML = ''; }`;
 const define = (tag, mode, html, options = '') => `if (!customElements.get('${tag}')) customElements.define('${tag}', class extends HTMLElement { constructor() { super(); const shadow = this.attachShadow({ mode: '${mode}'${options} }); shadow.innerHTML = '${html}'; if ('${mode}' === 'closed') window.__closed = shadow; } });`;
 // A body-level modal without a focus trap of its own, like an SDK's popup
-const OPEN_MODAL = `window.openModal = () => { const modal = document.createElement('div'); modal.id = 'overlay'; Object.assign(modal.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.5)' }); modal.innerHTML = '<button id="m1">One</button><button id="m2">Two</button>'; document.body.appendChild(modal); modal.querySelector('#m1').focus(); };`;
+const openModal = html => `window.openModal = () => { const modal = document.createElement('div'); modal.id = 'overlay'; Object.assign(modal.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.5)' }); modal.innerHTML = ${JSON.stringify(html)}; document.body.appendChild(modal); modal.querySelector('#m1').focus(); };`;
 const NESTED = '<iframe id="card" srcdoc="<input id=num>" style="height:40px"></iframe>';
+// A 3DS challenge: the payment SDK's modal holds the bank's page in a nested frame
+const TDS = '<iframe id="tds" srcdoc="<input id=otp>" style="height:40px"></iframe>';
 const FOCUS_BUNDLES = {
   Two: mod('<input id="x"><input id="y">'),
   RovingLast: mod('<button id="t0" tabindex="-1">t0</button><input id="x"><button id="t1">t1</button><button id="t2" tabindex="-1">t2</button>'),
@@ -128,7 +130,10 @@ const FOCUS_BUNDLES = {
   Shadow: mod('<x-field id="sh"></x-field>', define('x-field', 'open', '<input id=s1><input id=s2>')),
   Closed: mod('<x-closed id="cl"></x-closed>', define('x-closed', 'closed', '<input id=c1><input id=c2>')),
   Delegates: mod('<x-del id="dl"></x-del>', define('x-del', 'open', '<input id=d1><input id=d2>', ', delegatesFocus: true')),
-  Modal: mod('<input id="x">', OPEN_MODAL),
+  Modal: mod('<input id="x">', openModal('<button id="m1">One</button><button id="m2">Two</button>')),
+  Modal3ds: mod('<input id="x">', openModal(`${TDS}<button id="m1">Cancel</button>`)),
+  Modal3dsLast: mod('<input id="x">', openModal(`<button id="m1">Cancel</button>${TDS}`)),
+  Label: mod('<p id="label">Card number</p><input id="x">'),
   Dialog: mod('<input id="x"><div id="dlg"><button id="d1">1</button><button id="d2">2</button></div>', `const dialog = root.querySelector('#dlg'); dialog.addEventListener('keydown', (event) => { if (event.key !== 'Tab') return; if (!event.shiftKey && event.target.id === 'd2') { event.preventDefault(); dialog.querySelector('#d1').focus(); } if (event.shiftKey && event.target.id === 'd1') { event.preventDefault(); dialog.querySelector('#d2').focus(); } });`),
 };
 const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, ...FOCUS_BUNDLES };
@@ -175,9 +180,9 @@ const FOCUS_CASES = [
   ['two adjacent components', 'slots=Two,Two', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'iframe1:x'], [T, 'iframe1:y'], [T, 'post'], [S, 'iframe1:y'], [S, 'iframe1:x'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre']]],
   ['tabindex -1 controls are skipped', 'slots=RovingLast', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:t1'], [T, 'post'], [S, 'iframe0:t1'], [S, 'iframe0:x'], [S, 'pre']]],
   // Focusing a nested iframe puts focus on its document first (card>BODY); a following Tab reaches its input.
-  ['a nested iframe as the only control', 'slots=NestedOnly', '#pre', [[T, 'post', { via: 'iframe0:card>num' }], [S, 'pre', {}]]],
-  ['a nested iframe as the first control', 'slots=NestedFirst', '#pre', [[T, 'post', { via: 'iframe0:card>num' }], [S, 'pre', { via: 'iframe0:x' }]]],
-  ['a nested iframe as the last control', 'slots=NestedLast', '#pre', [[T, 'post', { via: 'iframe0:card>num' }], [S, 'pre', { via: 'iframe0:x' }]]],
+  ['a nested iframe as the only control', 'slots=NestedOnly', '#pre', [[T, 'post', { via: ['iframe0:card>num'] }], [S, 'pre', { via: ['iframe0:card>num'] }]]],
+  ['a nested iframe as the first control', 'slots=NestedFirst', '#pre', [[T, 'post', { via: ['iframe0:card>num', 'iframe0:x'] }], [S, 'pre', { via: ['iframe0:x', 'iframe0:card>num'] }]]],
+  ['a nested iframe as the last control', 'slots=NestedLast', '#pre', [[T, 'post', { via: ['iframe0:x', 'iframe0:card>num'] }], [S, 'pre', { via: ['iframe0:card>num', 'iframe0:x'] }]]],
   ['an open shadow root', 'slots=Shadow', '#pre', [[T, 'iframe0:sh#s1'], [T, 'iframe0:sh#s2'], [T, 'post'], [S, 'iframe0:sh#s2'], [S, 'iframe0:sh#s1'], [S, 'pre']]],
   ['a closed shadow root is entered through the guards', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [T, 'iframe0:cl#c1'], [T, 'iframe0:cl#c2'], [T, 'post'], [S, 'iframe0:GUARD-next'], [S, 'iframe0:cl#c2'], [S, 'iframe0:cl#c1'], [S, 'pre']]],
   ['Shift+Tab right after a closed shadow entry leaves before the component', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [S, 'pre']]],
@@ -197,22 +202,48 @@ async function focusCases() {
     }
   };
   for (const [name, query, start, steps, before] of FOCUS_CASES) await attempt(() => focusCase(name, query, start, steps, before));
-  await attempt(() => focusCase('a modal without a focus trap keeps Tab inside it', 'slots=Modal', null, [[T, 'iframe0:m2'], [T, 'iframe0:m1'], [T, 'iframe0:m2'], [S, 'iframe0:m1'], [S, 'iframe0:m2']], async (focusPage) => {
-    await focusPage.frames().find(item => item.url().startsWith(frameOrigin)).evaluate(() => openModal());
-    await focusPage.waitForFunction(() => getComputedStyle(document.querySelector('iframe').parentElement).position === 'fixed');
-  }, 'iframe0:m1'));
-  // Two Tabs with no pause between them end inside the component, not back on the field before it
+  await attempt(() => focusCase('a modal without a focus trap keeps Tab inside it', 'slots=Modal', null, [[T, 'iframe0:m2'], [T, 'iframe0:m1'], [T, 'iframe0:m2'], [S, 'iframe0:m1'], [S, 'iframe0:m2']], openComponentModal, 'iframe0:m1'));
+  // A 3DS modal: Tab and Shift+Tab cycle between its button and the bank's frame (Chromium stops on that frame's
+  // document first going forwards), never reaching the component's own field under the backdrop or the host page
+  const challenge = ['iframe0:m1', 'iframe0:tds>otp', 'iframe0:tds>BODY'];
+  const cycle = [T, S, S, T].map(key => [key, 'iframe0:m1', { via: ['iframe0:tds>otp'], only: challenge }]);
+  await attempt(() => focusCase('a modal with a nested frame first keeps Tab and Shift+Tab inside it', 'slots=Modal3ds', null, cycle, openComponentModal, 'iframe0:m1'));
+  await attempt(() => focusCase('a modal with a nested frame last keeps Tab and Shift+Tab inside it', 'slots=Modal3dsLast', null, cycle, openComponentModal, 'iframe0:m1'));
+  // The shopper clicks straight into the bank's field from the host page: the component frame itself never had focus
+  const clickChallenge = async (focusPage) => {
+    await openComponentModal(focusPage);
+    await focusPage.locator('#pre').focus();
+    await focusPage.frames().find(item => item.url().startsWith(frameOrigin)).frameLocator('#tds').locator('#otp').click();
+  };
+  await attempt(() => focusCase('Shift+Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3ds', null, [[S, 'iframe0:m1'], [S, 'iframe0:tds>otp']], clickChallenge, 'iframe0:tds>otp'));
+  await attempt(() => focusCase('Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3dsLast', null, [[T, 'iframe0:m1'], [T, 'iframe0:tds>otp']], clickChallenge, 'iframe0:tds>otp'));
+  // A click on text before the field, then Shift+Tab, leaves the component: the click is no Tab entry
+  await attempt(() => focusCase('Shift+Tab after a click on text before the field leaves the component', 'slots=Label', null, [[S, 'pre']], async (focusPage) => {
+    await focusPage.frames().find(item => item.url().startsWith(frameOrigin)).locator('#label').click();
+  }, 'iframe0:BODY'));
+  // Two Tabs with no pause between them end inside the component on a field, not on a guard or back before it
   await attempt(async () => {
     const page = await openFocusPage('slots=Two', '#pre');
     try {
+      const field = name => name === 'iframe0:x' || name === 'iframe0:y';
       await page.keyboard.press(T);
       await page.keyboard.press(T);
-      await waitForFocus(page, name => name.startsWith('iframe0:'), 'two fast Tabs');
+      await waitForFocus(page, field, 'two fast Tabs');
+      await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(true), 200))));
+      await waitForFocus(page, field, 'two fast Tabs, settled');
     } finally {
       await page.close();
     }
   });
   assert.deepEqual(failures, [], `focus order failures:\n${failures.join('\n')}`);
+}
+
+// Opens the component's modal (focus goes to its #m1) and waits for overlay and for any nested frame in it to load
+async function openComponentModal(focusPage) {
+  const frame = focusPage.frames().find(item => item.url().startsWith(frameOrigin));
+  await frame.evaluate(() => openModal());
+  await focusPage.waitForFunction(() => getComputedStyle(document.querySelector('iframe').parentElement).position === 'fixed');
+  await frame.waitForFunction(() => [...document.querySelectorAll('#overlay iframe')].every(nested => nested.contentDocument?.querySelector('input')));
 }
 
 async function openFocusPage(query, start) {
@@ -261,14 +292,19 @@ async function focusCase(name, query, start, steps, before, initial) {
     const seen = [];
     for (const [key, expected, walk] of steps) {
       if (walk) {
-        // Press until the target is reached; no stop may repeat (a trap) and the control in `via` must be visited on the way
+        // Press until the target is reached; no stop may repeat (a trap), the controls in `via` must be visited on the way
+        // in that order, and with `only` no other stop may be visited
         const path = [];
         for (let press = 0; press < 5 && path.at(-1) !== expected; press++) {
           await page.keyboard.press(key);
           await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(true), 50))));
           path.push(await whereIs(page));
         }
-        assert.ok(path.at(-1) === expected && new Set(path).size === path.length && (!walk.via || path.includes(walk.via)), `${name}: ${key} path ${path.join(' > ')} should visit ${walk.via ?? 'anything'} and reach ${expected}`);
+        const via = walk.via ?? [];
+        const order = via.map(stop => path.indexOf(stop));
+        const visited = order.every((index, at) => index >= 0 && (at === 0 || index > order[at - 1]));
+        const inside = !walk.only || path.every(stop => walk.only.includes(stop));
+        assert.ok(path.at(-1) === expected && new Set(path).size === path.length && visited && inside, `${name}: ${key} path ${path.join(' > ')} should visit ${via.join(', ') || 'anything'}${walk.only ? ` within ${walk.only.join(', ')}` : ''} and reach ${expected}`);
         seen.push(...path);
         continue;
       }

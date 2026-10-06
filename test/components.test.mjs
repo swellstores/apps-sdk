@@ -633,7 +633,7 @@ test('mount reports missing containers and components, and retries failed app lo
   await flush();
   assert.equal(urls[0], 'https://shop.test/api/apps/my_app/components');
   assert.equal(urls.length, 2);
-  assert.ok(win.document.querySelector('iframe'));
+  assertNotSame(win.document.querySelector('iframe'), null, 'the component frame is mounted');
 });
 
 function gatedApp(t) {
@@ -1194,7 +1194,7 @@ test('focus guards around the root hand focus back to the host, except in overla
   guards[0].dispatchEvent(new win.FocusEvent('focus'));
   assert.deepEqual(focusExits(posted), ['next', 'previous']);
   send({ type: 'focus', edge: 'first' });
-  assert.equal(win.document.activeElement, root().querySelector('#a'));
+  assertSame(win.document.activeElement, root().querySelector('#a'));
   const modal = win.document.createElement('div');
   modal.style.position = 'fixed';
   modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
@@ -1336,18 +1336,70 @@ test('a delegatesFocus host without tabindex is entered through its shadow contr
   assert.equal(host.shadowRoot.activeElement?.id, 'd1');
 });
 
-test('focus coming back from inside the root, such as from a nested iframe, is not an entry', async (t) => {
-  const { win, send, posted, root } = focusFrame(t, '<input id="a"><input id="b">');
+test('focus coming back from a nested frame, in the root or outside it, is not an entry', async (t) => {
+  const { win, send, posted, root } = focusFrame(t, '<input id="a"><iframe id="card"></iframe>');
   send({ type: 'init', props: HOST_PROPS, token: null });
   await tick();
   const [, after] = win.document.querySelectorAll('[data-swell-focus-guard]');
-  root().querySelector('#b').focus();
+  const popup = win.document.createElement('div');
+  popup.innerHTML = '<iframe id="tds"></iframe>';
+  win.document.body.appendChild(popup);
+  // Chromium reports the window focus with nothing focused when focus comes back out of a nested frame
+  const returnFrom = (frame) => {
+    frame.focus();
+    win.dispatchEvent(new win.FocusEvent('blur'));
+    win.document.activeElement.blur();
+    win.dispatchEvent(new win.FocusEvent('focus'));
+    after.dispatchEvent(new win.FocusEvent('focus'));
+  };
+  returnFrom(root().querySelector('#card'));
+  assert.deepEqual(focusExits(posted), ['next']);
+  returnFrom(popup.querySelector('#tds'));
+  assert.deepEqual(focusExits(posted), ['next', 'next']);
+  assert.equal(root().contains(win.document.activeElement), false, 'focus stays out of the root');
+});
+
+test('a pointer press that gives the frame focus is no entry', async (t) => {
+  const { win, send, posted } = focusFrame(t, '<p id="label">Card</p><input id="a">');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const [before] = win.document.querySelectorAll('[data-swell-focus-guard]');
+  // Chromium fires pointerdown before the frame window's focus event
+  win.document.getElementById('label').dispatchEvent(new win.Event('pointerdown', { bubbles: true }));
+  win.dispatchEvent(new win.FocusEvent('focus'));
+  before.dispatchEvent(new win.FocusEvent('focus'));
+  assert.deepEqual(focusExits(posted), ['previous']);
+  assert.notEqual(win.document.activeElement?.id, 'a');
+  // Once focus has left, the next window focus can start an entry again
   win.dispatchEvent(new win.FocusEvent('blur'));
+  win.dispatchEvent(new win.FocusEvent('focus'));
+  before.dispatchEvent(new win.FocusEvent('focus'));
+  assert.equal(win.document.activeElement?.id, 'a');
+});
+
+test('in overlay a guard keeps focus in the modal even while an entry is pending', async (t) => {
+  const { win, send, posted, root } = focusFrame(t, '<input id="a">');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const [before, after] = win.document.querySelectorAll('[data-swell-focus-guard]');
+  const modal = win.document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.innerHTML = '<iframe id="tds"></iframe><button id="m1"></button>';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  assert.equal(win.document.documentElement.style.overflow, 'hidden', 'overlay is on');
+  // A click straight into the modal's nested frame never focused this window, so the return looks like an entry
+  win.dispatchEvent(new win.FocusEvent('focus'));
+  before.dispatchEvent(new win.FocusEvent('focus'));
+  assert.equal(win.document.activeElement?.id, 'm1');
   win.document.activeElement.blur();
   win.dispatchEvent(new win.FocusEvent('focus'));
   after.dispatchEvent(new win.FocusEvent('focus'));
-  assert.deepEqual(focusExits(posted), ['next']);
-  assert.notEqual(win.document.activeElement?.id, 'b');
+  assert.equal(win.document.activeElement?.id, 'tds');
+  assert.equal(root().contains(win.document.activeElement), false, 'focus stays out of the root');
+  assert.deepEqual(focusExits(posted), []);
 });
 
 test('a pointer press in the frame ends a pending entry', async (t) => {
