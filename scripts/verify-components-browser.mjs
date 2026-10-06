@@ -134,7 +134,17 @@ export function mount(root) {
 export function update() {}
 export function unmount(root) { root.innerHTML = ''; }
 `;
-const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, Pair: PAIR_BUNDLE, Dialog: DIALOG_BUNDLE };
+// Both controls live in an open shadow root
+const SHADOW_BUNDLE = `
+export function mount(root) {
+  const host = document.createElement('x-field');
+  host.attachShadow({ mode: 'open' }).innerHTML = '<input id="s1"><input id="s2">';
+  root.appendChild(host);
+}
+export function update() {}
+export function unmount(root) { root.innerHTML = ''; }
+`;
+const BUNDLES = { Shadow: SHADOW_BUNDLE, Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, Pair: PAIR_BUNDLE, Dialog: DIALOG_BUNDLE };
 
 let frameOrigin = '';
 const hostServer = createServer(async (req, res) => {
@@ -199,7 +209,7 @@ try {
     const active = await focusPage.evaluateHandle(() => document.activeElement);
     const owner = await active.asElement().contentFrame();
     if (!owner) return focusPage.evaluate(() => document.activeElement.id || document.activeElement.tagName);
-    return `frame:${await owner.evaluate(() => document.activeElement.id || document.activeElement.tagName)}`;
+    return `frame:${await owner.evaluate(() => (document.activeElement.shadowRoot?.activeElement ?? document.activeElement).id || document.activeElement.tagName)}`;
   };
   const tabTo = async (focusPage, key, expected) => {
     await focusPage.keyboard.press(key);
@@ -234,6 +244,12 @@ try {
   const row = await openFocusPage('slots=Echo,Pair');
   for (const [key, expected] of [['Tab', 'frame:value'], ['Tab', 'frame:modal'], ['Tab', 'frame:a'], ['Tab', 'post'], ['Shift+Tab', 'frame:a'], ['Shift+Tab', 'frame:modal'], ['Shift+Tab', 'frame:value'], ['Shift+Tab', 'pre']]) {
     await tabTo(row, key, expected);
+  }
+
+  // Controls inside an open shadow root are reached in both directions
+  const shadow = await openFocusPage('slots=Shadow');
+  for (const [key, expected] of [['Tab', 'frame:s1'], ['Tab', 'frame:s2'], ['Tab', 'post'], ['Shift+Tab', 'frame:s2'], ['Shift+Tab', 'frame:s1'], ['Shift+Tab', 'pre']]) {
+    await tabTo(shadow, key, expected);
   }
 
   // A component whose last control ends the page lets focus leave the frame instead of trapping it

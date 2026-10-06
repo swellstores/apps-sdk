@@ -191,29 +191,66 @@ export function startComponentFrame(options: FrameOptions): void {
       case 'rect':
         if (overlay) placeRoot(message.rect);
         return;
-      case 'focus': {
-        const stops = tabbableIn(target);
-        const stop = stops[message.edge === 'last' ? stops.length - 1 : 0];
-        if (stop) stop.focus();
-        else post({ type: 'focus-exit', direction: message.edge === 'last' ? 'previous' : 'next' });
+      case 'focus':
+        enter(message.edge);
         return;
-      }
     }
   }
 
   // Tab leaving the component continues in the host page: focus guards around the root catch it
+  let awaitingEntry = false;
+  // Set around our own focus() calls: the focus events they cause must not move focus again
+  let moving = false;
+  const focusQuietly = (element: HTMLElement) => {
+    const was = moving;
+    moving = true;
+    try {
+      element.focus();
+    } finally {
+      moving = was;
+    }
+  };
   const guard = (direction: 'next' | 'previous') => {
     const element = document.createElement('div');
     element.tabIndex = 0;
     element.setAttribute('data-swell-focus-guard', '');
     element.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:0;overflow:hidden;outline:none';
     element.addEventListener('focus', () => {
-      if (!overlay) post({ type: 'focus-exit', direction });
+      if (moving) return;
+      if (awaitingEntry) {
+        // Tab came before the host's focus message: enter at this guard's own edge
+        enter(direction === 'previous' ? 'first' : 'last');
+      } else if (overlay) {
+        // The frame covers the viewport: keep focus inside it
+        const stops = tabbableIn(document.body);
+        const stop = stops[direction === 'previous' ? stops.length - 1 : 0];
+        if (stop) focusQuietly(stop);
+      } else {
+        post({ type: 'focus-exit', direction });
+      }
     });
     return element;
   };
-  target.before(guard('previous'));
-  target.after(guard('next'));
+  const guards = { previous: guard('previous'), next: guard('next') };
+  target.before(guards.previous);
+  target.after(guards.next);
+
+  // Focus enters at an edge. A component whose controls we cannot see (closed shadow roots) is entered through the guard on that side.
+  function enter(edge: 'first' | 'last') {
+    awaitingEntry = false;
+    const stops = tabbableIn(target);
+    const stop = stops[edge === 'last' ? stops.length - 1 : 0];
+    if (stop) focusQuietly(stop);
+    else if (Array.from(target.querySelectorAll('*')).some(element => element.localName.includes('-'))) {
+      focusQuietly(guards[edge === 'first' ? 'previous' : 'next']);
+    } else post({ type: 'focus-exit', direction: edge === 'last' ? 'previous' : 'next' });
+  }
+  win.addEventListener('focus', () => {
+    awaitingEntry = true;
+  });
+  document.addEventListener('focusin', (event) => {
+    if (event.target instanceof win.Node && target.contains(event.target)) awaitingEntry = false;
+  });
 
   win.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== parent || event.origin !== parentOrigin) return;

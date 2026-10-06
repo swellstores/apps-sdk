@@ -119,17 +119,26 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   };
   const layer = createFrameLayer(placeholder, url.href, options.title ?? 'App component', rect => send({ type: 'rect', rect }));
 
-  // The frame sits at the end of the body, so Tab and screen readers meet a sentinel in the placeholder instead
+  // The frame sits at the end of the body, so the Tab order meets this sentinel where the field is and it forwards keyboard focus to the frame.
+  // Frame content is still read where the layer sits in the DOM.
   const sentinel = placeholder.ownerDocument.createElement('div');
   sentinel.tabIndex = 0;
   sentinel.setAttribute('role', 'group');
   sentinel.setAttribute('aria-label', options.title ?? 'App component');
   Object.assign(sentinel.style, { display: 'block', width: '0', height: '0', overflow: 'hidden', outline: 'none' });
   placeholder.appendChild(sentinel);
+  // Set while this component moves focus itself, so its own sentinel ignores the resulting events
+  let moving = false;
   sentinel.addEventListener('focus', (event) => {
+    if (moving) return;
     const from = (event as FocusEvent).relatedTarget as Node | null;
-    layer.iframe.focus();
     const edge = enteredFrom ?? (from && sentinel.compareDocumentPosition(from) & sentinel.DOCUMENT_POSITION_FOLLOWING ? 'last' : 'first');
+    moving = true;
+    try {
+      layer.iframe.focus();
+    } finally {
+      moving = false;
+    }
     send({ type: 'focus', edge });
   });
 
@@ -143,10 +152,12 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     if (!target) return layer.iframe.blur();
     // A neighbouring component's sentinel reads this to focus the edge we came from
     enteredFrom = direction === 'next' ? 'first' : 'last';
+    moving = true;
     try {
       target.focus();
     } finally {
       enteredFrom = null;
+      moving = false;
     }
   }
 
