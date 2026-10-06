@@ -46,6 +46,8 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
   const iframe = document.createElement('iframe');
   iframe.src = src;
   iframe.title = title;
+  // Focus reaches the frame through the sentinel in the placeholder, so the iframe is not a Tab stop itself
+  iframe.tabIndex = -1;
   iframe.setAttribute('allow', 'payment *; publickey-credentials-get *');
   Object.assign(iframe.style, { display: 'block', width: '100%', height: '100%', border: '0', background: 'transparent', colorScheme: 'normal' });
   layer.appendChild(iframe);

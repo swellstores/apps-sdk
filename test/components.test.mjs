@@ -702,6 +702,66 @@ test('createComponents requires a store and a public key', () => {
   assert.throws(() => createComponents({ publicKey: 'pk' }), /requires storeId and publicKey/);
 });
 
+// happy-dom has no layout, so every element counts as visible here.
+function focusFixture(t, options) {
+  const fixture = embed(t, options);
+  const { win, placeholder } = fixture;
+  const make = (tag, parent = win.document.body, before = null) => {
+    const element = win.document.createElement(tag);
+    parent.insertBefore(element, before);
+    return element;
+  };
+  const before = make('input', win.document.body, placeholder);
+  const after = make('button');
+  const hidden = make('input');
+  hidden.type = 'hidden';
+  const sentinel = placeholder.querySelector('[tabindex="0"]');
+  const focusFrom = (relatedTarget) => sentinel.dispatchEvent(new win.FocusEvent('focus', { relatedTarget }));
+  return { ...fixture, before, after, hidden, sentinel, focusFrom };
+}
+
+test('host puts a labelled focus sentinel in the placeholder and takes the iframe out of the Tab order', (t) => {
+  const { placeholder, iframe, sentinel } = focusFixture(t, { title: 'Color picker' });
+  assert.equal(sentinel.parentElement, placeholder);
+  assert.deepEqual([sentinel.getAttribute('tabindex'), sentinel.getAttribute('aria-label')], ['0', 'Color picker']);
+  assert.equal(iframe.getAttribute('tabindex'), '-1');
+});
+
+test('focusing the sentinel focuses the iframe and tells the frame which edge to focus', async (t) => {
+  const { win, iframe, sent, receive, before, after, focusFrom } = focusFixture(t);
+  receive({ type: 'hello' });
+  await tick();
+  let focused = 0;
+  iframe.focus = () => { focused++; };
+  focusFrom(before);
+  focusFrom(after);
+  focusFrom(null);
+  assert.equal(focused, 3);
+  assert.deepEqual(sent.filter(({ message }) => message.type === 'focus').map(({ message }) => message.edge), ['first', 'last', 'first']);
+  assert.ok(win.document.body.contains(iframe));
+});
+
+test('focus-exit moves focus to the tabbable element after or before the placeholder', async (t) => {
+  const { win, receive, before, after, hidden, sentinel } = focusFixture(t);
+  const skipped = win.document.createElement('button');
+  skipped.disabled = true;
+  win.document.body.appendChild(skipped);
+  receive({ type: 'focus-exit', direction: 'next' });
+  assert.equal(win.document.activeElement, after);
+  receive({ type: 'focus-exit', direction: 'previous' });
+  assert.equal(win.document.activeElement, before);
+  assert.notEqual(win.document.activeElement, sentinel);
+  assert.notEqual(win.document.activeElement, hidden);
+  receive({ type: 'focus-exit', direction: 'sideways' });
+  assert.equal(win.document.activeElement, before);
+});
+
+test('unmount removes the focus sentinel', (t) => {
+  const { placeholder, handle } = focusFixture(t);
+  handle.unmount();
+  assert.equal(placeholder.querySelector('[tabindex]'), null);
+});
+
 const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };
 
 function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/picker.js' } = {}) {
@@ -1011,4 +1071,50 @@ test('an async mount that rejects is reported and never reports ready', async (t
   await tick();
   assert.ok(!types().includes('ready'));
   assert.ok(posted.some(({ message }) => message.type === 'error' && message.message === 'Async mount failed'));
+});
+
+function focusFrame(t, markup) {
+  const fixture = startFrame(t, {
+    module: { mount(root) { root.innerHTML = markup; }, update() {}, unmount() {} },
+  });
+  return fixture;
+}
+
+const focusExits = posted => posted.filter(({ message }) => message.type === 'focus-exit').map(({ message }) => message.direction);
+
+test('frame focuses the first or last tabbable element on a focus message', async (t) => {
+  const { win, send, root } = focusFrame(t, '<span>text</span><input id="a"><button id="b" disabled></button><a href="#" id="c">link</a>');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  send({ type: 'focus', edge: 'first' });
+  assert.equal(win.document.activeElement, root().querySelector('#a'));
+  send({ type: 'focus', edge: 'last' });
+  assert.equal(win.document.activeElement, root().querySelector('#c'));
+});
+
+test('frame leaves a component without tabbable elements in the direction focus came from', async (t) => {
+  const { send, posted } = focusFrame(t, '<span>text</span>');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  send({ type: 'focus', edge: 'first' });
+  send({ type: 'focus', edge: 'last' });
+  assert.deepEqual(focusExits(posted), ['next', 'previous']);
+});
+
+test('Tab on the last tabbable element and Shift+Tab on the first leave the frame', async (t) => {
+  const { win, send, posted, root } = focusFrame(t, '<input id="a"><input id="b">');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const press = (target, shiftKey) => {
+    target.focus();
+    const event = new win.KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
+    target.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  const [a, b] = [root().querySelector('#a'), root().querySelector('#b')];
+  assert.deepEqual([press(a, false), press(b, true)], [false, false]);
+  assert.deepEqual(focusExits(posted), []);
+  assert.equal(press(b, false), true);
+  assert.equal(press(a, true), true);
+  assert.deepEqual(focusExits(posted), ['next', 'previous']);
 });

@@ -1,4 +1,5 @@
 import type { ComponentInput, ComponentToken } from './components-types.js';
+import { tabbableIn } from './components-focus.js';
 import { createFrameLayer } from './components-layer.js';
 import { unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, WireProps } from './components-protocol.js';
@@ -115,6 +116,27 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   };
   const layer = createFrameLayer(placeholder, url.href, options.title ?? 'App component', rect => send({ type: 'rect', rect }));
 
+  // The frame sits at the end of the body, so Tab and screen readers meet a sentinel in the placeholder instead
+  const sentinel = placeholder.ownerDocument.createElement('div');
+  sentinel.tabIndex = 0;
+  sentinel.setAttribute('role', 'group');
+  sentinel.setAttribute('aria-label', options.title ?? 'App component');
+  Object.assign(sentinel.style, { display: 'block', width: '0', height: '0', overflow: 'hidden', outline: 'none' });
+  placeholder.appendChild(sentinel);
+  sentinel.addEventListener('focus', (event) => {
+    const from = (event as FocusEvent).relatedTarget as Node | null;
+    layer.iframe.focus();
+    send({ type: 'focus', edge: from && sentinel.compareDocumentPosition(from) & 4 ? 'last' : 'first' });
+  });
+
+  // Moves focus to the tabbable element after (next) or before (previous) the placeholder
+  function leaveFrame(direction: 'next' | 'previous') {
+    const stops = tabbableIn(placeholder.ownerDocument).filter(item => item !== sentinel && !placeholder.contains(item));
+    const around = (item: Node) => sentinel.compareDocumentPosition(item) & (direction === 'next' ? 4 : 2);
+    const candidates = stops.filter(around);
+    candidates[direction === 'next' ? 0 : candidates.length - 1]?.focus();
+  }
+
   // Throws when the message cannot be cloned
   function post(message: HostMessage) {
     if (started && !destroyed) layer.iframe.contentWindow?.postMessage(wrap(channel, message), frameOrigin);
@@ -202,6 +224,9 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       case 'overlay':
         send({ type: 'rect', rect: layer.setOverlay(message.on === true) });
         return;
+      case 'focus-exit':
+        if (message.direction === 'next' || message.direction === 'previous') leaveFrame(message.direction);
+        return;
       case 'result': {
         const call = pending.get(message.call);
         if (!call) return;
@@ -252,6 +277,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       rejectPending(new Error('Component unmounted'));
       failReady(new Error('Component unmounted'));
       layer.destroy();
+      sentinel.remove();
     },
   };
 }

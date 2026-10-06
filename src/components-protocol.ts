@@ -29,7 +29,8 @@ export type HostMessage =
   | { type: 'update'; props: Partial<WireProps> }
   | { type: 'token'; token: string | null }
   | { type: 'event'; call: number; name: string; data: unknown }
-  | { type: 'rect'; rect: Rect };
+  | { type: 'rect'; rect: Rect }
+  | { type: 'focus'; edge: 'first' | 'last' };
 
 export type FrameMessage =
   | { type: 'hello' }
@@ -39,7 +40,8 @@ export type FrameMessage =
   | { type: 'resize'; height: number }
   | { type: 'overlay'; on: boolean }
   | { type: 'result'; call: number; result?: unknown; error?: string }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  | { type: 'focus-exit'; direction: 'next' | 'previous' };
 
 interface Envelope {
   $swell: typeof PROTOCOL;

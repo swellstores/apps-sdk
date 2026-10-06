@@ -1,4 +1,5 @@
 import type { ComponentModule, ComponentProps } from './components-types.js';
+import { tabbableIn } from './components-focus.js';
 import { TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, Rect, WireProps } from './components-protocol.js';
 
@@ -190,8 +191,25 @@ export function startComponentFrame(options: FrameOptions): void {
       case 'rect':
         if (overlay) placeRoot(message.rect);
         return;
+      case 'focus': {
+        const stops = tabbableIn(target);
+        const stop = stops[message.edge === 'last' ? stops.length - 1 : 0];
+        if (stop) stop.focus();
+        else post({ type: 'focus-exit', direction: message.edge === 'last' ? 'previous' : 'next' });
+        return;
+      }
     }
   }
+
+  // Tab leaving the component's first or last tabbable element continues in the host page
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
+    const stops = tabbableIn(target);
+    const edge = stops[event.shiftKey ? 0 : stops.length - 1];
+    if (edge && document.activeElement !== edge) return;
+    event.preventDefault();
+    post({ type: 'focus-exit', direction: event.shiftKey ? 'previous' : 'next' });
+  }, true);
 
   win.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== parent || event.origin !== parentOrigin) return;

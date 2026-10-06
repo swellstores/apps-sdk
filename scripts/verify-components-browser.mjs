@@ -21,7 +21,7 @@ async function sendDist(res, pathname) {
 const HOST_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Host</title></head>
 <body style="margin:0">
-<div id="wrapper" style="padding:40px"><div id="slot"></div></div>
+<div id="wrapper" style="padding:40px"><input id="before"><div id="slot"></div><input id="after"></div>
 <div style="height:2000px"></div>
 <script type="module">
   import { createComponents } from '/dist/components.js';
@@ -149,6 +149,20 @@ try {
 
   // emit resolves with the component handler's result.
   assert.equal(await page.evaluate(() => handle.emit('ping', 21)), 42);
+
+  // Tab and Shift+Tab pass through the frame in document order, though the iframe sits at the end of the body.
+  const where = async () => (await page.evaluate(() => document.activeElement === document.querySelector('iframe') ? 'frame' : document.activeElement.id))
+    + (await frame.evaluate(() => document.activeElement.id).then(id => (id ? `:${id}` : '')));
+  const press = async (key) => {
+    await page.keyboard.press(key);
+    await page.waitForTimeout(100);
+    return where();
+  };
+  await page.locator('#before').focus();
+  assert.deepEqual(
+    [await press('Tab'), await press('Tab'), await press('Tab'), await press('Shift+Tab'), await press('Shift+Tab'), await press('Shift+Tab')],
+    ['frame:value', 'frame:modal', 'after', 'frame:modal', 'frame:value', 'before'],
+  );
 
   // The token goes to the frame origin only.
   assert.deepEqual(await frame.evaluate(() => __props.fetch('/echo').then(response => response.json())), { token: 'tok-1' });
