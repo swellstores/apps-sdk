@@ -1454,3 +1454,95 @@ test('Shift+Tab on the before guard and Tab on the after guard leave the frame',
   assert.deepEqual([press(before, true), press(after, false)], [true, true]);
   assert.deepEqual(focusExits(posted), ['previous', 'next']);
 });
+
+// Runs `body` while counting unhandled rejections
+async function withoutUnhandledRejections(body) {
+  const unhandled = [];
+  const spy = reason => unhandled.push(String(reason?.message ?? reason));
+  process.on('unhandledRejection', spy);
+  try {
+    await body();
+    await flush();
+    await flush();
+  } finally {
+    process.off('unhandledRejection', spy);
+  }
+  assert.deepEqual(unhandled, []);
+}
+
+test('ready rejects before error listeners run, so a throwing listener cannot leave it pending', async (t) => {
+  const quiet = t.mock.method(console, 'error', () => {});
+  await withoutUnhandledRejections(async () => {
+    // Init that cannot be cloned
+    const cloned = embed(t, { context: { format() {} } });
+    cloned.handle.on('error', () => { throw new Error('Listener failed'); });
+    cloned.receive({ type: 'hello' });
+    await tick();
+    assert.equal((await settled(cloned.handle.ready)).error?.name, 'DataCloneError');
+    // Frame start timeout
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const slow = embed(t);
+    slow.handle.on('error', () => { throw new Error('Listener failed'); });
+    slow.iframe.dispatchEvent(new slow.win.Event('load'));
+    t.mock.timers.tick(10_000);
+    assert.match((await settled(slow.handle.ready)).error?.message ?? '', /Component frame did not start/);
+    t.mock.timers.reset();
+    // Metadata failure in the client
+    globalThis.fetch = async () => new Response('', { status: 503 });
+    t.after(() => { globalThis.fetch = nativeFetch; });
+    const win = hostWindow(t);
+    const slot = win.document.body.appendChild(win.document.createElement('div'));
+    const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { app: 'my_app', component: 'Picker' });
+    handle.on('error', () => { throw new Error('Listener failed'); });
+    assert.match((await settled(handle.ready)).error?.message ?? '', /\(503\)/);
+  });
+  quiet.mock.restore();
+});
+
+test('a getToken that throws synchronously reaches error listeners attached after mount', async (t) => {
+  const errors = [];
+  const { handle } = embed(t, { getToken: () => { throw new Error('no session'); } });
+  handle.on('error', error => errors.push(error.message));
+  await flush();
+  assert.deepEqual(errors, ['no session']);
+});
+
+test('emit works once a frame that missed the start timeout sends ready', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { win, iframe, handle, sent, receive } = embed(t);
+  iframe.dispatchEvent(new win.Event('load'));
+  t.mock.timers.tick(10_000);
+  assert.match((await settled(handle.ready)).error?.message ?? '', /did not start/);
+  receive({ type: 'hello' });
+  await flush();
+  receive({ type: 'ready' });
+  const result = handle.emit('submit', { ok: true });
+  await flush();
+  const event = sent.at(-1).message;
+  assert.deepEqual([event.type, event.data], ['event', { ok: true }]);
+  receive({ type: 'result', call: event.call, result: 'done' });
+  assert.equal(await result, 'done');
+});
+
+test('a client emit works once a frame that missed the start timeout sends ready', async (t) => {
+  globalThis.fetch = async () => Response.json({ components: [{ name: 'Picker', src: SRC }] });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { app: 'my_app', component: 'Picker' });
+  t.after(() => handle.unmount());
+  await flush();
+  const { iframe, sent, receive } = attachFrame(win);
+  iframe.dispatchEvent(new win.Event('load'));
+  t.mock.timers.tick(10_000);
+  assert.match((await settled(handle.ready)).error?.message ?? '', /did not start/);
+  receive({ type: 'hello' });
+  await flush();
+  receive({ type: 'ready' });
+  const result = handle.emit('submit');
+  await flush();
+  const event = sent.at(-1).message;
+  receive({ type: 'result', call: event.call, result: 'done' });
+  assert.equal(await result, 'done');
+});

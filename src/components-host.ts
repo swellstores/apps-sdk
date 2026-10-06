@@ -8,7 +8,8 @@ import type { FrameMessage, HostMessage, WireProps } from './components-protocol
 export interface ComponentHandle<TValue = unknown> {
   /**
    * Resolves when the component has mounted in its frame. Rejects when the component cannot be
-   * loaded or started, or is unmounted first; the `error` event fires as well.
+   * loaded or started; the `error` event fires as well. `unmount` also rejects it, without an
+   * `error` event.
    */
   readonly ready: Promise<void>;
   /** Listens to the component. Returns a function that removes the listener; unknown events are ignored. */
@@ -65,7 +66,14 @@ export function createListeners() {
       };
     },
     notify(event: HandleEvent, value: unknown) {
-      for (const handler of sets.get(event) ?? []) (handler as (value: unknown) => void)(value);
+      for (const handler of sets.get(event) ?? []) {
+        // A throwing listener must not stop the others or break the failure path that notified it
+        try {
+          (handler as (value: unknown) => void)(value);
+        } catch (error) {
+          console.error(error);
+        }
+      }
     },
   };
 }
@@ -107,6 +115,12 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   let destroyed = false;
   let overlayOn = false;
   const { promise: ready, resolve: markReady, reject: failReady } = deferred();
+  // Settles on the frame's own `ready` message, so a frame that starts after the start timeout still serves `emit`
+  const { promise: live, resolve: markLive, reject: failLive } = deferred();
+  const stop = (error: Error) => {
+    failReady(error);
+    failLive(error);
+  };
 
   const fail = (error: unknown) => {
     const reported = toError(error);
@@ -201,14 +215,18 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       fail(error);
     }
   }
-  const tokenLoaded = loadToken();
+  // On a microtask, so listeners added right after mount see a getToken that throws at once
+  const tokenLoaded = Promise.resolve().then(loadToken);
 
   // A frame page that never says hello (404, CSP, frame-ancestors) fails ready instead of leaving it pending
   layer.iframe.addEventListener('load', () => {
     if (greeted || destroyed) return;
     clearTimeout(startTimer);
     startTimer = setTimeout(() => {
-      if (!greeted && !destroyed) failReady(fail(new Error('Component frame did not start')));
+      if (greeted || destroyed) return;
+      const error = new Error('Component frame did not start');
+      failReady(error);
+      fail(error);
     }, START_MS);
   });
 
@@ -231,11 +249,14 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         try {
           post({ type: 'init', props, token });
         } catch (error) {
-          failReady(fail(error));
+          const reported = toError(error);
+          stop(reported);
+          fail(reported);
         }
         return;
       case 'ready':
         markReady();
+        markLive();
         return;
       case 'change':
         notify('change', message.value);
@@ -263,7 +284,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       }
       case 'error': {
         const error = new Error(String(message.message));
-        failReady(error);
+        stop(error);
         fail(error);
         return;
       }
@@ -280,7 +301,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       send({ type: 'update', props: changed });
     },
     async emit<T = unknown>(name: string, data?: unknown): Promise<T> {
-      await ready;
+      await live;
       if (destroyed) throw new Error('Component unmounted');
       const call = ++calls;
       const result = new Promise<T>((resolve, reject) => {
@@ -301,7 +322,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       clearTimeout(tokenTimer);
       clearTimeout(startTimer);
       rejectPending(new Error('Component unmounted'));
-      failReady(new Error('Component unmounted'));
+      stop(new Error('Component unmounted'));
       layer.destroy();
       sentinel.remove();
     },

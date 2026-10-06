@@ -66,6 +66,8 @@ export function createComponents(options: ComponentsOptions): Components {
       const { getToken } = options;
       const { on, notify } = createListeners();
       const { promise: ready, resolve: markReady, reject: failReady } = deferred();
+      // Settles once the frame is embedded, so `emit` still works when the frame starts after `ready` failed
+      const { promise: embedded, resolve: markEmbedded, reject: failEmbedded } = deferred();
       let inner: ComponentHandle<TValue> | null = null;
       let unmounted = false;
 
@@ -78,12 +80,14 @@ export function createComponents(options: ComponentsOptions): Components {
         inner.on('change', value => notify('change', value));
         inner.on('validity', error => notify('validity', error));
         inner.on('error', error => notify('error', error));
+        markEmbedded();
         inner.ready.then(markReady, failReady);
       }).catch((error) => {
         if (unmounted) return;
         const reported = toError(error);
-        notify('error', reported);
         failReady(reported);
+        failEmbedded(reported);
+        notify('error', reported);
       });
 
       return {
@@ -94,7 +98,7 @@ export function createComponents(options: ComponentsOptions): Components {
           else Object.assign(input, pickInput(next));
         },
         async emit<T = unknown>(name: string, data?: unknown): Promise<T> {
-          await ready;
+          await embedded;
           return (inner as ComponentHandle<TValue>).emit<T>(name, data);
         },
         unmount() {
@@ -102,6 +106,7 @@ export function createComponents(options: ComponentsOptions): Components {
           unmounted = true;
           inner?.unmount();
           failReady(new Error('Component unmounted'));
+          failEmbedded(new Error('Component unmounted'));
         },
       };
     },
