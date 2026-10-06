@@ -77,7 +77,8 @@ const FOCUS_PAGE = `<!doctype html>
   }
   if (query.get('post') !== '0') document.body.insertAdjacentHTML('beforeend', '<input id="post">');
   if (query.get('shadow') === '1') document.body.insertAdjacentHTML('beforeend', '<x-in id="b1"></x-in><x-in id="b2"></x-in>');
-  await Promise.all(handles.map(handle => handle.ready));
+  // ?ready=0: a component that never starts is mounted too, so the page does not wait for it
+  if (query.get('ready') !== '0') await Promise.all(handles.map(handle => handle.ready));
   window.mounted = true;
 </script>
 </body></html>`;
@@ -174,7 +175,9 @@ const hostServer = createServer(async (req, res) => {
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
   if (pathname === '/api/apps/demo/components') {
     if (req.headers.authorization !== `Basic ${Buffer.from('pk_test').toString('base64')}`) return res.writeHead(401).end();
-    return json(res, { settings: { color: 'red' }, components: Object.keys(BUNDLES).map(name => ({ name, src: `${frameOrigin}/.swell/components/${name}?v=1` })) });
+    const components = Object.keys(BUNDLES).map(name => ({ name, src: `${frameOrigin}/.swell/components/${name}?v=1` }));
+    // A frame URL that answers with an error page: the frame never starts
+    return json(res, { settings: { color: 'red' }, components: [...components, { name: 'Missing', src: `${frameOrigin}/missing` }] });
   }
   if (pathname === '/cors-echo') {
     const headers = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*' };
@@ -190,7 +193,7 @@ const frameServer = createServer(async (req, res) => {
   const bundle = /^\/bundle\/(\w+)\.js$/.exec(pathname)?.[1];
   if (Object.hasOwn(BUNDLES, bundle ?? '')) return res.writeHead(200, { 'Content-Type': 'text/javascript' }).end(BUNDLES[bundle]);
   if (pathname === '/echo') return json(res, { token: req.headers['swell-component-token'] ?? null });
-  res.writeHead(404).end();
+  res.writeHead(404, { 'Content-Type': 'text/html' }).end('<!doctype html><p>Not found</p>');
 });
 
 // Real Tab and Shift+Tab, one browser page at a time. Focus is named as: a host element id (host#inner inside its
@@ -221,6 +224,7 @@ const FOCUS_CASES = [
   ['a delegatesFocus host without tabindex', 'slots=Delegates', '#pre', [[T, 'iframe0:dl#d1'], [T, 'iframe0:dl#d2'], [T, 'post'], [S, 'iframe0:dl#d2'], [S, 'iframe0:dl#d1'], [S, 'pre']]],
   ['neighbours in open shadow roots', 'slots=Two&shadow=1', '#post', [[S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre'], [S, 'a2#i'], [T, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'post'], [T, 'b1#i']]],
   ['neighbours in open shadow roots, with no light-DOM neighbours', 'slots=Two&shadow=1&pre=0&post=0', '#a2 #i', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'b1#i'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'a2#i']]],
+  ['a component whose frame never starts is no Tab stop', 'slots=Missing&ready=0', '#pre', [[T, 'post'], [S, 'pre']]],
   ['a radio group is one stop, the checked radio', 'slots=Radio', '#post', [[S, 'iframe0:r1'], [S, 'iframe0:x'], [S, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:r1'], [T, 'post']]],
   ['a dialog that wraps Tab keeps focus inside', 'slots=Dialog', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:d1'], [T, 'iframe0:d2'], [T, 'iframe0:d1'], [S, 'iframe0:d2']]],
 ];
@@ -285,7 +289,12 @@ async function openFocusPage(query, start) {
   page.on('pageerror', error => pageErrors.push(error));
   await page.goto(`${hostOrigin}/focus?${query}`);
   await page.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
-  await page.waitForFunction(() => [...document.querySelectorAll('#slots > div')].every(slot => slot.getBoundingClientRect().height > 0));
+  if (query.includes('ready=0')) {
+    await page.waitForFunction(() => document.querySelector('iframe'));
+    await page.frames().find(item => item.url().startsWith(frameOrigin))?.waitForLoadState('load');
+  } else {
+    await page.waitForFunction(() => [...document.querySelectorAll('#slots > div')].every(slot => slot.getBoundingClientRect().height > 0));
+  }
   if (start) await page.locator(start).focus();
   return page;
 }

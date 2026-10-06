@@ -130,6 +130,9 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     failReady(error);
     failLive(error);
   };
+  const skipInTabOrder = () => {
+    sentinel.tabIndex = -1;
+  };
 
   const fail = (error: unknown) => {
     const reported = toError(error);
@@ -143,9 +146,10 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   const layer = createFrameLayer(placeholder, url.href, options.title ?? 'App component', rect => send({ type: 'rect', rect }));
 
   // The frame sits at the end of the body, so the Tab order meets this sentinel where the field is and it forwards keyboard focus to the frame.
-  // Frame content is still read where the layer sits in the DOM.
+  // Frame content is still read where the layer sits in the DOM. It is a Tab stop only while the frame runs:
+  // from its first hello until it fails to start or reports an error, so a broken frame cannot swallow Tab.
   const sentinel = placeholder.ownerDocument.createElement('div');
-  sentinel.tabIndex = 0;
+  sentinel.tabIndex = -1;
   sentinel.setAttribute('role', 'group');
   sentinel.setAttribute('aria-label', options.title ?? 'App component');
   Object.assign(sentinel.style, { display: 'block', width: '0', height: '0', overflow: 'hidden', outline: 'none' });
@@ -239,6 +243,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     startTimer = setTimeout(() => {
       if (greeted || destroyed) return;
       const error = new Error('Component frame did not start');
+      skipInTabOrder();
       failReady(error);
       failStart(error);
       fail(error);
@@ -258,6 +263,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
           overlayOn = false;
           rejectPending(new Error('Component reloaded'));
         }
+        if (!greeted) sentinel.tabIndex = 0;
         greeted = true;
         await tokenLoaded;
         started = true;
@@ -265,6 +271,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
           post({ type: 'init', props, token });
         } catch (error) {
           const reported = toError(error);
+          skipInTabOrder();
           stop(reported);
           fail(reported);
         }
@@ -299,6 +306,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       }
       case 'error': {
         const error = new Error(String(message.message));
+        skipInTabOrder();
         stop(error);
         fail(error);
         return;

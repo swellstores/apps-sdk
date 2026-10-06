@@ -770,9 +770,11 @@ test('createComponents requires a store and a public key', () => {
 });
 
 // happy-dom has no layout, so every element counts as visible here.
-function focusFixture(t, options) {
+// The frame has said hello unless `started` is false: the sentinel is a Tab stop only while the frame runs
+function focusFixture(t, options, { started = true } = {}) {
   const fixture = embed(t, options);
   const { win, placeholder } = fixture;
+  if (started) fixture.receive({ type: 'hello' });
   const make = (tag, parent = win.document.body, before = null) => {
     const element = win.document.createElement(tag);
     parent.insertBefore(element, before);
@@ -782,7 +784,7 @@ function focusFixture(t, options) {
   const after = make('button');
   const hidden = make('input');
   hidden.type = 'hidden';
-  const sentinel = placeholder.querySelector('[tabindex="0"]');
+  const sentinel = placeholder.querySelector('[role="group"]');
   const focusFrom = (relatedTarget) => sentinel.dispatchEvent(new win.FocusEvent('focus', { relatedTarget }));
   return { ...fixture, before, after, hidden, sentinel, focusFrom };
 }
@@ -794,9 +796,39 @@ test('host puts a labelled focus sentinel in the placeholder and takes the ifram
   assert.equal(iframe.getAttribute('tabindex'), '-1');
 });
 
-test('focusing the sentinel focuses the iframe and tells the frame which edge to focus', async (t) => {
-  const { iframe, sent, receive, before, after, focusFrom } = focusFixture(t);
+test('the sentinel is a Tab stop from the first hello until the frame reports an error', async (t) => {
+  const { sentinel, receive } = focusFixture(t, {}, { started: false });
+  assert.equal(sentinel.tabIndex, -1, 'before hello');
   receive({ type: 'hello' });
+  assert.equal(sentinel.tabIndex, 0, 'after hello');
+  await tick();
+  receive({ type: 'error', message: 'Bundle failed' });
+  assert.equal(sentinel.tabIndex, -1, 'after an error');
+  receive({ type: 'hello' });
+  await tick();
+  assert.equal(sentinel.tabIndex, -1, 'an error is final');
+});
+
+test('a frame that does not start in time leaves the Tab order until it says hello', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { win, iframe, handle, sentinel, receive } = focusFixture(t, {}, { started: false });
+  handle.on('error', () => {});
+  iframe.dispatchEvent(new win.Event('load'));
+  t.mock.timers.tick(10_000);
+  assert.equal(sentinel.tabIndex, -1, 'after the start timeout');
+  receive({ type: 'hello' });
+  assert.equal(sentinel.tabIndex, 0, 'a late hello');
+});
+
+test('props that cannot be cloned take the sentinel out of the Tab order', async (t) => {
+  const { sentinel, handle } = focusFixture(t, { value: { format() {} } });
+  handle.on('error', () => {});
+  await flush();
+  assert.equal(sentinel.tabIndex, -1);
+});
+
+test('focusing the sentinel focuses the iframe and tells the frame which edge to focus', async (t) => {
+  const { iframe, sent, before, after, focusFrom } = focusFixture(t);
   await tick();
   let focused = 0;
   iframe.focus = () => { focused++; };
@@ -808,8 +840,7 @@ test('focusing the sentinel focuses the iframe and tells the frame which edge to
 });
 
 test('the sentinel brings a hidden layer up to date before it focuses the iframe', async (t) => {
-  const { win, placeholder, iframe, receive, focusFrom } = focusFixture(t);
-  receive({ type: 'hello' });
+  const { win, placeholder, iframe, focusFrom } = focusFixture(t);
   await tick();
   await animationFrame(win);
   const layer = iframe.parentElement;
@@ -891,6 +922,7 @@ test('an iframe between two sentinels in document order is no focus-exit candida
   const neighbour = embedComponent(next, { src: SRC });
   t.after(() => neighbour.unmount());
   const second = win.document.querySelectorAll('iframe')[1];
+  attachFrame(win, second).receive({ type: 'hello' });
   // The layer is hidden while the placeholder has no width; make the iframe count as visible so only tabindex keeps it out
   iframe.getClientRects = () => [{}];
   iframe.parentElement.style.visibility = 'visible';
