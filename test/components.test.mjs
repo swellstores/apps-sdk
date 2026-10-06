@@ -1359,6 +1359,32 @@ test('focus coming back from a nested frame, in the root or outside it, is not a
   assert.equal(root().contains(win.document.activeElement), false, 'focus stays out of the root');
 });
 
+test('focus coming back from a closed shadow host is not an entry, from a plain field it is', async (t) => {
+  const { win, send, posted, root } = focusFrame(t, '<input id="a">');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const [before, after] = win.document.querySelectorAll('[data-swell-focus-guard]');
+  const host = win.document.createElement('x-cn');
+  host.attachShadow({ mode: 'closed' }).innerHTML = '<iframe></iframe>';
+  root().appendChild(host);
+  const leaveFrom = (element) => {
+    element.focus();
+    win.dispatchEvent(new win.FocusEvent('blur'));
+    win.document.activeElement.blur();
+    win.dispatchEvent(new win.FocusEvent('focus'));
+  };
+  // From outside, focus on the frame inside the closed shadow root shows only as focus on its host
+  leaveFrom(host);
+  after.dispatchEvent(new win.FocusEvent('focus'));
+  assert.deepEqual(focusExits(posted), ['next']);
+  assert.equal(root().contains(win.document.activeElement), false, 'focus stays out of the root');
+  // A field left for the host page keeps the fast-Tab race protection: the next guard focus is an entry
+  leaveFrom(root().querySelector('#a'));
+  before.dispatchEvent(new win.FocusEvent('focus'));
+  assert.deepEqual(focusExits(posted), ['next']);
+  assert.equal(win.document.activeElement?.id === 'a', true, 'the guard entered the root');
+});
+
 test('a pointer press that gives the frame focus is no entry', async (t) => {
   const { win, send, posted } = focusFrame(t, '<p id="label">Card</p><input id="a">');
   send({ type: 'init', props: HOST_PROPS, token: null });

@@ -129,6 +129,7 @@ const FOCUS_BUNDLES = {
   NestedLast: mod(`<input id="x">${NESTED}`),
   Shadow: mod('<x-field id="sh"></x-field>', define('x-field', 'open', '<input id=s1><input id=s2>')),
   Closed: mod('<x-closed id="cl"></x-closed>', define('x-closed', 'closed', '<input id=c1><input id=c2>')),
+  ClosedNested: mod('<input id="x"><x-cn id="cn"></x-cn>', define('x-cn', 'closed', '<iframe id="cnf" srcdoc="<input id=num>" style="height:40px"></iframe>')),
   Delegates: mod('<x-del id="dl"></x-del>', define('x-del', 'open', '<input id=d1><input id=d2>', ', delegatesFocus: true')),
   Modal: mod('<input id="x">', openModal('<button id="m1">One</button><button id="m2">Two</button>')),
   Modal3ds: mod('<input id="x">', openModal(`${TDS}<button id="m1">Cancel</button>`)),
@@ -185,6 +186,9 @@ const FOCUS_CASES = [
   ['a nested iframe as the last control', 'slots=NestedLast', '#pre', [[T, 'post', { via: ['iframe0:x', 'iframe0:card>num'] }], [S, 'pre', { via: ['iframe0:card>num', 'iframe0:x'] }]]],
   ['an open shadow root', 'slots=Shadow', '#pre', [[T, 'iframe0:sh#s1'], [T, 'iframe0:sh#s2'], [T, 'post'], [S, 'iframe0:sh#s2'], [S, 'iframe0:sh#s1'], [S, 'pre']]],
   ['a closed shadow root is entered through the guards', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [T, 'iframe0:cl#c1'], [T, 'iframe0:cl#c2'], [T, 'post'], [S, 'iframe0:GUARD-next'], [S, 'iframe0:cl#c2'], [S, 'iframe0:cl#c1'], [S, 'pre']]],
+  // From outside, focus on a frame inside a closed shadow root shows only as focus on its host. Entry from below
+  // lands on the last control the frame can see, x: the frame inside the closed root is skipped on the way back.
+  ['a closed shadow root holding a nested frame', 'slots=ClosedNested', '#pre', [[T, 'post', { via: ['iframe0:x', 'iframe0:cn>num'] }], [S, 'pre', { via: ['iframe0:x'] }]]],
   ['Shift+Tab right after a closed shadow entry leaves before the component', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [S, 'pre']]],
   ['Tab right after a closed shadow entry from below leaves after the component', 'slots=Closed', '#post', [[S, 'iframe0:GUARD-next'], [T, 'post']]],
   ['a delegatesFocus host without tabindex', 'slots=Delegates', '#pre', [[T, 'iframe0:dl#d1'], [T, 'iframe0:dl#d2'], [T, 'post'], [S, 'iframe0:dl#d2'], [S, 'iframe0:dl#d1'], [S, 'pre']]],
@@ -266,8 +270,9 @@ async function whereIs(page) {
   return `iframe${index}:${await owner.evaluate(() => {
     const name = el => (el?.hasAttribute?.('data-swell-focus-guard') ? (el.nextElementSibling?.id === 'root' ? 'GUARD-prev' : 'GUARD-next') : el?.id || el?.tagName);
     const active = document.activeElement;
-    if (active?.shadowRoot?.activeElement) return `${name(active)}#${active.shadowRoot.activeElement.id}`;
-    if (active?.id === 'cl' && window.__closed?.activeElement) return `cl#${window.__closed.activeElement.id}`;
+    const inner = active?.shadowRoot?.activeElement ?? (active && active === window.__closed?.host ? window.__closed.activeElement : null);
+    if (inner?.tagName === 'IFRAME') return `${name(active)}>${name(inner.contentDocument.activeElement)}`;
+    if (inner) return `${name(active)}#${inner.id}`;
     if (active?.tagName === 'IFRAME') return `${name(active)}>${name(active.contentDocument.activeElement)}`;
     return name(active);
   })}`;

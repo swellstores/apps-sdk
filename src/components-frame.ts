@@ -275,7 +275,8 @@ export function startComponentFrame(options: FrameOptions): void {
   win.addEventListener('blur', () => {
     let active = document.activeElement;
     while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
-    intoFrame = active?.localName === 'iframe';
+    // A closed shadow root hides what has focus in it: a frame there shows only as focus on its host
+    intoFrame = !!active && (active.localName === 'iframe' || (active.localName.includes('-') && !active.shadowRoot));
     pressed = false;
   });
   win.addEventListener('focus', () => {
