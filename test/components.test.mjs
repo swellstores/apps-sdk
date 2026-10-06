@@ -268,6 +268,30 @@ test('a placeholder taller than its scroller is clipped at the bars it extends p
   assert.equal(element.style.clipPath, 'inset(0px 0px 200px 0px)', 'past the footer');
 });
 
+test('bars inside a bordered scroller, offset from its edges or stacked still clip the layer', async (t) => {
+  const { win, outer, layer, element, move } = layerSetup(t);
+  // The scroller's border box is 50..450; with a 2px border its bars stick at 52..102 and 398..448
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999', overflowX: 'hidden', overflowY: 'hidden' });
+  outer.getBoundingClientRect = () => ({ top: 50, right: 1000, bottom: 450, left: 0 });
+  const header = occluder(win, outer, { top: 52, bottom: 102 });
+  const footer = occluder(win, outer, { top: 398, bottom: 448 });
+  move({ top: 0 });
+  layer.setHeight(600);
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(102px 0px 202px 0px)', 'bordered');
+  // Bars 8px from the edges
+  header.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 58, bottom: 108 });
+  footer.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 392, bottom: 442 });
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(108px 0px 208px 0px)', 'offset');
+  // An actions bar above the footer, earlier in the DOM
+  footer.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 410, bottom: 450 });
+  const actions = occluder(win, outer, { top: 370, bottom: 410 });
+  outer.insertBefore(actions, footer);
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(108px 0px 230px 0px)', 'stacked');
+});
+
 test('layer ignores occluders outside the stacking context it joins', async (t) => {
   const { win, outer, layer, element } = layerSetup(t);
   layer.setHeight(100);

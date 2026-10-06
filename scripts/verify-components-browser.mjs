@@ -87,15 +87,23 @@ const FOCUS_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
-// A fixed modal over a long page: its scroller has a sticky header and footer marked as occluders and
-// scroll-padding that keeps focused controls clear of them, and holds a component taller than itself.
-const SCROLLER_PAGE = `<!doctype html>
+// A fixed modal over a long page: its scroller has sticky bars marked as occluders and scroll-padding that keeps
+// focused controls clear of them, and holds a component taller than itself. ?variant= picks the bars.
+const bar = (id, style, content) => `<div id="${id}" data-swell-component-occluder style="position:sticky;height:50px;background:#ccc;z-index:1;${style}">${content}</div>`;
+const SCROLLER_VARIANTS = {
+  plain: { scroller: '', top: bar('hdr', 'top:0', 'header'), bottom: bar('ftr', 'bottom:0', '<button id="save">Save</button>') },
+  bordered: { scroller: 'border-top:2px solid #000;border-bottom:2px solid #000', top: bar('hdr', 'top:0', 'header'), bottom: bar('ftr', 'bottom:0', 'footer') },
+  offset: { scroller: '', top: bar('hdr', 'top:8px', 'header'), bottom: bar('ftr', 'bottom:8px', 'footer') },
+  // An actions bar stacked above a status bar, both sticky at the bottom, in DOM order
+  stacked: { scroller: '', top: bar('hdr', 'top:0', 'header'), bottom: bar('act', 'bottom:40px;height:40px', 'actions') + bar('ftr', 'bottom:0;height:40px', 'status') },
+};
+const scrollerPage = ({ scroller, top, bottom }) => `<!doctype html>
 <html><head><meta charset="utf-8"><title>Scroller host</title></head>
 <body style="margin:0"><div style="height:3000px">page</div>
-<div id="modal" style="position:fixed;top:50px;left:50px;width:600px;height:400px;z-index:99999;overflow-y:auto;scroll-padding:50px 0;background:#fff">
-  <div id="hdr" data-swell-component-occluder style="position:sticky;top:0;height:50px;background:#ccc;z-index:1">header</div>
+<div id="modal" style="position:fixed;top:50px;left:50px;width:600px;height:400px;z-index:99999;overflow-y:auto;scroll-padding:50px 0;background:#fff;${scroller}">
+  ${top}
   <input id="pre"><div style="height:600px"></div><div id="slot"></div><div style="height:100px"></div><input id="post"><div style="height:600px"></div>
-  <div id="ftr" data-swell-component-occluder style="position:sticky;bottom:0;height:50px;background:#ccc;z-index:1"><button id="save">Save</button></div>
+  ${bottom}
 </div>
 <script type="module">
   import { createComponents } from '/dist/components.js';
@@ -179,7 +187,10 @@ const hostServer = createServer(async (req, res) => {
   if (pathname === '/') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(HOST_PAGE);
   if (pathname === '/focus') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(FOCUS_PAGE);
   if (pathname === '/modal') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(MODAL_PAGE);
-  if (pathname === '/scroller') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(SCROLLER_PAGE);
+  if (pathname === '/scroller') {
+    const variant = SCROLLER_VARIANTS[new URL(req.url, 'http://host').searchParams.get('variant') ?? 'plain'];
+    return variant ? res.writeHead(200, { 'Content-Type': 'text/html' }).end(scrollerPage(variant)) : res.writeHead(404).end();
+  }
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
   if (pathname === '/api/apps/demo/components') {
     if (req.headers.authorization !== `Basic ${Buffer.from('pk_test').toString('base64')}`) return res.writeHead(401).end();
@@ -391,10 +402,10 @@ async function focusCase(name, query, start, steps, before, initial) {
   }
 }
 
-async function openScrollerPage() {
+async function openScrollerPage(variant = 'plain') {
   const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
   page.on('pageerror', error => pageErrors.push(error));
-  await page.goto(`${hostOrigin}/scroller`);
+  await page.goto(`${hostOrigin}/scroller?variant=${variant}`);
   await page.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
   return page;
 }
@@ -433,27 +444,37 @@ async function waitUntilShown(page, label) {
 }
 
 async function scrollerCases() {
-  // A component taller than the modal, straddling its sticky footer or header, stays under the bar
-  await attempt(async () => {
-    const page = await openScrollerPage();
-    try {
-      const covered = [];
-      for (const [slotTop, y, bar] of [[380, 425, 'ftr'], [250, 425, 'ftr'], [70, 75, 'hdr'], [-50, 75, 'hdr']]) {
-        await page.evaluate((top) => {
-          document.querySelector('#modal').scrollTop += document.querySelector('#slot').getBoundingClientRect().top - top;
-        }, slotTop);
-        await followed(page);
-        const hit = await page.evaluate(([at, id]) => {
-          const element = document.elementFromPoint(300, at);
-          return document.getElementById(id).contains(element) ? id : element?.id || element?.tagName;
-        }, [y, bar]);
-        if (hit !== bar) covered.push(`component top at ${slotTop}: ${hit} at y=${y}, not ${bar}`);
+  // A component taller than the modal, straddling its sticky bars, stays under each bar: also with a bordered
+  // scroller, bars offset from its edges, and two bars stacked at the bottom
+  const straddles = {
+    plain: [[380, 'ftr'], [250, 'ftr'], [70, 'hdr'], [-50, 'hdr']],
+    bordered: [[-50, 'hdr'], [250, 'ftr']],
+    offset: [[-50, 'hdr'], [250, 'ftr']],
+    stacked: [[250, 'act'], [250, 'ftr'], [-50, 'hdr']],
+  };
+  for (const [variant, checks] of Object.entries(straddles)) {
+    await attempt(async () => {
+      const page = await openScrollerPage(variant);
+      try {
+        const covered = [];
+        for (const [slotTop, id] of checks) {
+          await page.evaluate((top) => {
+            document.querySelector('#modal').scrollTop += document.querySelector('#slot').getBoundingClientRect().top - top;
+          }, slotTop);
+          await followed(page);
+          const hit = await page.evaluate((barId) => {
+            const box = document.getElementById(barId).getBoundingClientRect();
+            const element = document.elementFromPoint(300, (box.top + box.bottom) / 2);
+            return document.getElementById(barId).contains(element) ? barId : element?.id || element?.tagName;
+          }, id);
+          if (hit !== id) covered.push(`component top at ${slotTop}: ${hit} over ${id}`);
+        }
+        assert.deepEqual(covered, [], `${variant} scroller: a tall component paints over a sticky bar: ${covered.join('; ')}`);
+      } finally {
+        await page.close();
       }
-      assert.deepEqual(covered, [], `a tall component paints over a sticky bar: ${covered.join('; ')}`);
-    } finally {
-      await page.close();
-    }
-  });
+    });
+  }
   // A control that keyboard focus reaches inside the component is scrolled into the modal's view, clear of its bars
   await attempt(async () => {
     const page = await openScrollerPage();

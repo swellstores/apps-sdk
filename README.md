@@ -188,7 +188,7 @@ Bars that cover scrolling content, such as a modal's sticky header or action bar
 <div class="modal-header" data-swell-component-occluder>…</div>
 ```
 
-The layer is clipped where such a bar overlaps the top or bottom edge of the target's visible part, so a component taller than its scroller passes under both a header and a footer. Only bars in the same stacking context as the target count: descendants of the element whose z-index the layer takes, or of `body` when no ancestor has one. Bars beside the target are ignored, and so are hidden bars: ones that are not displayed, and, in browsers with `Element.checkVisibility()`, ones that are `visibility: hidden` or have `opacity: 0`.
+The layer is clipped where such a bar covers the target's visible part, from the end of that part the bar is nearer to. So a component taller than its scroller passes under its header and footer bars, also when they are offset from the scroller's edges or stacked. Only bars in the same stacking context as the target count: descendants of the element whose z-index the layer takes, or of `body` when no ancestor has one. Bars beside the target are ignored, and so are hidden bars: ones that are not displayed, and, in browsers with `Element.checkVisibility()`, ones that are `visibility: hidden` or have `opacity: 0`.
 
 When keyboard focus moves to a control inside a component, the target's scrolling ancestors scroll it into view. On a scroller with sticky bars, set `scroll-padding` to the bars' height (for example `scroll-padding: 56px 0`), so the control stops clear of them.
 

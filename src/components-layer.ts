@@ -128,11 +128,13 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
       if (bar.checkVisibility?.({ visibilityProperty: true, opacityProperty: true }) === false) continue;
       const box = bar.getBoundingClientRect();
       if (box.right <= box.left || box.bottom <= box.top || box.left >= right || box.right <= left) continue;
-      // A bar counts at the edges of the visible part: a component taller than its scroller passes under both bars
+      // A bar over the visible part cuts it from the end it is nearer to, whether it sits flush with the scroller's edge,
+      // inside a border, offset from the edge or stacked on another bar
       const spanTop = Math.max(top, clipTop);
       const spanBottom = Math.min(bottom, clipBottom);
-      if (box.top <= spanTop && box.bottom > spanTop) clipTop = Math.max(clipTop, box.bottom);
-      else if (box.top < spanBottom && box.bottom >= spanBottom) clipBottom = Math.min(clipBottom, box.top);
+      if (box.bottom <= spanTop || box.top >= spanBottom) continue;
+      if (box.top + box.bottom <= spanTop + spanBottom) clipTop = Math.max(clipTop, box.bottom);
+      else clipBottom = Math.min(clipBottom, box.top);
     }
     hidden ||= clipTop >= bottom || clipBottom <= top || clipLeft >= right || clipRight <= left;
     const insets = [clipTop - top, right - clipRight, bottom - clipBottom, clipLeft - left].map(inset => Math.max(0, inset));
