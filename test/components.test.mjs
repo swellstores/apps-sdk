@@ -1472,31 +1472,41 @@ async function withoutUnhandledRejections(body) {
 
 test('ready rejects before error listeners run, so a throwing listener cannot leave it pending', async (t) => {
   const quiet = t.mock.method(console, 'error', () => {});
-  await withoutUnhandledRejections(async () => {
-    // Init that cannot be cloned
-    const cloned = embed(t, { context: { format() {} } });
-    cloned.handle.on('error', () => { throw new Error('Listener failed'); });
-    cloned.receive({ type: 'hello' });
-    await tick();
-    assert.equal((await settled(cloned.handle.ready)).error?.name, 'DataCloneError');
-    // Frame start timeout
-    t.mock.timers.enable({ apis: ['setTimeout'] });
-    const slow = embed(t);
-    slow.handle.on('error', () => { throw new Error('Listener failed'); });
-    slow.iframe.dispatchEvent(new slow.win.Event('load'));
-    t.mock.timers.tick(10_000);
-    assert.match((await settled(slow.handle.ready)).error?.message ?? '', /Component frame did not start/);
-    t.mock.timers.reset();
-    // Metadata failure in the client
-    globalThis.fetch = async () => new Response('', { status: 503 });
-    t.after(() => { globalThis.fetch = nativeFetch; });
-    const win = hostWindow(t);
-    const slot = win.document.body.appendChild(win.document.createElement('div'));
-    const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { app: 'my_app', component: 'Picker' });
-    handle.on('error', () => { throw new Error('Listener failed'); });
-    assert.match((await settled(handle.ready)).error?.message ?? '', /\(503\)/);
+  const states = [];
+  // Records whether ready had already settled when the listener ran: an already rejected ready beats the pending marker
+  const failing = handle => handle.on('error', () => {
+    Promise.race([handle.ready, Promise.resolve('pending')]).then(value => states.push(value === 'pending' ? 'pending' : 'resolved'), () => states.push('rejected'));
+    throw new Error('Listener failed');
   });
-  quiet.mock.restore();
+  try {
+    await withoutUnhandledRejections(async () => {
+      // Init that cannot be cloned
+      const cloned = embed(t, { context: { format() {} } });
+      failing(cloned.handle);
+      cloned.receive({ type: 'hello' });
+      await tick();
+      assert.equal((await settled(cloned.handle.ready)).error?.name, 'DataCloneError');
+      // Frame start timeout
+      t.mock.timers.enable({ apis: ['setTimeout'] });
+      const slow = embed(t);
+      failing(slow.handle);
+      slow.iframe.dispatchEvent(new slow.win.Event('load'));
+      t.mock.timers.tick(10_000);
+      assert.match((await settled(slow.handle.ready)).error?.message ?? '', /Component frame did not start/);
+      t.mock.timers.reset();
+      // Metadata failure in the client
+      globalThis.fetch = async () => new Response('', { status: 503 });
+      t.after(() => { globalThis.fetch = nativeFetch; });
+      const win = hostWindow(t);
+      const slot = win.document.body.appendChild(win.document.createElement('div'));
+      const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { app: 'my_app', component: 'Picker' });
+      failing(handle);
+      assert.match((await settled(handle.ready)).error?.message ?? '', /\(503\)/);
+    });
+    assert.deepEqual(states, ['rejected', 'rejected', 'rejected']);
+  } finally {
+    quiet.mock.restore();
+  }
 });
 
 test('a getToken that throws synchronously reaches error listeners attached after mount', async (t) => {
@@ -1545,4 +1555,40 @@ test('a client emit works once a frame that missed the start timeout sends ready
   const event = sent.at(-1).message;
   receive({ type: 'result', call: event.call, result: 'done' });
   assert.equal(await result, 'done');
+});
+
+test('emit rejects when the frame never starts, before and after the start timeout', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { win, iframe, handle } = embed(t);
+  iframe.dispatchEvent(new win.Event('load'));
+  const early = handle.emit('submit');
+  assert.equal(await settled(early), 'pending');
+  t.mock.timers.tick(10_000);
+  assert.match((await settled(early)).error?.message ?? '', /did not start/);
+  assert.match((await settled(handle.emit('submit'))).error?.message ?? '', /did not start/);
+});
+
+test('a client emit rejects when the frame never starts', async (t) => {
+  globalThis.fetch = async () => Response.json({ components: [{ name: 'Picker', src: SRC }] });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { app: 'my_app', component: 'Picker' });
+  t.after(() => handle.unmount());
+  const early = handle.emit('submit');
+  await flush();
+  win.document.querySelector('iframe').dispatchEvent(new win.Event('load'));
+  t.mock.timers.tick(10_000);
+  assert.match((await settled(early)).error?.message ?? '', /did not start/);
+  assert.match((await settled(handle.emit('submit'))).error?.message ?? '', /did not start/);
+});
+
+test('a frame error is terminal: a late ready does not revive emit', async (t) => {
+  const { handle, receive } = embed(t);
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'error', message: 'Boom' });
+  receive({ type: 'ready' });
+  assert.equal((await settled(handle.emit('submit'))).error?.message, 'Boom');
 });

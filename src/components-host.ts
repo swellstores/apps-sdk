@@ -9,16 +9,23 @@ export interface ComponentHandle<TValue = unknown> {
   /**
    * Resolves when the component has mounted in its frame. Rejects when the component cannot be
    * loaded or started; the `error` event fires as well. `unmount` also rejects it, without an
-   * `error` event.
+   * `error` event. A frame `error` is final: a later `ready` from that frame does not revive the
+   * handle. A frame that only missed the 10 s start timeout can still start later and then serves `emit`.
    */
   readonly ready: Promise<void>;
-  /** Listens to the component. Returns a function that removes the listener; unknown events are ignored. */
+  /**
+   * Listens to the component. Returns a function that removes the listener; unknown events are ignored.
+   * A listener that throws is caught and logged with `console.error`; the other listeners still run.
+   */
   on(event: 'change', handler: (value: TValue) => void): () => void;
   on(event: 'validity', handler: (error: string | null) => void): () => void;
   on(event: 'error', handler: (error: Error) => void): () => void;
   /** Re-renders the component with new data. */
   update(input: ComponentInput<TValue>): void;
-  /** Sends an event to the component and resolves with its handler's result. */
+  /**
+   * Sends an event to the component and resolves with its handler's result. Rejects when the frame
+   * does not start in time, reports an error (final) or is unmounted.
+   */
   emit<T = unknown>(event: string, data?: unknown): Promise<T>;
   unmount(): void;
 }
@@ -117,6 +124,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   const { promise: ready, resolve: markReady, reject: failReady } = deferred();
   // Settles on the frame's own `ready` message, so a frame that starts after the start timeout still serves `emit`
   const { promise: live, resolve: markLive, reject: failLive } = deferred();
+  // Rejects at the start timeout, so `emit` fails instead of waiting for a frame that never starts
+  const { promise: startFailed, reject: failStart } = deferred();
   const stop = (error: Error) => {
     failReady(error);
     failLive(error);
@@ -226,6 +235,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       if (greeted || destroyed) return;
       const error = new Error('Component frame did not start');
       failReady(error);
+      failStart(error);
       fail(error);
     }, START_MS);
   });
@@ -301,7 +311,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       send({ type: 'update', props: changed });
     },
     async emit<T = unknown>(name: string, data?: unknown): Promise<T> {
-      await live;
+      await Promise.race([live, startFailed]);
       if (destroyed) throw new Error('Component unmounted');
       const call = ++calls;
       const result = new Promise<T>((resolve, reject) => {
