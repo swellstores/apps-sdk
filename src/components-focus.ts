@@ -108,6 +108,9 @@ export function installFocusGuards({ win, target, post, isOverlay, getBlocker }:
   // A pointer press gave the frame focus, which is no entry either. Set by pointerdown, cleared by the next window focus or blur.
   let pressed = false;
 
+  // Where keyboard focus belongs: the root, or during overlay the element that covers it (the root is under its backdrop)
+  const reach = (): ParentNode => (isOverlay() ? getBlocker() ?? document.body : target);
+
   const focusQuietly = (element: HTMLElement) => {
     const was = moving;
     moving = true;
@@ -127,7 +130,7 @@ export function installFocusGuards({ win, target, post, isOverlay, getBlocker }:
       if (moving) return;
       if (isOverlay()) {
         // The frame covers the viewport: keep focus inside the element that covers it, never on the root under it
-        const stops = tabbableIn(getBlocker() ?? document.body);
+        const stops = tabbableIn(reach());
         const stop = stops[direction === 'previous' ? stops.length - 1 : 0];
         if (stop) focusQuietly(stop);
       } else if (awaitingEntry) {
@@ -163,14 +166,15 @@ export function installFocusGuards({ win, target, post, isOverlay, getBlocker }:
     }
   }
 
-  // Focus enters at an edge. A component whose controls we cannot see (closed shadow roots) is entered through the guard
-  // on that side; one with no controls at all is passed by.
+  // Focus enters at an edge, of the root or during overlay of the modal. A component whose controls we cannot see
+  // (closed shadow roots) is entered through the guard on that side; one with no controls at all is passed by.
   function enter(edge: 'first' | 'last') {
     awaitingEntry = false;
-    const stops = tabbableIn(target);
+    const scope = reach();
+    const stops = tabbableIn(scope);
     const stop = stops[edge === 'last' ? stops.length - 1 : 0];
     if (stop) focusQuietly(stop);
-    else if (Array.from(target.querySelectorAll('*')).some(hidesFocus)) {
+    else if (Array.from(scope.querySelectorAll('*')).some(hidesFocus)) {
       focusQuietly(guards[edge === 'first' ? 'previous' : 'next']);
     } else post({ type: 'focus-exit', direction: edge === 'last' ? 'previous' : 'next' });
   }

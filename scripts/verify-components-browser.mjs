@@ -260,6 +260,22 @@ async function focusCases() {
   };
   await attempt(() => focusCase('Shift+Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3ds', null, [[S, 'iframe0:m1'], [S, 'iframe0:tds>otp']], clickChallenge, 'iframe0:tds>otp'));
   await attempt(() => focusCase('Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3dsLast', null, [[T, 'iframe0:m1'], [T, 'iframe0:tds>otp']], clickChallenge, 'iframe0:tds>otp'));
+  // Tab from the host page during overlay enters the modal at its near edge, never the component's field under the backdrop
+  for (const [key, start, expected] of [[T, '#pre', 'iframe0:m1'], [S, '#post', 'iframe0:m2']]) {
+    await attempt(async () => {
+      const page = await openFocusPage('slots=Modal', null);
+      try {
+        await openComponentModal(page);
+        await page.locator(start).focus();
+        await page.keyboard.press(key);
+        await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(true), 300))));
+        const got = await whereIs(page);
+        assert.equal(got, expected, `${key} from ${start} during overlay: focus is on ${got}, not ${expected}`);
+      } finally {
+        await page.close();
+      }
+    });
+  }
   // A click on text before the field, then Shift+Tab, leaves the component: the click is no Tab entry
   await attempt(() => focusCase('Shift+Tab after a click on text before the field leaves the component', 'slots=Label', null, [[S, 'pre']], async (focusPage) => {
     await focusPage.frames().find(item => item.url().startsWith(frameOrigin)).locator('#label').click();

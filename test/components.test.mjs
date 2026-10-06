@@ -1558,6 +1558,25 @@ test('in overlay a guard keeps focus in the modal even while an entry is pending
   assert.deepEqual(focusExits(posted), []);
 });
 
+test('a host focus message during overlay enters the modal at that edge, not the root under it', async (t) => {
+  const { win, send, root } = focusFrame(t, '<input id="a"><input id="b">');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const modal = win.document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.innerHTML = '<button id="m1"></button><button id="m2"></button>';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  assert.equal(win.document.documentElement.style.overflow, 'hidden', 'overlay is on');
+  send({ type: 'focus', edge: 'first' });
+  assert.equal(win.document.activeElement?.id, 'm1');
+  send({ type: 'focus', edge: 'last' });
+  assert.equal(win.document.activeElement?.id, 'm2');
+  assert.equal(root().contains(win.document.activeElement), false, 'focus stays out of the root');
+});
+
 test('a pointer press in the frame ends a pending entry', async (t) => {
   const { win, send, posted, root } = focusFrame(t, '<input id="a">');
   send({ type: 'init', props: HOST_PROPS, token: null });
