@@ -92,6 +92,20 @@ test('layer follows the placeholder on every animation frame', async (t) => {
   assert.equal(element.style.top, '140px');
 });
 
+test('layer is fixed in viewport coordinates inside a fixed container, absolute in the page otherwise', async (t) => {
+  const { win, outer, wrapper, element } = layerSetup(t);
+  Object.defineProperty(win, 'scrollY', { configurable: true, get: () => 500 });
+  await animationFrame(win);
+  assert.deepEqual([element.style.position, element.style.top], ['absolute', '600px']);
+  wrapper.style.position = 'fixed';
+  await animationFrame(win);
+  assert.deepEqual([element.style.position, element.style.top], ['fixed', '100px']);
+  // A transform above the fixed container makes it scroll with the page again
+  outer.style.transform = 'translateZ(0)';
+  await animationFrame(win);
+  assert.deepEqual([element.style.position, element.style.top], ['absolute', '600px']);
+});
+
 test('overlay covers the viewport, locks page scroll and reports placeholder moves', async (t) => {
   const { win, layer, element, moves, move } = layerSetup(t);
   win.document.documentElement.style.overflow = 'scroll';

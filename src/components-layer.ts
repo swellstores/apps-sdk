@@ -134,8 +134,10 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
     }
     hidden ||= clipTop >= bottom || clipBottom <= top || clipLeft >= right || clipRight <= left;
     const insets = [clipTop - top, right - clipRight, bottom - clipBottom, clipLeft - left].map(inset => Math.max(0, inset));
+    // Inside a fixed container (a modal) the layer is fixed too: focus moving inside the frame then cannot scroll the page behind it
+    const fixed = escape === 'fixed';
     write({
-      position: 'absolute', top: `${top + window.scrollY}px`, left: `${left + window.scrollX}px`,
+      position: fixed ? 'fixed' : 'absolute', top: `${fixed ? top : top + window.scrollY}px`, left: `${fixed ? left : left + window.scrollX}px`,
       width: `${width}px`, height: `${height}px`, 'z-index': zIndex, opacity: String(opacity),
       visibility: hidden ? 'hidden' : 'visible',
       'clip-path': insets.some(Boolean) ? `inset(${insets.map(inset => `${inset}px`).join(' ')})` : 'none',

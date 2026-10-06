@@ -378,6 +378,22 @@ async function scrollerCases() {
       await page.close();
     }
   });
+  // Tab to a control below the viewport does not scroll the page behind the fixed modal
+  await attempt(async () => {
+    const page = await openScrollerPage();
+    try {
+      await page.locator('#pre').focus();
+      await page.keyboard.press(T);
+      await waitForFocus(page, name => name === 'iframe0:x', 'scroller: Tab into the component');
+      await page.keyboard.press(T);
+      await waitForFocus(page, name => name === 'iframe0:y', 'scroller: Tab to the control below the viewport');
+      await followed(page);
+      const scrolled = await page.evaluate(() => scrollY);
+      assert.equal(scrolled, 0, `scroller: the page behind the fixed modal scrolled by ${scrolled}px`);
+    } finally {
+      await page.close();
+    }
+  });
 }
 
 const hostOrigin = `http://localhost:${await listen(hostServer)}`;
