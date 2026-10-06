@@ -6,6 +6,7 @@ import { createFrameLayer } from '../dist/components-layer.js';
 import { embedComponent } from '../dist/components-host.js';
 import { createComponents } from '../dist/components-client.js';
 import { startComponentFrame } from '../dist/components-frame.js';
+import { installFocusGuards } from '../dist/components-focus.js';
 
 const HOST = 'https://store.swell.test';
 const FRAME = 'https://store--inst--app.swell.test';
@@ -1453,6 +1454,19 @@ test('Shift+Tab on the before guard and Tab on the after guard leave the frame',
   assert.deepEqual(focusExits(posted), []);
   assert.deepEqual([press(before, true), press(after, false)], [true, true]);
   assert.deepEqual(focusExits(posted), ['previous', 'next']);
+});
+
+test('focus guards can be installed on their own and disposed', (t) => {
+  const win = new Window({ url: `${FRAME}/` });
+  t.after(() => win.happyDOM.close());
+  win.document.body.innerHTML = '<div id="root"><input id="a"></div>';
+  const target = win.document.getElementById('root');
+  const guards = installFocusGuards({ win, target, post() {}, isOverlay: () => false, getBlocker: () => null });
+  assert.equal(win.document.querySelectorAll('[data-swell-focus-guard]').length, 2);
+  guards.enter('last');
+  assert.equal(win.document.activeElement?.id, 'a');
+  guards.dispose();
+  assert.equal(win.document.querySelectorAll('[data-swell-focus-guard]').length, 0);
 });
 
 // Runs `body` while counting unhandled rejections
