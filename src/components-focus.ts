@@ -17,6 +17,9 @@ function isInert(element: Element): boolean {
   return false;
 }
 
+// A custom element without a visible shadow root: its controls, if any, are in a closed shadow root we cannot search
+const hidesFocus = (element: Element) => element.localName.includes('-') && !element.shadowRoot;
+
 function isTabbable(element: HTMLElement): boolean {
   return element.matches(TABBABLE) && element.tabIndex >= 0 && !element.hasAttribute(GUARD) && !isInert(element) && isVisible(element);
 }
@@ -160,13 +163,14 @@ export function installFocusGuards({ win, target, post, isOverlay, getBlocker }:
     }
   }
 
-  // Focus enters at an edge. A component whose controls we cannot see (closed shadow roots) is entered through the guard on that side.
+  // Focus enters at an edge. A component whose controls we cannot see (closed shadow roots) is entered through the guard
+  // on that side; one with no controls at all is passed by.
   function enter(edge: 'first' | 'last') {
     awaitingEntry = false;
     const stops = tabbableIn(target);
     const stop = stops[edge === 'last' ? stops.length - 1 : 0];
     if (stop) focusQuietly(stop);
-    else if (Array.from(target.querySelectorAll('*')).some(element => element.localName.includes('-'))) {
+    else if (Array.from(target.querySelectorAll('*')).some(hidesFocus)) {
       focusQuietly(guards[edge === 'first' ? 'previous' : 'next']);
     } else post({ type: 'focus-exit', direction: edge === 'last' ? 'previous' : 'next' });
   }
@@ -177,7 +181,7 @@ export function installFocusGuards({ win, target, post, isOverlay, getBlocker }:
     let active = document.activeElement;
     while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
     // A closed shadow root hides what has focus in it: a frame there shows only as focus on its host
-    intoFrame = !!active && (active.localName === 'iframe' || (active.localName.includes('-') && !active.shadowRoot));
+    intoFrame = !!active && (active.localName === 'iframe' || hidesFocus(active));
     pressed = false;
   }, { signal });
   win.addEventListener('focus', () => {

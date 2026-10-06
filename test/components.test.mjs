@@ -1351,6 +1351,17 @@ test('a custom element without visible controls is entered through the guard, no
   assert.deepEqual(focusExits(posted), []);
 });
 
+test('a custom element with an open shadow root and no controls is passed by, not entered', async (t) => {
+  const { win, send, posted, root } = focusFrame(t, '<x-icon></x-icon>');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  root().querySelector('x-icon').attachShadow({ mode: 'open' }).innerHTML = '<b>i</b>';
+  send({ type: 'focus', edge: 'first' });
+  send({ type: 'focus', edge: 'last' });
+  assert.deepEqual(focusExits(posted), ['next', 'previous']);
+  assert.equal(win.document.activeElement?.hasAttribute('data-swell-focus-guard') ?? false, false, 'no guard holds focus');
+});
+
 test('a guard focused before the host focus message enters at its own edge', async (t) => {
   const { win, send, posted, root } = focusFrame(t, '<input id="a"><input id="b">');
   send({ type: 'init', props: HOST_PROPS, token: null });
