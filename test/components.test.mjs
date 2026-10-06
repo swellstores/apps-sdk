@@ -807,6 +807,21 @@ test('focusing the sentinel focuses the iframe and tells the frame which edge to
   assert.deepEqual(sent.filter(({ message }) => message.type === 'focus').map(({ message }) => message.edge), ['first', 'last', 'first']);
 });
 
+test('the sentinel brings a hidden layer up to date before it focuses the iframe', async (t) => {
+  const { win, placeholder, iframe, receive, focusFrom } = focusFixture(t);
+  receive({ type: 'hello' });
+  await tick();
+  await animationFrame(win);
+  const layer = iframe.parentElement;
+  assert.equal(layer.style.visibility, 'hidden', 'a placeholder without width hides the layer');
+  // The page scrolls the placeholder into view as Tab reaches the sentinel, before the next animation frame
+  placeholder.getBoundingClientRect = () => ({ top: 10, left: 0, width: 300, height: 0 });
+  let visibility = '';
+  iframe.focus = () => { visibility = layer.style.visibility; };
+  focusFrom(null);
+  assert.equal(visibility, 'visible');
+});
+
 test('focus-exit moves focus to the tabbable element after or before the placeholder', async (t) => {
   const { win, iframe, receive, before, after } = focusFixture(t);
   const skipped = win.document.createElement('button');

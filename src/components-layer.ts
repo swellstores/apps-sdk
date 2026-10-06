@@ -3,6 +3,8 @@ import type { Rect } from './components-protocol.js';
 export interface FrameLayer {
   readonly iframe: HTMLIFrameElement;
   setHeight(height: number): void;
+  /** Brings the layer up to date with the placeholder now, instead of on the next animation frame. */
+  sync(): void;
   /** Covers the viewport while the component shows a modal. Returns the placeholder position. */
   setOverlay(on: boolean): Rect;
   destroy(): void;
@@ -175,6 +177,7 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
   loop();
   return {
     iframe,
+    sync: apply,
     setHeight(next) {
       height = next;
       placeholder.style.height = `${next}px`;

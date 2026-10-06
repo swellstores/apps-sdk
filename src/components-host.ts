@@ -156,6 +156,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     if (moving) return;
     const from = (event as FocusEvent).relatedTarget as Node | null;
     const edge = enteredFrom ?? (from && sentinel.compareDocumentPosition(from) & sentinel.DOCUMENT_POSITION_FOLLOWING ? 'last' : 'first');
+    // A layer still hidden from the last animation frame (the page has just scrolled the placeholder into view) cannot take focus
+    layer.sync();
     moving = true;
     try {
       layer.iframe.focus();
