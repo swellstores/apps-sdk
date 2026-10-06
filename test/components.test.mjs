@@ -278,6 +278,22 @@ test('layer ignores hidden occluders and occluders beside it', async (t) => {
   assert.equal(element.style.clipPath, 'none');
 });
 
+test('layer ignores occluders that are visibility: hidden or fully transparent', async (t) => {
+  const { win, outer, layer, element } = layerSetup(t);
+  layer.setHeight(100);
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
+  const header = occluder(win, outer, { top: 80, bottom: 120 });
+  header.style.visibility = 'hidden';
+  const footer = occluder(win, outer, { top: 170, bottom: 400 });
+  footer.style.opacity = '0';
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'none');
+  // Without checkVisibility a bar counts, as before
+  header.checkVisibility = undefined;
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(20px 0px 0px 0px)');
+});
+
 test('layer mirrors an inherited visibility: hidden', async (t) => {
   const { win, outer, element } = layerSetup(t);
   assert.equal(element.style.visibility, 'visible');

@@ -122,6 +122,8 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
     for (let index = 0; index < bars.length; index++) {
       const bar = bars[index];
       if (bar.contains(placeholder) || placeholder.contains(bar)) continue;
+      // A bar that is visibility: hidden or fully transparent covers nothing (browsers without checkVisibility count it)
+      if (bar.checkVisibility?.({ visibilityProperty: true, opacityProperty: true }) === false) continue;
       const box = bar.getBoundingClientRect();
       if (box.right <= box.left || box.bottom <= box.top || box.left >= right || box.right <= left) continue;
       // A bar counts at the edges of the visible part: a component taller than its scroller passes under both bars
