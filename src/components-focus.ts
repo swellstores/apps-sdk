@@ -93,19 +93,20 @@ export interface FocusGuards {
  *   overlay on       wrap inside the blocker: the guard before it focuses its last stop, the one after its first
  *   entry pending    enter the root at the guard's own edge: the guard before enters first, the one after last
  *   otherwise        post focus-exit, so the host moves focus on past the component
+ *
+ * A control that gets focus outside overlay is reported as focus-rect, so the host scrolls it into view.
  */
 export function installFocusGuards({ win, target, post, isOverlay, getBlocker }: FocusGuardOptions): FocusGuards {
   const document = win.document;
   const listening = new AbortController();
   const { signal } = listening;
-  // Tab reached the frame before the host's focus message. Set by a window focus with nothing focused;
-  // cleared by enter(), by pointerdown and by focusin on anything but a guard.
+  // Entry pending (Tab beat the host's focus message): set by window focus with nothing focused; cleared by enter(), pointerdown, focusin off a guard
   let awaitingEntry = false;
-  // Our own focus() call is running. Set and cleared around it, so the focus events it causes do not move focus again.
+  // Our own focus() is running, so the focus events it causes move nothing: set and cleared around the call
   let moving = false;
-  // Focus went into a nested frame; coming back from it is no entry. Set by window blur, cleared by the next window focus.
+  // Focus went into a nested frame, so its return is no entry: set by window blur; cleared by the next window focus
   let intoFrame = false;
-  // A pointer press gave the frame focus, which is no entry either. Set by pointerdown, cleared by the next window focus or blur.
+  // A pointer press gave the frame focus, so that is no entry: set by pointerdown; cleared by the next window focus or blur
   let pressed = false;
 
   // Where keyboard focus belongs: the root, or during overlay the element that covers it (the root is under its backdrop)
