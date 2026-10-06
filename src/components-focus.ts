@@ -191,7 +191,15 @@ export function installFocusGuards({ win, target, post, isOverlay, getBlocker }:
     pressed = true;
   }, { capture: true, signal });
   document.addEventListener('focusin', (event) => {
-    if (event.target instanceof win.Element && !event.target.hasAttribute(GUARD)) awaitingEntry = false;
+    if (!(event.target instanceof win.Element) || event.target.hasAttribute(GUARD)) return;
+    awaitingEntry = false;
+    // The host scrolls the control into view: inside the frame there is nothing to scroll, the frame is as tall as the component
+    if (isOverlay()) return;
+    let focused: Element = event.target;
+    while (focused.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement;
+    const box = focused.getBoundingClientRect();
+    const base = target.getBoundingClientRect().top;
+    post({ type: 'focus-rect', top: box.top - base, bottom: box.bottom - base });
   }, { signal });
 
   return {

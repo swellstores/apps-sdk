@@ -41,7 +41,9 @@ export type FrameMessage =
   | { type: 'overlay'; on: boolean }
   | { type: 'result'; call: number; result?: unknown; error?: string }
   | { type: 'error'; message: string }
-  | { type: 'focus-exit'; direction: 'next' | 'previous' };
+  | { type: 'focus-exit'; direction: 'next' | 'previous' }
+  /** A control got keyboard focus: its top and bottom in px from the top of the component, for the host to scroll into view. */
+  | { type: 'focus-rect'; top: number; bottom: number };
 
 interface Envelope {
   $swell: typeof PROTOCOL;

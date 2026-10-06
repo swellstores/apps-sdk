@@ -374,6 +374,33 @@ async function followed(page) {
   await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
 }
 
+// Whether the control focused in the component frame shows inside the layer's visible (clipped) part
+async function focusedControlShows(page) {
+  const frame = await (await page.$('iframe')).contentFrame();
+  const inner = await frame.evaluate(() => {
+    const box = document.activeElement.getBoundingClientRect();
+    return { id: document.activeElement.id, top: box.top, bottom: box.bottom };
+  });
+  return page.evaluate((control) => {
+    const iframe = document.querySelector('iframe');
+    const box = iframe.getBoundingClientRect();
+    const [clipTop = 0, , clipBottom = clipTop] = (iframe.parentElement.style.clipPath.match(/-?[\d.]+/g) ?? []).map(Number);
+    const top = box.top + control.top;
+    const bottom = box.top + control.bottom;
+    const shows = top >= box.top + clipTop - 0.5 && bottom <= box.bottom - clipBottom + 0.5 && iframe.parentElement.style.visibility === 'visible';
+    return shows || `${control.id} at ${Math.round(top)}..${Math.round(bottom)}, visible part ${Math.round(box.top + clipTop)}..${Math.round(box.bottom - clipBottom)}`;
+  }, inner);
+}
+
+async function waitUntilShown(page, label) {
+  let shown = await focusedControlShows(page);
+  for (let wait = 0; shown !== true && wait < 30; wait++) {
+    await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(true), 30))));
+    shown = await focusedControlShows(page);
+  }
+  assert.equal(shown, true, `${label}: ${shown}`);
+}
+
 async function scrollerCases() {
   // A component taller than the modal, straddling its sticky footer or header, stays under the bar
   await attempt(async () => {
@@ -392,6 +419,26 @@ async function scrollerCases() {
         if (hit !== bar) covered.push(`component top at ${slotTop}: ${hit} at y=${y}, not ${bar}`);
       }
       assert.deepEqual(covered, [], `a tall component paints over a sticky bar: ${covered.join('; ')}`);
+    } finally {
+      await page.close();
+    }
+  });
+  // A control that keyboard focus reaches inside the component is scrolled into the modal's view, clear of its bars
+  await attempt(async () => {
+    const page = await openScrollerPage();
+    try {
+      await page.locator('#pre').focus();
+      await page.keyboard.press(T);
+      await waitForFocus(page, name => name === 'iframe0:x', 'scroller: Tab into the component');
+      await waitUntilShown(page, 'scroller: Tab into the component');
+      await page.keyboard.press(T);
+      await waitForFocus(page, name => name === 'iframe0:y', 'scroller: Tab inside the component');
+      await waitUntilShown(page, 'scroller: Tab inside the component');
+      await page.evaluate(() => { document.querySelector('#modal').scrollTop = 0; });
+      await page.locator('#post').focus();
+      await page.keyboard.press(S);
+      await waitForFocus(page, name => name === 'iframe0:y', 'scroller: Shift+Tab into the component');
+      await waitUntilShown(page, 'scroller: Shift+Tab into the component');
     } finally {
       await page.close();
     }

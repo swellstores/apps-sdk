@@ -941,6 +941,27 @@ test('unmount removes the focus sentinel', (t) => {
   assertSame(placeholder.querySelector('[tabindex]'), null);
 });
 
+test('focus-rect scrolls the focused part of the component into view while the frame has focus', async (t) => {
+  const { iframe, sentinel, receive } = focusFixture(t);
+  await tick();
+  receive({ type: 'resize', height: 300 });
+  const scrolls = [];
+  sentinel.scrollIntoView = (options) => scrolls.push([sentinel.style.transform, sentinel.style.height, options.block]);
+  receive({ type: 'focus-rect', top: 120, bottom: 150 });
+  assert.deepEqual(scrolls, [], 'ignored while the frame has no focus');
+  iframe.focus();
+  receive({ type: 'focus-rect', top: 120, bottom: 150 });
+  assert.deepEqual(scrolls, [['translateY(120px)', '30px', 'nearest']]);
+  assert.deepEqual([sentinel.style.transform, sentinel.style.height], ['', '0px'], 'the sentinel is reset');
+  // Clamped to the component; malformed rects are ignored
+  receive({ type: 'focus-rect', top: -20, bottom: 900 });
+  for (const [top, bottom] of [[Number.NaN, 10], [10, Infinity], [50, 40], ['10', '20']]) receive({ type: 'focus-rect', top, bottom });
+  assert.deepEqual(scrolls.slice(1), [['translateY(0px)', '300px', 'nearest']]);
+  receive({ type: 'overlay', on: true });
+  receive({ type: 'focus-rect', top: 120, bottom: 150 });
+  assert.equal(scrolls.length, 2, 'ignored during overlay');
+});
+
 const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };
 
 function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/picker.js' } = {}) {
@@ -1551,6 +1572,28 @@ test('Shift+Tab on the before guard and Tab on the after guard leave the frame',
   assert.deepEqual(focusExits(posted), []);
   assert.deepEqual([press(before, true), press(after, false)], [true, true]);
   assert.deepEqual(focusExits(posted), ['previous', 'next']);
+});
+
+test('a focused control reports its place in the component, except for guards and during overlay', async (t) => {
+  const { win, send, posted, root } = focusFrame(t, '<input id="a"><input id="b">');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const rects = () => posted.filter(({ message }) => message.type === 'focus-rect').map(({ message }) => [message.top, message.bottom]);
+  root().getBoundingClientRect = () => ({ top: 10, bottom: 410, left: 0, right: 300, width: 300, height: 400 });
+  root().querySelector('#b').getBoundingClientRect = () => ({ top: 260, bottom: 290, left: 0, right: 300, width: 300, height: 30 });
+  root().querySelector('#b').focus();
+  assert.deepEqual(rects(), [[250, 280]]);
+  win.document.querySelector('[data-swell-focus-guard]').focus();
+  assert.deepEqual(rects(), [[250, 280]], 'a guard is no control');
+  const modal = win.document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.innerHTML = '<button id="m1"></button>';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  modal.querySelector('#m1').focus();
+  assert.deepEqual(rects(), [[250, 280]], 'overlay controls are not scrolled by the host');
 });
 
 test('focus guards can be installed on their own and disposed', (t) => {

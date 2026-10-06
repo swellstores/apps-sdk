@@ -121,6 +121,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   let started = false;
   let destroyed = false;
   let overlayOn = false;
+  // The component height the frame last reported
+  let frameHeight = 0;
   const { promise: ready, resolve: markReady, reject: failReady } = deferred();
   // Settles on the frame's own `ready` message, so a frame that starts after the start timeout still serves `emit`
   const { promise: live, resolve: markLive, reject: failLive } = deferred();
@@ -170,6 +172,21 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     }
     send({ type: 'focus', edge });
   });
+
+  // Scrolls the placeholder's scrolling ancestors so the part from top to bottom (px from the placeholder top) shows:
+  // the sentinel stands in for the focused control for a moment. Hosts set scroll-padding to keep it clear of sticky bars.
+  function reveal(top: number, bottom: number) {
+    if (overlayOn || placeholder.ownerDocument.activeElement !== layer.iframe) return;
+    if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom < top) return;
+    const clamp = (value: number) => Math.min(Math.max(value, 0), frameHeight);
+    Object.assign(sentinel.style, { transform: `translateY(${clamp(top)}px)`, height: `${clamp(bottom) - clamp(top)}px` });
+    try {
+      sentinel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    } finally {
+      Object.assign(sentinel.style, { transform: '', height: '0' });
+    }
+    layer.sync();
+  }
 
   // Moves focus to the tabbable element after (next) or before (previous) the placeholder
   function leaveFrame(direction: 'next' | 'previous') {
@@ -287,7 +304,10 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         notify('validity', typeof message.error === 'string' ? message.error : null);
         return;
       case 'resize':
-        if (Number.isFinite(message.height)) layer.setHeight(Math.max(0, Math.ceil(message.height)));
+        if (Number.isFinite(message.height)) {
+          frameHeight = Math.max(0, Math.ceil(message.height));
+          layer.setHeight(frameHeight);
+        }
         return;
       case 'overlay':
         overlayOn = message.on === true;
@@ -295,6 +315,9 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         return;
       case 'focus-exit':
         if (message.direction === 'next' || message.direction === 'previous') leaveFrame(message.direction);
+        return;
+      case 'focus-rect':
+        reveal(message.top, message.bottom);
         return;
       case 'result': {
         const call = pending.get(message.call);
