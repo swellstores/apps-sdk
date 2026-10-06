@@ -124,8 +124,11 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
       if (bar.contains(placeholder) || placeholder.contains(bar)) continue;
       const box = bar.getBoundingClientRect();
       if (box.right <= box.left || box.bottom <= box.top || box.left >= right || box.right <= left) continue;
-      if ((box.top + box.bottom) / 2 < top || (box.top < top && box.bottom > top)) clipTop = Math.max(clipTop, box.bottom);
-      else if (box.top < bottom && box.bottom > bottom) clipBottom = Math.min(clipBottom, box.top);
+      // A bar counts at the edges of the visible part: a component taller than its scroller passes under both bars
+      const spanTop = Math.max(top, clipTop);
+      const spanBottom = Math.min(bottom, clipBottom);
+      if (box.top <= spanTop && box.bottom > spanTop) clipTop = Math.max(clipTop, box.bottom);
+      else if (box.top < spanBottom && box.bottom >= spanBottom) clipBottom = Math.min(clipBottom, box.top);
     }
     hidden ||= clipTop >= bottom || clipBottom <= top || clipLeft >= right || clipRight <= left;
     const insets = [clipTop - top, right - clipRight, bottom - clipBottom, clipLeft - left].map(inset => Math.max(0, inset));

@@ -76,6 +76,24 @@ const FOCUS_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
+// A fixed modal over a long page: its scroller has a sticky header and footer marked as occluders and
+// scroll-padding that keeps focused controls clear of them, and holds a component taller than itself.
+const SCROLLER_PAGE = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Scroller host</title></head>
+<body style="margin:0"><div style="height:3000px">page</div>
+<div id="modal" style="position:fixed;top:50px;left:50px;width:600px;height:400px;z-index:99999;overflow-y:auto;scroll-padding:50px 0;background:#fff">
+  <div id="hdr" data-swell-component-occluder style="position:sticky;top:0;height:50px;background:#ccc;z-index:1">header</div>
+  <input id="pre"><div style="height:600px"></div><div id="slot"></div><div style="height:100px"></div><input id="post"><div style="height:600px"></div>
+  <div id="ftr" data-swell-component-occluder style="position:sticky;bottom:0;height:50px;background:#ccc;z-index:1"><button id="save">Save</button></div>
+</div>
+<script type="module">
+  import { createComponents } from '/dist/components.js';
+  const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
+  await components.mount('#slot', { app: 'demo', component: 'Tall' }).ready;
+  window.mounted = true;
+</script>
+</body></html>`;
+
 const SHELL_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"></head>
 <body><div id="root"></div>
@@ -135,6 +153,7 @@ const FOCUS_BUNDLES = {
   Modal3ds: mod('<input id="x">', openModal(`${TDS}<button id="m1">Cancel</button>`)),
   Modal3dsLast: mod('<input id="x">', openModal(`<button id="m1">Cancel</button>${TDS}`)),
   Label: mod('<p id="label">Card number</p><input id="x">'),
+  Tall: mod('<input id="x"><div style="height:500px"></div><input id="y">'),
   Dialog: mod('<input id="x"><div id="dlg"><button id="d1">1</button><button id="d2">2</button></div>', `const dialog = root.querySelector('#dlg'); dialog.addEventListener('keydown', (event) => { if (event.key !== 'Tab') return; if (!event.shiftKey && event.target.id === 'd2') { event.preventDefault(); dialog.querySelector('#d1').focus(); } if (event.shiftKey && event.target.id === 'd1') { event.preventDefault(); dialog.querySelector('#d2').focus(); } });`),
 };
 const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, ...FOCUS_BUNDLES };
@@ -145,6 +164,7 @@ const hostServer = createServer(async (req, res) => {
   if (pathname === '/') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(HOST_PAGE);
   if (pathname === '/focus') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(FOCUS_PAGE);
   if (pathname === '/modal') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(MODAL_PAGE);
+  if (pathname === '/scroller') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(SCROLLER_PAGE);
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
   if (pathname === '/api/apps/demo/components') {
     if (req.headers.authorization !== `Basic ${Buffer.from('pk_test').toString('base64')}`) return res.writeHead(401).end();
@@ -196,15 +216,17 @@ const FOCUS_CASES = [
   ['a dialog that wraps Tab keeps focus inside', 'slots=Dialog', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:d1'], [T, 'iframe0:d2'], [T, 'iframe0:d1'], [S, 'iframe0:d2']]],
 ];
 
+// Cases run one after another and report their failures together at the end
+const failures = [];
+async function attempt(run) {
+  try {
+    await run();
+  } catch (error) {
+    failures.push(error.message.split('\n')[0]);
+  }
+}
+
 async function focusCases() {
-  const failures = [];
-  const attempt = async (run) => {
-    try {
-      await run();
-    } catch (error) {
-      failures.push(error.message.split('\n')[0]);
-    }
-  };
   for (const [name, query, start, steps, before] of FOCUS_CASES) await attempt(() => focusCase(name, query, start, steps, before));
   await attempt(() => focusCase('a modal without a focus trap keeps Tab inside it', 'slots=Modal', null, [[T, 'iframe0:m2'], [T, 'iframe0:m1'], [T, 'iframe0:m2'], [S, 'iframe0:m1'], [S, 'iframe0:m2']], openComponentModal, 'iframe0:m1'));
   // A 3DS modal: Tab and Shift+Tab cycle between its button and the bank's frame (Chromium stops on that frame's
@@ -239,7 +261,6 @@ async function focusCases() {
       await page.close();
     }
   });
-  assert.deepEqual(failures, [], `focus order failures:\n${failures.join('\n')}`);
 }
 
 // Opens the component's modal (focus goes to its #m1) and waits for overlay and for any nested frame in it to load
@@ -321,6 +342,44 @@ async function focusCase(name, query, start, steps, before, initial) {
   }
 }
 
+async function openScrollerPage() {
+  const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+  page.on('pageerror', error => pageErrors.push(error));
+  await page.goto(`${hostOrigin}/scroller`);
+  await page.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
+  return page;
+}
+
+// Waits until the layer has followed the placeholder; it writes position and clip in the same frame
+async function followed(page) {
+  await page.waitForFunction(() => Math.abs(document.querySelector('[data-swell-component-layer]').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top) < 1);
+  await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
+}
+
+async function scrollerCases() {
+  // A component taller than the modal, straddling its sticky footer or header, stays under the bar
+  await attempt(async () => {
+    const page = await openScrollerPage();
+    try {
+      const covered = [];
+      for (const [slotTop, y, bar] of [[380, 425, 'ftr'], [250, 425, 'ftr'], [70, 75, 'hdr'], [-50, 75, 'hdr']]) {
+        await page.evaluate((top) => {
+          document.querySelector('#modal').scrollTop += document.querySelector('#slot').getBoundingClientRect().top - top;
+        }, slotTop);
+        await followed(page);
+        const hit = await page.evaluate(([at, id]) => {
+          const element = document.elementFromPoint(300, at);
+          return document.getElementById(id).contains(element) ? id : element?.id || element?.tagName;
+        }, [y, bar]);
+        if (hit !== bar) covered.push(`component top at ${slotTop}: ${hit} at y=${y}, not ${bar}`);
+      }
+      assert.deepEqual(covered, [], `a tall component paints over a sticky bar: ${covered.join('; ')}`);
+    } finally {
+      await page.close();
+    }
+  });
+}
+
 const hostOrigin = `http://localhost:${await listen(hostServer)}`;
 frameOrigin = `http://127.0.0.1:${await listen(frameServer)}`;
 const browser = await chromium.launch();
@@ -352,6 +411,8 @@ try {
   assert.equal(await page.evaluate(() => handle.emit('ping', 21)), 42);
 
   await focusCases();
+  await scrollerCases();
+  assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);
 
   // The token goes to the frame origin only.
   assert.deepEqual(await frame.evaluate(() => __props.fetch('/echo').then(response => response.json())), { token: 'tok-1' });

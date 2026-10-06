@@ -188,7 +188,7 @@ Bars that cover scrolling content, such as a modal's sticky header or action bar
 <div class="modal-header" data-swell-component-occluder>…</div>
 ```
 
-The layer is clipped where such a bar overlaps the top or bottom edge of the target. Only bars in the same stacking context as the target count: descendants of the element whose z-index the layer takes, or of `body` when no ancestor has one. Hidden bars and bars beside the target are ignored.
+The layer is clipped where such a bar overlaps the top or bottom edge of the target's visible part, so a component taller than its scroller passes under both a header and a footer. Only bars in the same stacking context as the target count: descendants of the element whose z-index the layer takes, or of `body` when no ancestor has one. Hidden bars and bars beside the target are ignored.
 
 Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
 

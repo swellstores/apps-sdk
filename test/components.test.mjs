@@ -234,6 +234,26 @@ test('layer is clipped above a sticky footer marked as an occluder', async (t) =
   assert.equal(element.style.clipPath, 'inset(0px 0px 30px 0px)');
 });
 
+test('a placeholder taller than its scroller is clipped at the bars it extends past', async (t) => {
+  const { win, outer, layer, element, move } = layerSetup(t);
+  // The scroller shows 50..450; its header covers 50..100 and its footer 400..450
+  Object.assign(outer.style, { position: 'fixed', zIndex: '99999', overflowX: 'hidden', overflowY: 'hidden' });
+  outer.getBoundingClientRect = () => ({ top: 50, right: 1000, bottom: 450, left: 0 });
+  occluder(win, outer, { top: 50, bottom: 100 });
+  occluder(win, outer, { top: 400, bottom: 450 });
+  move({ top: 0 });
+  layer.setHeight(600);
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(100px 0px 200px 0px)', 'past both bars');
+  layer.setHeight(300);
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(100px 0px 0px 0px)', 'past the header');
+  move({ top: 200 });
+  layer.setHeight(400);
+  await animationFrame(win);
+  assert.equal(element.style.clipPath, 'inset(0px 0px 200px 0px)', 'past the footer');
+});
+
 test('layer ignores occluders outside the stacking context it joins', async (t) => {
   const { win, outer, layer, element } = layerSetup(t);
   layer.setHeight(100);
