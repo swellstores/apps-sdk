@@ -201,15 +201,19 @@ export function startComponentFrame(options: FrameOptions): void {
     }
   }
 
-  // Tab leaving the component's first or last tabbable element continues in the host page
-  document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return;
-    const stops = tabbableIn(target);
-    const edge = stops[event.shiftKey ? 0 : stops.length - 1];
-    if (edge && document.activeElement !== edge) return;
-    event.preventDefault();
-    post({ type: 'focus-exit', direction: event.shiftKey ? 'previous' : 'next' });
-  }, true);
+  // Tab leaving the component continues in the host page: focus guards around the root catch it
+  const guard = (direction: 'next' | 'previous') => {
+    const element = document.createElement('div');
+    element.tabIndex = 0;
+    element.setAttribute('data-swell-focus-guard', '');
+    element.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:0;overflow:hidden;outline:none';
+    element.addEventListener('focus', () => {
+      if (!overlay) post({ type: 'focus-exit', direction });
+    });
+    return element;
+  };
+  target.before(guard('previous'));
+  target.after(guard('next'));
 
   win.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== parent || event.origin !== parentOrigin) return;

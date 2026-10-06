@@ -32,6 +32,8 @@ export interface EmbedOptions<TValue = unknown, TContext = Record<string, unknow
 
 type Listener = (value: never) => void;
 type HandleEvent = 'change' | 'validity' | 'error';
+// Set while one component hands focus to the next, so the next one enters at the nearest edge
+let enteredFrom: 'first' | 'last' | null = null;
 const REFRESH_SECONDS = 60;
 const MIN_REFRESH_MS = 5_000;
 const RETRY_MS = 10_000;
@@ -103,6 +105,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   let greeted = false;
   let started = false;
   let destroyed = false;
+  let overlayOn = false;
   const { promise: ready, resolve: markReady, reject: failReady } = deferred();
 
   const fail = (error: unknown) => {
@@ -126,15 +129,25 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   sentinel.addEventListener('focus', (event) => {
     const from = (event as FocusEvent).relatedTarget as Node | null;
     layer.iframe.focus();
-    send({ type: 'focus', edge: from && sentinel.compareDocumentPosition(from) & 4 ? 'last' : 'first' });
+    const edge = enteredFrom ?? (from && sentinel.compareDocumentPosition(from) & sentinel.DOCUMENT_POSITION_FOLLOWING ? 'last' : 'first');
+    send({ type: 'focus', edge });
   });
 
   // Moves focus to the tabbable element after (next) or before (previous) the placeholder
   function leaveFrame(direction: 'next' | 'previous') {
-    const stops = tabbableIn(placeholder.ownerDocument).filter(item => item !== sentinel && !placeholder.contains(item));
-    const around = (item: Node) => sentinel.compareDocumentPosition(item) & (direction === 'next' ? 4 : 2);
-    const candidates = stops.filter(around);
-    candidates[direction === 'next' ? 0 : candidates.length - 1]?.focus();
+    const document = placeholder.ownerDocument;
+    if (overlayOn || document.activeElement !== layer.iframe) return;
+    const side = direction === 'next' ? sentinel.DOCUMENT_POSITION_FOLLOWING : sentinel.DOCUMENT_POSITION_PRECEDING;
+    const candidates = tabbableIn(document).filter(item => item !== sentinel && !placeholder.contains(item) && sentinel.compareDocumentPosition(item) & side);
+    const target = candidates[direction === 'next' ? 0 : candidates.length - 1];
+    if (!target) return layer.iframe.blur();
+    // A neighbouring component's sentinel reads this to focus the edge we came from
+    enteredFrom = direction === 'next' ? 'first' : 'last';
+    try {
+      target.focus();
+    } finally {
+      enteredFrom = null;
+    }
   }
 
   // Throws when the message cannot be cloned
@@ -198,6 +211,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         if (greeted) {
           // The frame reloaded: its new runtime starts without overlay and cannot answer earlier events
           layer.setOverlay(false);
+          overlayOn = false;
           rejectPending(new Error('Component reloaded'));
         }
         greeted = true;
@@ -222,6 +236,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         if (Number.isFinite(message.height)) layer.setHeight(Math.max(0, Math.ceil(message.height)));
         return;
       case 'overlay':
+        overlayOn = message.on === true;
         send({ type: 'rect', rect: layer.setOverlay(message.on === true) });
         return;
       case 'focus-exit':

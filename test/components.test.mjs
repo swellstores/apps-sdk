@@ -277,8 +277,7 @@ test('destroy removes the layer and restores the page', (t) => {
 });
 
 // happy-dom does not create windows for iframes when page loading is off; stand in for the frame.
-function attachFrame(win) {
-  const iframe = win.document.querySelector('iframe');
+function attachFrame(win, iframe = win.document.querySelector('iframe')) {
   const channel = new URL(iframe.src).searchParams.get('channel');
   const sent = [];
   const frameWindow = { postMessage(data, origin) { sent.push({ message: unwrap(structuredClone(data), channel), origin }); } };
@@ -728,7 +727,7 @@ test('host puts a labelled focus sentinel in the placeholder and takes the ifram
 });
 
 test('focusing the sentinel focuses the iframe and tells the frame which edge to focus', async (t) => {
-  const { win, iframe, sent, receive, before, after, focusFrom } = focusFixture(t);
+  const { iframe, sent, receive, before, after, focusFrom } = focusFixture(t);
   receive({ type: 'hello' });
   await tick();
   let focused = 0;
@@ -738,22 +737,63 @@ test('focusing the sentinel focuses the iframe and tells the frame which edge to
   focusFrom(null);
   assert.equal(focused, 3);
   assert.deepEqual(sent.filter(({ message }) => message.type === 'focus').map(({ message }) => message.edge), ['first', 'last', 'first']);
-  assert.ok(win.document.body.contains(iframe));
 });
 
 test('focus-exit moves focus to the tabbable element after or before the placeholder', async (t) => {
-  const { win, receive, before, after, hidden, sentinel } = focusFixture(t);
+  const { win, iframe, receive, before, after } = focusFixture(t);
   const skipped = win.document.createElement('button');
   skipped.disabled = true;
   win.document.body.appendChild(skipped);
+  const loose = win.document.createElement('button');
+  loose.tabIndex = -1;
+  win.document.body.appendChild(loose);
+  iframe.focus();
   receive({ type: 'focus-exit', direction: 'next' });
   assert.equal(win.document.activeElement, after);
+  iframe.focus();
   receive({ type: 'focus-exit', direction: 'previous' });
   assert.equal(win.document.activeElement, before);
-  assert.notEqual(win.document.activeElement, sentinel);
-  assert.notEqual(win.document.activeElement, hidden);
   receive({ type: 'focus-exit', direction: 'sideways' });
   assert.equal(win.document.activeElement, before);
+});
+
+test('focus-exit is ignored unless the frame has focus or while overlay is on', async (t) => {
+  const { win, iframe, receive, after } = focusFixture(t);
+  receive({ type: 'focus-exit', direction: 'next' });
+  assert.notEqual(win.document.activeElement, after);
+  iframe.focus();
+  receive({ type: 'overlay', on: true });
+  receive({ type: 'focus-exit', direction: 'next' });
+  assert.equal(win.document.activeElement, iframe);
+});
+
+test('focus-exit with nothing tabbable beyond the placeholder takes focus off the frame', async (t) => {
+  const { win, iframe, receive, after, hidden } = focusFixture(t);
+  after.remove();
+  hidden.remove();
+  iframe.focus();
+  assert.equal(win.document.activeElement, iframe);
+  receive({ type: 'focus-exit', direction: 'next' });
+  assert.notEqual(win.document.activeElement, iframe);
+});
+
+test('a component iframe is never a focus-exit candidate and a neighbour sentinel is entered at the near edge', async (t) => {
+  const { win, placeholder, iframe, receive, sent, after } = focusFixture(t);
+  after.remove();
+  const next = win.document.createElement('div');
+  win.document.body.appendChild(next);
+  const neighbour = embedComponent(next, { src: SRC });
+  t.after(() => neighbour.unmount());
+  const other = attachFrame(win, win.document.querySelectorAll('iframe')[1]);
+  other.receive({ type: 'hello' });
+  await tick();
+  assert.equal(win.document.querySelectorAll('iframe')[1].tabIndex, -1);
+  iframe.focus();
+  receive({ type: 'focus-exit', direction: 'next' });
+  assert.equal(win.document.activeElement, win.document.querySelectorAll('iframe')[1]);
+  assert.deepEqual(other.sent.filter(({ message }) => message.type === 'focus').map(({ message }) => message.edge), ['first']);
+  assert.equal(placeholder.querySelector('iframe'), null);
+  assert.equal(sent.some(({ message }) => message.type === 'focus'), false);
 });
 
 test('unmount removes the focus sentinel', (t) => {
@@ -1083,7 +1123,7 @@ function focusFrame(t, markup) {
 const focusExits = posted => posted.filter(({ message }) => message.type === 'focus-exit').map(({ message }) => message.direction);
 
 test('frame focuses the first or last tabbable element on a focus message', async (t) => {
-  const { win, send, root } = focusFrame(t, '<span>text</span><input id="a"><button id="b" disabled></button><a href="#" id="c">link</a>');
+  const { win, send, root } = focusFrame(t, '<span>text</span><button id="x" tabindex="-1"></button><input id="a"><button id="b" disabled></button><a href="#" id="c">link</a>');
   send({ type: 'init', props: HOST_PROPS, token: null });
   await tick();
   send({ type: 'focus', edge: 'first' });
@@ -1101,20 +1141,25 @@ test('frame leaves a component without tabbable elements in the direction focus 
   assert.deepEqual(focusExits(posted), ['next', 'previous']);
 });
 
-test('Tab on the last tabbable element and Shift+Tab on the first leave the frame', async (t) => {
-  const { win, send, posted, root } = focusFrame(t, '<input id="a"><input id="b">');
+test('focus guards around the root hand focus back to the host, except in overlay', async (t) => {
+  const { win, send, posted, root } = focusFrame(t, '<input id="a">');
   send({ type: 'init', props: HOST_PROPS, token: null });
   await tick();
-  const press = (target, shiftKey) => {
-    target.focus();
-    const event = new win.KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true, cancelable: true });
-    target.dispatchEvent(event);
-    return event.defaultPrevented;
-  };
-  const [a, b] = [root().querySelector('#a'), root().querySelector('#b')];
-  assert.deepEqual([press(a, false), press(b, true)], [false, false]);
-  assert.deepEqual(focusExits(posted), []);
-  assert.equal(press(b, false), true);
-  assert.equal(press(a, true), true);
+  const guards = win.document.querySelectorAll('[data-swell-focus-guard]');
+  assert.equal(guards.length, 2);
+  assert.equal(guards[0].nextElementSibling, root());
+  assert.equal(root().nextElementSibling, guards[1]);
+  guards[1].dispatchEvent(new win.FocusEvent('focus'));
+  guards[0].dispatchEvent(new win.FocusEvent('focus'));
+  assert.deepEqual(focusExits(posted), ['next', 'previous']);
+  send({ type: 'focus', edge: 'first' });
+  assert.equal(win.document.activeElement, root().querySelector('#a'));
+  const modal = win.document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  guards[1].dispatchEvent(new win.FocusEvent('focus'));
   assert.deepEqual(focusExits(posted), ['next', 'previous']);
 });

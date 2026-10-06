@@ -54,6 +54,28 @@ const MODAL_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
+// Components in a row between two host inputs; ?slots=A,B picks them, ?post=0 drops the last input.
+const FOCUS_PAGE = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Focus host</title></head>
+<body style="margin:0">
+<input id="pre">
+<div id="slots"></div>
+<script type="module">
+  import { createComponents } from '/dist/components.js';
+  const query = new URLSearchParams(location.search);
+  const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
+  const handles = [];
+  for (const name of query.get('slots').split(',')) {
+    const slot = document.createElement('div');
+    document.getElementById('slots').appendChild(slot);
+    handles.push(components.mount(slot, { app: 'demo', component: name }));
+  }
+  if (query.get('post') !== '0') document.body.insertAdjacentHTML('beforeend', '<input id="post">');
+  await Promise.all(handles.map(handle => handle.ready));
+  window.mounted = true;
+</script>
+</body></html>`;
+
 const SHELL_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"></head>
 <body><div id="root"></div>
@@ -91,12 +113,34 @@ export function mount(root) { root.innerHTML = '<p>Hello</p><p id="last">World</
 export function update() {}
 export function unmount(root) { root.innerHTML = ''; }
 `;
-const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE };
+// The second button is skipped by Tab (roving tabindex)
+const PAIR_BUNDLE = `
+export function mount(root) { root.innerHTML = '<input id="a"><button id="b" tabindex="-1">b</button>'; }
+export function update() {}
+export function unmount(root) { root.innerHTML = ''; }
+`;
+
+// A dialog that wraps Tab inside itself
+const DIALOG_BUNDLE = `
+export function mount(root) {
+  root.innerHTML = '<button id="o">open</button><div id="dialog"><button id="d1">1</button><button id="d2">2</button></div>';
+  const [first, last] = [root.querySelector('#d1'), root.querySelector('#d2')];
+  root.querySelector('#dialog').addEventListener('keydown', (event) => {
+    if (event.key !== 'Tab') return;
+    if (event.shiftKey && event.target === first) { event.preventDefault(); last.focus(); }
+    if (!event.shiftKey && event.target === last) { event.preventDefault(); first.focus(); }
+  });
+}
+export function update() {}
+export function unmount(root) { root.innerHTML = ''; }
+`;
+const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, Pair: PAIR_BUNDLE, Dialog: DIALOG_BUNDLE };
 
 let frameOrigin = '';
 const hostServer = createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://host');
   if (pathname === '/') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(HOST_PAGE);
+  if (pathname === '/focus') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(FOCUS_PAGE);
   if (pathname === '/modal') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(MODAL_PAGE);
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
   if (pathname === '/api/apps/demo/components') {
@@ -150,19 +194,62 @@ try {
   // emit resolves with the component handler's result.
   assert.equal(await page.evaluate(() => handle.emit('ping', 21)), 42);
 
-  // Tab and Shift+Tab pass through the frame in document order, though the iframe sits at the end of the body.
-  const where = async () => (await page.evaluate(() => document.activeElement === document.querySelector('iframe') ? 'frame' : document.activeElement.id))
-    + (await frame.evaluate(() => document.activeElement.id).then(id => (id ? `:${id}` : '')));
-  const press = async (key) => {
-    await page.keyboard.press(key);
-    await page.waitForTimeout(100);
-    return where();
+  // Real Tab and Shift+Tab through components in a row, though their iframes sit at the end of the body.
+  const where = async (focusPage) => {
+    const active = await focusPage.evaluateHandle(() => document.activeElement);
+    const owner = await active.asElement().contentFrame();
+    if (!owner) return focusPage.evaluate(() => document.activeElement.id || document.activeElement.tagName);
+    return `frame:${await owner.evaluate(() => document.activeElement.id || document.activeElement.tagName)}`;
   };
+  const tabTo = async (focusPage, key, expected) => {
+    await focusPage.keyboard.press(key);
+    const deadline = Date.now() + 3000;
+    let got = await where(focusPage);
+    while (got !== expected && Date.now() < deadline) {
+      await focusPage.waitForTimeout(25);
+      got = await where(focusPage);
+    }
+    assert.equal(got, expected, `${key} did not reach ${expected}`);
+  };
+  const openFocusPage = async (query) => {
+    const focusPage = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    focusPage.on('pageerror', error => pageErrors.push(error));
+    await focusPage.goto(`${hostOrigin}/focus?${query}`);
+    await focusPage.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
+    await focusPage.waitForFunction(() => [...document.querySelectorAll('#slots > div')].every(slot => slot.getBoundingClientRect().height > 0));
+    await focusPage.locator('#pre').focus();
+    return focusPage;
+  };
+
+  // Host input -> component -> host input, forwards and back (the second control of Echo is the last one Tab reaches)
   await page.locator('#before').focus();
-  assert.deepEqual(
-    [await press('Tab'), await press('Tab'), await press('Tab'), await press('Shift+Tab'), await press('Shift+Tab'), await press('Shift+Tab')],
-    ['frame:value', 'frame:modal', 'after', 'frame:modal', 'frame:value', 'before'],
-  );
+  await tabTo(page, 'Tab', 'frame:value');
+  await tabTo(page, 'Tab', 'frame:modal');
+  await tabTo(page, 'Tab', 'after');
+  await tabTo(page, 'Shift+Tab', 'frame:modal');
+  await tabTo(page, 'Shift+Tab', 'frame:value');
+  await tabTo(page, 'Shift+Tab', 'before');
+
+  // Components in a row: focus enters each at the edge it comes from, and a control with tabindex -1 is skipped
+  const row = await openFocusPage('slots=Echo,Pair');
+  for (const [key, expected] of [['Tab', 'frame:value'], ['Tab', 'frame:modal'], ['Tab', 'frame:a'], ['Tab', 'post'], ['Shift+Tab', 'frame:a'], ['Shift+Tab', 'frame:modal'], ['Shift+Tab', 'frame:value'], ['Shift+Tab', 'pre']]) {
+    await tabTo(row, key, expected);
+  }
+
+  // A component whose last control ends the page lets focus leave the frame instead of trapping it
+  const last = await openFocusPage('slots=Echo&post=0');
+  await tabTo(last, 'Tab', 'frame:value');
+  await tabTo(last, 'Tab', 'frame:modal');
+  await last.keyboard.press('Tab');
+  await last.waitForFunction(() => document.activeElement !== document.querySelector('iframe'));
+
+  // A dialog inside the component that wraps Tab itself keeps focus in the frame
+  const dialog = await openFocusPage('slots=Dialog');
+  await tabTo(dialog, 'Tab', 'frame:o');
+  await tabTo(dialog, 'Tab', 'frame:d1');
+  await tabTo(dialog, 'Tab', 'frame:d2');
+  await tabTo(dialog, 'Tab', 'frame:d1');
+  await tabTo(dialog, 'Shift+Tab', 'frame:d2');
 
   // The token goes to the frame origin only.
   assert.deepEqual(await frame.evaluate(() => __props.fetch('/echo').then(response => response.json())), { token: 'tok-1' });

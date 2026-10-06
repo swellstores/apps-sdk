@@ -50,6 +50,7 @@ export function createFrameLayer(placeholder: HTMLElement, src: string, title: s
   iframe.tabIndex = -1;
   iframe.setAttribute('allow', 'payment *; publickey-credentials-get *');
   Object.assign(iframe.style, { display: 'block', width: '100%', height: '100%', border: '0', background: 'transparent', colorScheme: 'normal' });
+  layer.setAttribute('data-swell-component-layer', '');
   layer.appendChild(iframe);
   document.body.appendChild(layer);
 
