@@ -1087,6 +1087,21 @@ test('setValue re-renders the component with its own value before the host answe
   assert.equal(root().textContent, 'red');
 });
 
+test('setValue still sends the value when the re-render throws, and reports the error', async (t) => {
+  const module = {
+    mount() {},
+    update() { throw new Error('render failed'); },
+    unmount() {},
+  };
+  const { calls, send, posted } = startFrame(t, { module: { ...module, mount: (root, props) => { calls.push(['mount', props]); } } });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.doesNotThrow(() => calls[0][1].setValue('blue'));
+  await tick();
+  const sent = posted.map(({ message }) => message).filter(({ type }) => type === 'change' || type === 'error');
+  assert.deepEqual(sent.map(({ type, value, message }) => [type, value ?? message]), [['change', 'blue'], ['error', 'render failed']]);
+});
+
 test('updates re-render with merged props and a repeated init does not mount twice', async (t) => {
   const { calls, send, root } = startFrame(t);
   send({ type: 'init', props: HOST_PROPS, token: null });

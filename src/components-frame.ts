@@ -74,11 +74,12 @@ export function startComponentFrame(options: FrameOptions): void {
 
   // Created once, so the component gets the same functions on every render
   const callbacks = {
-    // The component sees its own value at once; hosts only send values that change elsewhere
+    // The component sees its own value before the next event; hosts only send values that change
+    // elsewhere. The re-render runs in a microtask, so setValue during a render does not re-enter it
     setValue: (value: unknown) => {
       if (props) {
         props = { ...props, value };
-        if (module) Promise.resolve(module.update(target, componentProps())).catch(fail);
+        Promise.resolve().then(() => module?.update(target, componentProps())).catch(fail);
       }
       post({ type: 'change', value });
     },

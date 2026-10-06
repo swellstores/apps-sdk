@@ -131,7 +131,7 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 
 | Prop | Description |
 | --- | --- |
-| `value`, `setValue(value)` | The bound value, when the place provides one (for example a content field). `setValue` re-renders the component with the new value at once and sends it to the host; the host sends a value back only when it changes elsewhere or when the host rejects the one you set |
+| `value`, `setValue(value)` | The bound value, when the place provides one (for example a content field). `setValue` re-renders the component with the new value (in a microtask, before the next event) and sends it to the host; the host sends a value back only when it changes elsewhere or when the host rejects the one you set |
 | `context` | Data of the place: for a content field `{ record, field }` |
 | `params` | Configuration from the place that uses the component |
 | `settings` | The app's public settings |
