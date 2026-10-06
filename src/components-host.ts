@@ -123,6 +123,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   let overlayOn = false;
   // The component height the frame last reported
   let frameHeight = 0;
+  // The component has rendered once: a later frame error leaves it usable, and in the Tab order
+  let rendered = false;
   const { promise: ready, resolve: markReady, reject: failReady } = deferred();
   // Settles on the frame's own `ready` message, so a frame that starts after the start timeout still serves `emit`
   const { promise: live, resolve: markLive, reject: failLive } = deferred();
@@ -149,7 +151,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
 
   // The frame sits at the end of the body, so the Tab order meets this sentinel where the field is and it forwards keyboard focus to the frame.
   // Frame content is still read where the layer sits in the DOM. It is a Tab stop only while the frame runs:
-  // from its first hello until it fails to start or reports an error, so a broken frame cannot swallow Tab.
+  // from its first hello until it fails to start or reports an error before it rendered, so a broken frame cannot swallow Tab.
   const sentinel = placeholder.ownerDocument.createElement('div');
   sentinel.tabIndex = -1;
   sentinel.setAttribute('role', 'group');
@@ -193,7 +195,11 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     const document = placeholder.ownerDocument;
     if (overlayOn || document.activeElement !== layer.iframe) return;
     // Composed order, by index: compareDocumentPosition cannot order controls in shadow roots against the sentinel
+    // The sentinel marks the component's place in the Tab order, even while the component is out of it
+    const was = sentinel.tabIndex;
+    sentinel.tabIndex = 0;
     const stops = tabbableIn(document);
+    sentinel.tabIndex = was;
     const at = stops.indexOf(sentinel);
     if (at < 0) return layer.iframe.blur();
     const candidates = (direction === 'next' ? stops.slice(at + 1) : stops.slice(0, at)).filter(item => !placeholder.contains(item));
@@ -294,6 +300,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         }
         return;
       case 'ready':
+        rendered = true;
         markReady();
         markLive();
         return;
@@ -329,7 +336,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       }
       case 'error': {
         const error = new Error(String(message.message));
-        skipInTabOrder();
+        if (!rendered) skipInTabOrder();
         stop(error);
         fail(error);
         return;

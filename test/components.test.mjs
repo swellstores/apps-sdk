@@ -809,6 +809,25 @@ test('the sentinel is a Tab stop from the first hello until the frame reports an
   assert.equal(sentinel.tabIndex, -1, 'an error is final');
 });
 
+test('an error after the component rendered keeps the sentinel in the Tab order', async (t) => {
+  const { sentinel, receive } = focusFixture(t);
+  await tick();
+  receive({ type: 'ready' });
+  receive({ type: 'error', message: 'update failed' });
+  assert.equal(sentinel.tabIndex, 0);
+});
+
+test('focus-exit finds the way out while the sentinel is out of the Tab order', async (t) => {
+  const { win, iframe, sentinel, receive, after } = focusFixture(t);
+  await tick();
+  receive({ type: 'error', message: 'mount failed' });
+  assert.equal(sentinel.tabIndex, -1, 'an error before ready');
+  iframe.focus();
+  receive({ type: 'focus-exit', direction: 'next' });
+  assert.equal(win.document.activeElement === after, true, 'focus moved past the component');
+  assert.equal(sentinel.tabIndex, -1, 'the sentinel stays out of the Tab order');
+});
+
 test('a frame that does not start in time leaves the Tab order until it says hello', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const { win, iframe, handle, sentinel, receive } = focusFixture(t, {}, { started: false });

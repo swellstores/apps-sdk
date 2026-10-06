@@ -70,10 +70,14 @@ const FOCUS_PAGE = `<!doctype html>
     document.body.insertAdjacentHTML('afterbegin', '<x-in id="a1"></x-in><x-in id="a2"></x-in>');
   }
   const handles = [];
+  window.handles = handles;
+  window.errors = [];
   for (const name of query.get('slots').split(',')) {
     const slot = document.createElement('div');
     document.getElementById('slots').appendChild(slot);
-    handles.push(components.mount(slot, { app: 'demo', component: name }));
+    const handle = components.mount(slot, { app: 'demo', component: name });
+    handle.on('error', error => errors.push(error.message));
+    handles.push(handle);
   }
   if (query.get('post') !== '0') document.body.insertAdjacentHTML('beforeend', '<input id="post">');
   if (query.get('shadow') === '1') document.body.insertAdjacentHTML('beforeend', '<x-in id="b1"></x-in><x-in id="b2"></x-in>');
@@ -163,6 +167,8 @@ const FOCUS_BUNDLES = {
   Modal3dsLast: mod('<input id="x">', openModal(`<button id="m1">Cancel</button>${TDS}`)),
   Label: mod('<p id="label">Card number</p><input id="x">'),
   Tall: mod('<input id="x"><div style="height:500px"></div><input id="y">'),
+  // Mounts, then throws on every update: the frame reports an error after ready
+  Throws: mod('<input id="x"><input id="y">').replace('export function update() {}', "export function update() { throw new Error('update failed'); }"),
   Dialog: mod('<input id="x"><div id="dlg"><button id="d1">1</button><button id="d2">2</button></div>', `const dialog = root.querySelector('#dlg'); dialog.addEventListener('keydown', (event) => { if (event.key !== 'Tab') return; if (!event.shiftKey && event.target.id === 'd2') { event.preventDefault(); dialog.querySelector('#d1').focus(); } if (event.shiftKey && event.target.id === 'd1') { event.preventDefault(); dialog.querySelector('#d2').focus(); } });`),
 };
 const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, ...FOCUS_BUNDLES };
@@ -229,6 +235,11 @@ const FOCUS_CASES = [
   ['neighbours in open shadow roots', 'slots=Two&shadow=1', '#post', [[S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre'], [S, 'a2#i'], [T, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'post'], [T, 'b1#i']]],
   ['neighbours in open shadow roots, with no light-DOM neighbours', 'slots=Two&shadow=1&pre=0&post=0', '#a2 #i', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'b1#i'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'a2#i']]],
   ['a component whose frame never starts is no Tab stop', 'slots=Missing&ready=0', '#pre', [[T, 'post'], [S, 'pre']]],
+  // An error after the component rendered (its update threw) leaves it in the Tab order
+  ['a component that reported an error after ready is still a Tab stop', 'slots=Throws', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'post'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre']], async (focusPage) => {
+    await focusPage.evaluate(() => handles[0].update({ value: 'z' }));
+    await focusPage.waitForFunction(() => errors.length > 0);
+  }],
   ['a radio group is one stop, the checked radio', 'slots=Radio', '#post', [[S, 'iframe0:r1'], [S, 'iframe0:x'], [S, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:r1'], [T, 'post']]],
   ['a dialog that wraps Tab keeps focus inside', 'slots=Dialog', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:d1'], [T, 'iframe0:d2'], [T, 'iframe0:d1'], [S, 'iframe0:d2']]],
 ];
