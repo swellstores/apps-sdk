@@ -18,12 +18,11 @@ function isTabbable(element: HTMLElement): boolean {
   return element.matches(TABBABLE) && element.tabIndex >= 0 && !element.hasAttribute('data-swell-focus-guard') && !isInert(element) && isVisible(element);
 }
 
-// Tree order, descending into open shadow roots. A host that delegates focus is one stop itself.
+// Tree order, descending into open shadow roots
 function collect(parent: ParentNode, found: HTMLElement[]) {
   for (const child of Array.from(parent.children) as HTMLElement[]) {
-    const delegates = !!child.shadowRoot?.delegatesFocus;
-    if (isTabbable(child) || (delegates && isVisible(child) && child.tabIndex >= 0 && !isInert(child))) found.push(child);
-    if (delegates) continue;
+    // A host that delegates focus is not a stop itself: Tab goes on to the controls in its shadow root
+    if (!child.shadowRoot?.delegatesFocus && isTabbable(child)) found.push(child);
     if (child.shadowRoot) collect(child.shadowRoot, found);
     else if (child.localName === 'slot') {
       const assigned = (child as HTMLSlotElement).assignedElements?.({ flatten: true }) ?? [];

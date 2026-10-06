@@ -58,12 +58,12 @@ const MODAL_PAGE = `<!doctype html>
 const FOCUS_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Focus host</title></head>
 <body style="margin:0">
-<input id="pre">
 <div id="slots"></div>
 <script type="module">
   import { createComponents } from '/dist/components.js';
   const query = new URLSearchParams(location.search);
   const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
+  if (query.get('pre') !== '0') document.body.insertAdjacentHTML('afterbegin', '<input id="pre">');
   const handles = [];
   for (const name of query.get('slots').split(',')) {
     const slot = document.createElement('div');
@@ -113,38 +113,25 @@ export function mount(root) { root.innerHTML = '<p>Hello</p><p id="last">World</
 export function update() {}
 export function unmount(root) { root.innerHTML = ''; }
 `;
-// The second button is skipped by Tab (roving tabindex)
-const PAIR_BUNDLE = `
-export function mount(root) { root.innerHTML = '<input id="a"><button id="b" tabindex="-1">b</button>'; }
-export function update() {}
-export function unmount(root) { root.innerHTML = ''; }
-`;
-
-// A dialog that wraps Tab inside itself
-const DIALOG_BUNDLE = `
-export function mount(root) {
-  root.innerHTML = '<button id="o">open</button><div id="dialog"><button id="d1">1</button><button id="d2">2</button></div>';
-  const [first, last] = [root.querySelector('#d1'), root.querySelector('#d2')];
-  root.querySelector('#dialog').addEventListener('keydown', (event) => {
-    if (event.key !== 'Tab') return;
-    if (event.shiftKey && event.target === first) { event.preventDefault(); last.focus(); }
-    if (!event.shiftKey && event.target === last) { event.preventDefault(); first.focus(); }
-  });
-}
-export function update() {}
-export function unmount(root) { root.innerHTML = ''; }
-`;
-// Both controls live in an open shadow root
-const SHADOW_BUNDLE = `
-export function mount(root) {
-  const host = document.createElement('x-field');
-  host.attachShadow({ mode: 'open' }).innerHTML = '<input id="s1"><input id="s2">';
-  root.appendChild(host);
-}
-export function update() {}
-export function unmount(root) { root.innerHTML = ''; }
-`;
-const BUNDLES = { Shadow: SHADOW_BUNDLE, Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, Pair: PAIR_BUNDLE, Dialog: DIALOG_BUNDLE };
+const mod = (html, extra = '') => `export function mount(root) { root.innerHTML = ${JSON.stringify(html)}; ${extra} } export function update() {} export function unmount(root) { root.innerHTML = ''; }`;
+const define = (tag, mode, html, options = '') => `if (!customElements.get('${tag}')) customElements.define('${tag}', class extends HTMLElement { constructor() { super(); const shadow = this.attachShadow({ mode: '${mode}'${options} }); shadow.innerHTML = '${html}'; if ('${mode}' === 'closed') window.__closed = shadow; } });`;
+// A body-level modal without a focus trap of its own, like an SDK's popup
+const OPEN_MODAL = `window.openModal = () => { const modal = document.createElement('div'); modal.id = 'overlay'; Object.assign(modal.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.5)' }); modal.innerHTML = '<button id="m1">One</button><button id="m2">Two</button>'; document.body.appendChild(modal); modal.querySelector('#m1').focus(); };`;
+const NESTED = '<iframe id="card" srcdoc="<input id=num>" style="height:40px"></iframe>';
+const FOCUS_BUNDLES = {
+  Two: mod('<input id="x"><input id="y">'),
+  RovingLast: mod('<button id="t0" tabindex="-1">t0</button><input id="x"><button id="t1">t1</button><button id="t2" tabindex="-1">t2</button>'),
+  Radio: mod('<input id="x"><input type="radio" name="r" id="r1" checked><input type="radio" name="r" id="r2">'),
+  NestedOnly: mod(NESTED),
+  NestedFirst: mod(`${NESTED}<input id="x">`),
+  NestedLast: mod(`<input id="x">${NESTED}`),
+  Shadow: mod('<x-field id="sh"></x-field>', define('x-field', 'open', '<input id=s1><input id=s2>')),
+  Closed: mod('<x-closed id="cl"></x-closed>', define('x-closed', 'closed', '<input id=c1><input id=c2>')),
+  Delegates: mod('<x-del id="dl"></x-del>', define('x-del', 'open', '<input id=d1><input id=d2>', ', delegatesFocus: true')),
+  Modal: mod('<input id="x">', OPEN_MODAL),
+  Dialog: mod('<input id="x"><div id="dlg"><button id="d1">1</button><button id="d2">2</button></div>', `const dialog = root.querySelector('#dlg'); dialog.addEventListener('keydown', (event) => { if (event.key !== 'Tab') return; if (!event.shiftKey && event.target.id === 'd2') { event.preventDefault(); dialog.querySelector('#d1').focus(); } if (event.shiftKey && event.target.id === 'd1') { event.preventDefault(); dialog.querySelector('#d2').focus(); } });`),
+};
+const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, ...FOCUS_BUNDLES };
 
 let frameOrigin = '';
 const hostServer = createServer(async (req, res) => {
@@ -173,6 +160,125 @@ const frameServer = createServer(async (req, res) => {
   if (pathname === '/echo') return json(res, { token: req.headers['swell-component-token'] ?? null });
   res.writeHead(404).end();
 });
+
+// Real Tab and Shift+Tab, one browser page at a time. Focus is named as: a host element id, or iframeN:<element>
+// where <element> is an id in the component frame, card>num inside a nested frame, host#inner inside a shadow root,
+// GUARD-prev / GUARD-next for the frame's own focus guards, BODY when nothing has focus.
+const T = 'Tab';
+const S = 'Shift+Tab';
+const FOCUS_CASES = [
+  ['before -> x -> y -> after and back', 'slots=Two', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'post'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre']]],
+  ['the component is last on the page', 'slots=Two&post=0', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'BODY']]],
+  ['the component is last on the page, backwards', 'slots=Two&post=0', '#pre', [[T, 'iframe0:x'], [S, 'pre']]],
+  ['the component is the only focusable, forwards', 'slots=Two&pre=0&post=0', null, [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'BODY']]],
+  ['the component is the only focusable, backwards', 'slots=Two&pre=0&post=0', null, [[T, 'iframe0:x'], [S, 'BODY']]],
+  ['two adjacent components', 'slots=Two,Two', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'iframe1:x'], [T, 'iframe1:y'], [T, 'post'], [S, 'iframe1:y'], [S, 'iframe1:x'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre']]],
+  ['tabindex -1 controls are skipped', 'slots=RovingLast', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:t1'], [T, 'post'], [S, 'iframe0:t1'], [S, 'iframe0:x'], [S, 'pre']]],
+  // Focusing a nested iframe puts focus on its document first (card>BODY); a following Tab reaches its input.
+  ['a nested iframe as the only control', 'slots=NestedOnly', '#pre', [[T, 'post', { via: 'iframe0:card>num' }], [S, 'pre', {}]]],
+  ['a nested iframe as the first control', 'slots=NestedFirst', '#pre', [[T, 'post', { via: 'iframe0:card>num' }], [S, 'pre', { via: 'iframe0:x' }]]],
+  ['a nested iframe as the last control', 'slots=NestedLast', '#pre', [[T, 'post', { via: 'iframe0:card>num' }], [S, 'pre', { via: 'iframe0:x' }]]],
+  ['an open shadow root', 'slots=Shadow', '#pre', [[T, 'iframe0:sh#s1'], [T, 'iframe0:sh#s2'], [T, 'post'], [S, 'iframe0:sh#s2'], [S, 'iframe0:sh#s1'], [S, 'pre']]],
+  ['a closed shadow root is entered through the guards', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [T, 'iframe0:cl#c1'], [T, 'iframe0:cl#c2'], [T, 'post'], [S, 'iframe0:GUARD-next'], [S, 'iframe0:cl#c2'], [S, 'iframe0:cl#c1'], [S, 'pre']]],
+  ['Shift+Tab right after a closed shadow entry leaves before the component', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [S, 'pre']]],
+  ['Tab right after a closed shadow entry from below leaves after the component', 'slots=Closed', '#post', [[S, 'iframe0:GUARD-next'], [T, 'post']]],
+  ['a delegatesFocus host without tabindex', 'slots=Delegates', '#pre', [[T, 'iframe0:dl#d1'], [T, 'iframe0:dl#d2'], [T, 'post'], [S, 'iframe0:dl#d2'], [S, 'iframe0:dl#d1'], [S, 'pre']]],
+  ['a radio group is one stop, the checked radio', 'slots=Radio', '#post', [[S, 'iframe0:r1'], [S, 'iframe0:x'], [S, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:r1'], [T, 'post']]],
+  ['a dialog that wraps Tab keeps focus inside', 'slots=Dialog', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:d1'], [T, 'iframe0:d2'], [T, 'iframe0:d1'], [S, 'iframe0:d2']]],
+];
+
+async function focusCases() {
+  const failures = [];
+  const attempt = async (run) => {
+    try {
+      await run();
+    } catch (error) {
+      failures.push(error.message.split('\n')[0]);
+    }
+  };
+  for (const [name, query, start, steps, before] of FOCUS_CASES) await attempt(() => focusCase(name, query, start, steps, before));
+  await attempt(() => focusCase('a modal without a focus trap keeps Tab inside it', 'slots=Modal', null, [[T, 'iframe0:m2'], [T, 'iframe0:m1'], [T, 'iframe0:m2'], [S, 'iframe0:m1'], [S, 'iframe0:m2']], async (focusPage) => {
+    await focusPage.frames().find(item => item.url().startsWith(frameOrigin)).evaluate(() => openModal());
+    await focusPage.waitForFunction(() => getComputedStyle(document.querySelector('iframe').parentElement).position === 'fixed');
+  }, 'iframe0:m1'));
+  // Two Tabs with no pause between them end inside the component, not back on the field before it
+  await attempt(async () => {
+    const page = await openFocusPage('slots=Two', '#pre');
+    try {
+      await page.keyboard.press(T);
+      await page.keyboard.press(T);
+      await waitForFocus(page, name => name.startsWith('iframe0:'), 'two fast Tabs');
+    } finally {
+      await page.close();
+    }
+  });
+  assert.deepEqual(failures, [], `focus order failures:\n${failures.join('\n')}`);
+}
+
+async function openFocusPage(query, start) {
+  const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+  page.on('pageerror', error => pageErrors.push(error));
+  await page.goto(`${hostOrigin}/focus?${query}`);
+  await page.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
+  await page.waitForFunction(() => [...document.querySelectorAll('#slots > div')].every(slot => slot.getBoundingClientRect().height > 0));
+  if (start) await page.locator(start).focus();
+  return page;
+}
+
+async function whereIs(page) {
+  const active = await page.evaluateHandle(() => document.activeElement);
+  const element = active.asElement();
+  const index = await page.evaluate(el => (el.tagName === 'IFRAME' ? [...document.querySelectorAll('iframe')].indexOf(el) : -1), element);
+  if (index < 0) return page.evaluate(el => el.id || el.tagName, element);
+  const owner = await element.contentFrame();
+  if (!owner) return `iframe${index}:?`;
+  return `iframe${index}:${await owner.evaluate(() => {
+    const name = el => (el?.hasAttribute?.('data-swell-focus-guard') ? (el.nextElementSibling?.id === 'root' ? 'GUARD-prev' : 'GUARD-next') : el?.id || el?.tagName);
+    const active = document.activeElement;
+    if (active?.shadowRoot?.activeElement) return `${name(active)}#${active.shadowRoot.activeElement.id}`;
+    if (active?.id === 'cl' && window.__closed?.activeElement) return `cl#${window.__closed.activeElement.id}`;
+    if (active?.tagName === 'IFRAME') return `${name(active)}>${name(active.contentDocument.activeElement)}`;
+    return name(active);
+  })}`;
+}
+
+async function waitForFocus(page, accept, label) {
+  const deadline = Date.now() + 3000;
+  let got = await whereIs(page);
+  while (!accept(got) && Date.now() < deadline) {
+    await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => resolve(true))));
+    got = await whereIs(page);
+  }
+  assert.ok(accept(got), `${label}: focus is on ${got}`);
+  return got;
+}
+
+async function focusCase(name, query, start, steps, before, initial) {
+  const page = await openFocusPage(query, start);
+  try {
+    if (before) await before(page);
+    if (initial) assert.equal(await whereIs(page), initial, `${name}: start`);
+    const seen = [];
+    for (const [key, expected, walk] of steps) {
+      if (walk) {
+        // Press until the target is reached; no stop may repeat (a trap) and the control in `via` must be visited on the way
+        const path = [];
+        for (let press = 0; press < 5 && path.at(-1) !== expected; press++) {
+          await page.keyboard.press(key);
+          await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(true), 50))));
+          path.push(await whereIs(page));
+        }
+        assert.ok(path.at(-1) === expected && new Set(path).size === path.length && (!walk.via || path.includes(walk.via)), `${name}: ${key} path ${path.join(' > ')} should visit ${walk.via ?? 'anything'} and reach ${expected}`);
+        seen.push(...path);
+        continue;
+      }
+      await page.keyboard.press(key);
+      seen.push(await waitForFocus(page, found => found === expected, `${name}: ${key} after [${seen.join(', ')}] should reach ${expected}`));
+    }
+  } finally {
+    await page.close();
+  }
+}
 
 const hostOrigin = `http://localhost:${await listen(hostServer)}`;
 frameOrigin = `http://127.0.0.1:${await listen(frameServer)}`;
@@ -204,68 +310,7 @@ try {
   // emit resolves with the component handler's result.
   assert.equal(await page.evaluate(() => handle.emit('ping', 21)), 42);
 
-  // Real Tab and Shift+Tab through components in a row, though their iframes sit at the end of the body.
-  const where = async (focusPage) => {
-    const active = await focusPage.evaluateHandle(() => document.activeElement);
-    const owner = await active.asElement().contentFrame();
-    if (!owner) return focusPage.evaluate(() => document.activeElement.id || document.activeElement.tagName);
-    return `frame:${await owner.evaluate(() => (document.activeElement.shadowRoot?.activeElement ?? document.activeElement).id || document.activeElement.tagName)}`;
-  };
-  const tabTo = async (focusPage, key, expected) => {
-    await focusPage.keyboard.press(key);
-    const deadline = Date.now() + 3000;
-    let got = await where(focusPage);
-    while (got !== expected && Date.now() < deadline) {
-      await focusPage.waitForTimeout(25);
-      got = await where(focusPage);
-    }
-    assert.equal(got, expected, `${key} did not reach ${expected}`);
-  };
-  const openFocusPage = async (query) => {
-    const focusPage = await browser.newPage({ viewport: { width: 1000, height: 700 } });
-    focusPage.on('pageerror', error => pageErrors.push(error));
-    await focusPage.goto(`${hostOrigin}/focus?${query}`);
-    await focusPage.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
-    await focusPage.waitForFunction(() => [...document.querySelectorAll('#slots > div')].every(slot => slot.getBoundingClientRect().height > 0));
-    await focusPage.locator('#pre').focus();
-    return focusPage;
-  };
-
-  // Host input -> component -> host input, forwards and back (the second control of Echo is the last one Tab reaches)
-  await page.locator('#before').focus();
-  await tabTo(page, 'Tab', 'frame:value');
-  await tabTo(page, 'Tab', 'frame:modal');
-  await tabTo(page, 'Tab', 'after');
-  await tabTo(page, 'Shift+Tab', 'frame:modal');
-  await tabTo(page, 'Shift+Tab', 'frame:value');
-  await tabTo(page, 'Shift+Tab', 'before');
-
-  // Components in a row: focus enters each at the edge it comes from, and a control with tabindex -1 is skipped
-  const row = await openFocusPage('slots=Echo,Pair');
-  for (const [key, expected] of [['Tab', 'frame:value'], ['Tab', 'frame:modal'], ['Tab', 'frame:a'], ['Tab', 'post'], ['Shift+Tab', 'frame:a'], ['Shift+Tab', 'frame:modal'], ['Shift+Tab', 'frame:value'], ['Shift+Tab', 'pre']]) {
-    await tabTo(row, key, expected);
-  }
-
-  // Controls inside an open shadow root are reached in both directions
-  const shadow = await openFocusPage('slots=Shadow');
-  for (const [key, expected] of [['Tab', 'frame:s1'], ['Tab', 'frame:s2'], ['Tab', 'post'], ['Shift+Tab', 'frame:s2'], ['Shift+Tab', 'frame:s1'], ['Shift+Tab', 'pre']]) {
-    await tabTo(shadow, key, expected);
-  }
-
-  // A component whose last control ends the page lets focus leave the frame instead of trapping it
-  const last = await openFocusPage('slots=Echo&post=0');
-  await tabTo(last, 'Tab', 'frame:value');
-  await tabTo(last, 'Tab', 'frame:modal');
-  await last.keyboard.press('Tab');
-  await last.waitForFunction(() => document.activeElement !== document.querySelector('iframe'));
-
-  // A dialog inside the component that wraps Tab itself keeps focus in the frame
-  const dialog = await openFocusPage('slots=Dialog');
-  await tabTo(dialog, 'Tab', 'frame:o');
-  await tabTo(dialog, 'Tab', 'frame:d1');
-  await tabTo(dialog, 'Tab', 'frame:d2');
-  await tabTo(dialog, 'Tab', 'frame:d1');
-  await tabTo(dialog, 'Shift+Tab', 'frame:d2');
+  await focusCases();
 
   // The token goes to the frame origin only.
   assert.deepEqual(await frame.evaluate(() => __props.fetch('/echo').then(response => response.json())), { token: 'tok-1' });

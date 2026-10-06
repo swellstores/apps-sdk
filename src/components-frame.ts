@@ -56,6 +56,8 @@ export function startComponentFrame(options: FrameOptions): void {
   let lastHeight = -1;
   let scheduled = 0;
   let mayTurnOn = false;
+  // The viewport-covering element while overlay is on
+  let blocker: Element | null = null;
   const handlers = new Map<string, ((data: unknown) => unknown)[]>();
 
   const post = (message: FrameMessage) => parent.postMessage(wrap(channel, message), parentOrigin);
@@ -123,8 +125,9 @@ export function startComponentFrame(options: FrameOptions): void {
     mayTurnOn ||= turnOn;
     win.cancelAnimationFrame(scheduled);
     scheduled = win.requestAnimationFrame(() => {
-      const blocking = Array.from(document.body.children).some(isBlocking);
-      if (mayTurnOn || !blocking) setOverlay(blocking);
+      blocker = Array.from(document.body.children).find(isBlocking) ?? null;
+      if (mayTurnOn || !blocker) setOverlay(!!blocker);
+      placeGuards();
       mayTurnOn = false;
     });
   };
@@ -221,19 +224,38 @@ export function startComponentFrame(options: FrameOptions): void {
         // Tab came before the host's focus message: enter at this guard's own edge
         enter(direction === 'previous' ? 'first' : 'last');
       } else if (overlay) {
-        // The frame covers the viewport: keep focus inside it
-        const stops = tabbableIn(document.body);
+        // The frame covers the viewport: keep focus inside the element that covers it
+        const stops = tabbableIn(blocker ?? document.body);
         const stop = stops[direction === 'previous' ? stops.length - 1 : 0];
         if (stop) focusQuietly(stop);
       } else {
         post({ type: 'focus-exit', direction });
       }
     });
+    // Right after a fallback entry the guard holds focus, so the very next Tab out of the component lands on it again
+    element.addEventListener('keydown', (event) => {
+      if (overlay || event.key !== 'Tab' || event.shiftKey !== (direction === 'previous')) return;
+      event.preventDefault();
+      post({ type: 'focus-exit', direction });
+    });
     return element;
   };
   const guards = { previous: guard('previous'), next: guard('next') };
   target.before(guards.previous);
   target.after(guards.next);
+
+  // Overlay modals are body children after the root, so the guards move around them: the one before the modal
+  // catches Shift+Tab from its first control, the one at the end of the body Tab from its last
+  function placeGuards() {
+    const { body } = document;
+    if (overlay && blocker) {
+      if (blocker.previousElementSibling !== guards.previous) blocker.before(guards.previous);
+      if (body.lastElementChild !== guards.next) body.append(guards.next);
+    } else if (!overlay) {
+      if (target.previousElementSibling !== guards.previous) target.before(guards.previous);
+      if (target.nextElementSibling !== guards.next) target.after(guards.next);
+    }
+  }
 
   // Focus enters at an edge. A component whose controls we cannot see (closed shadow roots) is entered through the guard on that side.
   function enter(edge: 'first' | 'last') {
@@ -245,11 +267,22 @@ export function startComponentFrame(options: FrameOptions): void {
       focusQuietly(guards[edge === 'first' ? 'previous' : 'next']);
     } else post({ type: 'focus-exit', direction: edge === 'last' ? 'previous' : 'next' });
   }
-  win.addEventListener('focus', () => {
-    awaitingEntry = true;
+  // Entry is pending when the frame gains focus with nothing focused in it, unless it was left from inside the root:
+  // focus comes back from a nested iframe with nothing focused too, and must not enter again.
+  let leftFromRoot = false;
+  win.addEventListener('blur', () => {
+    leftFromRoot = target.contains(document.activeElement);
   });
+  win.addEventListener('focus', () => {
+    const none = !document.activeElement || document.activeElement === document.body;
+    awaitingEntry = none && !leftFromRoot;
+    leftFromRoot = false;
+  });
+  document.addEventListener('pointerdown', () => {
+    awaitingEntry = false;
+  }, true);
   document.addEventListener('focusin', (event) => {
-    if (event.target instanceof win.Node && target.contains(event.target)) awaitingEntry = false;
+    if (event.target instanceof win.Element && !event.target.hasAttribute('data-swell-focus-guard')) awaitingEntry = false;
   });
 
   win.addEventListener('message', (event: MessageEvent) => {
