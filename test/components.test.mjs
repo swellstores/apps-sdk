@@ -402,6 +402,18 @@ test('host frame URL carries the host origin and a channel', (t) => {
   assert.match(channel, /^[0-9a-f-]{36}$/);
 });
 
+test('host makes a channel without randomUUID, as on a plain-http host', (t) => {
+  // randomUUID exists only in secure contexts; local hosts often run on http
+  const own = Object.getOwnPropertyDescriptor(globalThis.crypto, 'randomUUID');
+  Object.defineProperty(globalThis.crypto, 'randomUUID', { value: undefined, configurable: true });
+  t.after(() => {
+    if (own) Object.defineProperty(globalThis.crypto, 'randomUUID', own);
+    else delete globalThis.crypto.randomUUID;
+  });
+  const { channel } = embed(t);
+  assert.match(channel, /^[0-9a-f]{32}$/);
+});
+
 test('host sends init with the latest props only after the frame says hello', async (t) => {
   const { handle, sent, receive } = embed(t);
   handle.update({ value: 'blue', readonly: true });

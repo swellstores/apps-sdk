@@ -97,11 +97,18 @@ export function deferred() {
   return { promise, resolve, reject };
 }
 
+// randomUUID exists only in secure contexts; hosts served over plain http (local development) still get
+// a random channel
+function randomChannel(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 /** Embeds a component frame over `placeholder`. Internal: hosts use createComponents().mount(). */
 export function embedComponent<TValue = unknown, TContext = Record<string, unknown>>(placeholder: HTMLElement, options: EmbedOptions<TValue, TContext>): ComponentHandle<TValue> {
   const window = placeholder.ownerDocument.defaultView;
   if (!window) throw new Error('Component placeholder must be attached to a window');
-  const channel = crypto.randomUUID();
+  const channel = randomChannel();
   const url = new URL(options.src);
   url.searchParams.set('parent', window.location.origin);
   url.searchParams.set('channel', channel);
