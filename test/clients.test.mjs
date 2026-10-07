@@ -223,9 +223,10 @@ test('GET session changes throw on read-only SSR while unchanged sessions do not
 });
 
 test('concurrent stores, sessions, locales and currencies remain isolated', async () => {
+  const currencies = { one: 'EUR', two: 'GBP' };
   const clients = ['one', 'two'].map(store => {
     const values = new Map();
-    return createStorefrontClient({ storeId: store, publicKey: `pk_${store}` }, { cookies: { get: name => values.get(name) ?? `${store}:${name}`, set: (name, value) => { values.set(name, value); } } });
+    return createStorefrontClient({ storeId: store, publicKey: `pk_${store}` }, { cookies: { get: name => values.get(name) ?? (name === 'swell-currency' ? currencies[store] : `${store}:${name}`), set: (name, value) => { values.set(name, value); } } });
   });
   globalThis.fetch = async (url, { headers }) => {
     await new Promise(resolve => setTimeout(resolve, url.includes('one') ? 10 : 1));
@@ -235,7 +236,7 @@ test('concurrent stores, sessions, locales and currencies remain isolated', asyn
   for (const [index, store] of ['one', 'two'].entries()) {
     assert.equal(results[index].headers['X-Session'], `${store}:swell-session`);
     assert.equal(results[index].headers['X-Locale'], `${store}:swell-locale`);
-    assert.equal(results[index].headers['X-Currency'], `${store}:swell-currency`);
+    assert.equal(results[index].headers['X-Currency'], currencies[store]);
     assert.equal(results[index].headers.Authorization, `Basic ${Buffer.from(`pk_${store}`).toString('base64')}`);
     assert.ok(clients[index].getCookie('swell-session').includes(`${store}.swell.store`));
   }

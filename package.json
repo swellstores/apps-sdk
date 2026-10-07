@@ -21,12 +21,12 @@
     "verify": "npm test && npm run typecheck && npm run test:package && npm run test:boundaries && npm run test:worker"
   },
   "peerDependencies": {
-    "swell-js": ">=5.9.1"
+    "swell-js": ">=5.9.2"
   },
   "devDependencies": {
     "esbuild": "0.24.2",
     "miniflare": "5.20260911.1-alpha",
-    "swell-js": "5.9.1",
+    "swell-js": "5.9.2",
     "typescript": "5.7.3"
   },
   "main": "./dist/index.js",
