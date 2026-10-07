@@ -1,5 +1,5 @@
 import type { ComponentModule, ComponentProps } from './components-types.js';
-import { installFocusGuards } from './components-focus.js';
+import { tabbableIn } from './components-focus.js';
 import { TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, Rect, WireProps } from './components-protocol.js';
 
@@ -108,6 +108,9 @@ export function startComponentFrame(options: FrameOptions): void {
   const setOverlay = (on: boolean) => {
     if (overlay === on) return;
     overlay = on;
+    // The component's own controls are under the modal's backdrop: out of the Tab order and the pointer's reach
+    if (on) target.setAttribute('inert', '');
+    else target.removeAttribute('inert');
     document.documentElement.style.overflow = on ? 'hidden' : '';
     post({ type: 'overlay', on });
     if (!on) {
@@ -135,7 +138,6 @@ export function startComponentFrame(options: FrameOptions): void {
     scheduled = win.requestAnimationFrame(() => {
       blocker = Array.from(document.body.children).find(isBlocking) ?? null;
       if (mayTurnOn || !blocker) setOverlay(!!blocker);
-      focusGuards.place();
       mayTurnOn = false;
     });
   };
@@ -202,14 +204,14 @@ export function startComponentFrame(options: FrameOptions): void {
       case 'rect':
         if (overlay) placeRoot(message.rect);
         return;
-      case 'focus':
-        focusGuards.enter(message.edge);
+      case 'focus': {
+        // During overlay the modal takes focus, never the component under its backdrop
+        const [first] = tabbableIn(overlay ? blocker ?? document.body : target);
+        first?.focus();
         return;
+      }
     }
   }
-
-  // Tab leaving the component continues in the host page: focus guards around the root catch it
-  const focusGuards = installFocusGuards({ win, target, post, isOverlay: () => overlay, getBlocker: () => blocker });
 
   win.addEventListener('message', (event: MessageEvent) => {
     if (event.source !== parent || event.origin !== parentOrigin) return;

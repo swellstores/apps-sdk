@@ -179,7 +179,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     } finally {
       moving = false;
     }
-    send({ type: 'focus', edge });
+    send({ type: 'focus' });
   });
 
   // Scrolls the placeholder's scrolling ancestors so the part from top to bottom (px from the placeholder top) shows:
@@ -326,12 +326,6 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       case 'overlay':
         overlayOn = message.on === true;
         send({ type: 'rect', rect: layer.setOverlay(message.on === true) });
-        return;
-      case 'focus-exit':
-        if (message.direction === 'next' || message.direction === 'previous') leaveFrame(message.direction);
-        return;
-      case 'focus-rect':
-        reveal(message.top, message.bottom);
         return;
       case 'result': {
         const call = pending.get(message.call);

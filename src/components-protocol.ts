@@ -30,7 +30,7 @@ export type HostMessage =
   | { type: 'token'; token: string | null }
   | { type: 'event'; call: number; name: string; data: unknown }
   | { type: 'rect'; rect: Rect }
-  | { type: 'focus'; edge: 'first' | 'last' };
+  | { type: 'focus' };
 
 export type FrameMessage =
   | { type: 'hello' }
@@ -40,10 +40,7 @@ export type FrameMessage =
   | { type: 'resize'; height: number }
   | { type: 'overlay'; on: boolean }
   | { type: 'result'; call: number; result?: unknown; error?: string }
-  | { type: 'error'; message: string }
-  | { type: 'focus-exit'; direction: 'next' | 'previous' }
-  /** A control got keyboard focus: its top and bottom in px from the top of the component, for the host to scroll into view. */
-  | { type: 'focus-rect'; top: number; bottom: number };
+  | { type: 'error'; message: string };
 
 interface Envelope {
   $swell: typeof PROTOCOL;
