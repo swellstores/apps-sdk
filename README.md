@@ -181,8 +181,6 @@ Hosts that have their own session, like the Swell admin, pass `getToken: (app) =
 
 The frame is an iframe inside the target element, so it behaves like any element of your page: it takes part in the layout, your popovers, sticky bars and dialogs stack over it, scrolling containers clip it, and Tab and Shift+Tab move into it and on to the neighbouring elements. Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The target's height follows the component's content. Do not move the target in the DOM while the component is mounted: browsers reload a moved iframe, so the component would start again with the current props.
 
-When keyboard focus moves to a control inside a component, the browser scrolls it into view as it does for your own controls. On a scroller with sticky bars, set `scroll-padding` to the bars' height (for example `scroll-padding: 56px 0`), so the control stops clear of them.
-
 When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
 
 Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
