@@ -25,7 +25,7 @@ export interface MountOptions<TValue = unknown, TContext = Record<string, unknow
 
 export interface Components {
   /**
-   * Renders a component over `target` and returns its handle right away. The app's component list
+   * Renders a component in `target` and returns its handle right away. The app's component list
    * loads in the background: `update` calls made meanwhile are kept, `unmount` cancels, and a failure
    * fires `error` and rejects `handle.ready`. Throws when `target` does not exist.
    */

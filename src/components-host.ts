@@ -106,7 +106,7 @@ function randomChannel(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-/** Embeds a component frame over `placeholder`. Internal: hosts use createComponents().mount(). */
+/** Embeds a component frame in `placeholder`. Internal: hosts use createComponents().mount(). */
 export function embedComponent<TValue = unknown, TContext = Record<string, unknown>>(placeholder: HTMLElement, options: EmbedOptions<TValue, TContext>): ComponentHandle<TValue> {
   const window = placeholder.ownerDocument.defaultView;
   if (!window) throw new Error('Component placeholder must be attached to a window');

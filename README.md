@@ -172,25 +172,18 @@ badge.unmount();
 | `on(event, handler)` | Listen to `change` (new value), `validity` (error or `null`) and `error` (load, start, token and component failures, including the ones that reject `ready`). Returns a function that removes the listener; other event names are ignored |
 | `update(input)` | Re-render with new `value`, `context`, `params`, `readonly` or `locale`. Updates made before the component list loads are kept |
 | `emit(event, data)` | Waits for `ready`, then resolves with the result of the component's first `on` handler for the event, or rejects with its error |
+| `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
 | `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
 
 Props and event data must be structured-cloneable. Props that cannot be cloned fire `error`, and at mount they also reject `ready`; event data that cannot be cloned rejects that `emit` call.
 
 Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries. Without `getToken` the frame gets no token, and `props.fetch` sends requests without a token header.
 
-The frame lives in a body-level layer positioned over the target element, so styles on the target's ancestors (`transform`, `filter`, `overflow`) cannot break a modal the component opens. The layer mirrors what the target's containers do to it instead: it takes their opacity and the z-index of the outermost positioned ancestor that has one (so a component inside a fixed modal shows above the modal), is clipped to the visible part of scrolling ancestors, and hides while the target is `visibility: hidden`. The target's height follows the component's content.
+The frame is an iframe inside the target element, so it behaves like any element of your page: it takes part in the layout, your popovers, sticky bars and dialogs stack over it, scrolling containers clip it, and Tab and Shift+Tab move into it and on to the neighbouring elements. Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The target's height follows the component's content. Do not move the target in the DOM while the component is mounted: browsers reload a moved iframe, so the component would start again with the current props.
 
-Keyboard focus follows the page order: the mount target gets a focusable child (`tabindex="0"`, labelled with the component title) that stands in for the frame, and Tab and Shift+Tab move through the component and on to the neighbouring elements of your page. The child is a Tab stop only while the frame runs: Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The frame's layer carries `data-swell-component-layer`. A host focus trap, such as a modal that keeps Tab inside itself, must treat the layer (a body-level element outside the modal) as inside the trap.
+When keyboard focus moves to a control inside a component, the browser scrolls it into view as it does for your own controls. On a scroller with sticky bars, set `scroll-padding` to the bars' height (for example `scroll-padding: 56px 0`), so the control stops clear of them.
 
-Bars that cover scrolling content, such as a modal's sticky header or action bar, would otherwise be painted over by the layer. Mark them with `data-swell-component-occluder`:
-
-```html
-<div class="modal-header" data-swell-component-occluder>…</div>
-```
-
-The layer is clipped where such a bar covers the target's visible part, from the end of that part the bar is nearer to. So a component taller than its scroller passes under its header and footer bars, also when they are offset from the scroller's edges or stacked. Only bars in the same stacking context as the target count: descendants of the element whose z-index the layer takes, or of `body` when no ancestor has one. Bars beside the target are ignored, and so are hidden bars: ones that are not displayed, and, in browsers with `Element.checkVisibility()`, ones that are `visibility: hidden` or have `opacity: 0`.
-
-When keyboard focus moves to a control inside a component, the target's scrolling ancestors scroll it into view. On a scroller with sticky bars, set `scroll-padding` to the bars' height (for example `scroll-padding: 56px 0`), so the control stops clear of them.
+When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
 
 Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
 
