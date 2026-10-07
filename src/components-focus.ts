@@ -55,13 +55,6 @@ function onePerRadioGroup(stops: HTMLElement[]): HTMLElement[] {
   });
 }
 
-/** Visible elements under `root` that Tab reaches, in tree order (open shadow roots included). */
-export function tabbableIn(root: ParentNode): HTMLElement[] {
-  const found: HTMLElement[] = [];
-  collect(root, found);
-  return onePerRadioGroup(found);
-}
-
 /** The element's first Tab stop: the element itself when it is one (a bare iframe), else its first control. */
 export function firstTabbable(element: HTMLElement): HTMLElement | undefined {
   const found: HTMLElement[] = [];
