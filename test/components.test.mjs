@@ -75,9 +75,10 @@ test('the iframe sits in the placeholder and fills it', (t) => {
   assert.equal(iframe.title, 'Picker');
   assert.equal(iframe.getAttribute('allow'), 'payment *; publickey-credentials-get *');
   assert.equal(iframe.hasAttribute('sandbox'), false);
-  assert.equal(iframe.getAttribute('popover'), 'manual');
+  assert.equal(iframe.hasAttribute('popover'), false, 'host styles for popovers do not reach the iframe in the page');
   assert.deepEqual([iframe.style.display, iframe.style.position, iframe.style.width, iframe.style.height, iframe.style.borderWidth],
     ['block', 'static', '100%', '100%', '0px']);
+  assert.equal(placeholder.style.height, '0px', 'no height before the component reports one');
   placed.setHeight(120);
   assert.equal(placeholder.style.height, '120px');
 });
@@ -87,6 +88,7 @@ test('overlay lifts the iframe into the top layer, makes the rest of the page in
   win.document.documentElement.style.overflow = 'scroll';
   assert.deepEqual(placed.setOverlay(true), { top: 100, left: 20, width: 300 });
   assert.deepEqual(popovers, ['show']);
+  assert.equal(iframe.getAttribute('popover'), 'manual');
   assert.deepEqual([iframe.style.position, iframe.style.width, iframe.style.height], ['fixed', '100vw', '100vh']);
   assert.equal(win.document.documentElement.style.overflow, 'hidden');
   assert.deepEqual(inert(), ['nav', 'sibling', 'dim'], 'everything beside the path to the iframe');
@@ -97,6 +99,7 @@ test('overlay lifts the iframe into the top layer, makes the rest of the page in
   assert.deepEqual(moves, [{ top: 60, left: 20, width: 300 }]);
   placed.setOverlay(false);
   assert.deepEqual(popovers, ['show', 'hide']);
+  assert.equal(iframe.hasAttribute('popover'), false);
   assert.deepEqual([iframe.style.position, iframe.style.width, iframe.style.height], ['static', '100%', '100%']);
   assert.equal(win.document.documentElement.style.overflow, 'scroll');
   assert.deepEqual(inert(), ['dim'], 'an element that was inert before stays inert');
@@ -1040,6 +1043,37 @@ test('frame enters an open shadow root at its first control', async (t) => {
   send({ type: 'focus' });
   assert.equal(win.document.activeElement?.localName, 'x-field');
   assert.equal(host.shadowRoot.activeElement?.id, 'one');
+});
+
+test('a modal that opens while the component has focus takes it', async (t) => {
+  const { win, send, root } = focusFrame(t, '<button id="pay">Pay</button>');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  root().querySelector('#pay').focus();
+  const modal = win.document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.innerHTML = '<button id="m1"></button>';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  assert.equal(win.document.activeElement?.id, 'm1');
+});
+
+test('a modal that is itself a control takes focus on a focus message', async (t) => {
+  const { win, send } = focusFrame(t, '<input id="a">');
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  // A vendor's challenge appended as a bare iframe, without a wrapper
+  const modal = win.document.createElement('iframe');
+  modal.id = 'vendor';
+  modal.style.position = 'fixed';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  send({ type: 'focus' });
+  assert.equal(win.document.activeElement?.id, 'vendor');
 });
 
 test('during overlay the root under the modal is inert and a focus message focuses the modal', async (t) => {

@@ -9,8 +9,8 @@ export interface PlacedFrame {
   destroy(): void;
 }
 
-// Inline styles beat the user agent's popover styles (fixed, centered, bordered, hidden while closed), so the
-// closed popover stays in the page as a plain block that fills the placeholder
+// A plain block that fills the placeholder. During overlay the iframe is also a popover: these inline styles keep
+// the user agent's popover border, padding and colors off it
 const IN_FLOW: Record<string, string> = {
   display: 'block', position: 'static', inset: 'auto', margin: '0', padding: '0', border: '0',
   width: '100%', height: '100%', 'max-width': 'none', 'max-height': 'none', overflow: 'visible',
@@ -40,11 +40,12 @@ export function placeFrame(placeholder: HTMLElement, src: string, title: string,
   iframe.src = src;
   iframe.title = title;
   iframe.setAttribute('allow', 'payment *; publickey-credentials-get *');
-  iframe.setAttribute('popover', 'manual');
   const style = (styles: Record<string, string>) => {
     for (const name in styles) iframe.style.setProperty(name, styles[name]);
   };
   style(IN_FLOW);
+  // No height until the component reports one: an iframe without a height is 150px
+  placeholder.style.height = '0px';
   placeholder.appendChild(iframe);
 
   let overlay = false;
@@ -88,15 +89,17 @@ export function placeFrame(placeholder: HTMLElement, src: string, title: string,
     }
   };
 
+  // The iframe is a popover only during overlay, so host styles for [popover] never reach it in the page.
   // showPopover throws for an iframe out of the page or already shown; the overlay styles apply either way
   const popover = (show: boolean) => {
+    if (show) iframe.setAttribute('popover', 'manual');
     const toggle = show ? iframe.showPopover : iframe.hidePopover;
-    if (typeof toggle !== 'function') return;
     try {
-      toggle.call(iframe);
+      if (typeof toggle === 'function') toggle.call(iframe);
     } catch {
       // Out of the page, or already in that state
     }
+    if (!show) iframe.removeAttribute('popover');
   };
 
   const release = () => {

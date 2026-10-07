@@ -171,6 +171,9 @@ const mod = (html, extra = '') => `export function mount(root) { root.innerHTML 
 const define = (tag, mode, html, options = '') => `if (!customElements.get('${tag}')) customElements.define('${tag}', class extends HTMLElement { constructor() { super(); const shadow = this.attachShadow({ mode: '${mode}'${options} }); shadow.innerHTML = '${html}'; if ('${mode}' === 'closed') window.__closed = shadow; } });`;
 // A body-level modal without a focus trap of its own, like an SDK's popup
 const openModal = html => `window.openModal = () => { const modal = document.createElement('div'); modal.id = 'overlay'; Object.assign(modal.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.5)' }); modal.innerHTML = ${JSON.stringify(html)}; document.body.appendChild(modal); modal.querySelector('#m1').focus(); };`;
+// Modals that do not focus anything themselves: a wrapper with buttons, and a vendor frame appended without a wrapper
+const openQuietModal = html => `window.openModal = () => { const modal = document.createElement('div'); modal.id = 'overlay'; Object.assign(modal.style, { position: 'fixed', inset: '0', background: 'rgba(0,0,0,.5)' }); modal.innerHTML = ${JSON.stringify(html)}; document.body.appendChild(modal); };`;
+const openBareFrame = "window.openModal = () => { const frame = document.createElement('iframe'); frame.id = 'bare'; frame.srcdoc = '<input id=otp>'; Object.assign(frame.style, { position: 'fixed', inset: '0', width: '100vw', height: '100vh', border: '0' }); document.body.appendChild(frame); };";
 const NESTED = '<iframe id="card" srcdoc="<input id=num>" style="height:40px"></iframe>';
 // A 3DS challenge: the payment SDK's modal holds the bank's page in a nested frame
 const TDS = '<iframe id="tds" srcdoc="<input id=otp>" style="height:40px"></iframe>';
@@ -191,6 +194,8 @@ const FOCUS_BUNDLES = {
   Modal3ds: mod('<input id="x">', openModal(`${TDS}<button id="m1">Cancel</button>`)),
   Modal3dsLast: mod('<input id="x">', openModal(`<button id="m1">Cancel</button>${TDS}`)),
   Label: mod('<p id="label">Card number</p><input id="x">'),
+  ModalQuiet: mod('<button id="pay">Pay</button>', openQuietModal('<button id="m1">One</button><button id="m2">Two</button>')),
+  ModalFrame: mod('<input id="x">', openBareFrame),
   Tall: mod('<input id="x"><div style="height:500px"></div><input id="y">'),
   // Mounts, then throws on every update: the frame reports an error after ready
   Throws: mod('<input id="x"><input id="y">').replace('export function update() {}', "export function update() { throw new Error('update failed'); }"),
@@ -236,7 +241,7 @@ const frameServer = createServer(async (req, res) => {
 // Real Tab and Shift+Tab, one browser page at a time. Focus is named as: a host element id (host#inner inside its
 // open shadow root), or iframeN:<element>
 // where <element> is an id in the component frame, card>num inside a nested frame, host#inner inside a shadow root,
-// GUARD-prev / GUARD-next for the frame's own focus guards, BODY when nothing has focus.
+// BODY when nothing has focus.
 const T = 'Tab';
 const S = 'Shift+Tab';
 const FOCUS_CASES = [
@@ -303,6 +308,29 @@ async function focusCases() {
   };
   await attempt(() => focusCase('Shift+Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3ds', null, [[S, 'iframe0:m1', { only: challenge, repeat: ['BODY'] }], [S, 'iframe0:tds>otp', { only: challenge }]], clickChallenge, 'iframe0:tds>otp'));
   await attempt(() => focusCase('Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3dsLast', null, [[T, 'iframe0:m1', { only: challenge, repeat: ['BODY'] }], [T, 'iframe0:tds>otp', { only: challenge }]], clickChallenge, 'iframe0:tds>otp'));
+  // A modal that focuses nothing itself takes focus: from the component's own button, and from the host page when
+  // the modal is a vendor frame without a wrapper
+  await attempt(async () => {
+    const page = await openFocusPage('slots=ModalQuiet', null);
+    try {
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      await frame.locator('#pay').focus();
+      await frame.evaluate(() => openModal());
+      await waitForFocus(page, name => name === 'iframe0:m1', 'a modal opened from the component');
+    } finally {
+      await page.close();
+    }
+  });
+  await attempt(async () => {
+    const page = await openFocusPage('slots=ModalFrame', '#pre');
+    try {
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      await frame.evaluate(() => openModal());
+      await waitForFocus(page, name => name.startsWith('iframe0:bare>'), 'a bare vendor frame opened while the host page had focus');
+    } finally {
+      await page.close();
+    }
+  });
   // During overlay the host page is inert: its inputs cannot take focus, which stays in the modal
   await attempt(async () => {
     const page = await openFocusPage('slots=Modal', null);

@@ -1,5 +1,5 @@
 import type { ComponentModule, ComponentProps } from './components-types.js';
-import { tabbableIn } from './components-focus.js';
+import { firstTabbable } from './components-focus.js';
 import { TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, Rect, WireProps } from './components-protocol.js';
 
@@ -105,12 +105,17 @@ export function startComponentFrame(options: FrameOptions): void {
 
   const placeRoot = (rect: Rect) => Object.assign(target.style, { position: 'absolute', top: `${rect.top}px`, left: `${rect.left}px`, width: `${rect.width}px` });
 
+  const focusModal = () => blocker && firstTabbable(blocker as HTMLElement)?.focus();
+
   const setOverlay = (on: boolean) => {
     if (overlay === on) return;
     overlay = on;
     // The component's own controls are under the modal's backdrop: out of the Tab order and the pointer's reach
     if (on) target.setAttribute('inert', '');
     else target.removeAttribute('inert');
+    // The modal takes focus from the component under it, or when nothing has focus, unless it took focus itself
+    const active = document.activeElement;
+    if (on && (!active || active === document.body || target.contains(active))) focusModal();
     document.documentElement.style.overflow = on ? 'hidden' : '';
     post({ type: 'overlay', on });
     if (!on) {
@@ -204,12 +209,11 @@ export function startComponentFrame(options: FrameOptions): void {
       case 'rect':
         if (overlay) placeRoot(message.rect);
         return;
-      case 'focus': {
+      case 'focus':
         // During overlay the modal takes focus, never the component under its backdrop
-        const [first] = tabbableIn(overlay ? blocker ?? document.body : target);
-        first?.focus();
+        if (overlay) focusModal();
+        else firstTabbable(target)?.focus();
         return;
-      }
     }
   }
 

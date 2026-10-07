@@ -61,3 +61,10 @@ export function tabbableIn(root: ParentNode): HTMLElement[] {
   collect(root, found);
   return onePerRadioGroup(found);
 }
+
+/** The element's first Tab stop: the element itself when it is one (a bare iframe), else its first control. */
+export function firstTabbable(element: HTMLElement): HTMLElement | undefined {
+  const found: HTMLElement[] = [];
+  visit(element, found);
+  return onePerRadioGroup(found)[0];
+}
