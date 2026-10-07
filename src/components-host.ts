@@ -1,6 +1,5 @@
 import type { ComponentInput, ComponentToken } from './components-types.js';
-import { tabbableIn } from './components-focus.js';
-import { createFrameLayer } from './components-layer.js';
+import { placeFrame } from './components-placement.js';
 import { unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, WireProps } from './components-protocol.js';
 
@@ -27,6 +26,11 @@ export interface ComponentHandle<TValue = unknown> {
    * does not start in time, reports an error (final) or is unmounted.
    */
   emit<T = unknown>(event: string, data?: unknown): Promise<T>;
+  /**
+   * Moves keyboard focus to the component's first control, as a form does for its first invalid field.
+   * During overlay, to the component's modal. A component without controls keeps focus on its frame.
+   */
+  focus(): void;
   unmount(): void;
 }
 
@@ -40,8 +44,6 @@ export interface EmbedOptions<TValue = unknown, TContext = Record<string, unknow
 
 type Listener = (value: never) => void;
 type HandleEvent = 'change' | 'validity' | 'error';
-// Set while one component hands focus to the next, so the next one enters at the nearest edge
-let enteredFrom: 'first' | 'last' | null = null;
 const REFRESH_SECONDS = 60;
 const MIN_REFRESH_MS = 5_000;
 const RETRY_MS = 10_000;
@@ -127,9 +129,6 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   let greeted = false;
   let started = false;
   let destroyed = false;
-  let overlayOn = false;
-  // The component height the frame last reported
-  let frameHeight = 0;
   // The component has rendered once: a later frame error leaves it usable, and in the Tab order
   let rendered = false;
   const { promise: ready, resolve: markReady, reject: failReady } = deferred();
@@ -141,10 +140,6 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     failReady(error);
     failLive(error);
   };
-  const skipInTabOrder = () => {
-    sentinel.tabIndex = -1;
-  };
-
   const fail = (error: unknown) => {
     const reported = toError(error);
     notify('error', reported);
@@ -154,78 +149,21 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     for (const call of pending.values()) call.reject(error);
     pending.clear();
   };
-  const layer = createFrameLayer(placeholder, url.href, options.title ?? 'App component', rect => send({ type: 'rect', rect }));
-
-  // The frame sits at the end of the body, so the Tab order meets this sentinel where the field is and it forwards keyboard focus to the frame.
-  // Frame content is still read where the layer sits in the DOM. It is a Tab stop only while the frame runs:
-  // from its first hello until it fails to start or reports an error before it rendered, so a broken frame cannot swallow Tab.
-  const sentinel = placeholder.ownerDocument.createElement('div');
-  sentinel.tabIndex = -1;
-  sentinel.setAttribute('role', 'group');
-  sentinel.setAttribute('aria-label', options.title ?? 'App component');
-  Object.assign(sentinel.style, { display: 'block', width: '0', height: '0', overflow: 'hidden', outline: 'none' });
-  placeholder.appendChild(sentinel);
-  // Set while this component moves focus itself, so its own sentinel ignores the resulting events
-  let moving = false;
-  sentinel.addEventListener('focus', (event) => {
-    if (moving) return;
-    const from = (event as FocusEvent).relatedTarget as Node | null;
-    const edge = enteredFrom ?? (from && sentinel.compareDocumentPosition(from) & sentinel.DOCUMENT_POSITION_FOLLOWING ? 'last' : 'first');
-    // A layer still hidden from the last animation frame (the page has just scrolled the placeholder into view) cannot take focus
-    layer.sync();
-    moving = true;
-    try {
-      layer.iframe.focus();
-    } finally {
-      moving = false;
-    }
+  const placed = placeFrame(placeholder, url.href, options.title ?? 'App component', rect => send({ type: 'rect', rect }));
+  // A Tab stop only while the frame runs: from its first hello until it fails to start, or reports an error
+  // before it rendered, so Tab skips a frame that shows an error page
+  placed.iframe.tabIndex = -1;
+  const skipInTabOrder = () => {
+    placed.iframe.tabIndex = -1;
+  };
+  const focusFrame = () => {
+    placed.iframe.focus();
     send({ type: 'focus' });
-  });
-
-  // Scrolls the placeholder's scrolling ancestors so the part from top to bottom (px from the placeholder top) shows:
-  // the sentinel stands in for the focused control for a moment. Hosts set scroll-padding to keep it clear of sticky bars.
-  function reveal(top: number, bottom: number) {
-    if (overlayOn || placeholder.ownerDocument.activeElement !== layer.iframe) return;
-    if (!Number.isFinite(top) || !Number.isFinite(bottom) || bottom < top) return;
-    const clamp = (value: number) => Math.min(Math.max(value, 0), frameHeight);
-    Object.assign(sentinel.style, { transform: `translateY(${clamp(top)}px)`, height: `${clamp(bottom) - clamp(top)}px` });
-    try {
-      sentinel.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    } finally {
-      Object.assign(sentinel.style, { transform: '', height: '0' });
-    }
-    layer.sync();
-  }
-
-  // Moves focus to the tabbable element after (next) or before (previous) the placeholder
-  function leaveFrame(direction: 'next' | 'previous') {
-    const document = placeholder.ownerDocument;
-    if (overlayOn || document.activeElement !== layer.iframe) return;
-    // Composed order, by index: compareDocumentPosition cannot order controls in shadow roots against the sentinel
-    // The sentinel marks the component's place in the Tab order, even while the component is out of it
-    const was = sentinel.tabIndex;
-    sentinel.tabIndex = 0;
-    const stops = tabbableIn(document);
-    sentinel.tabIndex = was;
-    const at = stops.indexOf(sentinel);
-    if (at < 0) return layer.iframe.blur();
-    const candidates = (direction === 'next' ? stops.slice(at + 1) : stops.slice(0, at)).filter(item => !placeholder.contains(item));
-    const target = candidates[direction === 'next' ? 0 : candidates.length - 1];
-    if (!target) return layer.iframe.blur();
-    // A neighbouring component's sentinel reads this to focus the edge we came from
-    enteredFrom = direction === 'next' ? 'first' : 'last';
-    moving = true;
-    try {
-      target.focus();
-    } finally {
-      enteredFrom = null;
-      moving = false;
-    }
-  }
+  };
 
   // Throws when the message cannot be cloned
   function post(message: HostMessage) {
-    if (started && !destroyed) layer.iframe.contentWindow?.postMessage(wrap(channel, message), frameOrigin);
+    if (started && !destroyed) placed.iframe.contentWindow?.postMessage(wrap(channel, message), frameOrigin);
   }
 
   function send(message: HostMessage) {
@@ -267,7 +205,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   const tokenLoaded = Promise.resolve().then(loadToken);
 
   // A frame page that never says hello (404, CSP, frame-ancestors) fails ready instead of leaving it pending
-  layer.iframe.addEventListener('load', () => {
+  placed.iframe.addEventListener('load', () => {
     if (greeted || destroyed) return;
     clearTimeout(startTimer);
     startTimer = setTimeout(() => {
@@ -281,7 +219,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   });
 
   async function onMessage(event: MessageEvent) {
-    if (event.origin !== frameOrigin || event.source !== layer.iframe.contentWindow) return;
+    if (event.origin !== frameOrigin || event.source !== placed.iframe.contentWindow) return;
     const message = unwrap<FrameMessage>(event.data, channel);
     if (!message) return;
     switch (message.type) {
@@ -289,11 +227,10 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         clearTimeout(startTimer);
         if (greeted) {
           // The frame reloaded: its new runtime starts without overlay and cannot answer earlier events
-          layer.setOverlay(false);
-          overlayOn = false;
+          placed.setOverlay(false);
           rejectPending(new Error('Component reloaded'));
         }
-        if (!greeted) sentinel.tabIndex = 0;
+        if (!greeted) placed.iframe.removeAttribute('tabindex');
         greeted = true;
         await tokenLoaded;
         started = true;
@@ -318,15 +255,15 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         notify('validity', typeof message.error === 'string' ? message.error : null);
         return;
       case 'resize':
-        if (Number.isFinite(message.height)) {
-          frameHeight = Math.max(0, Math.ceil(message.height));
-          layer.setHeight(frameHeight);
-        }
+        if (Number.isFinite(message.height)) placed.setHeight(Math.max(0, Math.ceil(message.height)));
         return;
-      case 'overlay':
-        overlayOn = message.on === true;
-        send({ type: 'rect', rect: layer.setOverlay(message.on === true) });
+      case 'overlay': {
+        const on = message.on === true;
+        send({ type: 'rect', rect: placed.setOverlay(on) });
+        // The component's modal takes focus, unless focus is already in its frame
+        if (on && placeholder.ownerDocument.activeElement !== placed.iframe) focusFrame();
         return;
+      }
       case 'result': {
         const call = pending.get(message.call);
         if (!call) return;
@@ -369,6 +306,9 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       }
       return result;
     },
+    focus() {
+      if (!destroyed) focusFrame();
+    },
     unmount() {
       if (destroyed) return;
       destroyed = true;
@@ -377,8 +317,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       clearTimeout(startTimer);
       rejectPending(new Error('Component unmounted'));
       stop(new Error('Component unmounted'));
-      layer.destroy();
-      sentinel.remove();
+      placed.destroy();
     },
   };
 }

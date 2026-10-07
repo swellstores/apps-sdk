@@ -223,7 +223,8 @@ test('frame messages resolve ready and drive change, validity, resize and overla
   receive({ type: 'overlay', on: true });
   await tick();
   assert.equal(win.document.documentElement.style.overflow, 'hidden');
-  assert.equal(sent.at(-1).message.type, 'rect');
+  // The placeholder position, then focus for the modal (focus was on the host page)
+  assert.deepEqual(sent.slice(-2).map(({ message }) => message.type), ['rect', 'focus']);
   receive({ type: 'overlay', on: false });
   await tick();
   assert.equal(win.document.documentElement.style.overflow, 'auto');
@@ -401,14 +402,14 @@ test('a frame that says hello again leaves overlay, rejects pending events and g
   win.document.documentElement.style.overflow = 'auto';
   receive({ type: 'overlay', on: true });
   await tick();
-  assert.deepEqual([iframe.parentElement.style.position, win.document.documentElement.style.overflow], ['fixed', 'hidden']);
+  assert.deepEqual([iframe.style.position, win.document.documentElement.style.overflow], ['fixed', 'hidden']);
   const pending = handle.emit('submit');
   await tick();
   handle.update({ value: 'blue' });
   receive({ type: 'hello' });
   assert.equal((await settled(pending)).error?.message, 'Component reloaded');
   await tick();
-  assert.deepEqual([iframe.parentElement.style.position, win.document.documentElement.style.overflow], ['absolute', 'auto']);
+  assert.deepEqual([iframe.style.position, win.document.documentElement.style.overflow], ['static', 'auto']);
   const inits = sent.filter(({ message }) => message.type === 'init');
   assert.equal(inits.length, 2);
   assert.equal(inits[1].message.props.value, 'blue');
@@ -570,90 +571,92 @@ test('createComponents requires a store and a public key', () => {
   assert.throws(() => createComponents({ publicKey: 'pk' }), /requires storeId and publicKey/);
 });
 
-// happy-dom has no layout, so every element counts as visible here.
-// The frame has said hello unless `started` is false: the sentinel is a Tab stop only while the frame runs
-function focusFixture(t, options, { started = true } = {}) {
+// The frame has said hello unless `started` is false: the iframe is a Tab stop only while the frame runs
+function tabFixture(t, options, { started = true } = {}) {
   const fixture = embed(t, options);
-  const { win, placeholder } = fixture;
   if (started) fixture.receive({ type: 'hello' });
-  const make = (tag, parent = win.document.body, before = null) => {
-    const element = win.document.createElement(tag);
-    parent.insertBefore(element, before);
-    return element;
-  };
-  const before = make('input', win.document.body, placeholder);
-  const after = make('button');
-  const hidden = make('input');
-  hidden.type = 'hidden';
-  const sentinel = placeholder.querySelector('[role="group"]');
-  const focusFrom = (relatedTarget) => sentinel.dispatchEvent(new win.FocusEvent('focus', { relatedTarget }));
-  return { ...fixture, before, after, hidden, sentinel, focusFrom };
+  return fixture;
 }
 
-test('host puts a labelled focus sentinel in the placeholder and takes the iframe out of the Tab order', (t) => {
-  const { placeholder, iframe, sentinel } = focusFixture(t, { title: 'Color picker' });
-  assertSame(sentinel.parentElement, placeholder);
-  assert.deepEqual([sentinel.getAttribute('tabindex'), sentinel.getAttribute('aria-label')], ['0', 'Color picker']);
-  assert.equal(iframe.getAttribute('tabindex'), '-1');
-});
-
-test('the sentinel is a Tab stop from the first hello until the frame reports an error', async (t) => {
-  const { sentinel, receive } = focusFixture(t, {}, { started: false });
-  assert.equal(sentinel.tabIndex, -1, 'before hello');
+test('the iframe is a Tab stop from the first hello until the frame reports an error', async (t) => {
+  const { iframe, receive } = tabFixture(t, {}, { started: false });
+  assert.equal(iframe.getAttribute('tabindex'), '-1', 'before hello');
   receive({ type: 'hello' });
-  assert.equal(sentinel.tabIndex, 0, 'after hello');
+  assert.equal(iframe.hasAttribute('tabindex'), false, 'after hello');
   await tick();
   receive({ type: 'error', message: 'Bundle failed' });
-  assert.equal(sentinel.tabIndex, -1, 'after an error');
+  assert.equal(iframe.getAttribute('tabindex'), '-1', 'after an error');
   receive({ type: 'hello' });
   await tick();
-  assert.equal(sentinel.tabIndex, -1, 'an error is final');
+  assert.equal(iframe.getAttribute('tabindex'), '-1', 'an error is final');
 });
 
-test('an error after the component rendered keeps the sentinel in the Tab order', async (t) => {
-  const { sentinel, receive } = focusFixture(t);
+test('an error after the component rendered keeps the iframe in the Tab order', async (t) => {
+  const { iframe, receive } = tabFixture(t);
   await tick();
   receive({ type: 'ready' });
   receive({ type: 'error', message: 'update failed' });
-  assert.equal(sentinel.tabIndex, 0);
+  assert.equal(iframe.hasAttribute('tabindex'), false);
 });
 
 test('a frame that does not start in time leaves the Tab order until it says hello', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
-  const { win, iframe, handle, sentinel, receive } = focusFixture(t, {}, { started: false });
+  const { win, iframe, handle, receive } = tabFixture(t, {}, { started: false });
   handle.on('error', () => {});
   iframe.dispatchEvent(new win.Event('load'));
   t.mock.timers.tick(10_000);
-  assert.equal(sentinel.tabIndex, -1, 'after the start timeout');
+  assert.equal(iframe.getAttribute('tabindex'), '-1', 'after the start timeout');
   receive({ type: 'hello' });
-  assert.equal(sentinel.tabIndex, 0, 'a late hello');
+  assert.equal(iframe.hasAttribute('tabindex'), false, 'a late hello');
 });
 
-test('props that cannot be cloned take the sentinel out of the Tab order', async (t) => {
-  const { sentinel, handle } = focusFixture(t, { value: { format() {} } });
+test('props that cannot be cloned take the iframe out of the Tab order', async (t) => {
+  const { iframe, handle } = tabFixture(t, { value: { format() {} } });
   handle.on('error', () => {});
   await flush();
-  assert.equal(sentinel.tabIndex, -1);
+  assert.equal(iframe.getAttribute('tabindex'), '-1');
 });
 
-test('the sentinel brings a hidden layer up to date before it focuses the iframe', async (t) => {
-  const { win, placeholder, iframe, focusFrom } = focusFixture(t);
+test('focus() focuses the iframe and asks the frame to focus its first control', async (t) => {
+  const { iframe, handle, sent } = tabFixture(t);
   await tick();
-  await animationFrame(win);
-  const layer = iframe.parentElement;
-  assert.equal(layer.style.visibility, 'hidden', 'a placeholder without width hides the layer');
-  // The page scrolls the placeholder into view as Tab reaches the sentinel, before the next animation frame
-  placeholder.getBoundingClientRect = () => ({ top: 10, left: 0, width: 300, height: 0 });
-  let visibility = '';
-  iframe.focus = () => { visibility = layer.style.visibility; };
-  focusFrom(null);
-  assert.equal(visibility, 'visible');
+  let focused = 0;
+  iframe.focus = () => { focused++; };
+  handle.focus();
+  assert.equal(focused, 1);
+  assert.deepEqual(sent.filter(({ message }) => message.type === 'focus').map(({ message }) => ({ type: message.type, edge: message.edge })), [{ type: 'focus', edge: undefined }]);
+  handle.unmount();
+  handle.focus();
+  assert.equal(focused, 1, 'an unmounted handle does nothing');
 });
 
-test('unmount removes the focus sentinel', (t) => {
-  const { placeholder, handle } = focusFixture(t);
-  handle.unmount();
-  assertSame(placeholder.querySelector('[tabindex]'), null);
+test('overlay moves focus into the frame unless focus is already there', async (t) => {
+  const { win, iframe, sent, receive } = tabFixture(t);
+  await tick();
+  let focused = 0;
+  iframe.focus = () => { focused++; };
+  const input = win.document.createElement('input');
+  win.document.body.appendChild(input);
+  input.focus();
+  receive({ type: 'overlay', on: true });
+  assert.equal(focused, 1, 'focus left the host page for the modal');
+  assert.equal(sent.filter(({ message }) => message.type === 'focus').length, 1);
+  receive({ type: 'overlay', on: false });
+  Object.defineProperty(win.document, 'activeElement', { configurable: true, get: () => iframe });
+  receive({ type: 'overlay', on: true });
+  assert.equal(focused, 1, 'focus already in the frame stays where the component put it');
+});
+
+test('a client handle focuses its component once the frame is embedded', async (t) => {
+  const { handle, release, win } = gatedApp(t);
+  handle.focus();
+  release();
+  await flush();
+  const iframe = win.document.querySelector('iframe');
+  let focused = 0;
+  iframe.focus = () => { focused++; };
+  handle.focus();
+  assert.equal(focused, 1);
 });
 
 const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };

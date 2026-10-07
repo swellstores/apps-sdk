@@ -101,6 +101,10 @@ export function createComponents(options: ComponentsOptions): Components {
           await embedded;
           return (inner as ComponentHandle<TValue>).emit<T>(name, data);
         },
+        // Before the component list loads there is no frame to focus yet
+        focus() {
+          inner?.focus();
+        },
         unmount() {
           if (unmounted) return;
           unmounted = true;
