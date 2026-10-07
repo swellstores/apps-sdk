@@ -61,7 +61,7 @@ await assert.rejects(build({ ...baseOptions, stdin: { contents: `import '@swell/
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
 assert.deepEqual(Object.keys(pkg.exports).sort(), ['.', './storefront']);
 assert.deepEqual(pkg.dependencies ?? {}, {});
-assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.1' });
+assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.2' });
 await writeFile(join(output, 'bundles.json'), JSON.stringify(reports, null, 2));
 console.table(Object.fromEntries(Object.entries(reports).map(([name, { raw, gzip }]) => [name, { raw, gzip }])));
 console.log('ESM graphs, ESM-only size parity and every browser refusal passed');

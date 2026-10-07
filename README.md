@@ -10,7 +10,7 @@ applications, use [`swell-js`](https://github.com/swellstores/swell-js).
 ## Installation
 
 ```sh
-npm install @swell/apps-sdk@next swell-js@^5.9.1
+npm install @swell/apps-sdk@next swell-js@^5.9.2
 ```
 
 Supports Node.js 22.22.2+ and Cloudflare Workers, with no Node compatibility flags
