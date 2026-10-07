@@ -4,8 +4,12 @@ import { TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, Rect, WireProps } from './components-protocol.js';
 
 export interface FrameOptions {
-  /** URL of the component bundle: an ES module exporting mount, update and unmount. Relative URLs resolve against the frame page. */
-  bundleUrl: string;
+  /**
+   * URL of the component bundle: an ES module exporting mount, update and unmount. Relative URLs resolve against the
+   * frame page. Without it the frame asks the platform: `<page path>.json` answers `{ bundleUrl }` for the build the
+   * installation runs, as the platform's shell page (`component-frame.html`) expects.
+   */
+  bundleUrl?: string;
   /** Render target. Defaults to #root, created when missing. */
   root?: HTMLElement;
   /** @internal Test seam: the frame window. */
@@ -26,15 +30,29 @@ function isModule(value: unknown): value is ComponentModule {
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+// Only the platform knows which build the installation runs, so it answers next to the shell page
+async function fetchBundleUrl(win: Window & typeof globalThis): Promise<string> {
+  const response = await win.fetch(new URL(`${win.location.pathname}.json`, win.location.href).href, { headers: { Accept: 'application/json' } });
+  if (response.status === 404) throw new Error('Component not found');
+  if (!response.ok) throw new Error(`Component metadata failed (${response.status})`);
+  const { bundleUrl } = (await response.json()) as { bundleUrl?: unknown };
+  if (typeof bundleUrl !== 'string' || !bundleUrl) throw new Error('Component metadata has no bundle URL');
+  return new URL(bundleUrl, win.location.href).href;
+}
+
 /** Runs inside the component frame: connects to the host page and renders the component bundle. */
-export function startComponentFrame(options: FrameOptions): void {
+export function startComponentFrame(options: FrameOptions = {}): void {
   const win = options.window ?? window;
   const parent = options.parent ?? win.parent;
   const params = new URLSearchParams(win.location.search);
   const parentOrigin = params.get('parent');
   const channel = params.get('channel');
   if (!parentOrigin || !channel || parent === win) throw new Error('App component frames must be embedded by a Swell host');
-  const bundleUrl = new URL(options.bundleUrl, win.location.href).href;
+  // Asked right away, so the answer arrives while the host handshake runs; a failure is reported when the bundle loads
+  const bundleUrl = options.bundleUrl !== undefined
+    ? Promise.resolve(new URL(options.bundleUrl, win.location.href).href)
+    : fetchBundleUrl(win);
+  bundleUrl.catch(() => {});
   const document = win.document;
   const style = document.createElement('style');
   style.textContent = BASE_STYLE;
@@ -159,7 +177,7 @@ export function startComponentFrame(options: FrameOptions): void {
 
   // One import per frame: an init that arrives while the bundle loads waits for the same import
   const loadModule = () => {
-    loading ??= importModule(bundleUrl).then((loaded) => {
+    loading ??= bundleUrl.then(importModule).then((loaded) => {
       if (!isModule(loaded)) throw new Error('Component bundle must export mount, update and unmount');
       return loaded;
     });

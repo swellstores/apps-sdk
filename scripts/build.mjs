@@ -1,10 +1,12 @@
-import { readFile, writeFile, rm, readdir } from 'node:fs/promises';
+import { readFile, writeFile, rm, readdir, copyFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 const { version } = JSON.parse(await readFile(new URL('../package.json', import.meta.url)));
 await rm(new URL('../dist', import.meta.url), { recursive: true, force: true });
 execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.json'], { stdio: 'inherit' });
 const file = new URL('../dist/version.js', import.meta.url);
 await writeFile(file, (await readFile(file, 'utf8')).replace('__SDK_VERSION__', version));
+// The page the platform serves for every component frame (/.swell/components/<name>)
+await copyFile(new URL('../src/component-frame.html', import.meta.url), new URL('../dist/component-frame.html', import.meta.url));
 
 // CommonJS consumers need CJS declarations even though Node loads the same ESM runtime.
 for (const name of await readdir('dist')) {

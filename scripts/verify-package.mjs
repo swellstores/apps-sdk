@@ -8,10 +8,13 @@ const output = resolve('.verification');
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const packed = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { encoding: 'utf8' }))[0];
-for (const path of ['dist/index.js', 'dist/storefront.js', 'dist/components.js', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/storefront.d.ts', 'dist/storefront.d.cts', 'dist/components.d.ts', 'dist/components.d.cts']) {
+for (const path of ['dist/index.js', 'dist/storefront.js', 'dist/components.js', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/storefront.d.ts', 'dist/storefront.d.cts', 'dist/components.d.ts', 'dist/components.d.cts', 'dist/component-frame.html']) {
   assert.ok(packed.files.some(file => file.path === path), `Missing packed file: ${path}; run npm run build first`);
 }
 assert.ok(!packed.files.some(({ path }) => /(?:^|\/)(?:functions|function-types)(?:\.|\/)/.test(path)), 'Function runtime leaked into packed files');
+// The platform serves this page for every component frame: it starts the frame and asks for the bundle itself
+const shell = await readFile('dist/component-frame.html', 'utf8');
+assert.match(shell, /import \{ startComponentFrame \} from "\/\.swell\/sdk\/components\.js";\s*startComponentFrame\(\);/);
 assert.ok(!packed.files.some(({ path }) => path.startsWith('test/') || path.startsWith('experiments/')), 'Experimental code leaked into packed files');
 const fixture = await mkdtemp(join(output, 'consumer-'));
 await writeFile(join(fixture, 'package.json'), JSON.stringify({ private: true, type: 'module', dependencies: {

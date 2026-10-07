@@ -130,15 +130,6 @@ const CONFINED_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
-const SHELL_PAGE = `<!doctype html>
-<html><head><meta charset="utf-8"></head>
-<body><div id="root"></div>
-<script type="module">
-  import { startComponentFrame } from '/dist/components.js';
-  startComponentFrame({ bundleUrl: '/bundle/' + location.pathname.split('/').pop() + '.js' });
-</script>
-</body></html>`;
-
 const ECHO_BUNDLE = `
 export function mount(root, props) {
   root.innerHTML = '<input id="value"><span id="info"></span><div id="grow"></div><button id="modal">modal</button>';
@@ -230,7 +221,11 @@ const hostServer = createServer(async (req, res) => {
 });
 const frameServer = createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://frame');
-  if (pathname.startsWith('/.swell/components/')) return res.writeHead(200, { 'Content-Type': 'text/html' }).end(SHELL_PAGE);
+  // As the platform answers on an app origin: the SDK's shell page, the bundle URL next to it, and the SDK runtime
+  const name = /^\/\.swell\/components\/(\w+)(\.json)?$/.exec(pathname);
+  if (name?.[2]) return Object.hasOwn(BUNDLES, name[1]) ? json(res, { bundleUrl: `/bundle/${name[1]}.js` }) : res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"error":"Component not found"}');
+  if (name) return res.writeHead(200, { 'Content-Type': 'text/html' }).end(await readFile(resolve(dist, 'component-frame.html')));
+  if (pathname.startsWith('/.swell/sdk/')) return sendDist(res, pathname.replace('/.swell/sdk/', '/dist/'));
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
   const bundle = /^\/bundle\/(\w+)\.js$/.exec(pathname)?.[1];
   if (Object.hasOwn(BUNDLES, bundle ?? '')) return res.writeHead(200, { 'Content-Type': 'text/javascript' }).end(BUNDLES[bundle]);

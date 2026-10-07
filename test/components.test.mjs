@@ -664,7 +664,8 @@ test('a client handle focuses its component once the frame is embedded', async (
 
 const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };
 
-function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/picker.js' } = {}) {
+// bundleUrl: null starts the frame without one, as the platform shell does; fetch stands in for the frame's own
+function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/picker.js', fetch } = {}) {
   const win = new Window({ url: `${FRAME}/.swell/components/Picker?${search ?? `v=abc&parent=${encodeURIComponent(HOST)}&channel=c1`}` });
   t.after(() => win.happyDOM.close());
   const posted = [];
@@ -676,8 +677,9 @@ function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/pic
     unmount() { calls.push(['unmount']); },
   };
   const imported = [];
+  if (fetch) win.fetch = fetch;
   startComponentFrame({
-    bundleUrl, window: win, parent,
+    ...(bundleUrl === null ? {} : { bundleUrl }), window: win, parent,
     importModule: async url => { imported.push(url); await gate; if (component instanceof Error) throw component; return component; },
   });
   const send = (message, { origin = HOST, source = parent, channel = 'c1' } = {}) =>
@@ -685,6 +687,34 @@ function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/pic
   const types = () => posted.map(({ message }) => message.type);
   return { win, posted, calls, imported, send, types, root: () => win.document.getElementById('root') };
 }
+
+test('a frame without a bundle URL asks the platform for it next to its page', async (t) => {
+  const requests = [];
+  const { send, imported, types } = startFrame(t, {
+    bundleUrl: null,
+    fetch: async (url) => { requests.push(String(url)); return Response.json({ bundleUrl: 'https://cdn.test/from-platform.js' }); },
+  });
+  // Asked at start, while the host handshake runs
+  assert.deepEqual(requests, [`${FRAME}/.swell/components/Picker.json`]);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await flush();
+  assert.deepEqual(imported, ['https://cdn.test/from-platform.js']);
+  assert.ok(types().includes('ready'));
+});
+
+test('a frame reports a component the platform does not know, or metadata without a bundle URL', async (t) => {
+  for (const [response, error] of [
+    [new Response('{"error":"Component not found"}', { status: 404 }), 'Component not found'],
+    [new Response('nope', { status: 502 }), 'Component metadata failed (502)'],
+    [Response.json({}), 'Component metadata has no bundle URL'],
+  ]) {
+    const { send, posted, imported } = startFrame(t, { bundleUrl: null, fetch: async () => response });
+    send({ type: 'init', props: HOST_PROPS, token: null });
+    await flush();
+    assert.deepEqual(imported, []);
+    assert.deepEqual(posted.filter(({ message }) => message.type === 'error').map(({ message }) => message.message), [error]);
+  }
+});
 
 test('frame refuses to run outside a Swell host', (t) => {
   const plain = new Window({ url: `${FRAME}/.swell/components/Picker` });
