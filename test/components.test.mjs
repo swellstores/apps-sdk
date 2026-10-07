@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Window } from 'happy-dom';
 import { PROTOCOL, PROTOCOL_VERSION, TOKEN_HEADER, wrap, unwrap } from '../dist/components-protocol.js';
-import { createFrameLayer } from '../dist/components-layer.js';
+import { placeFrame } from '../dist/components-placement.js';
 import { embedComponent } from '../dist/components-host.js';
 import { createComponents } from '../dist/components-client.js';
 import { startComponentFrame } from '../dist/components-frame.js';
@@ -52,324 +52,85 @@ test('protocol wraps messages and only unwraps its own channel and version', () 
   for (const data of [null, 'text', 1, undefined]) assert.equal(unwrap(data, 'c1'), null);
 });
 
-function layerSetup(t) {
+function placementSetup(t) {
   const win = hostWindow(t);
-  const outer = win.document.createElement('div');
-  const wrapper = win.document.createElement('div');
-  wrapper.style.opacity = '0.5';
-  const placeholder = win.document.createElement('div');
-  wrapper.appendChild(placeholder);
-  outer.appendChild(wrapper);
-  win.document.body.appendChild(outer);
+  win.document.body.innerHTML = '<aside id="nav"><a href="#">Home</a></aside><main id="main"><div id="sibling"><input id="field"></div><div id="wrapper"><div id="placeholder"></div></div></main><div id="dim" inert></div>';
+  const placeholder = win.document.getElementById('placeholder');
   let rect = { top: 100, left: 20, width: 300, height: 0 };
   placeholder.getBoundingClientRect = () => rect;
   const moves = [];
-  const layer = createFrameLayer(placeholder, SRC, 'Picker', next => moves.push(next));
-  t.after(() => layer.destroy());
-  return { win, outer, wrapper, placeholder, layer, element: layer.iframe.parentElement, moves, move: next => { rect = { ...rect, ...next }; } };
+  const placed = placeFrame(placeholder, SRC, 'Picker', next => moves.push(next));
+  t.after(() => placed.destroy());
+  const popovers = [];
+  placed.iframe.showPopover = () => popovers.push('show');
+  placed.iframe.hidePopover = () => popovers.push('hide');
+  const inert = () => ['nav', 'main', 'sibling', 'wrapper', 'dim'].filter(id => win.document.getElementById(id).hasAttribute('inert'));
+  return { win, placeholder, placed, iframe: placed.iframe, moves, popovers, inert, move: next => { rect = { ...rect, ...next }; } };
 }
 
-test('layer sits over the placeholder, outside it, and mirrors ancestor opacity', (t) => {
-  const { win, placeholder, layer, element } = layerSetup(t);
-  assertSame(element.parentElement, win.document.body);
-  assert.equal(placeholder.contains(layer.iframe), false);
-  assert.equal(layer.iframe.src, SRC);
-  assert.equal(layer.iframe.title, 'Picker');
-  assert.equal(layer.iframe.getAttribute('allow'), 'payment *; publickey-credentials-get *');
-  assert.equal(layer.iframe.hasAttribute('sandbox'), false);
-  assert.deepEqual([element.style.position, element.style.top, element.style.left, element.style.width, element.style.opacity],
-    ['absolute', '100px', '20px', '300px', '0.5']);
-  layer.setHeight(120);
+test('the iframe sits in the placeholder and fills it', (t) => {
+  const { placeholder, placed, iframe } = placementSetup(t);
+  assertSame(iframe.parentElement, placeholder);
+  assert.equal(iframe.src, SRC);
+  assert.equal(iframe.title, 'Picker');
+  assert.equal(iframe.getAttribute('allow'), 'payment *; publickey-credentials-get *');
+  assert.equal(iframe.hasAttribute('sandbox'), false);
+  assert.equal(iframe.getAttribute('popover'), 'manual');
+  assert.deepEqual([iframe.style.display, iframe.style.position, iframe.style.width, iframe.style.height, iframe.style.borderWidth],
+    ['block', 'static', '100%', '100%', '0px']);
+  placed.setHeight(120);
   assert.equal(placeholder.style.height, '120px');
-  assert.equal(element.style.height, '120px');
 });
 
-test('layer follows the placeholder on every animation frame', async (t) => {
-  const { win, element, move } = layerSetup(t);
-  move({ top: 140 });
-  await animationFrame(win);
-  assert.equal(element.style.top, '140px');
-});
-
-test('layer is fixed in viewport coordinates inside a fixed container, absolute in the page otherwise', async (t) => {
-  const { win, outer, wrapper, element } = layerSetup(t);
-  Object.defineProperty(win, 'scrollY', { configurable: true, get: () => 500 });
-  await animationFrame(win);
-  assert.deepEqual([element.style.position, element.style.top], ['absolute', '600px']);
-  wrapper.style.position = 'fixed';
-  await animationFrame(win);
-  assert.deepEqual([element.style.position, element.style.top], ['fixed', '100px']);
-  // A transform above the fixed container makes it scroll with the page again
-  outer.style.transform = 'translateZ(0)';
-  await animationFrame(win);
-  assert.deepEqual([element.style.position, element.style.top], ['absolute', '600px']);
-  // So does a transform on the body, which also holds the layer
-  outer.style.transform = '';
-  win.document.body.style.transform = 'translateZ(0)';
-  await animationFrame(win);
-  assert.deepEqual([element.style.position, element.style.top], ['absolute', '600px']);
-});
-
-test('overlay covers the viewport, locks page scroll and reports placeholder moves', async (t) => {
-  const { win, layer, element, moves, move } = layerSetup(t);
+test('overlay lifts the iframe into the top layer, makes the rest of the page inert and locks its scroll', async (t) => {
+  const { win, placed, iframe, moves, popovers, inert, move } = placementSetup(t);
   win.document.documentElement.style.overflow = 'scroll';
-  assert.deepEqual(layer.setOverlay(true), { top: 100, left: 20, width: 300 });
-  assert.deepEqual([element.style.position, element.style.width, element.style.height, element.style.opacity], ['fixed', '100vw', '100vh', '1']);
+  assert.deepEqual(placed.setOverlay(true), { top: 100, left: 20, width: 300 });
+  assert.deepEqual(popovers, ['show']);
+  assert.deepEqual([iframe.style.position, iframe.style.width, iframe.style.height], ['fixed', '100vw', '100vh']);
   assert.equal(win.document.documentElement.style.overflow, 'hidden');
+  assert.deepEqual(inert(), ['nav', 'sibling', 'dim'], 'everything beside the path to the iframe');
+  placed.setOverlay(true);
+  assert.deepEqual(popovers, ['show'], 'a repeated overlay changes nothing');
   move({ top: 60 });
   await animationFrame(win);
   assert.deepEqual(moves, [{ top: 60, left: 20, width: 300 }]);
-  layer.setOverlay(false);
+  placed.setOverlay(false);
+  assert.deepEqual(popovers, ['show', 'hide']);
+  assert.deepEqual([iframe.style.position, iframe.style.width, iframe.style.height], ['static', '100%', '100%']);
   assert.equal(win.document.documentElement.style.overflow, 'scroll');
-  assert.equal(element.style.position, 'absolute');
+  assert.deepEqual(inert(), ['dim'], 'an element that was inert before stays inert');
+  move({ top: 10 });
+  await animationFrame(win);
+  assert.equal(moves.length, 1, 'no moves are reported after overlay');
 });
 
-test('layer stacks with the outermost positioned ancestor that has a z-index', async (t) => {
-  const { win, outer, wrapper, layer, element } = layerSetup(t);
-  assert.equal(element.style.zIndex, '1');
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
-  Object.assign(wrapper.style, { position: 'relative', zIndex: '5' });
-  await animationFrame(win);
-  assert.equal(element.style.zIndex, '99999');
-  outer.style.zIndex = 'auto';
-  await animationFrame(win);
-  assert.equal(element.style.zIndex, '5');
-  // A z-index without positioning does not stack the element
-  wrapper.style.position = 'static';
-  await animationFrame(win);
-  assert.equal(element.style.zIndex, '1');
-  outer.style.zIndex = '99999';
-  layer.setOverlay(true);
-  assert.equal(element.style.zIndex, '2147483647');
+test('without the Popover API overlay is a fixed box with the top z-index', (t) => {
+  const { placed, iframe } = placementSetup(t);
+  iframe.showPopover = undefined;
+  iframe.hidePopover = undefined;
+  placed.setOverlay(true);
+  assert.deepEqual([iframe.style.position, iframe.style.zIndex], ['fixed', '2147483647']);
+  placed.setOverlay(false);
+  assert.equal(iframe.style.position, 'static');
 });
 
-test('layer is clipped to the visible part of scrolling ancestors and hidden when scrolled out', async (t) => {
-  const { win, outer, wrapper, layer, element, move } = layerSetup(t);
-  layer.setHeight(100);
-  assert.deepEqual([element.style.clipPath, element.style.visibility], ['none', 'visible']);
-  // Placeholder box: top 100, right 320, bottom 200, left 20
-  outer.style.overflowY = 'scroll';
-  outer.getBoundingClientRect = () => ({ top: 130, right: 1000, bottom: 180, left: 0 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(30px 0px 20px 0px)');
-  wrapper.style.overflowX = 'hidden';
-  wrapper.getBoundingClientRect = () => ({ top: 0, right: 300, bottom: 1000, left: 50 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(30px 20px 20px 30px)');
-  assert.equal(element.style.visibility, 'visible');
-  move({ top: 180 });
-  await animationFrame(win);
-  assert.equal(element.style.visibility, 'hidden');
-  layer.setOverlay(true);
-  assert.deepEqual([element.style.clipPath, element.style.visibility], ['none', 'visible']);
-  layer.setOverlay(false);
-  assert.deepEqual([element.style.clipPath, element.style.visibility], ['inset(0px 20px 100px 30px)', 'hidden']);
+test('a Popover API that throws still leaves the overlay styles', (t) => {
+  const { placed, iframe } = placementSetup(t);
+  iframe.showPopover = () => { throw new Error('InvalidStateError'); };
+  placed.setOverlay(true);
+  assert.equal(iframe.style.position, 'fixed');
 });
 
-test('layer is not clipped by overflow that does not clip a fixed placeholder ancestor', async (t) => {
-  const { win, outer, wrapper, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  // wrapper is a fixed panel inside the overflow: hidden column
-  Object.assign(outer.style, { overflowX: 'hidden', overflowY: 'hidden' });
-  outer.getBoundingClientRect = () => ({ top: 0, right: 50, bottom: 1000, left: 0 });
-  wrapper.style.position = 'fixed';
-  await animationFrame(win);
-  assert.deepEqual([element.style.clipPath, element.style.visibility], ['none', 'visible']);
-  wrapper.style.position = 'static';
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(0px 270px 0px 0px)');
-});
-
-test('layer is clipped by an absolute ancestor chain only from its containing block up', async (t) => {
-  const { win, outer, wrapper, placeholder, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  const box = win.document.createElement('div');
-  wrapper.removeChild(placeholder);
-  box.appendChild(placeholder);
-  wrapper.appendChild(box);
-  // box (absolute) > wrapper (static, overflow hidden) > outer (relative, overflow hidden)
-  box.style.position = 'absolute';
-  Object.assign(wrapper.style, { overflowX: 'hidden', overflowY: 'hidden' });
-  wrapper.getBoundingClientRect = () => ({ top: 0, right: 40, bottom: 1000, left: 0 });
-  Object.assign(outer.style, { position: 'relative', overflowX: 'hidden', overflowY: 'hidden' });
-  outer.getBoundingClientRect = () => ({ top: 0, right: 100, bottom: 1000, left: 0 });
-  await animationFrame(win);
-  // Placeholder box: left 20, right 320; only outer (right 100) clips
-  assert.deepEqual([element.style.clipPath, element.style.visibility], ['inset(0px 220px 0px 0px)', 'visible']);
-  outer.style.position = 'static';
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'none');
-});
-
-test('layer is clipped by an ancestor with a transform around a fixed placeholder ancestor', async (t) => {
-  const { win, outer, wrapper, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  const column = win.document.createElement('div');
-  outer.removeChild(wrapper);
-  column.appendChild(wrapper);
-  outer.appendChild(column);
-  wrapper.style.position = 'fixed';
-  Object.assign(outer.style, { overflowX: 'hidden', overflowY: 'hidden' });
-  outer.getBoundingClientRect = () => ({ top: 0, right: 1000, bottom: 1000, left: 0 });
-  Object.assign(column.style, { overflowX: 'hidden', overflowY: 'hidden', transform: 'translateZ(0)' });
-  column.getBoundingClientRect = () => ({ top: 0, right: 100, bottom: 1000, left: 0 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(0px 220px 0px 0px)');
-});
-
-function occluder(win, parent, rect) {
-  const bar = win.document.createElement('div');
-  bar.setAttribute('data-swell-component-occluder', '');
-  bar.style.position = 'sticky';
-  bar.getBoundingClientRect = () => ({ left: 0, right: 1000, ...rect });
-  parent.appendChild(bar);
-  return bar;
-}
-
-test('layer is clipped below a sticky header marked as an occluder', async (t) => {
-  const { win, outer, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  // Placeholder box: top 100, right 320, bottom 200, left 20
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
-  const header = occluder(win, outer, { top: 80, bottom: 120 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(20px 0px 0px 0px)');
-  assert.equal(element.style.visibility, 'visible');
-  header.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 80, bottom: 150 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(50px 0px 0px 0px)');
-  header.remove();
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'none');
-});
-
-test('layer is clipped above a sticky footer marked as an occluder', async (t) => {
-  const { win, outer, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
-  occluder(win, outer, { top: 170, bottom: 400 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(0px 0px 30px 0px)');
-});
-
-test('a placeholder taller than its scroller is clipped at the bars it extends past', async (t) => {
-  const { win, outer, layer, element, move } = layerSetup(t);
-  // The scroller shows 50..450; its header covers 50..100 and its footer 400..450
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999', overflowX: 'hidden', overflowY: 'hidden' });
-  outer.getBoundingClientRect = () => ({ top: 50, right: 1000, bottom: 450, left: 0 });
-  occluder(win, outer, { top: 50, bottom: 100 });
-  occluder(win, outer, { top: 400, bottom: 450 });
-  move({ top: 0 });
-  layer.setHeight(600);
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(100px 0px 200px 0px)', 'past both bars');
-  layer.setHeight(300);
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(100px 0px 0px 0px)', 'past the header');
-  move({ top: 200 });
-  layer.setHeight(400);
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(0px 0px 200px 0px)', 'past the footer');
-});
-
-test('bars inside a bordered scroller, offset from its edges or stacked still clip the layer', async (t) => {
-  const { win, outer, layer, element, move } = layerSetup(t);
-  // The scroller's border box is 50..450; with a 2px border its bars stick at 52..102 and 398..448
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999', overflowX: 'hidden', overflowY: 'hidden' });
-  outer.getBoundingClientRect = () => ({ top: 50, right: 1000, bottom: 450, left: 0 });
-  const header = occluder(win, outer, { top: 52, bottom: 102 });
-  const footer = occluder(win, outer, { top: 398, bottom: 448 });
-  move({ top: 0 });
-  layer.setHeight(600);
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(102px 0px 202px 0px)', 'bordered');
-  // Bars 8px from the edges
-  header.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 58, bottom: 108 });
-  footer.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 392, bottom: 442 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(108px 0px 208px 0px)', 'offset');
-  // An actions bar above the footer, earlier in the DOM
-  footer.getBoundingClientRect = () => ({ left: 0, right: 1000, top: 410, bottom: 450 });
-  const actions = occluder(win, outer, { top: 370, bottom: 410 });
-  outer.insertBefore(actions, footer);
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(108px 0px 230px 0px)', 'stacked');
-});
-
-test('layer ignores occluders outside the stacking context it joins', async (t) => {
-  const { win, outer, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  const pageHeader = occluder(win, win.document.body, { top: 0, bottom: 150 });
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'none');
-  // Without a z-index anywhere the layer joins the page's stacking context
-  outer.style.zIndex = '';
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(50px 0px 0px 0px)');
-  pageHeader.remove();
-});
-
-test('layer ignores hidden occluders and occluders beside it', async (t) => {
-  const { win, outer, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
-  occluder(win, outer, { top: 0, bottom: 0 });
-  occluder(win, outer, { top: 80, bottom: 150, left: 400, right: 900 });
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'none');
-});
-
-test('layer ignores occluders that are visibility: hidden or fully transparent', async (t) => {
-  const { win, outer, layer, element } = layerSetup(t);
-  layer.setHeight(100);
-  Object.assign(outer.style, { position: 'fixed', zIndex: '99999' });
-  const header = occluder(win, outer, { top: 80, bottom: 120 });
-  header.style.visibility = 'hidden';
-  const footer = occluder(win, outer, { top: 170, bottom: 400 });
-  footer.style.opacity = '0';
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'none');
-  // Without checkVisibility a bar counts, as before
-  header.checkVisibility = undefined;
-  await animationFrame(win);
-  assert.equal(element.style.clipPath, 'inset(20px 0px 0px 0px)');
-});
-
-test('layer mirrors an inherited visibility: hidden', async (t) => {
-  const { win, outer, element } = layerSetup(t);
-  assert.equal(element.style.visibility, 'visible');
-  outer.style.visibility = 'hidden';
-  await animationFrame(win);
-  assert.equal(element.style.visibility, 'hidden');
-  outer.style.visibility = '';
-  await animationFrame(win);
-  assert.equal(element.style.visibility, 'visible');
-});
-
-test('layer writes only the styles that changed', async (t) => {
-  const { win, element, move } = layerSetup(t);
-  const writes = [];
-  const setProperty = element.style.setProperty.bind(element.style);
-  element.style.setProperty = (name, value) => {
-    writes.push(name);
-    setProperty(name, value);
-  };
-  await animationFrame(win);
-  assert.deepEqual(writes, []);
-  move({ top: 140 });
-  await animationFrame(win);
-  assert.deepEqual(writes, ['top']);
-});
-
-test('destroy removes the layer and restores the page', (t) => {
-  const { win, placeholder, layer, element } = layerSetup(t);
-  layer.setHeight(80);
-  layer.setOverlay(true);
-  layer.destroy();
-  assert.equal(element.isConnected, false);
+test('destroy removes the iframe and restores the page, also during overlay', (t) => {
+  const { win, placeholder, placed, iframe, inert } = placementSetup(t);
+  placed.setHeight(80);
+  placed.setOverlay(true);
+  placed.destroy();
+  assert.equal(iframe.isConnected, false);
   assert.equal(win.document.documentElement.style.overflow, '');
   assert.equal(placeholder.style.height, '');
+  assert.deepEqual(inert(), ['dim']);
 });
 
 // happy-dom does not create windows for iframes when page loading is off; stand in for the frame.
