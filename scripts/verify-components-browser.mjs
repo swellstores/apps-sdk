@@ -38,12 +38,14 @@ const HOST_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
-// A field inside a fixed, scrolling modal, like the admin's collection row editor.
+// A field inside a fixed, scrolling modal, like the admin's collection row editor, with a lookup list of the
+// modal (#menu) open over the component's top-left corner.
 const MODAL_PAGE = `<!doctype html>
 <html><head><meta charset="utf-8"><title>Modal host</title></head>
 <body style="margin:0">
 <div id="modal" style="position:fixed;top:100px;left:100px;width:600px;height:400px;z-index:99999;overflow-y:scroll;background:#fff">
   <div style="height:150px"></div><div id="slot"></div><div style="height:2000px"></div>
+  <div id="menu" style="position:absolute;z-index:10;left:20px;top:140px;width:200px;height:40px;background:#eee">menu</div>
 </div>
 <script type="module">
   import { createComponents } from '/dist/components.js';
@@ -87,9 +89,9 @@ const FOCUS_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
-// A fixed modal over a long page: its scroller has sticky bars marked as occluders and scroll-padding that keeps
-// focused controls clear of them, and holds a component taller than itself. ?variant= picks the bars.
-const bar = (id, style, content) => `<div id="${id}" data-swell-component-occluder style="position:sticky;height:50px;background:#ccc;z-index:1;${style}">${content}</div>`;
+// A fixed modal over a long page: its scroller has sticky bars and scroll-padding that keeps focused controls
+// clear of them, and holds a component taller than itself. ?variant= picks the bars.
+const bar = (id, style, content) => `<div id="${id}" style="position:sticky;height:50px;background:#ccc;z-index:1;${style}">${content}</div>`;
 const SCROLLER_VARIANTS = {
   plain: { scroller: '', top: bar('hdr', 'top:0', 'header'), bottom: bar('ftr', 'bottom:0', '<button id="save">Save</button>') },
   bordered: { scroller: 'border-top:2px solid #000;border-bottom:2px solid #000', top: bar('hdr', 'top:0', 'header'), bottom: bar('ftr', 'bottom:0', 'footer') },
@@ -113,15 +115,17 @@ const scrollerPage = ({ scroller, top, bottom }) => `<!doctype html>
 </script>
 </body></html>`;
 
-// A transformed body is the containing block of fixed elements: the fixed modal scrolls with the page
-const TRANSFORMED_PAGE = `<!doctype html>
-<html><head><meta charset="utf-8"><title>Transformed host</title></head>
-<body style="margin:0;transform:translateZ(0)"><div style="height:3000px">page</div>
-<div id="modal" style="position:fixed;top:50px;left:50px;width:600px;height:400px;z-index:99999;background:#fff"><div id="slot"></div></div>
+// The component sits in a short, clipping, translucent and transformed container, like an admin modal while it
+// animates in: its overlay must still cover the whole viewport at full opacity
+const CONFINED_PAGE = `<!doctype html>
+<html><head><meta charset="utf-8"><title>Confined host</title></head>
+<body style="margin:0"><input id="pre">
+<div id="confine" style="transform:translateX(5px);opacity:.4;overflow:hidden;height:60px;position:relative;z-index:1"><div id="slot"></div></div>
+<input id="post">
 <script type="module">
   import { createComponents } from '/dist/components.js';
   const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
-  await components.mount('#slot', { app: 'demo', component: 'Two' }).ready;
+  await components.mount('#slot', { app: 'demo', component: 'Echo', value: 'a', context: { id: 'r1' } }).ready;
   window.mounted = true;
 </script>
 </body></html>`;
@@ -200,7 +204,7 @@ const hostServer = createServer(async (req, res) => {
   if (pathname === '/') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(HOST_PAGE);
   if (pathname === '/focus') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(FOCUS_PAGE);
   if (pathname === '/modal') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(MODAL_PAGE);
-  if (pathname === '/transformed') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(TRANSFORMED_PAGE);
+  if (pathname === '/confined') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(CONFINED_PAGE);
   if (pathname === '/scroller') {
     const variant = SCROLLER_VARIANTS[new URL(req.url, 'http://host').searchParams.get('variant') ?? 'plain'];
     return variant ? res.writeHead(200, { 'Content-Type': 'text/html' }).end(scrollerPage(variant)) : res.writeHead(404).end();
@@ -248,14 +252,13 @@ const FOCUS_CASES = [
   ['a nested iframe as the first control', 'slots=NestedFirst', '#pre', [[T, 'post', { via: ['iframe0:card>num', 'iframe0:x'] }], [S, 'pre', { via: ['iframe0:x', 'iframe0:card>num'] }]]],
   ['a nested iframe as the last control', 'slots=NestedLast', '#pre', [[T, 'post', { via: ['iframe0:x', 'iframe0:card>num'] }], [S, 'pre', { via: ['iframe0:card>num', 'iframe0:x'] }]]],
   ['an open shadow root', 'slots=Shadow', '#pre', [[T, 'iframe0:sh#s1'], [T, 'iframe0:sh#s2'], [T, 'post'], [S, 'iframe0:sh#s2'], [S, 'iframe0:sh#s1'], [S, 'pre']]],
-  ['a closed shadow root is entered through the guards', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [T, 'iframe0:cl#c1'], [T, 'iframe0:cl#c2'], [T, 'post'], [S, 'iframe0:GUARD-next'], [S, 'iframe0:cl#c2'], [S, 'iframe0:cl#c1'], [S, 'pre']]],
+  ['a closed shadow root', 'slots=Closed', '#pre', [[T, 'iframe0:cl#c1'], [T, 'iframe0:cl#c2'], [T, 'post'], [S, 'iframe0:cl#c2'], [S, 'iframe0:cl#c1'], [S, 'pre']]],
   // From outside, focus on a frame inside a closed shadow root shows only as focus on its host. Entry from below
   // lands on the last control the frame can see, x: the frame inside the closed root is skipped on the way back.
   ['a closed shadow root holding a nested frame', 'slots=ClosedNested', '#pre', [[T, 'post', { via: ['iframe0:x', 'iframe0:cn>num'] }], [S, 'pre', { via: ['iframe0:x'] }]]],
-  ['Shift+Tab right after a closed shadow entry leaves before the component', 'slots=Closed', '#pre', [[T, 'iframe0:GUARD-prev'], [S, 'pre']]],
-  ['Tab right after a closed shadow entry from below leaves after the component', 'slots=Closed', '#post', [[S, 'iframe0:GUARD-next'], [T, 'post']]],
   ['an open shadow element without controls is no stop', 'slots=Icon', '#pre', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'post'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre']]],
-  ['a component with only an open shadow element and no controls is passed by', 'slots=IconOnly', '#pre', [[T, 'post'], [S, 'pre']]],
+  // A frame whose document has nothing to focus is one stop at most (its document), never a trap
+  ['a component with only an open shadow element and no controls is passed by', 'slots=IconOnly', '#pre', [[T, 'post', { only: ['iframe0:BODY', 'post'], max: 2 }], [S, 'pre', { only: ['iframe0:BODY', 'pre'], max: 2 }]]],
   ['a delegatesFocus host without tabindex', 'slots=Delegates', '#pre', [[T, 'iframe0:dl#d1'], [T, 'iframe0:dl#d2'], [T, 'post'], [S, 'iframe0:dl#d2'], [S, 'iframe0:dl#d1'], [S, 'pre']]],
   ['neighbours in open shadow roots', 'slots=Two&shadow=1', '#post', [[S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'pre'], [S, 'a2#i'], [T, 'pre'], [T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'post'], [T, 'b1#i']]],
   ['neighbours in open shadow roots, with no light-DOM neighbours', 'slots=Two&shadow=1&pre=0&post=0', '#a2 #i', [[T, 'iframe0:x'], [T, 'iframe0:y'], [T, 'b1#i'], [S, 'iframe0:y'], [S, 'iframe0:x'], [S, 'a2#i']]],
@@ -281,10 +284,14 @@ async function attempt(run) {
 
 async function focusCases() {
   for (const [name, query, start, steps, before] of FOCUS_CASES) await attempt(() => focusCase(name, query, start, steps, before));
-  await attempt(() => focusCase('a modal without a focus trap keeps Tab inside it', 'slots=Modal', null, [[T, 'iframe0:m2'], [T, 'iframe0:m1'], [T, 'iframe0:m2'], [S, 'iframe0:m1'], [S, 'iframe0:m2']], openComponentModal, 'iframe0:m1'));
+  // The host page is inert during overlay, so Tab past the modal's last control leaves the page (BODY here, the
+  // browser's own controls in a window) and comes back to its first, like a native modal dialog. Focus never
+  // reaches the component's own field under the backdrop or a host control.
+  const wrapTo = stop => ({ only: ['BODY', stop] });
+  await attempt(() => focusCase('a modal without a focus trap keeps Tab inside it', 'slots=Modal', null, [[T, 'iframe0:m2'], [T, 'iframe0:m1', wrapTo('iframe0:m1')], [T, 'iframe0:m2'], [S, 'iframe0:m1'], [S, 'iframe0:m2', wrapTo('iframe0:m2')]], openComponentModal, 'iframe0:m1'));
   // A 3DS modal: Tab and Shift+Tab cycle between its button and the bank's frame (Chromium stops on that frame's
-  // document first going forwards), never reaching the component's own field under the backdrop or the host page
-  const challenge = ['iframe0:m1', 'iframe0:tds>otp', 'iframe0:tds>BODY'];
+  // document first going forwards), never reaching the component's own field under the backdrop or a host control
+  const challenge = ['BODY', 'iframe0:m1', 'iframe0:tds>otp', 'iframe0:tds>BODY'];
   const cycle = [T, S, S, T].map(key => [key, 'iframe0:m1', { via: ['iframe0:tds>otp'], only: challenge }]);
   await attempt(() => focusCase('a modal with a nested frame first keeps Tab and Shift+Tab inside it', 'slots=Modal3ds', null, cycle, openComponentModal, 'iframe0:m1'));
   await attempt(() => focusCase('a modal with a nested frame last keeps Tab and Shift+Tab inside it', 'slots=Modal3dsLast', null, cycle, openComponentModal, 'iframe0:m1'));
@@ -294,24 +301,21 @@ async function focusCases() {
     await focusPage.locator('#pre').focus();
     await focusPage.frames().find(item => item.url().startsWith(frameOrigin)).frameLocator('#tds').locator('#otp').click();
   };
-  await attempt(() => focusCase('Shift+Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3ds', null, [[S, 'iframe0:m1'], [S, 'iframe0:tds>otp']], clickChallenge, 'iframe0:tds>otp'));
-  await attempt(() => focusCase('Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3dsLast', null, [[T, 'iframe0:m1'], [T, 'iframe0:tds>otp']], clickChallenge, 'iframe0:tds>otp'));
-  // Tab from the host page during overlay enters the modal at its near edge, never the component's field under the backdrop
-  for (const [key, start, expected] of [[T, '#pre', 'iframe0:m1'], [S, '#post', 'iframe0:m2']]) {
-    await attempt(async () => {
-      const page = await openFocusPage('slots=Modal', null);
-      try {
-        await openComponentModal(page);
-        await page.locator(start).focus();
-        await page.keyboard.press(key);
-        await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(true), 300))));
-        const got = await whereIs(page);
-        assert.equal(got, expected, `${key} from ${start} during overlay: focus is on ${got}, not ${expected}`);
-      } finally {
-        await page.close();
-      }
-    });
-  }
+  await attempt(() => focusCase('Shift+Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3ds', null, [[S, 'iframe0:m1', { only: challenge, repeat: ['BODY'] }], [S, 'iframe0:tds>otp', { only: challenge }]], clickChallenge, 'iframe0:tds>otp'));
+  await attempt(() => focusCase('Tab after a click into a modal\'s nested frame stays in the modal', 'slots=Modal3dsLast', null, [[T, 'iframe0:m1', { only: challenge, repeat: ['BODY'] }], [T, 'iframe0:tds>otp', { only: challenge }]], clickChallenge, 'iframe0:tds>otp'));
+  // During overlay the host page is inert: its inputs cannot take focus, which stays in the modal
+  await attempt(async () => {
+    const page = await openFocusPage('slots=Modal', null);
+    try {
+      await openComponentModal(page);
+      for (const start of ['#pre', '#post']) await page.evaluate(id => document.getElementById(id).focus(), start.slice(1));
+      const got = await whereIs(page);
+      assert.equal(got, 'iframe0:m1', `focusing the host page during overlay moved focus to ${got}`);
+      assert.deepEqual(await page.evaluate(() => ['pre', 'post'].map(id => document.getElementById(id).closest('[inert]') !== null)), [true, true]);
+    } finally {
+      await page.close();
+    }
+  });
   // A click on text before the field, then Shift+Tab, leaves the component: the click is no Tab entry
   await attempt(() => focusCase('Shift+Tab after a click on text before the field leaves the component', 'slots=Label', null, [[S, 'pre']], async (focusPage) => {
     await focusPage.frames().find(item => item.url().startsWith(frameOrigin)).locator('#label').click();
@@ -336,7 +340,7 @@ async function focusCases() {
 async function openComponentModal(focusPage) {
   const frame = focusPage.frames().find(item => item.url().startsWith(frameOrigin));
   await frame.evaluate(() => openModal());
-  await focusPage.waitForFunction(() => getComputedStyle(document.querySelector('iframe').parentElement).position === 'fixed');
+  await focusPage.waitForFunction(() => document.querySelector('iframe').matches(':popover-open'));
   await frame.waitForFunction(() => [...document.querySelectorAll('#overlay iframe')].every(nested => nested.contentDocument?.querySelector('input')));
 }
 
@@ -363,7 +367,7 @@ async function whereIs(page) {
   const owner = await element.contentFrame();
   if (!owner) return `iframe${index}:?`;
   return `iframe${index}:${await owner.evaluate(() => {
-    const name = el => (el?.hasAttribute?.('data-swell-focus-guard') ? (el.nextElementSibling?.id === 'root' ? 'GUARD-prev' : 'GUARD-next') : el?.id || el?.tagName);
+    const name = el => el?.id || el?.tagName;
     const active = document.activeElement;
     const inner = active?.shadowRoot?.activeElement ?? (active && active === window.__closed?.host ? window.__closed.activeElement : null);
     if (inner?.tagName === 'IFRAME') return `${name(active)}>${name(inner.contentDocument.activeElement)}`;
@@ -392,10 +396,11 @@ async function focusCase(name, query, start, steps, before, initial) {
     const seen = [];
     for (const [key, expected, walk] of steps) {
       if (walk) {
-        // Press until the target is reached; no stop may repeat (a trap), the controls in `via` must be visited on the way
-        // in that order, and with `only` no other stop may be visited
+        // Press until the target is reached; no stop may repeat (a trap) except those in `repeat` (the page outside the
+        // browser's own controls), the controls in `via` must be visited on the way in that order, and with `only` no
+        // other stop may be visited
         const path = [];
-        for (let press = 0; press < 5 && path.at(-1) !== expected; press++) {
+        for (let press = 0; press < (walk.max ?? 5) && path.at(-1) !== expected; press++) {
           await page.keyboard.press(key);
           await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => setTimeout(() => resolve(true), 50))));
           path.push(await whereIs(page));
@@ -404,7 +409,7 @@ async function focusCase(name, query, start, steps, before, initial) {
         const order = via.map(stop => path.indexOf(stop));
         const visited = order.every((index, at) => index >= 0 && (at === 0 || index > order[at - 1]));
         const inside = !walk.only || path.every(stop => walk.only.includes(stop));
-        assert.ok(path.at(-1) === expected && new Set(path).size === path.length && visited && inside, `${name}: ${key} path ${path.join(' > ')} should visit ${via.join(', ') || 'anything'}${walk.only ? ` within ${walk.only.join(', ')}` : ''} and reach ${expected}`);
+        assert.ok(path.at(-1) === expected && new Set(path.filter(stop => !(walk.repeat ?? []).includes(stop))).size === path.filter(stop => !(walk.repeat ?? []).includes(stop)).length && visited && inside, `${name}: ${key} path ${path.join(' > ')} should visit ${via.join(', ') || 'anything'}${walk.only ? ` within ${walk.only.join(', ')}` : ''} and reach ${expected}`);
         seen.push(...path);
         continue;
       }
@@ -424,13 +429,12 @@ async function openScrollerPage(variant = 'plain') {
   return page;
 }
 
-// Waits until the layer has followed the placeholder; it writes position and clip in the same frame
-async function followed(page) {
-  await page.waitForFunction(() => Math.abs(document.querySelector('[data-swell-component-layer]').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top) < 1);
+// Two animation frames: scrolling and layout have settled
+async function settled(page) {
   await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
 }
 
-// Whether the control focused in the component frame shows inside the layer's visible (clipped) part
+// Whether the control focused in the component frame shows inside the modal, clear of its sticky bars
 async function focusedControlShows(page) {
   const frame = await (await page.$('iframe')).contentFrame();
   const inner = await frame.evaluate(() => {
@@ -438,13 +442,19 @@ async function focusedControlShows(page) {
     return { id: document.activeElement.id, top: box.top, bottom: box.bottom };
   });
   return page.evaluate((control) => {
-    const iframe = document.querySelector('iframe');
-    const box = iframe.getBoundingClientRect();
-    const [clipTop = 0, , clipBottom = clipTop] = (iframe.parentElement.style.clipPath.match(/-?[\d.]+/g) ?? []).map(Number);
-    const top = box.top + control.top;
-    const bottom = box.top + control.bottom;
-    const shows = top >= box.top + clipTop - 0.5 && bottom <= box.bottom - clipBottom + 0.5 && iframe.parentElement.style.visibility === 'visible';
-    return shows || `${control.id} at ${Math.round(top)}..${Math.round(bottom)}, visible part ${Math.round(box.top + clipTop)}..${Math.round(box.bottom - clipBottom)}`;
+    const frameBox = document.querySelector('iframe').getBoundingClientRect();
+    const modal = document.querySelector('#modal').getBoundingClientRect();
+    let top = modal.top;
+    let bottom = modal.bottom;
+    for (const bar of document.querySelectorAll('#modal > [id]')) {
+      if (getComputedStyle(bar).position !== 'sticky') continue;
+      const box = bar.getBoundingClientRect();
+      if (box.top + box.bottom <= modal.top + modal.bottom) top = Math.max(top, box.bottom);
+      else bottom = Math.min(bottom, box.top);
+    }
+    const controlTop = frameBox.top + control.top;
+    const controlBottom = frameBox.top + control.bottom;
+    return (controlTop >= top - 0.5 && controlBottom <= bottom + 0.5) || `${control.id} at ${Math.round(controlTop)}..${Math.round(controlBottom)}, clear part ${Math.round(top)}..${Math.round(bottom)}`;
   }, inner);
 }
 
@@ -475,7 +485,7 @@ async function scrollerCases() {
           await page.evaluate((top) => {
             document.querySelector('#modal').scrollTop += document.querySelector('#slot').getBoundingClientRect().top - top;
           }, slotTop);
-          await followed(page);
+          await settled(page);
           const hit = await page.evaluate((barId) => {
             const box = document.getElementById(barId).getBoundingClientRect();
             const element = document.elementFromPoint(300, (box.top + box.bottom) / 2);
@@ -509,21 +519,39 @@ async function scrollerCases() {
       await page.close();
     }
   });
-  // Under a transformed body the layer stays over the placeholder when the page scrolls
+  // A component confined by a short, clipping, translucent, transformed container still covers the whole viewport
+  // at full opacity while its modal is open, and the page under it is inert
   await attempt(async () => {
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
     page.on('pageerror', error => pageErrors.push(error));
     try {
-      await page.goto(`${hostOrigin}/transformed`);
+      await page.goto(`${hostOrigin}/confined`);
       await page.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
-      const offsets = [];
-      for (const y of [0, 500]) {
-        await page.evaluate(to => scrollTo(0, to), y);
-        await page.waitForFunction(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))));
-        const off = await page.evaluate(() => document.querySelector('[data-swell-component-layer]').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top);
-        if (Math.abs(off) >= 1) offsets.push(`scrolled ${y}px: the layer is ${Math.round(off)}px off`);
-      }
-      assert.deepEqual(offsets, [], `transformed body: ${offsets.join('; ')}`);
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      await frame.locator('#modal').click();
+      await page.waitForFunction(() => document.querySelector('iframe').matches(':popover-open'));
+      await settled(page);
+      const cover = await page.evaluate(() => {
+        const iframe = document.querySelector('iframe');
+        const box = iframe.getBoundingClientRect();
+        return {
+          box: [box.left, box.top, box.width, box.height].map(Math.round),
+          viewport: [0, 0, innerWidth, innerHeight],
+          onTop: document.elementFromPoint(innerWidth / 2, innerHeight - 5) === iframe,
+          inert: ['pre', 'post'].map(id => document.getElementById(id).closest('[inert]') !== null),
+        };
+      });
+      assert.deepEqual(cover.box, cover.viewport, `confined overlay does not cover the viewport: ${JSON.stringify(cover)}`);
+      assert.deepEqual([cover.onTop, ...cover.inert], [true, true, true], `confined overlay: ${JSON.stringify(cover)}`);
+      // Full opacity: the overlay looks the same whether the container is at opacity .4 or 1
+      const clip = { x: 300, y: 300, width: 400, height: 300 };
+      const faded = await page.screenshot({ clip });
+      await page.evaluate(() => { document.querySelector('#confine').style.opacity = '1'; });
+      await settled(page);
+      const opaque = await page.screenshot({ clip });
+      assert.ok(faded.equals(opaque), 'confined overlay is faded by the container\'s opacity');
+      await frame.locator('#overlay').click();
+      await page.waitForFunction(() => !document.querySelector('iframe').matches(':popover-open') && document.querySelectorAll('[inert]').length === 0);
     } finally {
       await page.close();
     }
@@ -537,7 +565,7 @@ async function scrollerCases() {
       await waitForFocus(page, name => name === 'iframe0:x', 'scroller: Tab into the component');
       await page.keyboard.press(T);
       await waitForFocus(page, name => name === 'iframe0:y', 'scroller: Tab to the control below the viewport');
-      await followed(page);
+      await settled(page);
       const scrolled = await page.evaluate(() => scrollY);
       assert.equal(scrolled, 0, `scroller: the page behind the fixed modal scrolled by ${scrolled}px`);
     } finally {
@@ -558,9 +586,8 @@ try {
   const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
   assert.ok(frame, 'component frame not found');
 
-  // The frame lives in a body-level layer, outside the placeholder, without a sandbox.
-  assert.equal(await page.evaluate(() => document.querySelector('#slot iframe')), null);
-  assert.equal(await page.evaluate(() => document.querySelector('iframe').parentElement.parentElement === document.body), true);
+  // The frame lives in the placeholder, without a sandbox.
+  assert.equal(await page.evaluate(() => document.querySelector('iframe').parentElement === document.querySelector('#slot')), true);
   assert.equal(await page.evaluate(() => document.querySelector('iframe').hasAttribute('sandbox')), false);
 
   // Initial props reach the component.
@@ -588,15 +615,14 @@ try {
   await frame.evaluate(() => { document.querySelector('#grow').style.height = '300px'; });
   await page.waitForFunction(() => document.querySelector('#slot').getBoundingClientRect().height >= 300);
 
-  // A modal inside the frame turns overlay on and off.
+  // A modal inside the frame turns overlay on and off: the frame goes to the top layer, the rest of the page is
+  // inert and does not scroll, and all of it comes back after.
   await frame.locator('#modal').click();
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('iframe').parentElement).position === 'fixed' && document.documentElement.style.overflow === 'hidden');
+  await page.waitForFunction(() => document.querySelector('iframe').matches(':popover-open') && document.documentElement.style.overflow === 'hidden');
+  assert.deepEqual(await page.evaluate(() => ['before', 'after'].map(id => document.getElementById(id).closest('[inert]') !== null)), [true, true]);
   await frame.locator('#overlay').click();
-  await page.waitForFunction(() => getComputedStyle(document.querySelector('iframe').parentElement).position === 'absolute' && document.documentElement.style.overflow === '');
-
-  // The layer fades with the placeholder's ancestors.
-  await page.evaluate(() => { document.querySelector('#wrapper').style.opacity = '0.5'; });
-  await page.waitForFunction(() => document.querySelector('iframe').parentElement.style.opacity === '0.5');
+  await page.waitForFunction(() => !document.querySelector('iframe').matches(':popover-open') && document.documentElement.style.overflow === '');
+  assert.equal(await page.evaluate(() => document.querySelectorAll('[inert]').length), 0);
 
   // A forged message from the host page itself is ignored.
   await page.evaluate(() => {
@@ -606,11 +632,12 @@ try {
   await page.waitForTimeout(200);
   assert.equal(await page.evaluate(() => events.some(([, value]) => value === 'forged')), false);
 
-  // Inside a fixed, scrolling modal the layer stacks above the modal and is clipped to it.
+  // Inside a fixed, scrolling modal the frame is a plain part of it: the modal's own popover paints over it, the
+  // scroller clips it and a sticky header stays above it, with no host markup for any of that.
   const modalPage = await browser.newPage({ viewport: { width: 1000, height: 700 } });
   modalPage.on('pageerror', error => pageErrors.push(error));
   await modalPage.goto(`${hostOrigin}/modal`);
-  await modalPage.waitForFunction(() => window.mounted === true && parseFloat(document.querySelector('iframe').parentElement.style.height) > 0, null, { timeout: 15000 });
+  await modalPage.waitForFunction(() => window.mounted === true && parseFloat(document.querySelector('#slot').style.height) > 0, null, { timeout: 15000 });
 
   // The frame height includes the paragraphs' margins, so both show without an inner scroll.
   const paragraphs = modalPage.frames().find(item => item.url().startsWith(frameOrigin));
@@ -619,32 +646,32 @@ try {
     lastBottom: document.querySelector('#last').getBoundingClientRect().bottom, innerHeight,
   }));
   assert.ok(fit.scrollHeight <= fit.clientHeight && fit.lastBottom <= fit.innerHeight, `the component is cut off: ${JSON.stringify(fit)}`);
-  assert.equal(await modalPage.evaluate(() => {
+  const stacking = await modalPage.evaluate(() => {
+    const iframe = document.querySelector('iframe');
     const slot = document.querySelector('#slot').getBoundingClientRect();
-    return document.elementFromPoint(slot.left + slot.width / 2, slot.top + slot.height / 2) === document.querySelector('iframe');
-  }), true, 'the component is hidden under the modal');
+    const menu = document.querySelector('#menu').getBoundingClientRect();
+    return {
+      component: document.elementFromPoint(slot.right - 20, slot.top + slot.height / 2) === iframe,
+      // Where the modal's popover overlaps the component, the popover is on top
+      overlap: menu.bottom > slot.top,
+      menu: document.elementFromPoint(menu.left + menu.width / 2, (Math.max(menu.top, slot.top) + menu.bottom) / 2)?.id,
+    };
+  });
+  assert.deepEqual(stacking, { component: true, overlap: true, menu: 'menu' }, `the modal's popover is not above the component: ${JSON.stringify(stacking)}`);
   await modalPage.evaluate(() => {
     const modal = document.querySelector('#modal');
     const slot = document.querySelector('#slot');
     modal.scrollTop = slot.getBoundingClientRect().top - modal.getBoundingClientRect().top + slot.offsetHeight / 2;
   });
-  await modalPage.waitForFunction(() => Math.abs(document.querySelector('iframe').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top) < 1);
+  await settled(modalPage);
   const clipped = await modalPage.evaluate(() => {
-    const layer = document.querySelector('iframe').parentElement;
-    const [top, right = top, bottom = top, left = right] = (layer.style.clipPath.match(/-?[\d.]+/g) ?? [0]).map(Number);
-    const box = layer.getBoundingClientRect();
+    const iframe = document.querySelector('iframe');
+    const box = iframe.getBoundingClientRect();
     const modal = document.querySelector('#modal').getBoundingClientRect();
-    const x = box.left + box.width / 2;
-    const hit = y => document.elementFromPoint(x, y) === document.querySelector('iframe');
-    return {
-      visible: { top: box.top + top, right: box.right - right, bottom: box.bottom - bottom, left: box.left + left },
-      modal: { top: modal.top, right: modal.right, bottom: modal.bottom, left: modal.left },
-      above: hit(modal.top - 5), inside: hit(modal.top + 5),
-    };
+    const hit = y => document.elementFromPoint(box.right - 20, y) === iframe;
+    return { straddles: box.top < modal.top && box.bottom > modal.top, above: hit(modal.top - 5), inside: hit(modal.top + 5) };
   });
-  assert.ok(clipped.visible.top >= clipped.modal.top - 0.5 && clipped.visible.bottom <= clipped.modal.bottom + 0.5, `layer paints outside the modal: ${JSON.stringify(clipped)}`);
-  assert.ok(clipped.visible.left >= clipped.modal.left - 0.5 && clipped.visible.right <= clipped.modal.right + 0.5, `layer paints outside the modal: ${JSON.stringify(clipped)}`);
-  assert.deepEqual([clipped.above, clipped.inside], [false, true]);
+  assert.deepEqual(clipped, { straddles: true, above: false, inside: true }, `the scroller does not clip the component: ${JSON.stringify(clipped)}`);
 
   // The component sits partly under the sticky header, which stays on top of it.
   await modalPage.evaluate(() => {
@@ -652,22 +679,17 @@ try {
     const slot = document.querySelector('#slot');
     const header = document.createElement('div');
     header.id = 'bar';
-    header.setAttribute('data-swell-component-occluder', '');
     header.style.cssText = 'position:sticky;top:0;height:60px;background:#ccc';
     modal.prepend(header);
     const bar = header.getBoundingClientRect();
     modal.scrollTop += slot.getBoundingClientRect().top - bar.bottom + 10;
   });
-  await modalPage.waitForFunction(() => {
-    const bar = document.querySelector('#bar').getBoundingClientRect();
-    return Math.abs(document.querySelector('iframe').getBoundingClientRect().top - document.querySelector('#slot').getBoundingClientRect().top) < 1
-      && document.querySelector('#slot').getBoundingClientRect().top < bar.bottom - 5;
-  });
+  await modalPage.waitForFunction(() => document.querySelector('#slot').getBoundingClientRect().top < document.querySelector('#bar').getBoundingClientRect().bottom - 5);
   const bar = await modalPage.evaluate(() => {
     const iframe = document.querySelector('iframe');
     const header = document.querySelector('#bar').getBoundingClientRect();
     const slot = document.querySelector('#slot').getBoundingClientRect();
-    const x = header.left + header.width / 2;
+    const x = slot.right - 20;
     const at = y => document.elementFromPoint(x, y);
     return { onHeader: at(header.bottom - 3) === document.querySelector('#bar'), onFrame: at(header.bottom + 3) === iframe, slotTop: slot.top, headerBottom: header.bottom };
   });
