@@ -73,7 +73,7 @@ assert.deepEqual(Object.keys(pkg.exports).sort(), ['.', './components', './store
 const componentsBrowser = await build({ ...baseOptions, conditions: ['browser'], stdin: { contents: `import {createComponents} from '@swell/apps-sdk/components'; console.log(createComponents);`, resolveDir: fixture } });
 assert.ok(!/server-only/.test(componentsBrowser.outputFiles[0].text), 'Components resolved to the browser refusal');
 assert.deepEqual(pkg.dependencies ?? {}, {});
-assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.1' });
+assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.2' });
 await writeFile(join(output, 'bundles.json'), JSON.stringify(reports, null, 2));
 console.table(Object.fromEntries(Object.entries(reports).map(([name, { raw, gzip }]) => [name, { raw, gzip }])));
 console.log('ESM graphs, ESM-only size parity and every browser refusal passed');

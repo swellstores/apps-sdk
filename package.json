@@ -1,6 +1,6 @@
 {
   "name": "@swell/apps-sdk",
-  "version": "2.0.0-alpha.4",
+  "version": "2.0.0-alpha.5",
   "description": "Server SDK for Swell apps.",
   "type": "module",
   "license": "MIT",
@@ -22,14 +22,14 @@
     "verify": "npm test && npm run typecheck && npm run test:package && npm run test:boundaries && npm run test:worker"
   },
   "peerDependencies": {
-    "swell-js": ">=5.9.1"
+    "swell-js": ">=5.9.2"
   },
   "devDependencies": {
     "esbuild": "0.24.2",
     "happy-dom": "20.14.5",
     "miniflare": "5.20260911.1-alpha",
     "playwright": "1.63.0",
-    "swell-js": "5.9.1",
+    "swell-js": "5.9.2",
     "typescript": "5.7.3"
   },
   "main": "./dist/index.js",
