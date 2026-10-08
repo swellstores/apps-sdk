@@ -63,3 +63,30 @@ async function requestContext(env: SwellHeadersEnv) {
 new SwellError('no');
 // @ts-expect-error Function execution is not part of the public SDK.
 import type { SwellRequest } from '@swell/apps-sdk/functions';
+import { createComponents, startComponentFrame } from '@swell/apps-sdk/components';
+import type { ComponentConfig, ComponentHandle, ComponentProps, ComponentToken } from '@swell/apps-sdk/components';
+const components = createComponents({ storeId: 's', publicKey: 'pk', getToken: async (app: string): Promise<ComponentToken> => ({ token: app, expires: 0 }) });
+function mountComponent(element: HTMLElement) {
+  const handle: ComponentHandle<string> = components.mount<string>(element, { app: 'app', component: 'ColorPicker', value: '#fff', context: { id: '1' } });
+  const ready: Promise<void> = handle.ready;
+  handle.on('change', (value: string) => value.toUpperCase());
+  handle.on('validity', (error: string | null) => error);
+  handle.on('error', (error: Error) => error.message);
+  handle.update({ value: '#000', readonly: true });
+  // @ts-expect-error mount returns the handle, not a promise
+  components.mount(element, { app: 'app', component: 'ColorPicker' }).then;
+  const result: Promise<{ ok: boolean }> = handle.emit<{ ok: boolean }>('submit', { cart: {} });
+  // @ts-expect-error the component name is required
+  components.mount(element, { app: 'app' });
+  // @ts-expect-error a string component cannot receive a number
+  handle.update({ value: 1 });
+  return result;
+}
+function ColorPicker({ value, setValue, fetch }: ComponentProps<string>) {
+  setValue(value.trim());
+  // @ts-expect-error setValue is typed by the component's value type
+  setValue(1);
+  return fetch('/functions/app/fn');
+}
+const componentConfig: ComponentConfig = { description: 'Color' };
+startComponentFrame({ bundleUrl: 'https://cdn.test/component.js' });

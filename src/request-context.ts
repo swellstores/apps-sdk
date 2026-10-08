@@ -4,6 +4,10 @@ import { SwellError } from './error.js';
 import { getVerificationKey } from './jwks.js';
 import type { StoreUser } from './store-user.js';
 
+/** Where an app component made the request from. */
+export type SwellSurface = 'admin' | 'checkout' | 'storefront';
+const SURFACES: readonly unknown[] = ['admin', 'checkout', 'storefront'];
+
 export interface SwellHeadersEnv {
   SWELL_VERIFY_HEADERS?: string;
   SWELL_HEADERS_JWKS_URL?: string;
@@ -26,6 +30,8 @@ export interface SwellRequestContext {
   readonly installationId: string;
   readonly environmentId?: string;
   readonly storefrontId?: string;
+  /** Set when an app component made the request. */
+  readonly surface?: SwellSurface;
   readonly apiHost: string;
   readonly adminUrl: string;
   readonly accessToken?: string;
@@ -96,6 +102,7 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
     for (const field of ['environment_id', 'storefront_id']) {
       if (payload[field] != null) requireString(payload[field], field);
     }
+    if (payload.surface != null && !SURFACES.includes(payload.surface)) throw invalidContext();
     let storeUser: Readonly<StoreUser> | null = null;
     if (payload.admin !== null) {
       object(payload.admin);
@@ -107,6 +114,7 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
       installationId: payload.installation_id as string,
       environmentId: (payload.environment_id as string | null | undefined) ?? undefined,
       storefrontId: (payload.storefront_id as string | null | undefined) ?? undefined,
+      surface: (payload.surface as SwellSurface | null | undefined) ?? undefined,
       apiHost: validateUrl(payload.api_host, 'api_host'), adminUrl: validateUrl(payload.admin_url, 'admin_url'),
       accessToken: headers.get('Swell-Access-Token') ?? undefined,
       publicKey: headers.get('Swell-Public-Key') ?? undefined,

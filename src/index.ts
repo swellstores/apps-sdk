@@ -2,7 +2,7 @@ import './guard.js';
 export { getStorefrontConfig } from './context.js';
 export type { HeaderReader } from './context.js';
 export { verifySwellContext } from './request-context.js';
-export type { SwellRequestContext, SwellHeadersEnv, VerifySwellContextOptions } from './request-context.js';
+export type { SwellRequestContext, SwellHeadersEnv, SwellSurface, VerifySwellContextOptions } from './request-context.js';
 export { SwellBackendAPI } from './backend.js';
 export type { BackendOptions, SwellCollection, SwellData, TransactionOperation, TransactionOptions } from './backend.js';
 export { SwellError } from './error.js';

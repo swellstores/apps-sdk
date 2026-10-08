@@ -35,6 +35,8 @@ const context = await verifySwellContext(request.headers, {
 });
 ```
 
+When an app component makes the request, `context.surface` says where it runs: `'admin'`, `'checkout'` or `'storefront'`. Treat `'storefront'` and `'checkout'` calls like public routes; check `context.surface === 'admin'` before doing anything that only a merchant may do.
+
 In a server component, pass `await headers()`. Keep the context and clients on the
 server, scoped to the incoming request.
 
@@ -108,6 +110,80 @@ import { requireStoreUser } from '@swell/apps-sdk';
 const storeUser = requireStoreUser(context); // { userId, storeId }, or a 401 SwellError.
 const optional = context.storeUser; // null for a visitor; no exception needed.
 ```
+
+## Components
+
+App components are small UI bundles from an app's `components/` folder. Swell renders each one in an isolated iframe on the app installation's origin, so app code never runs in the host page. `@swell/apps-sdk/components` is browser code and is only bundled when you import it.
+
+### Writing a component
+
+Components are Preact components. Import only the props type from the SDK:
+
+```tsx
+import type { ComponentProps } from '@swell/apps-sdk/components';
+
+export const config = { description: 'Brand color picker' };
+
+export default function ColorPicker({ value, setValue, readonly }: ComponentProps<string>) {
+  return <input type="color" value={value} disabled={readonly} onInput={(e) => setValue(e.currentTarget.value)} />;
+}
+```
+
+| Prop | Description |
+| --- | --- |
+| `value`, `setValue(value)` | The bound value, when the place provides one (for example a content field). `setValue` re-renders the component with the new value (in a microtask, before the next event) and sends it to the host; the host sends a value back only when it changes elsewhere or when the host rejects the one you set |
+| `context` | Data of the place: for a content field `{ record, field }` |
+| `params` | Configuration from the place that uses the component |
+| `settings` | The app's public settings |
+| `locale`, `readonly` | Display locale and read-only state |
+| `setValidity(error)` | Report a validation error, or `null` when valid |
+| `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token when the host provides one, so they receive a verified `Swell-Context` with `surface` |
+| `on(event, handler)` | Handle a host event. Only the first handler registered for an event runs; its return value, or the error it throws, answers the host's `emit` |
+
+### Rendering components
+
+Hosts render installed apps' components with `createComponents`:
+
+```ts
+import { createComponents } from '@swell/apps-sdk/components';
+
+const components = createComponents({ storeId: 'my-store', publicKey: 'pk_...' });
+
+const badge = components.mount('#badge', {
+  app: 'my_app',
+  component: 'ProductBadge',
+  context: { product },
+});
+
+badge.on('change', (value) => { /* … */ });
+badge.on('error', (error) => { /* show that the component is unavailable */ });
+badge.update({ context: { product: nextProduct } });
+
+await badge.ready;
+const result = await badge.emit('submit', data);
+badge.unmount();
+```
+
+`mount` returns the handle right away and loads the app's component list in the background. It throws only when the target element does not exist.
+
+| Handle | Description |
+| --- | --- |
+| `ready` | Resolves when the component has mounted in its frame. Rejects when the app or component cannot be loaded, when the frame page does not start within 10 seconds of loading, when the props cannot be sent, or when you unmount first |
+| `on(event, handler)` | Listen to `change` (new value), `validity` (error or `null`) and `error` (load, start, token and component failures, including the ones that reject `ready`). Returns a function that removes the listener; other event names are ignored |
+| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly` or `locale`. Updates made before the component list loads are kept |
+| `emit(event, data)` | Waits for `ready`, then resolves with the result of the component's first `on` handler for the event, or rejects with its error |
+| `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
+| `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
+
+Props and event data must be structured-cloneable. Props that cannot be cloned fire `error`, and at mount they also reject `ready`; event data that cannot be cloned rejects that `emit` call.
+
+Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries. Without `getToken` the frame gets no token, and `props.fetch` sends requests without a token header.
+
+The frame is an iframe inside the target element, so it behaves like any element of your page: it takes part in the layout, your popovers, sticky bars and dialogs stack over it, scrolling containers clip it, and Tab and Shift+Tab move into it and on to the neighbouring elements. Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The target's height follows the component's content. Do not move the target in the DOM while the component is mounted: browsers reload a moved iframe, so the component would start again with the current props.
+
+When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
+
+Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
 
 ## API reference
 

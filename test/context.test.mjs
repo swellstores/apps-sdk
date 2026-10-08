@@ -233,3 +233,14 @@ test('a pending rotation refresh cannot block requests using fresh cached keys',
   await refreshing;
   assert.equal((await resolve()).signatureVerified, true);
 });
+
+test('surface claim is exposed when present and rejected when unknown', async () => {
+  const { resolve } = fixture();
+  assert.equal((await resolve({ surface: 'admin' })).surface, 'admin');
+  assert.equal((await resolve({ surface: 'checkout' })).surface, 'checkout');
+  assert.equal((await resolve({ surface: 'storefront' })).surface, 'storefront');
+  assert.equal((await resolve()).surface, undefined);
+  assert.equal((await resolve({ surface: null })).surface, undefined);
+  await assert.rejects(resolve({ surface: 'other' }), invalid);
+  await assert.rejects(resolve({ surface: 1 }), invalid);
+});
