@@ -1,6 +1,6 @@
 {
   "name": "@swell/apps-sdk",
-  "version": "2.0.0-alpha.5",
+  "version": "2.0.0-alpha.6",
   "description": "Server SDK for Swell apps.",
   "type": "module",
   "license": "MIT",
