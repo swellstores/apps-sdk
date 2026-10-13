@@ -6,6 +6,7 @@ import { placeFrame } from '../dist/components-placement.js';
 import { embedComponent } from '../dist/components-host.js';
 import { createComponents } from '../dist/components-client.js';
 import { startComponentFrame } from '../dist/components-frame.js';
+import { paymentActions } from '../dist/components-payment.js';
 
 const HOST = 'https://store.swell.test';
 const FRAME = 'https://store--inst--app.swell.test';
@@ -1350,4 +1351,41 @@ test('a frame error is terminal: a late ready does not revive emit', async (t) =
   receive({ type: 'error', message: 'Boom' });
   receive({ type: 'ready' });
   assert.equal((await settled(handle.emit('submit'))).error?.message, 'Boom');
+});
+
+test('payment actions call the vault intent endpoint like swell-js', async (t) => {
+  const requests = [];
+  globalThis.fetch = async (url) => { requests.push(new URL(url)); return Response.json({ $status: 200, $data: { order: { id: 'order_1' } } }); };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const actions = paymentActions({ vaultUrl: 'https://vault.test/', publicKey: 'pk_test', gateway: 'app_a1_card', accountId: () => 'acc_1' });
+  assert.deepEqual(await actions.createIntent({ amount: 100, token: { max_amount: 5 } }), { order: { id: 'order_1' } });
+  await actions.getIntent({ razorpay_payment_id: 'pay_1' });
+  assert.deepEqual(requests.map(url => `${url.origin}${url.pathname}`), ['https://vault.test/intent', 'https://vault.test/intent']);
+  const query = Object.fromEntries(requests[0].searchParams);
+  assert.equal(query['$jsonp[method]'], 'post');
+  assert.equal(query['$jsonp[callback]'], 'none');
+  assert.equal(query['$key'], 'pk_test');
+  assert.equal(query['$data[gateway]'], 'app_a1_card');
+  assert.equal(query['$data[account_id]'], 'acc_1');
+  assert.equal(query['$data[intent][amount]'], '100');
+  assert.equal(query['$data[intent][token][max_amount]'], '5');
+  assert.equal(requests[1].searchParams.get('$jsonp[method]'), 'get');
+});
+
+test('payment actions without a cart account omit account_id', async (t) => {
+  const requests = [];
+  globalThis.fetch = async (url) => { requests.push(new URL(url)); return Response.json({ $status: 200, $data: {} }); };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  await paymentActions({ vaultUrl: 'https://vault.test', publicKey: 'pk', gateway: 'g', accountId: () => undefined }).createIntent({});
+  assert.equal(requests[0].searchParams.has('$data[account_id]'), false);
+});
+
+test('payment actions reject with the vault error', async (t) => {
+  const answers = [{ $error: 'Gateway not found', $status: 404 }, { $status: 500 }, { $status: 200, $data: { errors: { amount: { message: 'Amount is required' } } } }];
+  globalThis.fetch = async () => Response.json(answers.shift());
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const actions = paymentActions({ vaultUrl: 'https://vault.test', publicKey: 'pk', gateway: 'g', accountId: () => 'a' });
+  await assert.rejects(actions.createIntent({}), /Gateway not found/);
+  await assert.rejects(actions.createIntent({}), /connection error/);
+  await assert.rejects(actions.createIntent({}), /Amount is required/);
 });
