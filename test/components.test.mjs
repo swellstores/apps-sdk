@@ -1460,3 +1460,76 @@ test('payment actions reject with the vault error', async (t) => {
   await assert.rejects(actions.createIntent({}), /connection error/);
   await assert.rejects(actions.createIntent({}), /Amount is required/);
 });
+
+const PLACE_SRC = `${FRAME}/.swell/components/Razorpay?v=1`;
+
+test('mount by place asks the platform with the filters and renders what it returns', async (t) => {
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push([String(url), init.headers.Authorization]);
+    return Response.json({ components: [{ app: 'a1', name: 'Razorpay', src: PLACE_SRC, settings: {}, extension: { id: 'card', type: 'payment' }, gateway: 'app_a1_card' }] });
+  };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' })
+    .mount(slot, { target: 'checkout.payment.methods', filters: { method: 'card' }, context: { cart: {} } });
+  t.after(() => handle.unmount());
+  await flush();
+  assert.deepEqual(requests, [['https://store.swell.store/api/apps/components?target=checkout.payment.methods&method=card', `Basic ${Buffer.from('pk').toString('base64')}`]]);
+  const { sent, receive } = attachFrame(win);
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'ready' });
+  await handle.ready;
+  assert.deepEqual(handle.components, [{ app: 'a1', name: 'Razorpay' }]);
+  const results = handle.emit('submit', { billing: {} });
+  await tick();
+  const event = sent.at(-1).message;
+  receive({ type: 'result', call: event.call, result: { billing: { card: { token: 't' } } } });
+  assert.deepEqual(await results, [{ billing: { card: { token: 't' } } }]);
+});
+
+test('an empty place is ready at once and emits no events', async (t) => {
+  globalThis.fetch = async () => Response.json({ components: [] });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods', filters: { method: 'card' } });
+  t.after(() => handle.unmount());
+  await handle.ready;
+  assert.deepEqual(handle.components, []);
+  assert.deepEqual(await handle.emit('submit'), []);
+  assert.equal(win.document.querySelectorAll('iframe').length, 0);
+});
+
+test('a failed place query rejects ready and fires error', async (t) => {
+  globalThis.fetch = async () => new Response('no', { status: 400 });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods' });
+  const errors = [];
+  handle.on('error', error => errors.push(error.message));
+  await assert.rejects(handle.ready, /Cannot load components of place "checkout.payment.methods" \(400\)/);
+  assert.deepEqual(errors, ['Cannot load components of place "checkout.payment.methods" (400)']);
+});
+
+test('updates made while a place loads reach its components', async (t) => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  globalThis.fetch = async () => { await gate; return Response.json({ components: [{ app: 'a1', name: 'Razorpay', src: PLACE_SRC, settings: {} }] }); };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods', context: { cart: { id: 1 } } });
+  t.after(() => handle.unmount());
+  handle.update({ context: { cart: { id: 2 } }, readonly: true });
+  release();
+  await flush();
+  const { sent, receive } = attachFrame(win);
+  receive({ type: 'hello' });
+  await tick();
+  assert.deepEqual(sent[0].message.props.context, { cart: { id: 2 } });
+  assert.equal(sent[0].message.props.readonly, true);
+});

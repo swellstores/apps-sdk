@@ -53,3 +53,5 @@ export interface ComponentToken {
   readonly token: string;
   readonly expires: number;
 }
+
+export type ComponentTarget = 'checkout.payment.methods';
