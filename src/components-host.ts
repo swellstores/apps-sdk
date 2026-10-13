@@ -40,6 +40,8 @@ export interface EmbedOptions<TValue = unknown, TContext = Record<string, unknow
   settings?: Record<string, unknown>;
   title?: string;
   getToken?: () => Promise<ComponentToken>;
+  /** Actions the component can call with `props.call`. Results must be structured-cloneable. */
+  actions?: Record<string, (data: unknown) => unknown>;
 }
 
 type Listener = (value: never) => void;
@@ -235,7 +237,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         await tokenLoaded;
         started = true;
         try {
-          post({ type: 'init', props, token });
+          post({ type: 'init', props, token, actions: Object.keys(options.actions ?? {}) });
         } catch (error) {
           const reported = toError(error);
           skipInTabOrder();
@@ -270,6 +272,23 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         pending.delete(message.call);
         if (typeof message.error === 'string') call.reject(new Error(message.error));
         else call.resolve(message.result);
+        return;
+      }
+      case 'call': {
+        const action = options.actions?.[message.name];
+        let reply: HostMessage;
+        try {
+          if (!action) throw new Error(`Unknown host action "${message.name}"`);
+          reply = { type: 'reply', call: message.call, result: await action(message.data) };
+        } catch (error) {
+          reply = { type: 'reply', call: message.call, error: toError(error).message };
+        }
+        try {
+          post(reply);
+        } catch (error) {
+          // The result cannot be cloned: the component still gets an answer
+          send({ type: 'reply', call: message.call, error: toError(error).message });
+        }
         return;
       }
       case 'error': {

@@ -250,6 +250,42 @@ test('emit resolves with the component result and rejects with its error', async
   await assert.rejects(second, /Declined/);
 });
 
+test('host announces its actions in init and answers calls', async (t) => {
+  const seen = [];
+  const { sent, receive } = embed(t, { actions: { createIntent: async (data) => { seen.push(data); return { id: 'order_1' }; } } });
+  receive({ type: 'hello' });
+  await tick();
+  assert.deepEqual(sent[0].message.actions, ['createIntent']);
+  receive({ type: 'call', call: 7, name: 'createIntent', data: { amount: 1 } });
+  await tick();
+  assert.deepEqual(seen, [{ amount: 1 }]);
+  const reply = sent.at(-1).message;
+  assert.deepEqual([reply.type, reply.call, reply.result, reply.error], ['reply', 7, { id: 'order_1' }, undefined]);
+});
+
+test('host replies with the action error and with unknown actions', async (t) => {
+  const { sent, receive } = embed(t, { actions: { getIntent: () => { throw new Error('Invalid signature'); } } });
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'call', call: 1, name: 'getIntent', data: null });
+  receive({ type: 'call', call: 2, name: 'nope', data: null });
+  await tick();
+  const replies = sent.filter(({ message }) => message.type === 'reply').map(({ message }) => [message.call, message.error]);
+  assert.deepEqual(replies.sort(([a], [b]) => a - b), [[1, 'Invalid signature'], [2, 'Unknown host action "nope"']]);
+});
+
+test('host replies with an error when an action result cannot be cloned', async (t) => {
+  const { sent, receive } = embed(t, { actions: { createIntent: () => ({ run() {} }) } });
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'call', call: 3, name: 'createIntent', data: null });
+  await tick();
+  const reply = sent.at(-1).message;
+  assert.equal(reply.type, 'reply');
+  assert.equal(reply.call, 3);
+  assert.equal(typeof reply.error, 'string');
+});
+
 test('token is loaded before init and refreshed a minute before it expires', async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
   let calls = 0;
