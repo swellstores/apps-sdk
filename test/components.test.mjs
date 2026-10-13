@@ -275,6 +275,15 @@ test('host replies with the action error and with unknown actions', async (t) =>
   assert.deepEqual(replies.sort(([a], [b]) => a - b), [[1, 'Invalid signature'], [2, 'Unknown host action "nope"']]);
 });
 
+test('host does not resolve inherited properties as actions', async (t) => {
+  const { sent, receive } = embed(t, { actions: { ping: () => 'pong' } });
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'call', call: 1, name: 'constructor', data: null });
+  await tick();
+  assert.equal(sent.at(-1).message.error, 'Unknown host action "constructor"');
+});
+
 test('host replies with an error when an action result cannot be cloned', async (t) => {
   const { sent, receive } = embed(t, { actions: { createIntent: () => ({ run() {} }) } });
   receive({ type: 'hello' });
@@ -504,6 +513,68 @@ test('createComponents loads an app once with the public key and mounts componen
   assert.deepEqual(frames.map(iframe => iframe.title), ['Picker', 'Badge']);
   await tick();
   assert.deepEqual(tokens, ['my_app', 'my_app']);
+});
+
+function paymentMetadata() {
+  return { settings: { card: { key_id: 'rzp_test' } }, components: [{ name: 'Razorpay', src: `${FRAME}/.swell/components/Razorpay?v=1`, extension: { id: 'card', type: 'payment' }, gateway: 'app_a1_card' }] };
+}
+
+test('a payment component mounted by name gets the intent actions with the cart account', async (t) => {
+  const vault = [];
+  globalThis.fetch = async (url) => {
+    if (String(url).includes('/intent')) { vault.push(new URL(url)); return Response.json({ $status: 200, $data: { id: 'order_1' } }); }
+    return Response.json(paymentMetadata());
+  };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk', vaultUrl: 'https://vault.test' })
+    .mount(slot, { app: 'razorpay', component: 'Razorpay', context: { cart: { account_id: 'acc_1' } } });
+  t.after(() => handle.unmount());
+  await flush();
+  const { sent, receive } = attachFrame(win);
+  receive({ type: 'hello' });
+  await tick();
+  assert.deepEqual(sent[0].message.actions.sort(), ['createIntent', 'getIntent']);
+  handle.update({ context: { cart: { account_id: 'acc_2' } } });
+  receive({ type: 'call', call: 1, name: 'createIntent', data: { amount: 5 } });
+  await flush();
+  assert.equal(vault[0].searchParams.get('$data[gateway]'), 'app_a1_card');
+  assert.equal(vault[0].searchParams.get('$data[account_id]'), 'acc_2');
+  assert.deepEqual(sent.at(-1).message.result, { id: 'order_1' });
+});
+
+test('components without a payment extension get only the host actions', async (t) => {
+  globalThis.fetch = async () => Response.json({ settings: {}, components: [{ name: 'Picker', src: SRC }] });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { app: 'a', component: 'Picker', actions: { ping: () => 'pong' } });
+  t.after(() => handle.unmount());
+  await flush();
+  const { sent, receive } = attachFrame(win);
+  receive({ type: 'hello' });
+  await tick();
+  assert.deepEqual(sent[0].message.actions, ['ping']);
+});
+
+test('built-in payment actions win over host actions of the same name', async (t) => {
+  globalThis.fetch = async (url) => String(url).includes('/intent')
+    ? Response.json({ $status: 200, $data: { from: 'vault' } })
+    : Response.json(paymentMetadata());
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' })
+    .mount(slot, { app: 'razorpay', component: 'Razorpay', context: { cart: {} }, actions: { createIntent: () => ({ from: 'host' }) } });
+  t.after(() => handle.unmount());
+  await flush();
+  const { sent, receive } = attachFrame(win);
+  receive({ type: 'hello' });
+  await tick();
+  receive({ type: 'call', call: 1, name: 'createIntent', data: {} });
+  await flush();
+  assert.deepEqual(sent.at(-1).message.result, { from: 'vault' });
 });
 
 test('mount reports missing containers and components, and retries failed app loads', async (t) => {

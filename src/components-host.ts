@@ -275,7 +275,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         return;
       }
       case 'call': {
-        const action = options.actions?.[message.name];
+        const { actions } = options;
+        const action = actions && Object.hasOwn(actions, message.name) ? actions[message.name] : undefined;
         let reply: HostMessage;
         try {
           if (!action) throw new Error(`Unknown host action "${message.name}"`);
