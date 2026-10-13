@@ -29,6 +29,10 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
 /** Optional static metadata a component file exports as `config`. */
 export interface ComponentConfig {
   readonly description?: string;
+  /** Makes the component the UI of an extension of the app's swell.json. A string is the legacy swell.app contract. */
+  readonly extension?: { readonly id: string };
+  /** Host places the component opts into. */
+  readonly targets?: readonly { readonly id: ComponentTarget }[];
 }
 
 /** Module the CLI builds for each component. */
@@ -55,3 +59,27 @@ export interface ComponentToken {
 }
 
 export type ComponentTarget = 'checkout.payment.methods';
+
+export interface PaymentMethodInfo {
+  readonly id: string;
+  readonly name?: string;
+  readonly mode?: string;
+}
+
+export interface PaymentContext<TCart extends object = Record<string, unknown>> {
+  readonly cart: TCart & { readonly account_id?: string; readonly currency?: string; readonly capture_total?: number };
+  readonly method?: PaymentMethodInfo;
+}
+
+export interface PaymentSubmitData {
+  readonly billing: Record<string, unknown>;
+}
+
+export interface PaymentRedirectData {
+  readonly params: Record<string, string>;
+}
+
+/** What a payment component's `submit` and `redirect` handlers return: merged into the cart's billing. */
+export interface PaymentSubmitResult {
+  readonly billing: Record<string, unknown>;
+}

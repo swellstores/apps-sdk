@@ -64,7 +64,7 @@ new SwellError('no');
 // @ts-expect-error Function execution is not part of the public SDK.
 import type { SwellRequest } from '@swell/apps-sdk/functions';
 import { createComponents, startComponentFrame } from '@swell/apps-sdk/components';
-import type { ComponentConfig, ComponentHandle, ComponentProps, ComponentToken } from '@swell/apps-sdk/components';
+import type { ComponentConfig, ComponentHandle, ComponentProps, ComponentToken, PaymentContext, PaymentSubmitResult, TargetHandle } from '@swell/apps-sdk/components';
 const components = createComponents({ storeId: 's', publicKey: 'pk', getToken: async (app: string): Promise<ComponentToken> => ({ token: app, expires: 0 }) });
 function mountComponent(element: HTMLElement) {
   const handle: ComponentHandle<string> = components.mount<string>(element, { app: 'app', component: 'ColorPicker', value: '#fff', context: { id: '1' } });
@@ -89,4 +89,17 @@ function ColorPicker({ value, setValue, fetch }: ComponentProps<string>) {
   return fetch('/functions/app/fn');
 }
 const componentConfig: ComponentConfig = { description: 'Color' };
+const paymentConfig: ComponentConfig = { extension: { id: 'card' }, targets: [{ id: 'checkout.payment.methods' }] };
+// @ts-expect-error unknown places are not accepted
+const wrongPlace: ComponentConfig = { targets: [{ id: 'checkout.summary' }] };
+function mountPlace(element: HTMLElement) {
+  const place: TargetHandle = components.mount(element, { target: 'checkout.payment.methods', filters: { method: 'card' }, context: { cart: {} } });
+  const results: Promise<PaymentSubmitResult[]> = place.emit<PaymentSubmitResult>('submit', { billing: {} });
+  // @ts-expect-error a place has no bound value
+  place.update({ value: 1 });
+  return results;
+}
+function Pay({ call, on, context }: ComponentProps<never, PaymentContext>) {
+  on('submit', async (): Promise<PaymentSubmitResult> => ({ billing: { intent: await call<{ id: string }>('createIntent', { amount: context.cart.capture_total }) } }));
+}
 startComponentFrame({ bundleUrl: 'https://cdn.test/component.js' });
