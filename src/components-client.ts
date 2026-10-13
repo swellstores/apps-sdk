@@ -41,7 +41,8 @@ export interface TargetMountOptions<TContext = Record<string, unknown>> extends 
   actions?: HostActions;
 }
 
-export type MountOptions<TValue = unknown, TContext = Record<string, unknown>> = NamedMountOptions<TValue, TContext> | TargetMountOptions<TContext>;
+/** Options of mounting one component by name. Mounting by place takes `TargetMountOptions`. */
+export type MountOptions<TValue = unknown, TContext = Record<string, unknown>> = NamedMountOptions<TValue, TContext>;
 
 export interface TargetHandle {
   readonly ready: Promise<void>;
@@ -130,7 +131,7 @@ export function createComponents(options: ComponentsOptions): Components {
   };
 
   const loadPlace = async (target: string, filters: Record<string, string> = {}) => {
-    const query = new URLSearchParams({ target, ...filters });
+    const query = new URLSearchParams({ ...filters, target });
     const response = await fetch(`${base}/api/apps/components?${query}`, {
       headers: { Authorization: `Basic ${btoa(options.publicKey)}` },
     });
@@ -197,19 +198,30 @@ export function createComponents(options: ComponentsOptions): Components {
     const { on, notify } = createListeners();
     const { promise: ready, resolve: markReady, reject: failReady } = deferred();
     let handles: ComponentHandle<never>[] = [];
+    let slots: HTMLElement[] = [];
     let rendered: { app: string; name: string }[] = [];
     let unmounted = false;
 
     const loaded = loadPlace(target, filters).then((components) => {
       if (unmounted) return;
-      handles = components.map((meta) => {
-        const slot = placeholder.ownerDocument.createElement('div');
-        placeholder.appendChild(slot);
-        const handle = embed<never, TContext>(slot, meta, meta.app ?? '', input, title ?? meta.name, actions);
-        handle.on('validity', error => notify('validity', error));
-        handle.on('error', error => notify('error', error));
-        return handle;
-      });
+      try {
+        for (const meta of components) {
+          const slot = placeholder.ownerDocument.createElement('div');
+          placeholder.appendChild(slot);
+          slots.push(slot);
+          const handle = embed<never, TContext>(slot, meta, meta.app ?? '', input, title ?? meta.name, actions);
+          handle.on('validity', error => notify('validity', error));
+          handle.on('error', error => notify('error', error));
+          handles.push(handle);
+        }
+      } catch (error) {
+        // A component that cannot embed must not leave the earlier frames running
+        handles.forEach(handle => handle.unmount());
+        slots.forEach(slot => slot.remove());
+        handles = [];
+        slots = [];
+        throw error;
+      }
       rendered = components.map(meta => ({ app: meta.app ?? '', name: meta.name }));
       Promise.all(handles.map(handle => handle.ready)).then(() => markReady(), failReady);
     });
@@ -230,6 +242,7 @@ export function createComponents(options: ComponentsOptions): Components {
       },
       async emit<T = unknown>(name: string, data?: unknown): Promise<T[]> {
         await loaded;
+        if (unmounted) throw new Error('Component unmounted');
         return Promise.all(handles.map(handle => handle.emit<T>(name, data)));
       },
       focus() {
@@ -239,7 +252,7 @@ export function createComponents(options: ComponentsOptions): Components {
         if (unmounted) return;
         unmounted = true;
         handles.forEach(handle => handle.unmount());
-        placeholder.replaceChildren();
+        slots.forEach(slot => slot.remove());
         failReady(new Error('Component unmounted'));
       },
     } as TargetHandle;
@@ -247,7 +260,7 @@ export function createComponents(options: ComponentsOptions): Components {
 
   function mount<TValue, TContext>(target: string | HTMLElement, mountOptions: NamedMountOptions<TValue, TContext>): ComponentHandle<TValue>;
   function mount<TContext>(target: string | HTMLElement, mountOptions: TargetMountOptions<TContext>): TargetHandle;
-  function mount(target: string | HTMLElement, mountOptions: MountOptions<unknown, any>): ComponentHandle<unknown> | TargetHandle {
+  function mount(target: string | HTMLElement, mountOptions: NamedMountOptions<unknown, any> | TargetMountOptions<any>): ComponentHandle<unknown> | TargetHandle {
     const placeholder = typeof target === 'string' ? globalThis.document?.querySelector<HTMLElement>(target) : target;
     if (!placeholder) throw new Error(`Component container "${String(target)}" not found`);
     return 'target' in mountOptions ? mountTarget(placeholder, mountOptions) : mountNamed(placeholder, mountOptions);

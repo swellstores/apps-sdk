@@ -146,6 +146,7 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 A component becomes the UI of a payment method by declaring the extension it implements in `config`:
 
 ```tsx
+import { useEffect } from 'preact/hooks';
 import type { ComponentProps, PaymentContext, PaymentSubmitResult } from '@swell/apps-sdk/components';
 
 export const config = {
@@ -154,10 +155,11 @@ export const config = {
 };
 
 export default function Card({ call, on, context }: ComponentProps<never, PaymentContext>) {
-  on('submit', async (): Promise<PaymentSubmitResult> => {
+  // Register in an effect: the frame runs only the first handler registered for an event, and `on` returns the unsubscribe
+  useEffect(() => on('submit', async (): Promise<PaymentSubmitResult> => {
     const intent = await call<{ id: string }>('createIntent', { amount: context.cart.capture_total });
     return { billing: { intent } };
-  });
+  }), [on, call, context]);
   return <div>Card form</div>;
 }
 ```
@@ -166,7 +168,7 @@ export default function Card({ call, on, context }: ComponentProps<never, Paymen
 - `targets: [{ id: 'checkout.payment.methods' }]` opts the component into hosted checkout's payment methods place.
 - `PaymentContext` is the `context`: the `cart` (with `account_id`, `currency`, `capture_total`) and the selected `method`. Pass your own cart type as its generic.
 - `submit` (data `PaymentSubmitData`) and `redirect` (data `PaymentRedirectData`, after a redirect back to checkout) handlers return `{ billing }` (`PaymentSubmitResult`), which is merged into the cart's billing.
-- `call('createIntent' | 'getIntent', data)` creates or reads a payment intent through the Swell vault; the account comes from `context.cart.account_id`.
+- `call('createIntent' | 'getIntent', data)` creates or reads a payment intent through the Swell vault; the account comes from `context.cart.account_id`. The cart in `context` comes from the host page, so when the amount matters, compute or verify it on the server in `create_intent`.
 - Render visible content before opening a modal, so the customer sees the component in the payment methods list.
 
 ### Rendering components
@@ -204,6 +206,18 @@ badge.unmount();
 | `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
 | `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
 
+Pass `actions` to `mount` to offer host actions that components reach with `call(name, data)`. Payment components also get built-in `createIntent` and `getIntent`, served by the Swell vault at `vaultUrl` (default `https://vault.schema.io`). Set `vaultUrl` in `createComponents` to use another vault.
+
+Props and event data must be structured-cloneable. Props that cannot be cloned fire `error`, and at mount they also reject `ready`; event data that cannot be cloned rejects that `emit` call.
+
+Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries. Without `getToken` the frame gets no token, and `props.fetch` sends requests without a token header.
+
+The frame is an iframe inside the target element, so it behaves like any element of your page: it takes part in the layout, your popovers, sticky bars and dialogs stack over it, scrolling containers clip it, and Tab and Shift+Tab move into it and on to the neighbouring elements. Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The target's height follows the component's content. Do not move the target in the DOM while the component is mounted: browsers reload a moved iframe, so the component would start again with the current props.
+
+When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
+
+Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
+
 #### Rendering a place
 
 Hosts that render every component for a place, such as hosted checkout, mount the place instead of one component:
@@ -220,17 +234,7 @@ const results = await methods.emit('submit', { billing });
 
 The handle has `ready`, `components` (the mounted components), `on('validity' | 'error')`, `update` (context, params, readonly and locale; a place has no bound value), `emit`, `focus` and `unmount`. `emit` waits for `ready` and resolves with an array, one result per component that handled the event.
 
-Pass `actions` to `mount` to offer host actions that components reach with `call(name, data)`. Payment components also get built-in `createIntent` and `getIntent`, served by the Swell vault at `vaultUrl` (default `https://vault.schema.io`). Set `vaultUrl` in `createComponents` to use another vault.
-
-Props and event data must be structured-cloneable. Props that cannot be cloned fire `error`, and at mount they also reject `ready`; event data that cannot be cloned rejects that `emit` call.
-
-Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries. Without `getToken` the frame gets no token, and `props.fetch` sends requests without a token header.
-
-The frame is an iframe inside the target element, so it behaves like any element of your page: it takes part in the layout, your popovers, sticky bars and dialogs stack over it, scrolling containers clip it, and Tab and Shift+Tab move into it and on to the neighbouring elements. Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The target's height follows the component's content. Do not move the target in the DOM while the component is mounted: browsers reload a moved iframe, so the component would start again with the current props.
-
-When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
-
-Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
+Hosts cannot override the built-in payment actions: `createIntent` and `getIntent` win over `actions` of the same names. `filters` are fixed at mount; remount the place to change the method.
 
 ## API reference
 

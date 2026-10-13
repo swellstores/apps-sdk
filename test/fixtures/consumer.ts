@@ -103,3 +103,6 @@ function Pay({ call, on, context }: ComponentProps<never, PaymentContext>) {
   on('submit', async (): Promise<PaymentSubmitResult> => ({ billing: { intent: await call<{ id: string }>('createIntent', { amount: context.cart.capture_total }) } }));
 }
 startComponentFrame({ bundleUrl: 'https://cdn.test/component.js' });
+import type { MountOptions } from '@swell/apps-sdk/components';
+// MountOptions keeps its alpha.6 meaning: the options of mounting one component by name
+function wrap(element: HTMLElement, o: MountOptions<string>) { return components.mount(element, o); }
