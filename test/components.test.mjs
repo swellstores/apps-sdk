@@ -813,6 +813,47 @@ test('host events run the first handler and return its result or error', async (
   assert.deepEqual(results.sort(([a], [b]) => a - b), [[1, { ok: 4 }, undefined], [2, undefined, 'Declined'], [3, undefined, undefined]]);
 });
 
+test('call sends a host action and resolves with the reply', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null, actions: ['createIntent'] });
+  await tick();
+  const props = calls[0][1];
+  const pending = props.call('createIntent', { amount: 100 });
+  await tick();
+  const call = posted.map(({ message }) => message).find(message => message.type === 'call');
+  assert.deepEqual([call.name, call.data], ['createIntent', { amount: 100 }]);
+  send({ type: 'reply', call: call.call, result: { id: 'order_1' } });
+  assert.deepEqual(await pending, { id: 'order_1' });
+});
+
+test('call rejects with the host error', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null, actions: ['getIntent'] });
+  await tick();
+  const pending = calls[0][1].call('getIntent');
+  await tick();
+  const call = posted.map(({ message }) => message).find(message => message.type === 'call');
+  send({ type: 'reply', call: call.call, error: 'Invalid signature' });
+  await assert.rejects(pending, /Invalid signature/);
+});
+
+test('call rejects an action the host does not offer without a round trip', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  await assert.rejects(calls[0][1].call('createIntent'), /Unknown host action "createIntent"/);
+  assert.equal(posted.filter(({ message }) => message.type === 'call').length, 0);
+});
+
+test('call keeps its identity across renders', async (t) => {
+  const { calls, send } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null, actions: [] });
+  await tick();
+  send({ type: 'update', props: { value: 'blue' } });
+  await tick();
+  assert.equal(calls[0][1].call, calls[1][1].call);
+});
+
 test('fetch adds the component token only to requests to the frame origin', async (t) => {
   const { win, calls, send } = startFrame(t);
   const seen = [];

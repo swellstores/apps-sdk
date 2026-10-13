@@ -19,6 +19,11 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
    * (or thrown error) answers the host's `emit`; later handlers for the same event are not called.
    */
   on(event: string, handler: (data: unknown) => unknown): () => void;
+  /**
+   * Calls an action the host offers, such as `createIntent` for payment components, and resolves
+   * with its result. Rejects with the host's error, or with `Unknown host action "<name>"`.
+   */
+  call<T = unknown>(name: string, data?: unknown): Promise<T>;
 }
 
 /** Optional static metadata a component file exports as `config`. */

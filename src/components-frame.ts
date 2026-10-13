@@ -77,6 +77,10 @@ export function startComponentFrame(options: FrameOptions = {}): void {
   // The viewport-covering element while overlay is on
   let blocker: Element | null = null;
   const handlers = new Map<string, ((data: unknown) => unknown)[]>();
+  // Host actions announced in init, and calls waiting for their reply
+  let actions: string[] = [];
+  let calls = 0;
+  const replies = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
 
   const post = (message: FrameMessage) => parent.postMessage(wrap(channel, message), parentOrigin);
   const fail = (error: unknown) => post({ type: 'error', message: errorMessage(error) });
@@ -108,6 +112,14 @@ export function startComponentFrame(options: FrameOptions = {}): void {
       return () => {
         handlers.set(event, (handlers.get(event) ?? []).filter(item => item !== handler));
       };
+    },
+    call<T = unknown>(name: string, data?: unknown): Promise<T> {
+      if (!actions.includes(name)) return Promise.reject(new Error(`Unknown host action "${name}"`));
+      const call = ++calls;
+      return new Promise<T>((resolve, reject) => {
+        replies.set(call, { resolve: resolve as (value: unknown) => void, reject });
+        post({ type: 'call', call, name, data });
+      });
     },
   };
   const componentProps = () => ({ ...(props as WireProps), ...callbacks }) as ComponentProps;
@@ -198,6 +210,7 @@ export function startComponentFrame(options: FrameOptions = {}): void {
   async function handle(message: HostMessage) {
     switch (message.type) {
       case 'init':
+        actions = Array.isArray(message.actions) ? message.actions.filter(name => typeof name === 'string') : [];
         props = message.props;
         token = message.token;
         if (!mounting) {
@@ -207,6 +220,14 @@ export function startComponentFrame(options: FrameOptions = {}): void {
         await mounting;
         await module?.update(target, componentProps());
         return;
+      case 'reply': {
+        const pending = replies.get(message.call);
+        if (!pending) return;
+        replies.delete(message.call);
+        if (typeof message.error === 'string') pending.reject(new Error(message.error));
+        else pending.resolve(message.result);
+        return;
+      }
       case 'update':
         if (!props) return;
         props = { ...props, ...message.props };

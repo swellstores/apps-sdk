@@ -25,10 +25,11 @@ export interface WireProps {
 }
 
 export type HostMessage =
-  | { type: 'init'; props: WireProps; token: string | null }
+  | { type: 'init'; props: WireProps; token: string | null; actions?: string[] }
   | { type: 'update'; props: Partial<WireProps> }
   | { type: 'token'; token: string | null }
   | { type: 'event'; call: number; name: string; data: unknown }
+  | { type: 'reply'; call: number; result?: unknown; error?: string }
   | { type: 'rect'; rect: Rect }
   | { type: 'focus' };
 
@@ -40,6 +41,7 @@ export type FrameMessage =
   | { type: 'resize'; height: number }
   | { type: 'overlay'; on: boolean }
   | { type: 'result'; call: number; result?: unknown; error?: string }
+  | { type: 'call'; call: number; name: string; data: unknown }
   | { type: 'error'; message: string };
 
 interface Envelope {
