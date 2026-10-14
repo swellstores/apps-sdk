@@ -220,12 +220,12 @@ Component frames load from the app installation's origin, a subdomain of `swell.
 
 #### Rendering a place
 
-Hosts that render every component for a place, such as hosted checkout, mount the place instead of one component:
+Hosts that render the components of a place, such as hosted checkout, mount the place instead of one component:
 
 ```ts
 const methods = components.mount('#payment', {
   target: 'checkout.payment.methods',
-  filters: { method: 'card' },
+  select: (c) => c.app === method.extension_app_id && c.extension?.id === method.id,
   context: { cart },
 });
 methods.on('validity', (error) => { /* … */ });
@@ -234,7 +234,9 @@ const results = await methods.emit('submit', { billing });
 
 The handle has `ready`, `components` (the mounted components), `on('validity' | 'error')`, `update` (context, params, readonly and locale; a place has no bound value), `emit`, `focus` and `unmount`. `emit` waits for `ready` and resolves with an array, one result per component that handled the event.
 
-Hosts cannot override the built-in payment actions: `createIntent` and `getIntent` win over `actions` of the same names. `filters` are fixed at mount; remount the place to change the method.
+The platform returns every component of the store's active installed apps that declares the target; the host decides which of them to mount. `select` is called once for each of them before any frame is created, with its `name`, `app` (the app id), `targets` and `extension` (`id` and `type`), but not the app settings. It returns `true` for the components to mount; without `select` the place mounts all of them. A `select` that throws fails the place like a failed load: `ready` rejects, `error` fires, and no frames are created. `select` is fixed at mount; remount the place to change the method.
+
+Hosts cannot override the built-in payment actions: `createIntent` and `getIntent` win over `actions` of the same names.
 
 ## API reference
 

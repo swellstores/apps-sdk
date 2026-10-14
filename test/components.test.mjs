@@ -1463,7 +1463,7 @@ test('payment actions reject with the vault error', async (t) => {
 
 const PLACE_SRC = `${FRAME}/.swell/components/Razorpay?v=1`;
 
-test('mount by place asks the platform with the filters and renders what it returns', async (t) => {
+test('mount by place asks the platform for the target only and renders what it returns', async (t) => {
   const requests = [];
   globalThis.fetch = async (url, init) => {
     requests.push([String(url), init.headers.Authorization]);
@@ -1473,10 +1473,10 @@ test('mount by place asks the platform with the filters and renders what it retu
   const win = hostWindow(t);
   const slot = win.document.body.appendChild(win.document.createElement('div'));
   const handle = createComponents({ storeId: 'store', publicKey: 'pk' })
-    .mount(slot, { target: 'checkout.payment.methods', filters: { method: 'card' }, context: { cart: {} } });
+    .mount(slot, { target: 'checkout.payment.methods', context: { cart: {} } });
   t.after(() => handle.unmount());
   await flush();
-  assert.deepEqual(requests, [['https://store.swell.store/api/apps/components?method=card&target=checkout.payment.methods', `Basic ${Buffer.from('pk').toString('base64')}`]]);
+  assert.deepEqual(requests, [['https://store.swell.store/api/apps/components?target=checkout.payment.methods', `Basic ${Buffer.from('pk').toString('base64')}`]]);
   const { sent, receive } = attachFrame(win);
   receive({ type: 'hello' });
   await tick();
@@ -1495,7 +1495,7 @@ test('an empty place is ready at once and emits no events', async (t) => {
   t.after(() => { globalThis.fetch = nativeFetch; });
   const win = hostWindow(t);
   const slot = win.document.body.appendChild(win.document.createElement('div'));
-  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods', filters: { method: 'card' } });
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods' });
   t.after(() => handle.unmount());
   await handle.ready;
   assert.deepEqual(handle.components, []);
@@ -1578,7 +1578,15 @@ test('a place emit pending across unmount rejects like a named mount', async (t)
   await assert.rejects(handle.emit('submit'), /Component unmounted/);
 });
 
-test('a filter cannot override the place', async (t) => {
+const PLACE_TARGETS = [{ id: 'checkout.payment.methods' }];
+const placeComponents = () => [
+  { app: 'a1', name: 'Card', src: `${FRAME}/.swell/components/Card?v=1`, settings: { key: 'k1' }, targets: PLACE_TARGETS, extension: { id: 'card', type: 'payment' }, gateway: 'app_a1_card' },
+  { app: 'a1', name: 'Upi', src: `${FRAME}/.swell/components/Upi?v=1`, settings: { key: 'k1' }, targets: PLACE_TARGETS, extension: { id: 'upi', type: 'payment' }, gateway: 'app_a1_upi' },
+  { app: 'a2', name: 'Card', src: `${FRAME}/.swell/components/Other?v=1`, settings: { key: 'k2' }, targets: PLACE_TARGETS, extension: { id: 'card', type: 'payment' }, gateway: 'app_a2_card' },
+];
+const framePaths = win => Array.from(win.document.querySelectorAll('iframe'), iframe => new URL(iframe.src).pathname);
+
+test('a place sends only its target, even when a host still passes filters', async (t) => {
   const requests = [];
   globalThis.fetch = async (url) => { requests.push(new URL(url)); return Response.json({ components: [] }); };
   t.after(() => { globalThis.fetch = nativeFetch; });
@@ -1586,8 +1594,81 @@ test('a filter cannot override the place', async (t) => {
   const slot = win.document.body.appendChild(win.document.createElement('div'));
   const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods', filters: { target: 'other', method: 'card' } });
   await handle.ready;
-  assert.deepEqual(requests[0].searchParams.getAll('target'), ['checkout.payment.methods']);
-  assert.equal(requests[0].searchParams.get('method'), 'card');
+  assert.deepEqual([...requests[0].searchParams], [['target', 'checkout.payment.methods']]);
+});
+
+test('select picks the components of a place before any frame is created', async (t) => {
+  globalThis.fetch = async () => Response.json({ components: placeComponents() });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const seen = [];
+  const select = (component) => {
+    seen.push({ component, frames: win.document.querySelectorAll('iframe').length });
+    return component.app === 'a1' && component.extension?.id === 'card';
+  };
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods', select });
+  t.after(() => handle.unmount());
+  await flush();
+  const expected = placeComponents().map(({ settings, ...component }) => component);
+  assert.deepEqual(seen.map(({ component }) => component), expected, 'select sees the metadata without settings');
+  assert.deepEqual(seen.map(({ frames }) => frames), [0, 0, 0]);
+  assert.deepEqual(framePaths(win), ['/.swell/components/Card']);
+  const { sent, receive } = attachFrame(win);
+  receive({ type: 'hello' });
+  await tick();
+  assert.deepEqual(sent[0].message.props.settings, { key: 'k1' });
+  receive({ type: 'ready' });
+  await handle.ready;
+  assert.deepEqual(handle.components, [{ app: 'a1', name: 'Card' }]);
+});
+
+test('a place without select mounts every component the platform returns', async (t) => {
+  globalThis.fetch = async () => Response.json({ components: placeComponents() });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods' });
+  t.after(() => handle.unmount());
+  await flush();
+  assert.deepEqual(framePaths(win), ['/.swell/components/Card', '/.swell/components/Upi', '/.swell/components/Other']);
+  assert.deepEqual(handle.components, [{ app: 'a1', name: 'Card' }, { app: 'a1', name: 'Upi' }, { app: 'a2', name: 'Card' }]);
+});
+
+test('select is fixed at mount', async (t) => {
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  globalThis.fetch = async () => { await gate; return Response.json({ components: placeComponents() }); };
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const options = { target: 'checkout.payment.methods', select: component => component.extension?.id === 'upi' };
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, options);
+  t.after(() => handle.unmount());
+  options.select = () => true;
+  release();
+  await flush();
+  assert.deepEqual(framePaths(win), ['/.swell/components/Upi']);
+});
+
+test('a throwing select fails the place like a failed load and creates no frames', async (t) => {
+  globalThis.fetch = async () => Response.json({ components: placeComponents() });
+  t.after(() => { globalThis.fetch = nativeFetch; });
+  const win = hostWindow(t);
+  const slot = win.document.body.appendChild(win.document.createElement('div'));
+  const select = (component) => {
+    if (component.extension?.id === 'upi') throw new Error('select failed');
+    return true;
+  };
+  const handle = createComponents({ storeId: 'store', publicKey: 'pk' }).mount(slot, { target: 'checkout.payment.methods', select });
+  const errors = [];
+  handle.on('error', error => errors.push(error.message));
+  await assert.rejects(handle.ready, /select failed/);
+  assert.deepEqual(errors, ['select failed']);
+  assert.equal(win.document.querySelectorAll('iframe').length, 0);
+  assert.equal(slot.childElementCount, 0);
+  assert.deepEqual(handle.components, []);
+  await assert.rejects(handle.emit('submit'), /select failed/);
 });
 
 test('a vault request that outlasts 20 seconds fails with the swell-js wording', async (t) => {

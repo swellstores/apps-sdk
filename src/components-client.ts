@@ -30,11 +30,26 @@ export interface NamedMountOptions<TValue = unknown, TContext = Record<string, u
   actions?: HostActions;
 }
 
+/** A component the platform returned for a place, as `select` sees it. */
+export interface PlaceComponent {
+  /** Component name: the file name in the app's components/ folder. */
+  readonly name: string;
+  /** Id of the app the component belongs to. */
+  readonly app: string;
+  /** Host places the component opts into. */
+  readonly targets: readonly { readonly id: string }[];
+  /** The extension of the app's swell.json the component is the UI of. */
+  readonly extension?: { readonly id: string; readonly type?: string };
+}
+
 export interface TargetMountOptions<TContext = Record<string, unknown>> extends ComponentInput<never, TContext> {
   /** The host place whose components the platform returns. */
   target: ComponentTarget;
-  /** Narrows the place, e.g. `{ method: 'card' }`. */
-  filters?: Record<string, string>;
+  /**
+   * Picks the components to mount, e.g. the one of the chosen payment method. Called once per component
+   * the platform returns, before any frame is created; without it every component mounts. Fixed at mount.
+   */
+  select?: (component: PlaceComponent) => boolean;
   /** Accessible title of the frames. Defaults to each component's name. */
   title?: string;
   /** Host actions the components can call. Built-in actions of payment components win over the same names. */
@@ -62,7 +77,7 @@ export interface Components {
    * Renders a component in `target` and returns its handle right away. The app's component list
    * loads in the background: `update` calls made meanwhile are kept, `unmount` cancels, and a failure
    * fires `error` and rejects `handle.ready`. Throws when `target` does not exist.
-   * With `target` and `filters` in the options it renders every component the platform returns for that place.
+   * With `target` in the options it renders the components the platform returns for that place, those `select` accepts.
    */
   mount<TValue = unknown, TContext = Record<string, unknown>>(target: string | HTMLElement, options: NamedMountOptions<TValue, TContext>): ComponentHandle<TValue>;
   mount<TContext = Record<string, unknown>>(target: string | HTMLElement, options: TargetMountOptions<TContext>): TargetHandle;
@@ -73,9 +88,12 @@ interface ComponentMeta {
   src: string;
   app?: string;
   settings?: Record<string, unknown>;
-  extension?: { id: string; type: string };
+  extension?: { id: string; type?: string };
   gateway?: string;
 }
+
+/** What the place route returns for each component: the app and the targets come with it. */
+type PlaceMeta = ComponentMeta & PlaceComponent;
 
 interface AppComponents {
   settings?: Record<string, unknown>;
@@ -130,13 +148,13 @@ export function createComponents(options: ComponentsOptions): Components {
     };
   };
 
-  const loadPlace = async (target: string, filters: Record<string, string> = {}) => {
-    const query = new URLSearchParams({ ...filters, target });
+  const loadPlace = async (target: string) => {
+    const query = new URLSearchParams({ target });
     const response = await fetch(`${base}/api/apps/components?${query}`, {
       headers: { Authorization: `Basic ${btoa(options.publicKey)}` },
     });
     if (!response.ok) throw new Error(`Cannot load components of place "${target}" (${response.status})`);
-    const { components = [] } = (await response.json()) as { components?: ComponentMeta[] };
+    const { components = [] } = (await response.json()) as { components?: PlaceMeta[] };
     return components;
   };
 
@@ -194,7 +212,7 @@ export function createComponents(options: ComponentsOptions): Components {
   }
 
   function mountTarget<TContext>(placeholder: HTMLElement, mountOptions: TargetMountOptions<TContext>): TargetHandle {
-    const { target, filters, title, actions, ...input } = mountOptions;
+    const { target, select, title, actions, ...input } = mountOptions;
     const { on, notify } = createListeners();
     const { promise: ready, resolve: markReady, reject: failReady } = deferred();
     let handles: ComponentHandle<never>[] = [];
@@ -202,8 +220,12 @@ export function createComponents(options: ComponentsOptions): Components {
     let rendered: { app: string; name: string }[] = [];
     let unmounted = false;
 
-    const loaded = loadPlace(target, filters).then((components) => {
+    const loaded = loadPlace(target).then((returned) => {
       if (unmounted) return;
+      // The host sees the metadata without the app settings; a throwing `select` fails the place before any frame
+      const components = select
+        ? returned.filter(({ settings, ...component }) => select(component))
+        : returned;
       try {
         for (const meta of components) {
           const slot = placeholder.ownerDocument.createElement('div');
