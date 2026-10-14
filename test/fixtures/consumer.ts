@@ -90,8 +90,8 @@ function ColorPicker({ value, setValue, fetch }: ComponentProps<string>) {
 }
 const componentConfig: ComponentConfig = { description: 'Color' };
 const paymentConfig: ComponentConfig = { extension: { id: 'card' }, targets: [{ id: 'checkout.payment.methods' }] };
-// @ts-expect-error unknown places are not accepted
-const wrongPlace: ComponentConfig = { targets: [{ id: 'checkout.summary' }] };
+// Any place id type-checks: the platform owns the list
+const laterConfig: ComponentConfig = { targets: [{ id: 'some.future.place' }] };
 function mountPlace(element: HTMLElement) {
   const place: TargetHandle = components.mount(element, { target: 'checkout.payment.methods', filters: { method: 'card' }, context: { cart: {} } });
   const results: Promise<PaymentSubmitResult[]> = place.emit<PaymentSubmitResult>('submit', { billing: {} });

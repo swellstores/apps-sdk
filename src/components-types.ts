@@ -58,7 +58,8 @@ export interface ComponentToken {
   readonly expires: number;
 }
 
-export type ComponentTarget = 'checkout.payment.methods';
+/** A host place id. The SDK knows no list: the platform defines places and validates ids on push. */
+export type ComponentTarget = string;
 
 export interface PaymentMethodInfo {
   readonly id: string;
