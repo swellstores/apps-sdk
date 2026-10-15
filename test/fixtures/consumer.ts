@@ -64,7 +64,7 @@ new SwellError('no');
 // @ts-expect-error Function execution is not part of the public SDK.
 import type { SwellRequest } from '@swell/apps-sdk/functions';
 import { createComponents, startComponentFrame } from '@swell/apps-sdk/components';
-import type { ComponentConfig, ComponentHandle, ComponentProps, ComponentToken } from '@swell/apps-sdk/components';
+import type { ComponentConfig, ComponentHandle, ComponentProps, ComponentToken, PaymentContext, PaymentSubmitResult, PlaceComponent, TargetHandle } from '@swell/apps-sdk/components';
 const components = createComponents({ storeId: 's', publicKey: 'pk', getToken: async (app: string): Promise<ComponentToken> => ({ token: app, expires: 0 }) });
 function mountComponent(element: HTMLElement) {
   const handle: ComponentHandle<string> = components.mount<string>(element, { app: 'app', component: 'ColorPicker', value: '#fff', context: { id: '1' } });
@@ -89,4 +89,28 @@ function ColorPicker({ value, setValue, fetch }: ComponentProps<string>) {
   return fetch('/functions/app/fn');
 }
 const componentConfig: ComponentConfig = { description: 'Color' };
+const paymentConfig: ComponentConfig = { extension: { id: 'card' }, targets: [{ id: 'checkout.payment.methods' }] };
+// Any place id type-checks: the platform owns the list
+const laterConfig: ComponentConfig = { targets: [{ id: 'some.future.place' }] };
+function mountPlace(element: HTMLElement, method: { id: string; extension_app_id: string }) {
+  const select = (c: PlaceComponent): boolean => c.app === method.extension_app_id && c.extension?.id === method.id && c.targets.some(({ id }) => id === 'checkout.payment.methods');
+  const place: TargetHandle = components.mount(element, { target: 'checkout.payment.methods', select, context: { cart: {} } });
+  const type: string | undefined = ({} as PlaceComponent).extension?.type;
+  // @ts-expect-error the platform returns every component of the place; the host picks them with select
+  components.mount(element, { target: 'checkout.payment.methods', filters: { method: 'card' } });
+  // @ts-expect-error select sees no app settings
+  const bySettings = (c: PlaceComponent) => Boolean(c.settings);
+  // @ts-expect-error select receives the components; it does not edit them
+  const editing = (c: PlaceComponent) => { c.app = 'other'; return true; };
+  const results: Promise<PaymentSubmitResult[]> = place.emit<PaymentSubmitResult>('submit', { billing: {} });
+  // @ts-expect-error a place has no bound value
+  place.update({ value: 1 });
+  return results;
+}
+function Pay({ call, on, context }: ComponentProps<never, PaymentContext>) {
+  on('submit', async (): Promise<PaymentSubmitResult> => ({ billing: { intent: await call<{ id: string }>('createIntent', { amount: context.cart.capture_total }) } }));
+}
 startComponentFrame({ bundleUrl: 'https://cdn.test/component.js' });
+import type { MountOptions } from '@swell/apps-sdk/components';
+// MountOptions keeps its alpha.6 meaning: the options of mounting one component by name
+function wrap(element: HTMLElement, o: MountOptions<string>) { return components.mount(element, o); }

@@ -138,7 +138,38 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 | `locale`, `readonly` | Display locale and read-only state |
 | `setValidity(error)` | Report a validation error, or `null` when valid |
 | `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token when the host provides one, so they receive a verified `Swell-Context` with `surface` |
+| `call(name, data)` | Calls a host action and resolves with its result; payment components get `createIntent` and `getIntent` |
 | `on(event, handler)` | Handle a host event. Only the first handler registered for an event runs; its return value, or the error it throws, answers the host's `emit` |
+
+### Payment components
+
+A component becomes the UI of a payment method by declaring the extension it implements in `config`:
+
+```tsx
+import { useEffect } from 'preact/hooks';
+import type { ComponentProps, PaymentContext, PaymentSubmitResult } from '@swell/apps-sdk/components';
+
+export const config = {
+  extension: { id: 'card' },
+  targets: [{ id: 'checkout.payment.methods' }],
+};
+
+export default function Card({ call, on, context }: ComponentProps<never, PaymentContext>) {
+  // Register in an effect: the frame runs only the first handler registered for an event, and `on` returns the unsubscribe
+  useEffect(() => on('submit', async (): Promise<PaymentSubmitResult> => {
+    const intent = await call<{ id: string }>('createIntent', { amount: context.cart.capture_total });
+    return { billing: { intent } };
+  }), [on, call, context]);
+  return <div>Card form</div>;
+}
+```
+
+- `extension: { id }` ties the component to an extension of the app's `swell.json`. An object is the new contract; a string is the legacy `swell.app` contract.
+- `targets: [{ id: 'checkout.payment.methods' }]` opts the component into hosted checkout's payment methods place.
+- `PaymentContext` is the `context`: the `cart` (with `account_id`, `currency`, `capture_total`) and the selected `method`. Pass your own cart type as its generic.
+- `submit` (data `PaymentSubmitData`) and `redirect` (data `PaymentRedirectData`, after a redirect back to checkout) handlers return `{ billing }` (`PaymentSubmitResult`), which is merged into the cart's billing.
+- `call('createIntent' | 'getIntent', data)` creates or reads a payment intent through the Swell vault; the account comes from `context.cart.account_id`. The cart in `context` comes from the host page, so when the amount matters, compute or verify it on the server in `create_intent`.
+- Render visible content before opening a modal, so the customer sees the component in the payment methods list.
 
 ### Rendering components
 
@@ -175,6 +206,8 @@ badge.unmount();
 | `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
 | `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
 
+Pass `actions` to `mount` to offer host actions that components reach with `call(name, data)`. Payment components also get built-in `createIntent` and `getIntent`, served by the Swell vault at `vaultUrl` (default `https://vault.schema.io`). Set `vaultUrl` in `createComponents` to use another vault.
+
 Props and event data must be structured-cloneable. Props that cannot be cloned fire `error`, and at mount they also reject `ready`; event data that cannot be cloned rejects that `emit` call.
 
 Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries. Without `getToken` the frame gets no token, and `props.fetch` sends requests without a token header.
@@ -184,6 +217,26 @@ The frame is an iframe inside the target element, so it behaves like any element
 When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
 
 Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
+
+#### Rendering a place
+
+Hosts that render the components of a place, such as hosted checkout, mount the place instead of one component:
+
+```ts
+const methods = components.mount('#payment', {
+  target: 'checkout.payment.methods',
+  select: (c) => c.app === method.extension_app_id && c.extension?.id === method.id,
+  context: { cart },
+});
+methods.on('validity', (error) => { /* … */ });
+const results = await methods.emit('submit', { billing });
+```
+
+The handle has `ready`, `components` (the mounted components), `on('validity' | 'error')`, `update` (context, params, readonly and locale; a place has no bound value), `emit`, `focus` and `unmount`. `emit` waits for `ready` and resolves with an array, one result per component that handled the event.
+
+The platform returns every component of the store's active installed apps that declares the target; the host decides which of them to mount. `select` is called once for each of them before any frame is created, with its `name`, `app` (the app id), `targets` and `extension` (`id` and `type`), but not the app settings. It returns `true` for the components to mount; without `select` the place mounts all of them. A `select` that throws fails the place like a failed load: `ready` rejects, `error` fires, and no frames are created. `select` is fixed at mount; remount the place to change the method.
+
+Hosts cannot override the built-in payment actions: `createIntent` and `getIntent` win over `actions` of the same names.
 
 ## API reference
 
