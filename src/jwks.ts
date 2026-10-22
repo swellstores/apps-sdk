@@ -39,7 +39,7 @@ async function refresh(url: string, entry: KeySet): Promise<void> {
   }
 }
 
-export async function getVerificationKey(url: string, kid: string): Promise<CryptoKey> {
+export async function getVerificationKey(url: string, kid: string, code = 'invalid_swell_context'): Promise<CryptoKey> {
   let entry = keySets.get(url);
   if (!entry) {
     if (keySets.size >= MAX_URLS) keySets.delete(keySets.keys().next().value!);
@@ -60,6 +60,6 @@ export async function getVerificationKey(url: string, kid: string): Promise<Cryp
     }
   }
   const key = entry.keys.get(kid);
-  if (!key) throw new SwellError('Unknown Swell signing key', { status: 401, code: 'invalid_swell_context' });
+  if (!key) throw new SwellError('Unknown Swell signing key', { status: 401, code });
   return key;
 }

@@ -31,7 +31,7 @@ store user access. Use the same pattern for Swell-hosted and self-hosted fronten
 import { verifySwellContext } from '@swell/apps-sdk';
 
 const context = await verifySwellContext(request.headers, {
-  appId: 'my-app', // Your app's configured slug.
+  appId: 'my_app', // The id in your app's swell.json.
 });
 ```
 
@@ -109,6 +109,20 @@ import { requireStoreUser } from '@swell/apps-sdk';
 
 const storeUser = requireStoreUser(context); // { userId, storeId }, or a 401 SwellError.
 const optional = context.storeUser; // null for a visitor; no exception needed.
+```
+
+### Webhooks
+
+Swell signs each webhook request it sends. Verify the request against the body it
+arrived with before acting on its event:
+
+```ts
+import { verifySwellWebhook } from '@swell/apps-sdk';
+
+const webhook = await verifySwellWebhook(request.headers, await request.text(), {
+  appId: 'my_app', // The id in your app's swell.json.
+});
+// webhook.event is the event the body carries.
 ```
 
 ## Components
@@ -328,6 +342,24 @@ For server integrations, construct `SwellBackendAPI` with explicit credentials a
 `createStorefrontClient` with explicit public configuration. These clients do not
 require an HTTP request or a store user.
 
+### Webhook options
+
+`verifySwellWebhook(headers, body, { env?, appId?, storeId? })` returns the webhook or
+throws if verification fails. Pass `appId`, `storeId` or both from trusted configuration:
+`appId` accepts only webhooks of apps with that id, and `storeId` only the webhooks of
+that store. Without either it throws, since any Swell store can send a signed webhook to
+any address. An app id is unique to its developer and store, so another developer's
+private app can have yours: check `storeId` against the stores your app is installed in
+before acting for one.
+
+It reads the same configuration as the request context. `SWELL_VERIFY_HEADERS=false`
+also turns off webhook verification, so while it is set anyone can send a webhook your
+endpoint accepts.
+
+Swell retries a delivery that fails, and a signature stays valid for five minutes, so
+one event can arrive more than once. Skip an `eventId` you have already handled. Order
+webhooks, which an order's checkout calls as it runs, carry no `eventId` or `webhookId`.
+
 ### Store users
 
 `requireStoreUser(context)` returns `{ userId, storeId }` or throws `SwellError` with
@@ -351,6 +383,7 @@ error handling; `message` is for people and may change.
   when the payload is null or absent, in `body`.
 - Header verification uses 401 / `invalid_swell_context` for absent, malformed, expired
   or rejected tokens, and 503 / `swell_jwks_unavailable` for key-service failures.
+  Webhook verification uses 401 / `invalid_swell_webhook` and the same 503.
 - Backend/storefront network errors remain native. Local configuration errors may be
   ordinary `Error` instances; not every failure is a `SwellError`.
 

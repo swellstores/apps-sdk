@@ -1,5 +1,5 @@
-import { SwellBackendAPI, SwellError, getStorefrontConfig, requireStoreUser, verifySwellContext } from '@swell/apps-sdk';
-import type { SwellCollection, SwellRequestContext, StoreUser, SwellHeadersEnv, SwellData, TransactionOperation, TransactionOptions } from '@swell/apps-sdk';
+import { SwellBackendAPI, SwellError, getStorefrontConfig, requireStoreUser, verifySwellContext, verifySwellWebhook } from '@swell/apps-sdk';
+import type { SwellCollection, SwellRequestContext, StoreUser, SwellHeadersEnv, SwellData, TransactionOperation, TransactionOptions, SwellWebhook, VerifySwellWebhookOptions } from '@swell/apps-sdk';
 import { createStorefrontClient } from '@swell/apps-sdk/storefront';
 import type { CookieOptions } from '@swell/apps-sdk/storefront';
 import type { PublicConfig, SwellClient } from 'swell-js';
@@ -59,6 +59,14 @@ async function requestContext(env: SwellHeadersEnv) {
   resolved.storeId = 'different';
   // @ts-expect-error raw headers do not provide a store user
   requireStoreUser(headers);
+}
+async function webhookRequest(env: SwellHeadersEnv, body: string | Uint8Array) {
+  const options: VerifySwellWebhookOptions = { env, appId: 'app' };
+  const webhook: SwellWebhook = await verifySwellWebhook(headers, body, options);
+  const eventId: string | undefined = webhook.eventId;
+  // @ts-expect-error the verified webhook is immutable
+  webhook.storeId = 'different';
+  return eventId;
 }
 new SwellError('no');
 // @ts-expect-error Function execution is not part of the public SDK.
