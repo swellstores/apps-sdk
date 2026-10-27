@@ -33,7 +33,7 @@ const storefront = require('@swell/apps-sdk/storefront');
 const components = require('@swell/apps-sdk/components');
 assert.deepEqual(Object.keys(components).sort(), ['createComponents', 'startComponentFrame']);
 assert.equal(typeof components.createComponents, 'function');
-assert.deepEqual(Object.keys(root).sort(), ['SwellBackendAPI', 'SwellError', 'getStorefrontConfig', 'requireStoreUser', 'verifySwellContext'].sort());
+assert.deepEqual(Object.keys(root).sort(), ['SwellBackendAPI', 'SwellError', 'getStorefrontConfig', 'requireStoreUser', 'verifySwellContext', 'verifySwellWebhook'].sort());
 assert.deepEqual(Object.keys(storefront), ['createStorefrontClient']);
 assert.equal(typeof storefront.createStorefrontClient, 'function');
 assert.throws(() => require('@swell/apps-sdk/functions'), { code: 'ERR_PACKAGE_PATH_NOT_EXPORTED' });
