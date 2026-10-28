@@ -418,6 +418,20 @@ try {
   // emit resolves with the component handler's result.
   assert.equal(await page.evaluate(() => handle.emit('ping', 21)), 42);
 
+  // A theme the frame and its element share keeps the frame transparent: an empty part of it shows the page
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate(next => handle.update({ theme: next }), theme);
+    await frame.waitForFunction(next => document.documentElement.dataset.theme === next && getComputedStyle(document.documentElement).colorScheme === next, theme);
+    await page.evaluate(() => { document.body.style.background = 'rgb(255, 0, 0)'; });
+    const box = await page.locator('#slot iframe').boundingBox();
+    const clip = { x: box.x + box.width - 40, y: box.y + 2, width: 30, height: Math.max(4, Math.min(20, box.height - 4)) };
+    const shown = await page.screenshot({ clip });
+    await page.evaluate(() => { document.querySelector('#slot iframe').style.visibility = 'hidden'; });
+    const hidden = await page.screenshot({ clip });
+    await page.evaluate(() => { document.querySelector('#slot iframe').style.visibility = ''; document.body.style.background = ''; });
+    assert.ok(shown.equals(hidden), `the ${theme} frame painted a background`);
+  }
+
   await focusCases();
   await confinedOverlayCase();
   assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);

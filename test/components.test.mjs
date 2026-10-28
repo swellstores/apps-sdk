@@ -189,7 +189,7 @@ test('host sends init with the latest props only after the frame says hello', as
   assert.equal(sent[0].origin, FRAME);
   assert.equal(sent[0].message.type, 'init');
   assert.equal(sent[0].message.token, null);
-  assert.deepEqual(sent[0].message.props, { value: 'blue', context: { id: 'r1' }, params: {}, settings: { theme: 'dark' }, locale: 'en', readonly: true });
+  assert.deepEqual(sent[0].message.props, { value: 'blue', context: { id: 'r1' }, params: {}, settings: { theme: 'dark' }, locale: 'en', readonly: true, theme: 'light' });
 });
 
 test('host ignores messages from other origins, windows and channels', async (t) => {
@@ -626,7 +626,7 @@ test('mount returns the handle at once and keeps updates and listeners made whil
   const { sent, receive } = attachFrame(win);
   receive({ type: 'hello' });
   await tick();
-  assert.deepEqual(sent[0].message.props, { value: 'blue', context: { id: 'r1' }, params: {}, settings: { theme: 'dark' }, locale: 'en', readonly: true });
+  assert.deepEqual(sent[0].message.props, { value: 'blue', context: { id: 'r1' }, params: {}, settings: { theme: 'dark' }, locale: 'en', readonly: true, theme: 'light' });
   receive({ type: 'change', value: 'green' });
   receive({ type: 'ready' });
   await handle.ready;
@@ -835,7 +835,7 @@ test('frame refuses to run outside a Swell host', (t) => {
 
 test('frame says hello, mounts the bundle with host props and reports ready', async (t) => {
   const { posted, calls, imported, send, types, root } = startFrame(t);
-  assert.deepEqual([posted[0].message.type, posted[0].origin], ['hello', HOST]);
+  assert.deepEqual([posted[0].message.type, posted[0].message.themes, posted[0].origin], ['hello', true, HOST]);
   send({ type: 'init', props: HOST_PROPS, token: null });
   await tick();
   assert.deepEqual(imported, ['https://cdn.test/picker.js']);
@@ -847,6 +847,76 @@ test('frame says hello, mounts the bundle with host props and reports ready', as
   assert.equal(types()[0], 'hello');
   assert.equal(types().filter(type => type === 'ready').length, 1);
   assert.equal(types().filter(type => type === 'resize').length, 1);
+});
+
+test('frame shows the host theme on its root, light from a host that sends none, and follows it', async (t) => {
+  const { win, calls, send } = startFrame(t);
+  const rootStyle = () => [win.document.documentElement.dataset.theme, win.document.documentElement.style.colorScheme];
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.equal(calls[0][1].theme, 'light');
+  assert.deepEqual(rootStyle(), ['light', 'light']);
+
+  send({ type: 'update', props: { theme: 'dark' } });
+  await tick();
+  assert.equal(calls.at(-1)[1].theme, 'dark');
+  assert.deepEqual(rootStyle(), ['dark', 'dark']);
+});
+
+test('frame takes the theme from its URL before the host starts it, and keeps it there for a reload', async (t) => {
+  const { win, send } = startFrame(t, { search: `v=abc&parent=${encodeURIComponent(HOST)}&channel=c1&theme=dark` });
+  const root = win.document.documentElement;
+  assert.deepEqual([root.dataset.theme, root.style.colorScheme], ['dark', 'dark']);
+
+  send({ type: 'init', props: { ...HOST_PROPS, theme: 'dark' }, token: null });
+  await tick();
+  send({ type: 'update', props: { theme: 'light' } });
+  await tick();
+  assert.deepEqual([root.dataset.theme, root.style.colorScheme], ['light', 'light']);
+  const url = new URL(win.location.href);
+  assert.equal(url.searchParams.get('theme'), 'light');
+  assert.equal(url.searchParams.get('channel'), 'c1');
+});
+
+test('host puts its theme in the frame URL, and takes only dark or light', async (t) => {
+  const { iframe, handle, sent, receive } = embed(t, { theme: 'midnight' });
+  assert.equal(new URL(iframe.src).searchParams.get('theme'), 'light');
+  receive({ type: 'hello', themes: true });
+  await tick();
+  assert.equal(iframe.style.colorScheme, 'light');
+  assert.equal(sent[0].message.props.theme, 'light');
+
+  handle.update({ theme: 'DARK' });
+  assert.equal(iframe.style.colorScheme, 'light');
+  assert.deepEqual(sent.at(-1).message.props, { theme: 'light' });
+  handle.update({ theme: 'dark' });
+  assert.equal(iframe.style.colorScheme, 'dark');
+});
+
+test('host sends its theme and gives the frame element the same color scheme', async (t) => {
+  const { iframe, handle, sent, receive } = embed(t, { theme: 'dark' });
+  // A frame whose scheme differs from its element's paints an opaque background
+  assert.equal(iframe.style.colorScheme, 'normal');
+  receive({ type: 'hello', themes: true });
+  await tick();
+  assert.equal(iframe.style.colorScheme, 'dark');
+  assert.equal(sent[0].message.props.theme, 'dark');
+
+  handle.update({ theme: 'light' });
+  assert.equal(iframe.style.colorScheme, 'light');
+  assert.equal(sent.at(-1).message.type, 'update');
+  assert.deepEqual(sent.at(-1).message.props, { theme: 'light' });
+});
+
+test("host keeps the frame element's color scheme for a frame runtime that applies no theme", async (t) => {
+  const { iframe, handle, sent, receive } = embed(t, { theme: 'dark' });
+  receive({ type: 'hello' });
+  await tick();
+  assert.equal(iframe.style.colorScheme, 'normal');
+  assert.equal(sent[0].message.props.theme, 'dark');
+
+  handle.update({ theme: 'light' });
+  assert.equal(iframe.style.colorScheme, 'normal');
 });
 
 test('component props send values and validity to the host', async (t) => {

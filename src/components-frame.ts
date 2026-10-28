@@ -1,4 +1,4 @@
-import type { ComponentModule, ComponentProps } from './components-types.js';
+import type { ComponentModule, ComponentProps, ComponentTheme } from './components-types.js';
 import { firstTabbable } from './components-focus.js';
 import { TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, Rect, WireProps } from './components-protocol.js';
@@ -64,6 +64,20 @@ export function startComponentFrame(options: FrameOptions = {}): void {
     document.body.appendChild(root);
   }
   const target: HTMLElement = root;
+
+  // The frame shows the theme from its start: the host puts it in the frame's URL, which keeps the current one
+  // for a reload
+  let rootTheme: ComponentTheme | undefined;
+  const showTheme = (theme: ComponentTheme) => {
+    if (theme === rootTheme) return;
+    rootTheme = theme;
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    const url = new URL(win.location.href);
+    url.searchParams.set('theme', theme);
+    win.history.replaceState(win.history.state, '', url.href);
+  };
+  showTheme(params.get('theme') === 'dark' ? 'dark' : 'light');
   const importModule = options.importModule ?? ((url: string) => import(/* webpackIgnore: true */ /* @vite-ignore */ url));
 
   let props: WireProps | null = null;
@@ -123,6 +137,13 @@ export function startComponentFrame(options: FrameOptions = {}): void {
     },
   };
   const componentProps = () => ({ ...(props as WireProps), ...callbacks }) as ComponentProps;
+
+  // A host before themes sends none: its pages are light
+  const applyTheme = () => {
+    if (!props) return;
+    props = { ...props, theme: props.theme === 'dark' ? 'dark' : 'light' };
+    showTheme(props.theme);
+  };
 
   const reportHeight = () => {
     if (overlay) return;
@@ -212,6 +233,7 @@ export function startComponentFrame(options: FrameOptions = {}): void {
       case 'init':
         actions = Array.isArray(message.actions) ? message.actions.filter(name => typeof name === 'string') : [];
         props = message.props;
+        applyTheme();
         token = message.token;
         if (!mounting) {
           mounting = mount();
@@ -231,6 +253,7 @@ export function startComponentFrame(options: FrameOptions = {}): void {
       case 'update':
         if (!props) return;
         props = { ...props, ...message.props };
+        applyTheme();
         await module?.update(target, componentProps());
         return;
       case 'token':
@@ -262,5 +285,5 @@ export function startComponentFrame(options: FrameOptions = {}): void {
     if (message) handle(message).catch(fail);
   });
 
-  post({ type: 'hello' });
+  post({ type: 'hello', themes: true });
 }

@@ -150,6 +150,7 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 | `params` | Configuration from the place that uses the component |
 | `settings` | The app's public settings |
 | `locale`, `readonly` | Display locale and read-only state |
+| `theme` | The host's color theme, `'light'` or `'dark'`, re-rendered when it changes. The frame sets it as `data-theme` and `color-scheme` on its root from its start, so CSS can follow it with `:root[data-theme="dark"]` |
 | `setValidity(error)` | Report a validation error, or `null` when valid |
 | `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token when the host provides one, so they receive a verified `Swell-Context` with `surface` |
 | `call(name, data)` | Calls a host action and resolves with its result; payment components get `createIntent` and `getIntent` |
@@ -215,7 +216,7 @@ badge.unmount();
 | --- | --- |
 | `ready` | Resolves when the component has mounted in its frame. Rejects when the app or component cannot be loaded, when the frame page does not start within 10 seconds of loading, when the props cannot be sent, or when you unmount first |
 | `on(event, handler)` | Listen to `change` (new value), `validity` (error or `null`) and `error` (load, start, token and component failures, including the ones that reject `ready`). Returns a function that removes the listener; other event names are ignored |
-| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly` or `locale`. Updates made before the component list loads are kept |
+| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly`, `locale` or `theme`. Updates made before the component list loads are kept |
 | `emit(event, data)` | Waits for `ready`, then resolves with the result of the component's first `on` handler for the event, or rejects with its error |
 | `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
 | `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |

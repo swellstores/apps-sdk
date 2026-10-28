@@ -11,6 +11,11 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
   readonly settings: Readonly<Record<string, unknown>>;
   readonly locale: string;
   readonly readonly: boolean;
+  /**
+   * The host's color theme. The frame also sets it as `data-theme` and `color-scheme` on its root element, so CSS
+   * can follow it with `:root[data-theme="dark"]`. `'light'` when the host passes none.
+   */
+  readonly theme: ComponentTheme;
   setValidity(error: string | null): void;
   /** fetch that adds the component token to requests to the frame's own origin. */
   readonly fetch: typeof fetch;
@@ -25,6 +30,8 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
    */
   call<T = unknown>(name: string, data?: unknown): Promise<T>;
 }
+
+export type ComponentTheme = 'light' | 'dark';
 
 /** Optional static metadata a component file exports as `config`. */
 export interface ComponentConfig {
@@ -50,6 +57,8 @@ export interface ComponentInput<TValue = unknown, TContext = Record<string, unkn
   params?: Record<string, unknown>;
   readonly?: boolean;
   locale?: string;
+  /** The host's color theme, light by default. Update it when the host switches. */
+  theme?: ComponentTheme;
 }
 
 /** Short-lived platform token. `expires` is in epoch seconds. */
