@@ -1221,6 +1221,21 @@ test('a fixed element without area does not switch overlay on, even in a frame t
   assert.equal(win.document.documentElement.style.overflow, '');
 });
 
+test('an empty component reports a 1px height, so a modal it opens has an area', async (t) => {
+  const { win, send, posted } = startFrame(t, { module: { mount() {}, update() {}, unmount() {} } });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  assert.deepEqual(posted.filter(({ message }) => message.type === 'resize').map(({ message }) => message.height), [1]);
+  win.happyDOM.setViewport({ width: 1024, height: 1 });
+  const modal = win.document.createElement('div');
+  modal.style.position = 'fixed';
+  modal.getBoundingClientRect = () => ({ top: 0, left: 0, width: win.innerWidth, height: win.innerHeight });
+  win.document.body.appendChild(modal);
+  await tick();
+  await animationFrame(win);
+  assert.deepEqual(overlayMessages(posted), [true]);
+});
+
 test('a frame resize switches overlay off when the element no longer covers the frame, and never back on', async (t) => {
   const { win, send, posted } = startFrame(t);
   send({ type: 'init', props: HOST_PROPS, token: null });

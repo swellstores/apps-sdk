@@ -145,9 +145,11 @@ export function startComponentFrame(options: FrameOptions = {}): void {
     showTheme(props.theme);
   };
 
+  // At least 1px, so a modal opened from an empty component has an area: in a frame without height a modal has
+  // none either, and overlay could not tell it from an empty fixed container
   const reportHeight = () => {
     if (overlay) return;
-    const height = Math.ceil(target.getBoundingClientRect().height);
+    const height = Math.max(1, Math.ceil(target.getBoundingClientRect().height));
     if (height !== lastHeight) {
       lastHeight = height;
       post({ type: 'resize', height });
