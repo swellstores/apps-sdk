@@ -1,4 +1,4 @@
-import type { ComponentInput, ComponentToken } from './components-types.js';
+import type { ComponentInput, ComponentTheme, ComponentToken } from './components-types.js';
 import { placeFrame } from './components-placement.js';
 import { unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, WireProps } from './components-protocol.js';
@@ -22,8 +22,9 @@ export interface ComponentHandle<TValue = unknown> {
   /** Re-renders the component with new data. */
   update(input: ComponentInput<TValue>): void;
   /**
-   * Sends an event to the component and resolves with its handler's result. Rejects when the frame
-   * does not start in time, reports an error (final) or is unmounted.
+   * Sends an event to the component and resolves with the last result other than `undefined` of its
+   * handlers for the event, or rejects with the first error one throws. Also rejects when the frame does
+   * not start in time, reports an error (final) or is unmounted.
    */
   emit<T = unknown>(event: string, data?: unknown): Promise<T>;
   /**
@@ -52,15 +53,18 @@ const RETRY_MS = 10_000;
 const MAX_RETRY_MS = 5 * 60_000;
 const MAX_TIMEOUT = 2 ** 31 - 1;
 const START_MS = 10_000;
-const INPUT_KEYS = ['value', 'context', 'params', 'readonly', 'locale'] as const;
+const INPUT_KEYS = ['value', 'context', 'params', 'readonly', 'locale', 'theme'] as const;
 
 export const toError = (error: unknown) => (error instanceof Error ? error : new Error(String(error)));
+
+/** The theme a host shows: dark, or light for anything else. */
+const toTheme = (theme: unknown): ComponentTheme => (theme === 'dark' ? 'dark' : 'light');
 
 /** The props a handle update changes: only the keys the host passed. */
 export function pickInput(input: ComponentInput<unknown, unknown>): Partial<WireProps> {
   const changed: Partial<WireProps> = {};
   for (const key of INPUT_KEYS) {
-    if (key in input) Object.assign(changed, { [key]: input[key] });
+    if (key in input) Object.assign(changed, { [key]: key === 'theme' ? toTheme(input.theme) : input[key] });
   }
   return changed;
 }
@@ -120,7 +124,10 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   const props: WireProps = {
     value: options.value, context: options.context ?? {}, params: options.params ?? {},
     settings: options.settings ?? {}, locale: options.locale ?? 'en', readonly: options.readonly ?? false,
+    theme: toTheme(options.theme),
   };
+  // The frame shows the theme from its start, before the host's init reaches it
+  url.searchParams.set('theme', props.theme);
   const { on, notify } = createListeners();
   const pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
   let calls = 0;
@@ -152,6 +159,10 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     pending.clear();
   };
   const placed = placeFrame(placeholder, url.href, options.title ?? 'App component', rect => send({ type: 'rect', rect }));
+  // A frame whose scheme differs from its element's gets an opaque background. A frame runtime that shows the theme
+  // sets it on its root and says so in its hello; until then, and for an older one, both keep the normal scheme
+  placed.iframe.style.colorScheme = 'normal';
+  let showsTheme = false;
   // A Tab stop only while the frame runs: from its first hello until it fails to start, or reports an error
   // before it rendered, so Tab skips a frame that shows an error page
   placed.iframe.tabIndex = -1;
@@ -227,6 +238,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     switch (message.type) {
       case 'hello':
         clearTimeout(startTimer);
+        showsTheme = Boolean(message.themes);
+        placed.iframe.style.colorScheme = showsTheme ? props.theme : 'normal';
         if (greeted) {
           // The frame reloaded: its new runtime starts without overlay and cannot answer earlier events
           placed.setOverlay(false);
@@ -309,6 +322,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     update(input) {
       const changed = pickInput(input);
       Object.assign(props, changed);
+      if (changed.theme && showsTheme) placed.iframe.style.colorScheme = changed.theme;
       send({ type: 'update', props: changed });
     },
     async emit<T = unknown>(name: string, data?: unknown): Promise<T> {

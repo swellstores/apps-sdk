@@ -121,6 +121,7 @@ import { verifySwellWebhook } from '@swell/apps-sdk';
 
 const webhook = await verifySwellWebhook(request.headers, await request.text(), {
   appId: 'my_app', // The id in your app's swell.json.
+  url: 'https://example.com/hooks/orders', // The address the webhook is set to in Swell.
 });
 // webhook.event is the event the body carries.
 ```
@@ -150,10 +151,11 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 | `params` | Configuration from the place that uses the component |
 | `settings` | The app's public settings |
 | `locale`, `readonly` | Display locale and read-only state |
+| `theme` | The host's color theme, `'light'` or `'dark'`, re-rendered when it changes. The frame sets it as `data-theme` and `color-scheme` on its root from its start, so CSS can follow it with `:root[data-theme="dark"]` |
 | `setValidity(error)` | Report a validation error, or `null` when valid |
 | `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token when the host provides one, so they receive a verified `Swell-Context` with `surface` |
 | `call(name, data)` | Calls a host action and resolves with its result; payment components get `createIntent` and `getIntent` |
-| `on(event, handler)` | Handle a host event. Only the first handler registered for an event runs; its return value, or the error it throws, answers the host's `emit` |
+| `on(event, handler)` | Handle a host event. Returns a function that removes the handler. Every handler of the event runs, in the order registered, each after the previous one settles; the first error thrown answers the host's `emit`, otherwise the last result other than `undefined` does. A handler registered again, as an effect does on a re-render, moves to the end, so keep steps that depend on each other in one handler. One removed while the event runs is skipped, and one registered meanwhile runs from the next event |
 
 ### Payment components
 
@@ -169,7 +171,7 @@ export const config = {
 };
 
 export default function Card({ call, on, context }: ComponentProps<never, PaymentContext>) {
-  // Register in an effect: the frame runs only the first handler registered for an event, and `on` returns the unsubscribe
+  // Register in an effect, whose cleanup (the function `on` returns) removes the handler of the previous render
   useEffect(() => on('submit', async (): Promise<PaymentSubmitResult> => {
     const intent = await call<{ id: string }>('createIntent', { amount: context.cart.capture_total });
     return { billing: { intent } };
@@ -215,8 +217,8 @@ badge.unmount();
 | --- | --- |
 | `ready` | Resolves when the component has mounted in its frame. Rejects when the app or component cannot be loaded, when the frame page does not start within 10 seconds of loading, when the props cannot be sent, or when you unmount first |
 | `on(event, handler)` | Listen to `change` (new value), `validity` (error or `null`) and `error` (load, start, token and component failures, including the ones that reject `ready`). Returns a function that removes the listener; other event names are ignored |
-| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly` or `locale`. Updates made before the component list loads are kept |
-| `emit(event, data)` | Waits for `ready`, then resolves with the result of the component's first `on` handler for the event, or rejects with its error |
+| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly`, `locale` or `theme`. Updates made before the component list loads are kept |
+| `emit(event, data)` | Waits for `ready`, then resolves with the last result other than `undefined` of the component's `on` handlers for the event, or rejects with the first error one throws |
 | `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
 | `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
 
@@ -226,7 +228,7 @@ Props and event data must be structured-cloneable. Props that cannot be cloned f
 
 Hosts that have their own session, like the Swell admin, pass `getToken: (app) => Promise<{ token, expires }>`. The token is refreshed a minute before it expires; if a refresh fails, the component keeps the current token and the host retries. Without `getToken` the frame gets no token, and `props.fetch` sends requests without a token header.
 
-The frame is an iframe inside the target element, so it behaves like any element of your page: it takes part in the layout, your popovers, sticky bars and dialogs stack over it, scrolling containers clip it, and Tab and Shift+Tab move into it and on to the neighbouring elements. Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The target's height follows the component's content. Do not move the target in the DOM while the component is mounted: browsers reload a moved iframe, so the component would start again with the current props.
+The frame is an iframe inside the target element, so it behaves like any element of your page: it takes part in the layout, your popovers, sticky bars and dialogs stack over it, scrolling containers clip it, and Tab and Shift+Tab move into it and on to the neighbouring elements. Tab skips a component whose frame has not started yet, failed to start or reported an error before it rendered. The target's height follows the component's content from the frame's first report on, and is then at least 1px so that a modal opened from an empty component can still cover the viewport. Do not move the target in the DOM while the component is mounted: browsers reload a moved iframe, so the component would start again with the current props.
 
 When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
 
@@ -344,13 +346,22 @@ require an HTTP request or a store user.
 
 ### Webhook options
 
-`verifySwellWebhook(headers, body, { env?, appId?, storeId? })` returns the webhook or
+`verifySwellWebhook(headers, body, { url, env?, appId?, storeId? })` returns the webhook or
 throws if verification fails. Pass `appId`, `storeId` or both from trusted configuration:
 `appId` accepts only webhooks of apps with that id, and `storeId` only the webhooks of
 that store. Without either it throws, since any Swell store can send a signed webhook to
 any address. An app id is unique to its developer and store, so another developer's
 private app can have yours: check `storeId` against the stores your app is installed in
 before acting for one.
+
+`url` is the address the webhook is set to in Swell: a string, a `URL`, or an object
+with its `href`, such as Next's `request.nextUrl`. The signature
+names the endpoint Swell sent the request to, so a request that one endpoint of a store
+received and sent on to another is refused there. Pass the address from your
+configuration. The request URL serves only where the platform routes requests to your
+endpoint strictly by its host; never build it from the `Host` or `X-Forwarded-*` headers,
+which the sender sets. The same address written another way, with an upper-case host, a
+default port or a fragment, matches; its path and query must be the same.
 
 It reads the same configuration as the request context. `SWELL_VERIFY_HEADERS=false`
 also turns off webhook verification, so while it is set anyone can send a webhook your

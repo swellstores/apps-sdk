@@ -22,6 +22,7 @@ export interface WireProps {
   settings: Record<string, unknown>;
   locale: string;
   readonly: boolean;
+  theme: 'light' | 'dark';
 }
 
 export type HostMessage =
@@ -34,7 +35,8 @@ export type HostMessage =
   | { type: 'focus' };
 
 export type FrameMessage =
-  | { type: 'hello' }
+  // themes: the frame shows the theme prop, which a frame runtime older than 2.0.0-alpha.9 does not
+  | { type: 'hello'; themes?: boolean }
   | { type: 'ready' }
   | { type: 'change'; value: unknown }
   | { type: 'validity'; error: string | null }
