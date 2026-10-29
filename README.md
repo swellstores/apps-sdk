@@ -154,7 +154,7 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 | `setValidity(error)` | Report a validation error, or `null` when valid |
 | `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token when the host provides one, so they receive a verified `Swell-Context` with `surface` |
 | `call(name, data)` | Calls a host action and resolves with its result; payment components get `createIntent` and `getIntent` |
-| `on(event, handler)` | Handle a host event. Only the first handler registered for an event runs; its return value, or the error it throws, answers the host's `emit` |
+| `on(event, handler)` | Handle a host event. Returns a function that removes the handler. Every handler of the event runs, in the order registered, each after the previous one settles; the first error thrown answers the host's `emit`, otherwise the last result other than `undefined` does. A handler registered again, as an effect does on a re-render, moves to the end, so keep steps that depend on each other in one handler. One removed while the event runs is skipped, and one registered meanwhile runs from the next event |
 
 ### Payment components
 
@@ -170,7 +170,7 @@ export const config = {
 };
 
 export default function Card({ call, on, context }: ComponentProps<never, PaymentContext>) {
-  // Register in an effect: the frame runs only the first handler registered for an event, and `on` returns the unsubscribe
+  // Register in an effect, whose cleanup (the function `on` returns) removes the handler of the previous render
   useEffect(() => on('submit', async (): Promise<PaymentSubmitResult> => {
     const intent = await call<{ id: string }>('createIntent', { amount: context.cart.capture_total });
     return { billing: { intent } };
@@ -217,7 +217,7 @@ badge.unmount();
 | `ready` | Resolves when the component has mounted in its frame. Rejects when the app or component cannot be loaded, when the frame page does not start within 10 seconds of loading, when the props cannot be sent, or when you unmount first |
 | `on(event, handler)` | Listen to `change` (new value), `validity` (error or `null`) and `error` (load, start, token and component failures, including the ones that reject `ready`). Returns a function that removes the listener; other event names are ignored |
 | `update(input)` | Re-render with new `value`, `context`, `params`, `readonly`, `locale` or `theme`. Updates made before the component list loads are kept |
-| `emit(event, data)` | Waits for `ready`, then resolves with the result of the component's first `on` handler for the event, or rejects with its error |
+| `emit(event, data)` | Waits for `ready`, then resolves with the last result other than `undefined` of the component's `on` handlers for the event, or rejects with the first error one throws |
 | `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
 | `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
 

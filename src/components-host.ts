@@ -22,8 +22,9 @@ export interface ComponentHandle<TValue = unknown> {
   /** Re-renders the component with new data. */
   update(input: ComponentInput<TValue>): void;
   /**
-   * Sends an event to the component and resolves with its handler's result. Rejects when the frame
-   * does not start in time, reports an error (final) or is unmounted.
+   * Sends an event to the component and resolves with the last result other than `undefined` of its
+   * handlers for the event, or rejects with the first error one throws. Also rejects when the frame does
+   * not start in time, reports an error (final) or is unmounted.
    */
   emit<T = unknown>(event: string, data?: unknown): Promise<T>;
   /**

@@ -260,9 +260,16 @@ export function startComponentFrame(options: FrameOptions = {}): void {
         token = message.token;
         return;
       case 'event': {
-        const [handler] = handlers.get(message.name) ?? [];
+        // The handlers registered when the event arrived, in order, each after the previous one settles; one
+        // removed meanwhile, as a re-render's effect cleanup does, no longer runs
         try {
-          post({ type: 'result', call: message.call, result: handler ? await handler(message.data) : undefined });
+          let result: unknown;
+          for (const handler of handlers.get(message.name) ?? []) {
+            if (!handlers.get(message.name)?.includes(handler)) continue;
+            const value = await handler(message.data);
+            if (value !== undefined) result = value;
+          }
+          post({ type: 'result', call: message.call, result });
         } catch (error) {
           post({ type: 'result', call: message.call, error: errorMessage(error) });
         }

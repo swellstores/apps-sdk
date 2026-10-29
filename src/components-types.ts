@@ -20,8 +20,11 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
   /** fetch that adds the component token to requests to the frame's own origin. */
   readonly fetch: typeof fetch;
   /**
-   * Handles a host event. Only the first handler registered for an event runs, and its result
-   * (or thrown error) answers the host's `emit`; later handlers for the same event are not called.
+   * Handles a host event. Every handler registered for the event runs, in the order registered, each after the
+   * previous one settles. The first error thrown answers the host's `emit` and the later handlers do not run;
+   * otherwise `emit` resolves with the last result other than `undefined`. A handler registered again, as an effect
+   * does on a re-render, moves to the end, so keep steps that depend on each other in one handler. One removed while
+   * the event runs is skipped, and one registered meanwhile runs from the next event.
    */
   on(event: string, handler: (data: unknown) => unknown): () => void;
   /**

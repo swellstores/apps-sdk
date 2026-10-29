@@ -975,20 +975,63 @@ test('updates re-render with merged props and a repeated init does not mount twi
   assert.deepEqual(calls.map(([name]) => name), ['mount', 'update', 'update']);
 });
 
-test('host events run the first handler and return its result or error', async (t) => {
+test('host events run every handler in order and answer with the last result or the first error', async (t) => {
   const { calls, send, posted } = startFrame(t);
   send({ type: 'init', props: HOST_PROPS, token: null });
   await tick();
   const props = calls[0][1];
-  props.on('submit', data => ({ ok: data.n * 2 }));
-  props.on('submit', () => 'second');
-  props.on('fail', () => { throw new Error('Declined'); });
+  const ran = [];
+  props.on('submit', async (data) => {
+    await tick();
+    ran.push('slow');
+    return { ok: data.n * 2 };
+  });
+  props.on('submit', () => { ran.push('after slow'); });
+  props.on('fail', () => { ran.push('validate'); throw new Error('Declined'); });
+  props.on('fail', () => { ran.push('pay'); return 'paid'; });
   send({ type: 'event', call: 1, name: 'submit', data: { n: 2 } });
   send({ type: 'event', call: 2, name: 'fail', data: null });
   send({ type: 'event', call: 3, name: 'unknown', data: null });
   await tick();
+  await tick();
+  assert.deepEqual(ran, ['validate', 'slow', 'after slow']);
   const results = posted.filter(({ message }) => message.type === 'result').map(({ message }) => [message.call, message.result, message.error]);
   assert.deepEqual(results.sort(([a], [b]) => a - b), [[1, { ok: 4 }, undefined], [2, undefined, 'Declined'], [3, undefined, undefined]]);
+});
+
+test('a handler removed while an event runs does not run for it', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const props = calls[0][1];
+  const ran = [];
+  let removeSecond;
+  props.on('submit', async () => {
+    // A re-render while the event runs replaces the effect's handler
+    removeSecond();
+    props.on('submit', () => { ran.push('next render'); });
+    await tick();
+    ran.push('first');
+  });
+  removeSecond = props.on('submit', () => { ran.push('removed'); return 'removed'; });
+  send({ type: 'event', call: 1, name: 'submit', data: null });
+  await tick();
+  await tick();
+  assert.deepEqual(ran, ['first']);
+  assert.deepEqual(posted.filter(({ message }) => message.type === 'result').map(({ message }) => message.result), [undefined]);
+});
+
+test('a removed handler no longer answers host events', async (t) => {
+  const { calls, send, posted } = startFrame(t);
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await tick();
+  const props = calls[0][1];
+  const removeFirstRender = props.on('submit', () => 'first render');
+  removeFirstRender();
+  props.on('submit', () => 'second render');
+  send({ type: 'event', call: 1, name: 'submit', data: null });
+  await tick();
+  assert.deepEqual(posted.filter(({ message }) => message.type === 'result').map(({ message }) => message.result), ['second render']);
 });
 
 test('call sends a host action and resolves with the reply', async (t) => {
