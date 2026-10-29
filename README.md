@@ -121,6 +121,7 @@ import { verifySwellWebhook } from '@swell/apps-sdk';
 
 const webhook = await verifySwellWebhook(request.headers, await request.text(), {
   appId: 'my_app', // The id in your app's swell.json.
+  url: 'https://example.com/hooks/orders', // The address the webhook is set to in Swell.
 });
 // webhook.event is the event the body carries.
 ```
@@ -345,13 +346,22 @@ require an HTTP request or a store user.
 
 ### Webhook options
 
-`verifySwellWebhook(headers, body, { env?, appId?, storeId? })` returns the webhook or
+`verifySwellWebhook(headers, body, { url, env?, appId?, storeId? })` returns the webhook or
 throws if verification fails. Pass `appId`, `storeId` or both from trusted configuration:
 `appId` accepts only webhooks of apps with that id, and `storeId` only the webhooks of
 that store. Without either it throws, since any Swell store can send a signed webhook to
 any address. An app id is unique to its developer and store, so another developer's
 private app can have yours: check `storeId` against the stores your app is installed in
 before acting for one.
+
+`url` is the address the webhook is set to in Swell: a string, a `URL`, or an object
+with its `href`, such as Next's `request.nextUrl`. The signature
+names the endpoint Swell sent the request to, so a request that one endpoint of a store
+received and sent on to another is refused there. Pass the address from your
+configuration. The request URL serves only where the platform routes requests to your
+endpoint strictly by its host; never build it from the `Host` or `X-Forwarded-*` headers,
+which the sender sets. The same address written another way, with an upper-case host, a
+default port or a fragment, matches; its path and query must be the same.
 
 It reads the same configuration as the request context. `SWELL_VERIFY_HEADERS=false`
 also turns off webhook verification, so while it is set anyone can send a webhook your

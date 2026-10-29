@@ -13,6 +13,13 @@ export interface VerifySwellWebhookOptions {
   storeId?: string;
   /** The id in swell.json of the app the webhook must belong to. Pass this or `storeId`. */
   appId?: string;
+  /**
+   * The address the webhook is set to in Swell, from your configuration. Refuses a request Swell signed for another
+   * endpoint. The request URL serves only where the platform routes requests to your endpoint strictly by its host;
+   * never build it from the Host or X-Forwarded-* headers, which the sender sets. A string, a URL, or an object with
+   * the URL's href, such as Next's request.nextUrl.
+   */
+  url: string | { readonly href: string };
 }
 
 /** A webhook request Swell sent, with its event. */
@@ -48,6 +55,17 @@ function optionalString(value: unknown, field: string): string | undefined {
   return value;
 }
 
+// The same address written either way, such as with an upper-case host, a default port or a fragment, is one endpoint.
+// An object is read by its href: a URL of another realm, or one like Next's request.nextUrl, is not a URL instance
+function endpointOf(value: unknown): string | undefined {
+  const href = typeof value === 'string' ? value : (value as { href?: unknown } | null)?.href;
+  if (typeof href !== 'string') return undefined;
+  try {
+    const { origin, pathname, search } = new URL(href);
+    return `${origin}${pathname}${search}`;
+  } catch { return undefined; }
+}
+
 async function sha256(body: Uint8Array): Promise<string> {
   const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', body));
   return btoa(String.fromCharCode(...hash)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -58,7 +76,9 @@ async function sha256(body: Uint8Array): Promise<string> {
  * body must be the bytes the request carried, before any parsing. Uses ES256
  * and the same pinned JWKS endpoint as verifySwellContext.
  */
-export async function verifySwellWebhook(headers: HeaderReader, body: string | ArrayBuffer | ArrayBufferView, options: VerifySwellWebhookOptions = {}): Promise<SwellWebhook> {
+export async function verifySwellWebhook(headers: HeaderReader, body: string | ArrayBuffer | ArrayBufferView, options: VerifySwellWebhookOptions): Promise<SwellWebhook> {
+  // A JavaScript caller can leave out the options, and gets told what they need
+  options = options ?? ({} as VerifySwellWebhookOptions);
   const runtime = globalThis as typeof globalThis & { process?: { env?: SwellHeadersEnv } };
   const env = options.env ?? runtime.process?.env ?? {};
   const verify = env.SWELL_VERIFY_HEADERS !== 'false';
@@ -71,6 +91,10 @@ export async function verifySwellWebhook(headers: HeaderReader, body: string | A
   if (options.appId === undefined && options.storeId === undefined) {
     throw new Error('verifySwellWebhook needs options.appId or options.storeId');
   }
+  // Any endpoint a store's webhooks go to receives signed requests, and could pass one on to another
+  if (options.url === undefined) throw new Error('verifySwellWebhook needs options.url, the address the webhook is set to');
+  const url = endpointOf(options.url);
+  if (url === undefined) throw new Error('Invalid url: expected an absolute URL');
   // A parsed body no longer has the bytes the signature covers
   if (typeof body !== 'string' && !(body instanceof ArrayBuffer) && !ArrayBuffer.isView(body)) {
     throw new TypeError('verifySwellWebhook needs the body as the request carried it, a string or bytes');
@@ -110,6 +134,8 @@ export async function verifySwellWebhook(headers: HeaderReader, body: string | A
     const appId = optionalString(payload.app_id, 'app_id');
     if ((options.storeId !== undefined && payload.store_id !== options.storeId) ||
         (options.appId !== undefined && appId !== options.appId)) throw invalidWebhook();
+    // Signatures Swell made before it named the endpoint have no aud
+    if (payload.aud !== undefined && endpointOf(payload.aud) !== url) throw invalidWebhook();
     if (payload.body_sha256 !== await sha256(bytes)) throw invalidWebhook();
     const event = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as unknown;
     object(event);
