@@ -142,7 +142,21 @@ const FOCUS_BUNDLES = {
   // Mounts, then throws on every update: the frame reports an error after ready
   Throws: mod('<input id="x"><input id="y">').replace('export function update() {}', "export function update() { throw new Error('update failed'); }"),
 };
-const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, ...FOCUS_BUNDLES };
+// Renders nothing; its submit opens a payment SDK's full-screen modal and settles when the shopper clicks it
+const EMPTY_BUNDLE = `
+export function mount(root, props) {
+  props.on('submit', () => new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.id = 'sdk-modal';
+    Object.assign(modal.style, { position: 'fixed', top: '0', left: '0', width: '100%', height: '100%', background: 'rgba(0,0,0,.5)' });
+    modal.addEventListener('click', () => { modal.remove(); resolve('paid'); });
+    document.body.appendChild(modal);
+  }));
+}
+export function update() {}
+export function unmount() {}
+`;
+const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, Empty: EMPTY_BUNDLE, ...FOCUS_BUNDLES };
 
 let frameOrigin = '';
 const hostServer = createServer(async (req, res) => {
@@ -389,6 +403,24 @@ async function confinedOverlayCase() {
   });
 }
 
+async function emptyOverlayCase() {
+  // A component that renders nothing keeps a 1px frame, so the modal it opens covers the viewport
+  await attempt(async () => {
+    const page = await openFocusPage('slots=Empty');
+    try {
+      assert.equal(await page.evaluate(() => document.querySelector('#slots > div').getBoundingClientRect().height), 1);
+      const paid = page.evaluate(() => handles[0].emit('submit'));
+      await page.waitForFunction(() => document.querySelector('iframe').matches(':popover-open'));
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      await frame.locator('#sdk-modal').click();
+      assert.equal(await paid, 'paid');
+      await page.waitForFunction(() => !document.querySelector('iframe').matches(':popover-open') && document.querySelectorAll('[inert]').length === 0);
+    } finally {
+      await page.close();
+    }
+  });
+}
+
 const hostOrigin = `http://localhost:${await listen(hostServer)}`;
 frameOrigin = `http://127.0.0.1:${await listen(frameServer)}`;
 const browser = await chromium.launch();
@@ -418,8 +450,23 @@ try {
   // emit resolves with the component handler's result.
   assert.equal(await page.evaluate(() => handle.emit('ping', 21)), 42);
 
+  // A theme the frame and its element share keeps the frame transparent: an empty part of it shows the page
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate(next => handle.update({ theme: next }), theme);
+    await frame.waitForFunction(next => document.documentElement.dataset.theme === next && getComputedStyle(document.documentElement).colorScheme === next, theme);
+    await page.evaluate(() => { document.body.style.background = 'rgb(255, 0, 0)'; });
+    const box = await page.locator('#slot iframe').boundingBox();
+    const clip = { x: box.x + box.width - 40, y: box.y + 2, width: 30, height: Math.max(4, Math.min(20, box.height - 4)) };
+    const shown = await page.screenshot({ clip });
+    await page.evaluate(() => { document.querySelector('#slot iframe').style.visibility = 'hidden'; });
+    const hidden = await page.screenshot({ clip });
+    await page.evaluate(() => { document.querySelector('#slot iframe').style.visibility = ''; document.body.style.background = ''; });
+    assert.ok(shown.equals(hidden), `the ${theme} frame painted a background`);
+  }
+
   await focusCases();
   await confinedOverlayCase();
+  await emptyOverlayCase();
   assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);
 
   // The token goes to the frame origin only.

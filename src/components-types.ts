@@ -11,12 +11,20 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
   readonly settings: Readonly<Record<string, unknown>>;
   readonly locale: string;
   readonly readonly: boolean;
+  /**
+   * The host's color theme. The frame also sets it as `data-theme` and `color-scheme` on its root element, so CSS
+   * can follow it with `:root[data-theme="dark"]`. `'light'` when the host passes none.
+   */
+  readonly theme: ComponentTheme;
   setValidity(error: string | null): void;
   /** fetch that adds the component token to requests to the frame's own origin. */
   readonly fetch: typeof fetch;
   /**
-   * Handles a host event. Only the first handler registered for an event runs, and its result
-   * (or thrown error) answers the host's `emit`; later handlers for the same event are not called.
+   * Handles a host event. Every handler registered for the event runs, in the order registered, each after the
+   * previous one settles. The first error thrown answers the host's `emit` and the later handlers do not run;
+   * otherwise `emit` resolves with the last result other than `undefined`. A handler registered again, as an effect
+   * does on a re-render, moves to the end, so keep steps that depend on each other in one handler. One removed while
+   * the event runs is skipped, and one registered meanwhile runs from the next event.
    */
   on(event: string, handler: (data: unknown) => unknown): () => void;
   /**
@@ -25,6 +33,8 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
    */
   call<T = unknown>(name: string, data?: unknown): Promise<T>;
 }
+
+export type ComponentTheme = 'light' | 'dark';
 
 /** Optional static metadata a component file exports as `config`. */
 export interface ComponentConfig {
@@ -50,6 +60,8 @@ export interface ComponentInput<TValue = unknown, TContext = Record<string, unkn
   params?: Record<string, unknown>;
   readonly?: boolean;
   locale?: string;
+  /** The host's color theme, light by default. Update it when the host switches. */
+  theme?: ComponentTheme;
 }
 
 /** Short-lived platform token. `expires` is in epoch seconds. */

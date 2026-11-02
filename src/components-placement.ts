@@ -14,7 +14,7 @@ export interface PlacedFrame {
 const IN_FLOW: Record<string, string> = {
   display: 'block', position: 'static', inset: 'auto', margin: '0', padding: '0', border: '0',
   width: '100%', height: '100%', 'max-width': 'none', 'max-height': 'none', overflow: 'visible',
-  background: 'transparent', 'color-scheme': 'normal', 'z-index': 'auto',
+  background: 'transparent', 'z-index': 'auto',
 };
 // The z-index only matters without the Popover API: the top layer is above every z-index
 const COVER: Record<string, string> = { position: 'fixed', inset: '0px', width: '100vw', height: '100vh', 'z-index': '2147483647' };

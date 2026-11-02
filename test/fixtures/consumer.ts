@@ -61,7 +61,12 @@ async function requestContext(env: SwellHeadersEnv) {
   requireStoreUser(headers);
 }
 async function webhookRequest(env: SwellHeadersEnv, body: string | Uint8Array) {
-  const options: VerifySwellWebhookOptions = { env, appId: 'app' };
+  const options: VerifySwellWebhookOptions = { env, appId: 'app', url: 'https://example.com/hooks/orders' };
+  // @ts-expect-error the address the webhook is set to is required
+  await verifySwellWebhook(headers, body, { env, appId: 'app' });
+  // @ts-expect-error the options are required
+  await verifySwellWebhook(headers, body);
+  await verifySwellWebhook(headers, body, { appId: 'app', url: new URL('https://example.com/hooks/orders') });
   const webhook: SwellWebhook = await verifySwellWebhook(headers, body, options);
   const eventId: string | undefined = webhook.eventId;
   // @ts-expect-error the verified webhook is immutable
