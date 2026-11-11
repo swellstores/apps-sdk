@@ -96,6 +96,41 @@ const CONFINED_PAGE = `<!doctype html>
 </script>
 </body></html>`;
 
+// One component with the host's UI kit config; ?component=Name picks it
+const UI_PAGE = `<!doctype html>
+<html><head><meta charset="utf-8"><title>UI kit host</title></head>
+<body style="margin:0"><div id="slot"></div>
+<script type="module">
+  import { createComponents } from '/dist/components.js';
+  const components = createComponents({ storeId: 'demo', publicKey: 'pk_test', url: location.origin });
+  window.errors = [];
+  window.handle = components.mount('#slot', { app: 'demo', component: new URLSearchParams(location.search).get('component'), ui: { config: { accent: 'rgb(1, 2, 3)' } } });
+  handle.on('error', error => errors.push(error.message));
+  await handle.ready;
+  window.mounted = true;
+</script>
+</body></html>`;
+
+// A stand-in for Swell UI: a module that defines SwellUI and styles the frame from its config
+const UI_KIT = `
+let config = {};
+globalThis.SwellUI = {
+  version: '0.0.0-test',
+  configure(next) { config = next; document.documentElement.style.setProperty('--ui-accent', next.accent); },
+  getConfig() { return config; },
+};
+`;
+// Uses the kit: shows the accent it sees at its first render, and counts its mounts
+const KIT_BUNDLE = `
+export function mount(root) {
+  window.mounts = (window.mounts ?? 0) + 1;
+  root.innerHTML = '<p id="accent" style="color: var(--ui-accent, rgb(0, 0, 0))"></p>';
+  root.querySelector('#accent').textContent = getComputedStyle(root.querySelector('#accent')).color;
+}
+export function update() {}
+export function unmount(root) { root.innerHTML = ''; }
+`;
+
 const ECHO_BUNDLE = `
 export function mount(root, props) {
   root.innerHTML = '<input id="value"><span id="info"></span><div id="grow"></div><button id="modal">modal</button>';
@@ -156,7 +191,11 @@ export function mount(root, props) {
 export function update() {}
 export function unmount() {}
 `;
-const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, Empty: EMPTY_BUNDLE, ...FOCUS_BUNDLES };
+const BUNDLES = { Echo: ECHO_BUNDLE, Paragraphs: PARAGRAPHS_BUNDLE, Empty: EMPTY_BUNDLE, Kit: KIT_BUNDLE, KitBroken: KIT_BUNDLE, ...FOCUS_BUNDLES };
+// Components whose config has ui: true, with the kit URL the platform answers for them: on another origin than the
+// frame, as the platform serves it, or a URL that fails
+const UI_URLS = { Kit: () => `${hostOrigin}/ui/v1/index.js`, KitBroken: () => `${hostOrigin}/ui/v1/missing.js` };
+const kitRequests = [];
 
 let frameOrigin = '';
 const hostServer = createServer(async (req, res) => {
@@ -165,6 +204,12 @@ const hostServer = createServer(async (req, res) => {
   if (pathname === '/focus') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(FOCUS_PAGE);
   if (pathname === '/modal') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(MODAL_PAGE);
   if (pathname === '/confined') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(CONFINED_PAGE);
+  if (pathname === '/ui') return res.writeHead(200, { 'Content-Type': 'text/html' }).end(UI_PAGE);
+  if (pathname.startsWith('/ui/')) {
+    kitRequests.push(pathname);
+    if (pathname !== '/ui/v1/index.js') return res.writeHead(404, { 'Access-Control-Allow-Origin': '*' }).end();
+    return res.writeHead(200, { 'Content-Type': 'text/javascript', 'Access-Control-Allow-Origin': '*' }).end(UI_KIT);
+  }
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
   if (pathname === '/api/apps/demo/components') {
     if (req.headers.authorization !== `Basic ${Buffer.from('pk_test').toString('base64')}`) return res.writeHead(401).end();
@@ -183,7 +228,7 @@ const frameServer = createServer(async (req, res) => {
   const { pathname } = new URL(req.url, 'http://frame');
   // As the platform answers on an app origin: the SDK's shell page, the bundle URL next to it, and the SDK runtime
   const name = /^\/\.swell\/components\/(\w+)(\.json)?$/.exec(pathname);
-  if (name?.[2]) return Object.hasOwn(BUNDLES, name[1]) ? json(res, { bundleUrl: `/bundle/${name[1]}.js` }) : res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"error":"Component not found"}');
+  if (name?.[2]) return Object.hasOwn(BUNDLES, name[1]) ? json(res, { bundleUrl: `/bundle/${name[1]}.js`, ...(UI_URLS[name[1]] && { ui: { url: UI_URLS[name[1]]() } }) }) : res.writeHead(404, { 'Content-Type': 'application/json' }).end('{"error":"Component not found"}');
   if (name) return res.writeHead(200, { 'Content-Type': 'text/html' }).end(await readFile(resolve(dist, 'component-frame.html')));
   if (pathname.startsWith('/.swell/sdk/')) return sendDist(res, pathname.replace('/.swell/sdk/', '/dist/'));
   if (pathname.startsWith('/dist/')) return sendDist(res, pathname);
@@ -421,6 +466,51 @@ async function emptyOverlayCase() {
   });
 }
 
+async function uiCases() {
+  const open = async (component) => {
+    const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
+    page.on('pageerror', error => pageErrors.push(error));
+    await page.goto(`${hostOrigin}/ui?component=${component}`);
+    await page.waitForFunction(() => window.mounted === true, null, { timeout: 15000 });
+    return { page, frame: page.frames().find(item => item.url().startsWith(frameOrigin)) };
+  };
+  // The kit is configured with the host's config before the component's first render, and restyles live on update
+  await attempt(async () => {
+    const { page, frame } = await open('Kit');
+    try {
+      assert.equal(await frame.locator('#accent').textContent(), 'rgb(1, 2, 3)', 'the component rendered before the kit was configured');
+      assert.deepEqual(await frame.evaluate(() => SwellUI.getConfig()), { accent: 'rgb(1, 2, 3)' });
+      await page.evaluate(() => handle.update({ ui: { config: { accent: 'rgb(4, 5, 6)' } } }));
+      await frame.waitForFunction(() => getComputedStyle(document.querySelector('#accent')).color === 'rgb(4, 5, 6)');
+      assert.equal(await frame.evaluate(() => window.mounts), 1, 'a ui update remounted the component');
+      assert.deepEqual(await page.evaluate(() => errors), []);
+    } finally {
+      await page.close();
+    }
+  });
+  // A component without ui never requests the kit, even from a host that sends a config
+  await attempt(async () => {
+    kitRequests.length = 0;
+    const { page } = await open('Echo');
+    try {
+      assert.deepEqual(kitRequests, [], 'a component without ui requested the kit');
+    } finally {
+      await page.close();
+    }
+  });
+  // A kit that fails to load: the component mounts without it, and the host gets an error
+  await attempt(async () => {
+    const { page, frame } = await open('KitBroken');
+    try {
+      assert.equal(await frame.locator('#accent').textContent(), 'rgb(0, 0, 0)');
+      await page.waitForFunction(() => errors.length > 0);
+      assert.match((await page.evaluate(() => errors))[0], /^Swell UI failed to load: /);
+    } finally {
+      await page.close();
+    }
+  });
+}
+
 const hostOrigin = `http://localhost:${await listen(hostServer)}`;
 frameOrigin = `http://127.0.0.1:${await listen(frameServer)}`;
 const browser = await chromium.launch();
@@ -467,6 +557,7 @@ try {
   await focusCases();
   await confinedOverlayCase();
   await emptyOverlayCase();
+  await uiCases();
   assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);
 
   // The token goes to the frame origin only.

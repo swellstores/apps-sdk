@@ -772,8 +772,9 @@ test('a client handle focuses its component once the frame is embedded', async (
 
 const HOST_PROPS = { value: 'red', context: { id: 'r1' }, params: { max: 3 }, settings: { theme: 'dark' }, locale: 'en', readonly: false };
 
-// bundleUrl: null starts the frame without one, as the platform shell does; fetch stands in for the frame's own
-function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/picker.js', fetch } = {}) {
+// bundleUrl: null starts the frame without one, as the platform shell does; fetch stands in for the frame's own.
+// modules: other URLs the frame imports, each a function of the frame window that returns the module or throws.
+function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/picker.js', fetch, modules = {} } = {}) {
   const win = new Window({ url: `${FRAME}/.swell/components/Picker?${search ?? `v=abc&parent=${encodeURIComponent(HOST)}&channel=c1`}` });
   t.after(() => win.happyDOM.close());
   const posted = [];
@@ -788,7 +789,13 @@ function startFrame(t, { module, search, gate, bundleUrl = 'https://cdn.test/pic
   if (fetch) win.fetch = fetch;
   startComponentFrame({
     ...(bundleUrl === null ? {} : { bundleUrl }), window: win, parent,
-    importModule: async url => { imported.push(url); await gate; if (component instanceof Error) throw component; return component; },
+    importModule: async (url) => {
+      imported.push(url);
+      if (Object.hasOwn(modules, url)) return modules[url](win);
+      await gate;
+      if (component instanceof Error) throw component;
+      return component;
+    },
   });
   const send = (message, { origin = HOST, source = parent, channel = 'c1' } = {}) =>
     win.dispatchEvent(new win.MessageEvent('message', { data: wrap(channel, message), origin, source }));
@@ -917,6 +924,91 @@ test("host keeps the frame element's color scheme for a frame runtime that appli
 
   handle.update({ theme: 'light' });
   assert.equal(iframe.style.colorScheme, 'normal');
+});
+
+test('host sends its UI kit config in init and forwards ui updates', async (t) => {
+  const { handle, sent, receive } = embed(t, { ui: { config: { accent: 'red' } } });
+  receive({ type: 'hello', themes: true });
+  await tick();
+  assert.deepEqual(sent[0].message.props.ui, { config: { accent: 'red' } });
+
+  handle.update({ ui: { config: { accent: 'blue' } } });
+  assert.equal(sent.at(-1).message.type, 'update');
+  assert.deepEqual(sent.at(-1).message.props, { ui: { config: { accent: 'blue' } } });
+});
+
+test('a host without a UI kit config sends no ui field', async (t) => {
+  const { handle, sent, receive } = embed(t);
+  receive({ type: 'hello', themes: true });
+  await tick();
+  assert.equal('ui' in sent[0].message.props, false);
+  handle.update({ value: 'blue' });
+  assert.equal('ui' in sent.at(-1).message.props, false);
+});
+
+const KIT_URL = 'https://ui.test/v1/index.js';
+const platform = answer => async () => Response.json({ bundleUrl: 'https://cdn.test/picker.js', ...answer });
+// A stand-in for the kit module: importing it defines SwellUI on the frame window, logging into `log`
+const fakeKit = log => (win) => {
+  let config = {};
+  win.SwellUI = { version: 'test', configure(next) { config = next; log.push(['configure', next]); }, getConfig: () => config };
+  return {};
+};
+
+test('a frame whose component uses the UI kit imports it at start and configures it before the first render', async (t) => {
+  const log = [];
+  const module = {
+    mount(root, props) { log.push(['mount', props.ui]); },
+    update(root, props) { log.push(['update', props.ui]); },
+    unmount() {},
+  };
+  const { send, imported, types } = startFrame(t, { bundleUrl: null, module, fetch: platform({ ui: { url: KIT_URL } }), modules: { [KIT_URL]: fakeKit(log) } });
+  await flush();
+  // Requested before the host's init
+  assert.deepEqual(imported, [KIT_URL]);
+  send({ type: 'init', props: { ...HOST_PROPS, ui: { config: { accent: 'red' } } }, token: null });
+  await flush();
+  assert.deepEqual(log, [['configure', { accent: 'red' }], ['mount', { config: { accent: 'red' } }]]);
+  assert.equal(types().filter(type => type === 'ready').length, 1);
+
+  send({ type: 'update', props: { ui: { config: { accent: 'blue' } } } });
+  await flush();
+  assert.deepEqual(log.slice(2), [['configure', { accent: 'blue' }], ['update', { config: { accent: 'blue' } }]]);
+  assert.ok(!types().includes('error'));
+});
+
+test('a frame leaves the UI kit on its defaults when the host sends no config', async (t) => {
+  const log = [];
+  const { send, win, types } = startFrame(t, { bundleUrl: null, fetch: platform({ ui: { url: KIT_URL } }), modules: { [KIT_URL]: fakeKit(log) } });
+  send({ type: 'init', props: HOST_PROPS, token: null });
+  await flush();
+  assert.equal(typeof win.SwellUI.configure, 'function');
+  assert.deepEqual(log, []);
+  assert.ok(types().includes('ready'));
+});
+
+test('a frame whose component does not use the UI kit never imports it', async (t) => {
+  const { send, imported, win, types } = startFrame(t, { bundleUrl: null, fetch: platform({}) });
+  send({ type: 'init', props: { ...HOST_PROPS, ui: { config: { accent: 'red' } } }, token: null });
+  await flush();
+  assert.deepEqual(imported, ['https://cdn.test/picker.js']);
+  assert.equal(win.SwellUI, undefined);
+  assert.ok(types().includes('ready'));
+});
+
+test('a UI kit that fails to load still mounts the component, then reports the error', async (t) => {
+  for (const [kit, message] of [
+    [() => { throw new Error('404 kit'); }, 'Swell UI failed to load: 404 kit'],
+    [() => ({}), 'Swell UI failed to load: the module defines no SwellUI'],
+  ]) {
+    const { send, calls, posted, types } = startFrame(t, { bundleUrl: null, fetch: platform({ ui: { url: KIT_URL } }), modules: { [KIT_URL]: kit } });
+    send({ type: 'init', props: { ...HOST_PROPS, ui: { config: { accent: 'red' } } }, token: null });
+    await flush();
+    assert.equal(calls[0][0], 'mount');
+    // After ready, so the host keeps the component usable
+    assert.deepEqual(types().filter(type => type === 'ready' || type === 'error'), ['ready', 'error']);
+    assert.equal(posted.find(({ message: item }) => item.type === 'error').message.message, message);
+  }
 });
 
 test('component props send values and validity to the host', async (t) => {

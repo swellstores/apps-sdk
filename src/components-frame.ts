@@ -7,7 +7,8 @@ export interface FrameOptions {
   /**
    * URL of the component bundle: an ES module exporting mount, update and unmount. Relative URLs resolve against the
    * frame page. Without it the frame asks the platform: `<page path>.json` answers `{ bundleUrl }` for the build the
-   * installation runs, as the platform's shell page (`component-frame.html`) expects.
+   * installation runs, as the platform's shell page (`component-frame.html`) expects, and `ui: { url }` when the
+   * component uses the host's UI kit.
    */
   bundleUrl?: string;
   /** Render target. Defaults to #root, created when missing. */
@@ -16,7 +17,7 @@ export interface FrameOptions {
   window?: Window & typeof globalThis;
   /** @internal Test seam: the host window. Defaults to window.parent. */
   parent?: Pick<Window, 'postMessage'>;
-  /** @internal Test seam: loads the bundle. */
+  /** @internal Test seam: loads the bundle and the UI kit. */
   importModule?: (url: string) => Promise<unknown>;
 }
 
@@ -30,14 +31,26 @@ function isModule(value: unknown): value is ComponentModule {
 
 const errorMessage = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
+/** The UI kit module defines this global. */
+interface SwellUI {
+  configure(config: Record<string, unknown>): void;
+}
+
+interface FrameMeta {
+  bundleUrl: string;
+  /** The UI kit module, for a component that uses it */
+  uiUrl?: string;
+}
+
 // Only the platform knows which build the installation runs, so it answers next to the shell page
-async function fetchBundleUrl(win: Window & typeof globalThis): Promise<string> {
+async function fetchMeta(win: Window & typeof globalThis): Promise<FrameMeta> {
   const response = await win.fetch(new URL(`${win.location.pathname}.json`, win.location.href).href, { headers: { Accept: 'application/json' } });
   if (response.status === 404) throw new Error('Component not found');
   if (!response.ok) throw new Error(`Component metadata failed (${response.status})`);
-  const { bundleUrl } = (await response.json()) as { bundleUrl?: unknown };
+  const { bundleUrl, ui } = (await response.json()) as { bundleUrl?: unknown; ui?: { url?: unknown } };
   if (typeof bundleUrl !== 'string' || !bundleUrl) throw new Error('Component metadata has no bundle URL');
-  return new URL(bundleUrl, win.location.href).href;
+  const uiUrl = typeof ui?.url === 'string' && ui.url ? new URL(ui.url, win.location.href).href : undefined;
+  return { bundleUrl: new URL(bundleUrl, win.location.href).href, uiUrl };
 }
 
 /** Runs inside the component frame: connects to the host page and renders the component bundle. */
@@ -49,10 +62,19 @@ export function startComponentFrame(options: FrameOptions = {}): void {
   const channel = params.get('channel');
   if (!parentOrigin || !channel || parent === win) throw new Error('App component frames must be embedded by a Swell host');
   // Asked right away, so the answer arrives while the host handshake runs; a failure is reported when the bundle loads
-  const bundleUrl = options.bundleUrl !== undefined
-    ? Promise.resolve(new URL(options.bundleUrl, win.location.href).href)
-    : fetchBundleUrl(win);
-  bundleUrl.catch(() => {});
+  const meta = options.bundleUrl !== undefined
+    ? Promise.resolve<FrameMeta>({ bundleUrl: new URL(options.bundleUrl, win.location.href).href })
+    : fetchMeta(win);
+  meta.catch(() => {});
+  const importModule = options.importModule ?? ((url: string) => import(/* webpackIgnore: true */ /* @vite-ignore */ url));
+  // The UI kit loads alongside the host handshake and the bundle. It resolves to the kit, or to null when the
+  // component does not use it; it rejects when the kit fails, and the component then mounts without it.
+  const kit = meta.then(({ uiUrl }) => uiUrl ? importModule(uiUrl).then(() => {
+    const ui = (win as { SwellUI?: Partial<SwellUI> }).SwellUI;
+    if (typeof ui?.configure !== 'function') throw new Error('the module defines no SwellUI');
+    return ui as SwellUI;
+  }) : null, () => null);
+  kit.catch(() => {});
   const document = win.document;
   const style = document.createElement('style');
   style.textContent = BASE_STYLE;
@@ -78,12 +100,13 @@ export function startComponentFrame(options: FrameOptions = {}): void {
     win.history.replaceState(win.history.state, '', url.href);
   };
   showTheme(params.get('theme') === 'dark' ? 'dark' : 'light');
-  const importModule = options.importModule ?? ((url: string) => import(/* webpackIgnore: true */ /* @vite-ignore */ url));
 
   let props: WireProps | null = null;
   let token: string | null = null;
   let module: ComponentModule | null = null;
   let mounting: Promise<void> | null = null;
+  // The loaded UI kit, set before the first render
+  let ui: SwellUI | null = null;
   let overlay = false;
   let lastHeight = -1;
   let scheduled = 0;
@@ -212,22 +235,37 @@ export function startComponentFrame(options: FrameOptions = {}): void {
 
   // One import per frame: an init that arrives while the bundle loads waits for the same import
   const loadModule = () => {
-    loading ??= bundleUrl.then(importModule).then((loaded) => {
+    loading ??= meta.then(({ bundleUrl }) => importModule(bundleUrl)).then((loaded) => {
       if (!isModule(loaded)) throw new Error('Component bundle must export mount, update and unmount');
       return loaded;
     });
     return loading;
   };
 
-  // Mounts with the latest props (updates may arrive while the bundle loads) and reports ready once mount resolves
+  // Without a host config the kit keeps its defaults
+  const configureUi = () => {
+    const config = props?.ui?.config;
+    if (ui && config) ui.configure(config);
+  };
+
+  // Mounts with the latest props (updates may arrive while the bundle loads) and reports ready once mount resolves.
+  // A kit that fails is reported after ready: the component works without it, and the host keeps it usable.
   async function mount() {
     const loaded = await loadModule();
+    let uiError: unknown = null;
+    try {
+      ui = await kit;
+      configureUi();
+    } catch (error) {
+      uiError = error;
+    }
     const mountedProps = props;
     await loaded.mount(target, componentProps());
     module = loaded;
     if (props !== mountedProps) await loaded.update(target, componentProps());
     post({ type: 'ready' });
     reportHeight();
+    if (uiError) post({ type: 'error', message: `Swell UI failed to load: ${errorMessage(uiError)}` });
   }
 
   async function handle(message: HostMessage) {
@@ -256,6 +294,8 @@ export function startComponentFrame(options: FrameOptions = {}): void {
         if (!props) return;
         props = { ...props, ...message.props };
         applyTheme();
+        // The kit restyles live; the component re-renders with the new props as for any update
+        if ('ui' in message.props) configureUi();
         await module?.update(target, componentProps());
         return;
       case 'token':
