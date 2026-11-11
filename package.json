@@ -22,7 +22,7 @@
     "verify": "npm test && npm run typecheck && npm run test:package && npm run test:boundaries && npm run test:worker"
   },
   "peerDependencies": {
-    "swell-js": ">=5.10.0"
+    "swell-js": ">=5.9.4"
   },
   "devDependencies": {
     "esbuild": "0.24.2",
