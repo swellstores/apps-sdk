@@ -176,7 +176,7 @@ export const config = { ui: true };
   ```
 
 - A component that needs elements defined, for example to call their methods, awaits `SwellUI.ready()` (every kit element on the page now) or `SwellUI.ready(['swell-input'])`. It rejects when an element cannot load.
-- The types come from `@swell/swell-ui`, which declares the global `SwellUI`, and `@swell/swell-ui/preact`, which types the elements in Preact's JSX. Add both to `compilerOptions.types` in `tsconfig.json`. The platform loads the kit's code, so a component imports the kit only as types: the Swell CLI leaves a value import of `@swell/swell-ui` out of the bundle and warns.
+- The types come from `@swell/swell-ui`, which declares the global `SwellUI`, and `@swell/swell-ui/preact`, which types the elements in Preact's JSX. Install the package as a dev dependency, `npm install -D @swell/swell-ui`, and add both to `compilerOptions.types` in `tsconfig.json`. The platform loads the kit's code, so a component imports the kit only as types: the Swell CLI leaves a value import of `@swell/swell-ui` out of the bundle and warns.
 - Before the first render the frame calls `SwellUI.configure(config)` with the config the host passed as `ui.config`; without one the kit keeps its defaults. When the host updates `ui`, the frame configures the kit again and the kit restyles in place; the component re-renders as for any update.
 - When the kit fails to load, the component still mounts without it and reports ready, and then the frame reports the error, which reaches the host's `error` listeners. The component keeps working, including `emit`.
 - A component without `ui: true` never loads the kit.
