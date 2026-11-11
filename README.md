@@ -163,11 +163,20 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 A component that sets `ui: true` in its `config` gets the host's UI kit, Swell UI, configured like the host's, so its controls look like the host page:
 
 ```tsx
-// The kit's <swell-*> elements and the global SwellUI are ready at the first render
+// The global SwellUI is ready at the first render; each <swell-*> element loads when its tag first appears
 export const config = { ui: true };
 ```
 
-- The platform answers the frame's `<page>.json` with `ui: { url }` for such a component, and the frame imports that kit module alongside the component bundle, without waiting for the host.
+- The platform answers the frame's `<page>.json` with `ui: { url }` for such a component, and the frame imports the kit's loader from it alongside the component bundle, without waiting for the host.
+- The loader watches the frame's document: each kit element loads on the first use of its tag, and until then it is hidden and keeps its place in the layout.
+- A component that renders kit elements inside a shadow root of its own passes that root to the loader, which then watches it as it watches the document:
+
+  ```ts
+  SwellUI.load(shadowRoot);
+  ```
+
+- A component that needs elements defined, for example to call their methods, awaits `SwellUI.ready()` (every kit element on the page now) or `SwellUI.ready(['swell-input'])`. It rejects when an element cannot load.
+- The types come from `@swell/swell-ui`, which declares the global `SwellUI`, and `@swell/swell-ui/preact`, which types the elements in Preact's JSX. Add both to `compilerOptions.types` in `tsconfig.json`. The platform loads the kit's code, so a component imports the kit only as types: the Swell CLI leaves a value import of `@swell/swell-ui` out of the bundle and warns.
 - Before the first render the frame calls `SwellUI.configure(config)` with the config the host passed as `ui.config`; without one the kit keeps its defaults. When the host updates `ui`, the frame configures the kit again and the kit restyles in place; the component re-renders as for any update.
 - When the kit fails to load, the component still mounts without it and reports ready, and then the frame reports the error, which reaches the host's `error` listeners. The component keeps working, including `emit`.
 - A component without `ui: true` never loads the kit.
