@@ -41,9 +41,9 @@ export interface ComponentProps<TValue = unknown, TContext = Record<string, unkn
 
 export type ComponentTheme = 'light' | 'dark';
 
-/** The host's UI kit settings. `config` is the kit config the host runs with, passed to `SwellUI.configure`. */
+/** The host's UI kit settings. `config` is the kit config the host runs with, a plain structured-cloneable object passed to `SwellUI.configure`. */
 export interface ComponentUi {
-  readonly config?: Readonly<Record<string, unknown>>;
+  readonly config?: Readonly<object>;
 }
 
 /** Optional static metadata a component file exports as `config`. */
@@ -74,8 +74,8 @@ export interface ComponentInput<TValue = unknown, TContext = Record<string, unkn
   locale?: string;
   /** The host's color theme, light by default. Update it when the host switches. */
   theme?: ComponentTheme;
-  /** The host's UI kit config, applied in the frames of components that use the kit. Update it when it changes. */
-  ui?: { config?: Record<string, unknown> };
+  /** The host's UI kit config, a plain structured-cloneable object, applied in the frames of components that use the kit. Update it when it changes. */
+  ui?: { config?: object };
 }
 
 /** Short-lived platform token. `expires` is in epoch seconds. */

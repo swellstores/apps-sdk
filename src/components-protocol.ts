@@ -24,7 +24,7 @@ export interface WireProps {
   readonly: boolean;
   theme: 'light' | 'dark';
   // Optional: a host before the UI kit sends none
-  ui?: { config?: Record<string, unknown> };
+  ui?: { config?: object };
 }
 
 export type HostMessage =

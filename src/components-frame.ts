@@ -33,7 +33,7 @@ const errorMessage = (error: unknown) => (error instanceof Error ? error.message
 
 /** The UI kit module defines this global. */
 interface SwellUI {
-  configure(config: Record<string, unknown>): void;
+  configure(config: object): void;
 }
 
 interface FrameMeta {
