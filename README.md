@@ -10,7 +10,7 @@ applications, use [`swell-js`](https://github.com/swellstores/swell-js).
 ## Installation
 
 ```sh
-npm install @swell/apps-sdk@next swell-js@^5.9.2
+npm install @swell/apps-sdk swell-js@^5.9.4
 ```
 
 Supports Node.js 22.22.2+ and Cloudflare Workers, with no Node compatibility flags
@@ -340,6 +340,10 @@ Omit `cookies.set` for read-only access. Attempted writes then throw, including 
 rotation during GET requests. A supplied writer may throw or skip a write; after a skip,
 its reader must still report the actual state. Writer return values are ignored.
 Persist cookies in writable route handlers or actions.
+
+Let the reader return every Swell cookie, `swell-visitor` included: swell-js sends it
+as `X-Visitor`, so a cart created on the server keeps its ad attribution. Record consent
+with `swell.consent.set()` from the browser's swell-js; on the server it rejects.
 
 For API response caching, replace `storefront.request` before first use. The SDK
 leaves response caching to your application.
