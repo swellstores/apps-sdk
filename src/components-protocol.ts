@@ -23,6 +23,8 @@ export interface WireProps {
   locale: string;
   readonly: boolean;
   theme: 'light' | 'dark';
+  // Optional: a host before the UI kit sends none
+  ui?: { config?: object };
 }
 
 export type HostMessage =

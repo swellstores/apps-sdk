@@ -53,7 +53,7 @@ const RETRY_MS = 10_000;
 const MAX_RETRY_MS = 5 * 60_000;
 const MAX_TIMEOUT = 2 ** 31 - 1;
 const START_MS = 10_000;
-const INPUT_KEYS = ['value', 'context', 'params', 'readonly', 'locale', 'theme'] as const;
+const INPUT_KEYS = ['value', 'context', 'params', 'readonly', 'locale', 'theme', 'ui'] as const;
 
 export const toError = (error: unknown) => (error instanceof Error ? error : new Error(String(error)));
 
@@ -125,6 +125,7 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
     value: options.value, context: options.context ?? {}, params: options.params ?? {},
     settings: options.settings ?? {}, locale: options.locale ?? 'en', readonly: options.readonly ?? false,
     theme: toTheme(options.theme),
+    ...(options.ui !== undefined && { ui: options.ui }),
   };
   // The frame shows the theme from its start, before the host's init reaches it
   url.searchParams.set('theme', props.theme);

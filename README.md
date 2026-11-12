@@ -152,10 +152,34 @@ export default function ColorPicker({ value, setValue, readonly }: ComponentProp
 | `settings` | The app's public settings |
 | `locale`, `readonly` | Display locale and read-only state |
 | `theme` | The host's color theme, `'light'` or `'dark'`, re-rendered when it changes. The frame sets it as `data-theme` and `color-scheme` on its root from its start, so CSS can follow it with `:root[data-theme="dark"]` |
+| `ui` | The host's UI kit settings (`{ config }`), for a component that uses the kit (see [Using the host's UI kit](#using-the-hosts-ui-kit)) |
 | `setValidity(error)` | Report a validation error, or `null` when valid |
 | `fetch` | Like `fetch`, but requests to the app's own origin (app functions, `/app-api`) carry a platform token when the host provides one, so they receive a verified `Swell-Context` with `surface` |
 | `call(name, data)` | Calls a host action and resolves with its result; payment components get `createIntent` and `getIntent` |
 | `on(event, handler)` | Handle a host event. Returns a function that removes the handler. Every handler of the event runs, in the order registered, each after the previous one settles; the first error thrown answers the host's `emit`, otherwise the last result other than `undefined` does. A handler registered again, as an effect does on a re-render, moves to the end, so keep steps that depend on each other in one handler. One removed while the event runs is skipped, and one registered meanwhile runs from the next event |
+
+### Using the host's UI kit
+
+A component that sets `ui: true` in its `config` gets the host's UI kit, Swell UI, configured like the host's, so its controls look like the host page:
+
+```tsx
+// The global SwellUI is ready at the first render; each <swell-*> element loads when its tag first appears
+export const config = { ui: true };
+```
+
+- The platform answers the frame's `<page>.json` with `ui: { url }` for such a component, and the frame imports the kit's loader from it alongside the component bundle, without waiting for the host.
+- The loader watches the frame's document: each kit element loads on the first use of its tag, and until then it is hidden and keeps its place in the layout.
+- A component that renders kit elements inside a shadow root of its own passes that root to the loader, which then watches it as it watches the document:
+
+  ```ts
+  SwellUI.load(shadowRoot);
+  ```
+
+- A component that needs elements defined, for example to call their methods, awaits `SwellUI.ready()` (every kit element on the page now) or `SwellUI.ready(['swell-input'])`. It rejects when an element cannot load.
+- The types come from `@swell/swell-ui`, which declares the global `SwellUI`, and `@swell/swell-ui/preact`, which types the elements in Preact's JSX. Install the package as a dev dependency, `npm install -D @swell/swell-ui`, and add both to `compilerOptions.types` in `tsconfig.json`. The platform loads the kit's code, so a component imports the kit only as types: the Swell CLI leaves a value import of `@swell/swell-ui` out of the bundle and warns.
+- Before the first render the frame calls `SwellUI.configure(config)` with the config the host passed as `ui.config`; without one the kit keeps its defaults. When the host updates `ui`, the frame configures the kit again and the kit restyles in place; the component re-renders as for any update.
+- When the kit fails to load, the component still mounts without it and reports ready, and then the frame reports the error, which reaches the host's `error` listeners. The component keeps working, including `emit`.
+- A component without `ui: true` never loads the kit.
 
 ### Payment components
 
@@ -217,10 +241,12 @@ badge.unmount();
 | --- | --- |
 | `ready` | Resolves when the component has mounted in its frame. Rejects when the app or component cannot be loaded, when the frame page does not start within 10 seconds of loading, when the props cannot be sent, or when you unmount first |
 | `on(event, handler)` | Listen to `change` (new value), `validity` (error or `null`) and `error` (load, start, token and component failures, including the ones that reject `ready`). Returns a function that removes the listener; other event names are ignored |
-| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly`, `locale` or `theme`. Updates made before the component list loads are kept |
+| `update(input)` | Re-render with new `value`, `context`, `params`, `readonly`, `locale`, `theme` or `ui`. Updates made before the component list loads are kept |
 | `emit(event, data)` | Waits for `ready`, then resolves with the last result other than `undefined` of the component's `on` handlers for the event, or rejects with the first error one throws |
 | `focus()` | Moves keyboard focus to the component's first control, for example when your form focuses its first invalid field. During overlay, to the component's modal |
 | `unmount()` | Removes the frame. Before the component list loads, it cancels the mount; `ready` and pending `emit` calls reject |
+
+Pass `ui: { config }` to `mount` with the config your page gives Swell UI (a plain, structured-cloneable object), and update it when it changes. Components that use the kit apply it in their frames; others ignore it.
 
 Pass `actions` to `mount` to offer host actions that components reach with `call(name, data)`. Payment components also get built-in `createIntent` and `getIntent`, served by the Swell vault at `vaultUrl` (default `https://vault.schema.io`). Set `vaultUrl` in `createComponents` to use another vault.
 
@@ -248,7 +274,7 @@ methods.on('validity', (error) => { /* … */ });
 const results = await methods.emit('submit', { billing });
 ```
 
-The handle has `ready`, `components` (the mounted components), `on('validity' | 'error')`, `update` (context, params, readonly and locale; a place has no bound value), `emit`, `focus` and `unmount`. `emit` waits for `ready` and resolves with an array, one result per component that handled the event.
+The handle has `ready`, `components` (the mounted components), `on('validity' | 'error')`, `update` (context, params, readonly, locale, theme and ui; a place has no bound value), `emit`, `focus` and `unmount`. `emit` waits for `ready` and resolves with an array, one result per component that handled the event.
 
 The platform returns every component of the store's active installed apps that declares the target; the host decides which of them to mount. `select` is called once for each of them before any frame is created, with its `name`, `app` (the app id), `targets` and `extension` (`id` and `type`), but not the app settings. It returns `true` for the components to mount; without `select` the place mounts all of them. A `select` that throws fails the place like a failed load: `ready` rejects, `error` fires, and no frames are created. `select` is fixed at mount; remount the place to change the method.
 
