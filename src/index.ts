@@ -1,8 +1,8 @@
 import './guard.js';
 export { getStorefrontConfig } from './context.js';
 export type { HeaderReader } from './context.js';
-export { verifySwellContext } from './request-context.js';
-export type { SwellRequestContext, SwellHeadersEnv, SwellSurface, VerifySwellContextOptions } from './request-context.js';
+export { isStorefrontRequest, verifySwellContext } from './request-context.js';
+export type { SwellRequestContext, SwellHeadersEnv, SwellStorefrontMode, SwellSurface, VerifySwellContextOptions } from './request-context.js';
 export { verifySwellWebhook } from './webhook.js';
 export type { SwellWebhook, VerifySwellWebhookOptions } from './webhook.js';
 export { SwellBackendAPI } from './backend.js';
