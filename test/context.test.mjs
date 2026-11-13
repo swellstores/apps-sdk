@@ -262,3 +262,13 @@ test('storefront claims (host, account, mode) are exposed when present and valid
     await assert.rejects(resolve({ surface: 'storefront', storefront_id: 'sf1', ...bad }), invalid, JSON.stringify(bad));
   }
 });
+
+test('storefront client_ip is exposed as clientIp when it is an address, and refused otherwise', async () => {
+  const { resolve } = fixture();
+  const base = { surface: 'storefront', storefront_id: 'sf1' };
+  assert.equal((await resolve({ ...base, client_ip: '203.0.113.7' })).clientIp, '203.0.113.7');
+  assert.equal((await resolve({ ...base, client_ip: '2001:db8::1' })).clientIp, '2001:db8::1');
+  assert.equal((await resolve({ ...base, client_ip: null })).clientIp, undefined);
+  assert.equal((await resolve(base)).clientIp, undefined);
+  for (const bad of ['', 'not an ip', 7, 'a'.repeat(60)]) await assert.rejects(resolve({ ...base, client_ip: bad }), invalid, JSON.stringify(bad));
+});
