@@ -37,6 +37,20 @@ const context = await verifySwellContext(request.headers, {
 
 When an app component makes the request, `context.surface` says where it runs: `'admin'`, `'checkout'` or `'storefront'`. Treat `'storefront'` and `'checkout'` calls like public routes; check `context.surface === 'admin'` before doing anything that only a merchant may do.
 
+### Storefront requests
+
+A storefront app block calls its app through Swell: from the page through the storefront's app proxy (`/.swell/apps/<app_id>/<path>` on the storefront's own address, forwarded to your frontend's `/app-api/storefront/<path>`), or from a block component with `props.fetch`. Either way the context says which storefront it came from, so the app needs no list of allowed origins:
+
+```ts
+import { isStorefrontRequest, verifySwellContext } from '@swell/apps-sdk';
+
+const context = await verifySwellContext(request.headers, { appId: 'my_app' });
+if (!isStorefrontRequest(context)) return new Response(null, { status: 403 });
+// context.storeId, context.storefrontId, context.storefrontHost, context.accountId, context.mode
+```
+
+`isStorefrontRequest` is true when `surface` is `'storefront'` and the context names a storefront. It proves the request came through one of the store's storefronts, not who sent it: storefront pages are public, so rate-limit these routes, and check that `accountId` (the logged-in customer, `undefined` for a visitor) owns any private data you return. `storefrontHost` is the address the shopper used, custom domains included; `mode` is `'live'`, `'preview'` or `'editor'`.
+
 In a server component, pass `await headers()`. Keep the context and clients on the
 server, scoped to the incoming request.
 

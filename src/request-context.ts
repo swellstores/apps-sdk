@@ -7,6 +7,11 @@ import type { StoreUser } from './store-user.js';
 /** Where an app component made the request from. */
 export type SwellSurface = 'admin' | 'checkout' | 'storefront';
 const SURFACES: readonly unknown[] = ['admin', 'checkout', 'storefront'];
+/** A storefront request's deployment mode. */
+export type SwellStorefrontMode = 'live' | 'preview' | 'editor';
+const MODES: readonly unknown[] = ['live', 'preview', 'editor'];
+// host[:port], lowercase: what Swell puts in storefront_host
+const HOST_RE = /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?(?::\d{1,5})?$/;
 
 export interface SwellHeadersEnv {
   SWELL_VERIFY_HEADERS?: string;
@@ -30,8 +35,14 @@ export interface SwellRequestContext {
   readonly installationId: string;
   readonly environmentId?: string;
   readonly storefrontId?: string;
-  /** Set when an app component made the request. */
+  /** Set when an app component made the request, or the storefront app proxy forwarded it ('storefront'). */
   readonly surface?: SwellSurface;
+  /** The storefront host the shopper used (custom domains included), on storefront requests. */
+  readonly storefrontHost?: string;
+  /** The logged-in customer on a storefront request. Says who is logged in, not what they may see. */
+  readonly accountId?: string;
+  /** The storefront's deployment mode on a storefront request. */
+  readonly mode?: SwellStorefrontMode;
   readonly apiHost: string;
   readonly adminUrl: string;
   readonly accessToken?: string;
@@ -103,6 +114,9 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
       if (payload[field] != null) requireString(payload[field], field);
     }
     if (payload.surface != null && !SURFACES.includes(payload.surface)) throw invalidContext();
+    if (payload.storefront_host != null && (typeof payload.storefront_host !== 'string' || !HOST_RE.test(payload.storefront_host))) throw invalidContext();
+    if (payload.account_id != null) requireString(payload.account_id, 'account_id');
+    if (payload.mode != null && !MODES.includes(payload.mode)) throw invalidContext();
     let storeUser: Readonly<StoreUser> | null = null;
     if (payload.admin !== null) {
       object(payload.admin);
@@ -115,6 +129,9 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
       environmentId: (payload.environment_id as string | null | undefined) ?? undefined,
       storefrontId: (payload.storefront_id as string | null | undefined) ?? undefined,
       surface: (payload.surface as SwellSurface | null | undefined) ?? undefined,
+      storefrontHost: (payload.storefront_host as string | null | undefined) ?? undefined,
+      accountId: (payload.account_id as string | null | undefined) ?? undefined,
+      mode: (payload.mode as SwellStorefrontMode | null | undefined) ?? undefined,
       apiHost: validateUrl(payload.api_host, 'api_host'), adminUrl: validateUrl(payload.admin_url, 'admin_url'),
       accessToken: headers.get('Swell-Access-Token') ?? undefined,
       publicKey: headers.get('Swell-Public-Key') ?? undefined,
@@ -122,4 +139,14 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
       vaultUrl, storeUser, signatureVerified: verify,
     });
   } catch { throw invalidContext(); }
+}
+
+/**
+ * True for a request a shopper's storefront page made through Swell: the storefront app proxy, or a storefront app
+ * block's component. It says which store and storefront the request came from (`storeId`, `storefrontId`,
+ * `storefrontHost`), so an app needs no list of allowed origins. It does not identify a person: treat the request as
+ * public, and check `accountId` before returning a customer's data.
+ */
+export function isStorefrontRequest(context: SwellRequestContext): boolean {
+  return context.surface === 'storefront' && typeof context.storefrontId === 'string' && context.storefrontId.length > 0;
 }

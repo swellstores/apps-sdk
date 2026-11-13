@@ -1,6 +1,6 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { verifySwellContext, requireStoreUser, getStorefrontConfig, SwellBackendAPI, SwellError } from '../dist/index.js';
+import { isStorefrontRequest, verifySwellContext, requireStoreUser, getStorefrontConfig, SwellBackendAPI, SwellError } from '../dist/index.js';
 import { createSigner } from './helpers/context.mjs';
 
 const nativeFetch = globalThis.fetch;
@@ -243,4 +243,22 @@ test('surface claim is exposed when present and rejected when unknown', async ()
   assert.equal((await resolve({ surface: null })).surface, undefined);
   await assert.rejects(resolve({ surface: 'other' }), invalid);
   await assert.rejects(resolve({ surface: 1 }), invalid);
+});
+
+test('storefront claims (host, account, mode) are exposed when present and validated; isStorefrontRequest needs the storefront surface and a storefront', async () => {
+  const { resolve } = fixture();
+  const ctx = await resolve({ surface: 'storefront', storefront_id: 'sf1', storefront_host: 'shop.example.com', account_id: 'acc1', mode: 'live' });
+  assert.deepEqual([ctx.storefrontId, ctx.storefrontHost, ctx.accountId, ctx.mode], ['sf1', 'shop.example.com', 'acc1', 'live']);
+  assert.equal(isStorefrontRequest(ctx), true);
+  const anonymous = await resolve({ surface: 'storefront', storefront_id: 'sf1', storefront_host: 'store--sf1--preview.swell.store', account_id: null, mode: 'preview' });
+  assert.equal(anonymous.accountId, undefined);
+  assert.equal(isStorefrontRequest(anonymous), true);
+  assert.equal(isStorefrontRequest(await resolve({ surface: 'storefront' })), false, 'no storefront');
+  assert.equal(isStorefrontRequest(await resolve({ surface: 'admin', storefront_id: 'sf1' })), false);
+  assert.equal(isStorefrontRequest(await resolve()), false);
+  const plain = await resolve();
+  assert.deepEqual([plain.storefrontHost, plain.accountId, plain.mode], [undefined, undefined, undefined]);
+  for (const bad of [{ storefront_host: 'Shop.Example.com' }, { storefront_host: 'https://shop.example' }, { storefront_host: 1 }, { account_id: 2 }, { account_id: '' }, { mode: 'draft' }]) {
+    await assert.rejects(resolve({ surface: 'storefront', storefront_id: 'sf1', ...bad }), invalid, JSON.stringify(bad));
+  }
 });
