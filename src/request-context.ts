@@ -12,6 +12,8 @@ export type SwellStorefrontMode = 'live' | 'preview' | 'editor';
 const MODES: readonly unknown[] = ['live', 'preview', 'editor'];
 // host[:port], lowercase: what Swell puts in storefront_host
 const HOST_RE = /^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?(?::\d{1,5})?$/;
+// An app's id as Swell writes host_app (an app slug)
+const APP_SLUG_RE = /^[a-z0-9_-]{1,64}$/;
 // An IPv4 or IPv6 address as Swell writes client_ip (shape only: the claim is signed)
 const IP_RE = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[0-9A-Fa-f:.]{2,45})$/;
 
@@ -50,6 +52,12 @@ export interface SwellRequestContext {
    * proxy the app's server only sees Swell's, so rate-limit storefront routes on this.
    */
   readonly clientIp?: string;
+  /**
+   * Set when another installed app, a storefront host such as Wave, made the call on a shopper's behalf (the app's own
+   * id). Then storeId and installationId are Swell's, but storefrontId, storefrontHost, accountId and mode are that
+   * host's assertion, checked only for consistency: trust accountId as far as you trust the host. clientIp is unset.
+   */
+  readonly hostApp?: string;
   readonly apiHost: string;
   readonly adminUrl: string;
   readonly accessToken?: string;
@@ -125,6 +133,7 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
     if (payload.account_id != null) requireString(payload.account_id, 'account_id');
     if (payload.mode != null && !MODES.includes(payload.mode)) throw invalidContext();
     if (payload.client_ip != null && (typeof payload.client_ip !== 'string' || !IP_RE.test(payload.client_ip))) throw invalidContext();
+    if (payload.host_app != null && (typeof payload.host_app !== 'string' || !APP_SLUG_RE.test(payload.host_app))) throw invalidContext();
     let storeUser: Readonly<StoreUser> | null = null;
     if (payload.admin !== null) {
       object(payload.admin);
@@ -141,6 +150,7 @@ export async function verifySwellContext(headers: HeaderReader, options: VerifyS
       accountId: (payload.account_id as string | null | undefined) ?? undefined,
       mode: (payload.mode as SwellStorefrontMode | null | undefined) ?? undefined,
       clientIp: (payload.client_ip as string | null | undefined) ?? undefined,
+      hostApp: (payload.host_app as string | null | undefined) ?? undefined,
       apiHost: validateUrl(payload.api_host, 'api_host'), adminUrl: validateUrl(payload.admin_url, 'admin_url'),
       accessToken: headers.get('Swell-Access-Token') ?? undefined,
       publicKey: headers.get('Swell-Public-Key') ?? undefined,
