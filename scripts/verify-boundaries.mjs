@@ -16,6 +16,9 @@ const fixtures = {
   storefront: `import {createStorefrontClient} from '@swell/apps-sdk/storefront'; export default {async fetch(){return Response.json(await createStorefrontClient({storeId:'s',publicKey:'k'},{cookies:{get(){}}}).products.list())}}`,
   componentsHost: `import {createComponents} from '@swell/apps-sdk/components'; export const components = createComponents({storeId:'s',publicKey:'pk'});`,
   componentsFrame: `import {startComponentFrame} from '@swell/apps-sdk/components'; startComponentFrame({bundleUrl:'https://cdn.test/c.js'});`,
+  componentsBlocks: `import {startComponentBlocks} from '@swell/apps-sdk/components'; startComponentBlocks({storeId:'s',publicKey:'pk',getToken:async()=>({token:'t',expires:0}),blocks:{},storefront:{}});`,
+  blocksInstalled: `import {readInstalledBlocks,appFrontendOrigin,blockCspSources} from '@swell/apps-sdk/blocks'; export default {fetch(){const apps=readInstalledBlocks({results:[]},{origin:(id)=>appFrontendOrigin('https://s.swell.store','s',id)});return Response.json(blockCspSources(apps))}}`,
+  blocksRegistry: `import {startBlockRegistry} from '@swell/apps-sdk/blocks'; startBlockRegistry({apps:['a'],storefront:{storeId:'s',storefrontId:'f',mode:'live'}});`,
 };
 const reports = {};
 const forbidden = /(?:node:|themes-sdk|liquid|cache-manager|keyv|lodash(?:-es)?(?:\/|$))/i;
@@ -47,6 +50,7 @@ for (const [profile, resolution] of Object.entries(profiles)) {
     // Exact same input, resolving directly to ESM as the no-require baseline.
     const baseline = await build({ ...options, alias: {
       '@swell/apps-sdk/components': join(sdk, 'dist/components.js'),
+      '@swell/apps-sdk/blocks': join(sdk, 'dist/blocks.js'),
       '@swell/apps-sdk/storefront': join(sdk, 'dist/storefront.js'),
       '@swell/apps-sdk': join(sdk, 'dist/index.js'),
     } });
@@ -69,9 +73,11 @@ for (const [entry, symbol] of [['', 'SwellBackendAPI'], ['/storefront', 'createS
 }
 await assert.rejects(build({ ...baseOptions, stdin: { contents: `import '@swell/apps-sdk/functions';`, resolveDir: fixture } }), /not exported|Could not resolve/);
 const pkg = JSON.parse(await readFile('package.json', 'utf8'));
-assert.deepEqual(Object.keys(pkg.exports).sort(), ['.', './components', './storefront']);
+assert.deepEqual(Object.keys(pkg.exports).sort(), ['.', './blocks', './components', './storefront']);
 const componentsBrowser = await build({ ...baseOptions, conditions: ['browser'], stdin: { contents: `import {createComponents} from '@swell/apps-sdk/components'; console.log(createComponents);`, resolveDir: fixture } });
 assert.ok(!/server-only/.test(componentsBrowser.outputFiles[0].text), 'Components resolved to the browser refusal');
+const blocksBrowser = await build({ ...baseOptions, conditions: ['browser'], stdin: { contents: `import {startBlockRegistry} from '@swell/apps-sdk/blocks'; console.log(startBlockRegistry);`, resolveDir: fixture } });
+assert.ok(!/server-only/.test(blocksBrowser.outputFiles[0].text), 'Blocks resolved to the browser refusal');
 assert.deepEqual(pkg.dependencies ?? {}, {});
 assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.4' });
 await writeFile(join(output, 'bundles.json'), JSON.stringify(reports, null, 2));

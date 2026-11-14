@@ -127,3 +127,19 @@ startComponentFrame({ bundleUrl: 'https://cdn.test/component.js' });
 import type { MountOptions } from '@swell/apps-sdk/components';
 // MountOptions keeps its alpha.6 meaning: the options of mounting one component by name
 function wrap(element: HTMLElement, o: MountOptions<string>) { return components.mount(element, o); }
+import { appFrontendOrigin, blockAllowedOn, blockCspSources, readAppBlocks, readInstalledBlocks, startBlockRegistry } from '@swell/apps-sdk/blocks';
+import type { AppBlocks, BlockMountContext, BlockPage } from '@swell/apps-sdk/blocks';
+import { startComponentBlocks } from '@swell/apps-sdk/components';
+// A host reads the store's installed apps' blocks, checks a placement, and builds its CSP
+const installed: AppBlocks[] = readInstalledBlocks({ results: [] }, { origin: (id: string) => appFrontendOrigin('https://s.swell.store', 's', id), onProblem: (m: string) => console.warn(m) });
+const page: BlockPage = 'product';
+const placeable: boolean = installed.every((app) => app.blocks.every((b) => blockAllowedOn(b, page)));
+const csp: { scriptSrc: string[]; connectSrc: string[]; imgSrc: string[]; frameSrc: string[] } = blockCspSources(installed, installed);
+const read = readAppBlocks({ app: 'a', name: 'A', script: 'https://a.test/embed.js', blocks: [{ id: 'b', label: 'B' }] });
+if (read.ok) read.app.blocks.map((b) => b.label);
+else read.problem.length;
+// @ts-expect-error a page type is one of the standard's
+blockAllowedOn({ pages: ['product'] }, 'checkout');
+const stopRegistry: () => void = startBlockRegistry({ apps: ['a'], storefront: { storeId: 's', storefrontId: 'f', mode: 'preview' }, attribute: 'data-app-embed' });
+const stopComponents: () => void = startComponentBlocks({ storeId: 's', publicKey: 'pk', getToken: async (): Promise<ComponentToken> => ({ token: 't', expires: 0 }), blocks: { 'a/c': { component: 'Card', title: 'Card' } }, storefront: {} });
+function banner(element: HTMLElement, context: BlockMountContext) { element.textContent = `${context.app}/${context.block} ${context.proxy}`; }
