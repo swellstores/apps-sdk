@@ -272,3 +272,15 @@ test('storefront client_ip is exposed as clientIp when it is an address, and ref
   assert.equal((await resolve(base)).clientIp, undefined);
   for (const bad of ['', 'not an ip', 7, 'a'.repeat(60)]) await assert.rejects(resolve({ ...base, client_ip: bad }), invalid, JSON.stringify(bad));
 });
+
+test('host_app (a storefront host calling on a shopper\'s behalf) is exposed as hostApp when it is an app id, and refused otherwise', async () => {
+  const { resolve } = fixture();
+  const base = { surface: 'storefront', storefront_id: 'sf1', storefront_host: 'shop.example.com', account_id: 'acc1', mode: 'live' };
+  const ctx = await resolve({ ...base, host_app: 'wave' });
+  assert.deepEqual([ctx.hostApp, ctx.accountId, ctx.clientIp], ['wave', 'acc1', undefined]);
+  assert.equal(isStorefrontRequest(ctx), true, 'still a storefront request; hostApp says who asserted it');
+  assert.equal((await resolve({ ...base, host_app: 'gift_cards-2' })).hostApp, 'gift_cards-2');
+  assert.equal((await resolve(base)).hostApp, undefined);
+  assert.equal((await resolve({ ...base, host_app: null })).hostApp, undefined);
+  for (const bad of ['', 'Wave', 'a b', 7, 'x'.repeat(65)]) await assert.rejects(resolve({ ...base, host_app: bad }), invalid, JSON.stringify(bad));
+});
