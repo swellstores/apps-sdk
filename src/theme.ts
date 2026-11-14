@@ -108,6 +108,10 @@ export class SwellTheme {
   public themeSettingFilePath = 'theme/config/theme.json';
 
   private pageSectionGroups: ThemeSectionGroupInfo[] | null = null;
+  private preloadedSingletons: {
+    cart?: StorefrontResource;
+    account?: StorefrontResource;
+  } = {};
 
   constructor(
     swell: Swell,
@@ -196,6 +200,12 @@ export class SwellTheme {
     options?: ThemeInitGlobalsOptions,
   ): Promise<void> {
     this.pageId = pageId;
+
+    // The editor gets cart and account data from the storefront, which doesn't
+    // depend on the theme settings, so start loading it alongside them
+    if (this.swell.isEditor) {
+      this.preloadSingletons();
+    }
 
     const pageRecord = options?.pageRecord;
     const altTemplate = options?.altTemplate;
@@ -511,11 +521,42 @@ export class SwellTheme {
     return result ?? defaultValue();
   }
 
-  async fetchCart(): Promise<StorefrontResource> {
+  createCart(): StorefrontResource {
     const CartResource = this.resources?.singletons?.cart;
-    const cart = CartResource
+    return CartResource
       ? new CartResource(this.swell)
       : new SwellStorefrontSingleton(this.swell, 'cart');
+  }
+
+  createAccount(): StorefrontResource {
+    const AccountResource = this.resources?.singletons?.account;
+    return AccountResource
+      ? new AccountResource(this.swell)
+      : new SwellStorefrontSingleton(this.swell, 'account');
+  }
+
+  /**
+   * Starts loading the cart and account, for fetchCart and fetchAccount to use
+   */
+  preloadSingletons(): void {
+    const cart = this.createCart();
+    const account = this.createAccount();
+    // Reading a prop starts the request
+    void cart.id;
+    void account.id;
+    this.preloadedSingletons = { cart, account };
+  }
+
+  private takePreloadedSingleton(
+    key: 'cart' | 'account',
+  ): StorefrontResource | undefined {
+    const resource = this.preloadedSingletons[key];
+    delete this.preloadedSingletons[key];
+    return resource;
+  }
+
+  async fetchCart(): Promise<StorefrontResource> {
+    const cart = this.takePreloadedSingleton('cart') ?? this.createCart();
 
     // Use empty function to enable cart comparison with empty drop in liquid
     cart._isEmpty = function () {
@@ -533,10 +574,8 @@ export class SwellTheme {
   }
 
   async fetchAccount(): Promise<StorefrontResource | null> {
-    const AccountResource = this.resources?.singletons?.account;
-    const account = AccountResource
-      ? new AccountResource(this.swell)
-      : new SwellStorefrontSingleton(this.swell, 'account');
+    const account =
+      this.takePreloadedSingleton('account') ?? this.createAccount();
 
     await account.id;
 

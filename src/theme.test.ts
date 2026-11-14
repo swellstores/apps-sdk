@@ -1,5 +1,6 @@
 import { Swell } from './api';
 import { SwellTheme } from './theme';
+import { SwellStorefrontSingleton } from './resources';
 import { ShopifyCompatibility } from './compatibility/shopify';
 
 import type { ShopifySettingsData } from 'types/shopify';
@@ -201,6 +202,65 @@ describe('SwellTheme', () => {
       expect(theme.getPageConfigPath('index')).toStrictEqual(
         'theme/templates/test_index.json',
       );
+    });
+  });
+
+  describe('#preloadSingletons', () => {
+    function createTheme() {
+      const swell = new Swell({
+        url: 'http://localhost',
+        serverHeaders: defaultServerHeaders,
+        isEditor: true,
+      });
+      const getCart = jest.fn(async () => ({ id: 'cart-1', items: [] }));
+      const getAccount = jest.fn(async () => ({ id: 'account-1' }));
+
+      class CartResource extends SwellStorefrontSingleton {
+        constructor(swell: Swell) {
+          super(swell, 'cart', getCart);
+        }
+      }
+
+      class AccountResource extends SwellStorefrontSingleton {
+        constructor(swell: Swell) {
+          super(swell, 'account', getAccount);
+        }
+      }
+
+      const theme = new SwellTheme(swell, {
+        resources: {
+          singletons: { cart: CartResource, account: AccountResource },
+          records: {},
+        },
+      });
+
+      return { theme, getCart, getAccount };
+    }
+
+    it('starts loading the cart and account', async () => {
+      const { theme, getCart, getAccount } = createTheme();
+
+      theme.preloadSingletons();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(getCart).toHaveBeenCalledTimes(1);
+      expect(getAccount).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets fetchCart and fetchAccount use the loaded resources once', async () => {
+      const { theme, getCart, getAccount } = createTheme();
+
+      theme.preloadSingletons();
+      const cart = await theme.fetchCart();
+      const account = await theme.fetchAccount();
+
+      expect(await cart.id).toBe('cart-1');
+      expect(await account?.id).toBe('account-1');
+      expect(getCart).toHaveBeenCalledTimes(1);
+      expect(getAccount).toHaveBeenCalledTimes(1);
+
+      await theme.fetchCart();
+      expect(getCart).toHaveBeenCalledTimes(2);
     });
   });
 });
