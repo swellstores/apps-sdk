@@ -4,3 +4,5 @@ export type { Components, ComponentsOptions, MountOptions, NamedMountOptions, Pl
 export type { ComponentHandle } from './components-host.js';
 export { startComponentFrame } from './components-frame.js';
 export type { FrameOptions } from './components-frame.js';
+export { BLOCK_TOKENS, startComponentBlocks } from './components-blocks.js';
+export type { ComponentBlocksOptions } from './components-blocks.js';

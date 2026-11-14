@@ -8,7 +8,7 @@ const output = resolve('.verification');
 await rm(output, { recursive: true, force: true });
 await mkdir(output, { recursive: true });
 const packed = JSON.parse(execFileSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', output], { encoding: 'utf8' }))[0];
-for (const path of ['dist/index.js', 'dist/storefront.js', 'dist/components.js', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/storefront.d.ts', 'dist/storefront.d.cts', 'dist/components.d.ts', 'dist/components.d.cts', 'dist/component-frame.html']) {
+for (const path of ['dist/index.js', 'dist/storefront.js', 'dist/components.js', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/storefront.d.ts', 'dist/storefront.d.cts', 'dist/components.d.ts', 'dist/components.d.cts', 'dist/blocks.js', 'dist/blocks.d.ts', 'dist/blocks.d.cts', 'dist/component-frame.html']) {
   assert.ok(packed.files.some(file => file.path === path), `Missing packed file: ${path}; run npm run build first`);
 }
 assert.ok(!packed.files.some(({ path }) => /(?:^|\/)(?:functions|function-types)(?:\.|\/)/.test(path)), 'Function runtime leaked into packed files');
@@ -31,7 +31,9 @@ await writeFile(join(fixture, 'runtime.cjs'), `const assert = require('node:asse
 const root = require('@swell/apps-sdk');
 const storefront = require('@swell/apps-sdk/storefront');
 const components = require('@swell/apps-sdk/components');
-assert.deepEqual(Object.keys(components).sort(), ['createComponents', 'startComponentFrame']);
+assert.deepEqual(Object.keys(components).sort(), ['BLOCK_TOKENS', 'createComponents', 'startComponentBlocks', 'startComponentFrame']);
+const blocks = require('@swell/apps-sdk/blocks');
+assert.deepEqual(Object.keys(blocks).sort(), ['BLOCK_LIMITS', 'BLOCK_PAGES', 'appFrontendOrigin', 'blockAllowedOn', 'blockCspSources', 'hasScriptBlocks', 'isComponentBlock', 'readAppBlocks', 'readInstalledBlocks', 'startBlockRegistry']);
 assert.equal(typeof components.createComponents, 'function');
 assert.deepEqual(Object.keys(root).sort(), ['SwellBackendAPI', 'SwellError', 'getStorefrontConfig', 'isStorefrontRequest', 'requireStoreUser', 'verifySwellContext', 'verifySwellWebhook'].sort());
 assert.deepEqual(Object.keys(storefront), ['createStorefrontClient']);

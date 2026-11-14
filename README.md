@@ -294,6 +294,47 @@ The platform returns every component of the store's active installed apps that d
 
 Hosts cannot override the built-in payment actions: `createIntent` and `getIntent` win over `actions` of the same names.
 
+### Hosting storefront app blocks
+
+A storefront app that lets merchants place installed apps' blocks (widgets an app declares in its `swell.json` `storefront.embeds`) reads the declarations on its server, and starts the block runtimes in the page. `@swell/apps-sdk/blocks` reads the declarations as strictly as the app block standard asks: a declaration that breaks one rule is left out whole, so the page never shows part of an app.
+
+```ts
+import { appFrontendOrigin, blockAllowedOn, blockCspSources, readInstalledBlocks } from '@swell/apps-sdk/blocks';
+
+// GET /:clients/:self/apps?expand=app with your installation's key, on your server
+const apps = readInstalledBlocks(installations, {
+  origin: (installationId) => appFrontendOrigin(context.adminUrl, context.storeId, installationId),
+  onProblem: (message) => console.warn(message), // log each once
+});
+
+blockAllowedOn(block, 'product');       // where a merchant may place a block, and where it renders
+const csp = blockCspSources(scriptApps, componentApps); // { scriptSrc, connectSrc, imgSrc, frameSrc }
+```
+
+Each app has its blocks, its script (an https URL on its installation's frontend) with its `integrity`, the third-party `connect` and `img` origins its script uses, and for `component` blocks the `frame` origin they load from. `readAppBlocks` reads one entry whose `script` is already an https URL.
+
+Render each placed block as `<div class="swell-app-block" data-app-block="<app>/<block>" data-app-props="<json>">…fallback…</div>`, load each app's script once on pages that hold its `script` blocks, and start the runtimes:
+
+```ts
+import { startBlockRegistry } from '@swell/apps-sdk/blocks';
+import { startComponentBlocks } from '@swell/apps-sdk/components';
+
+startBlockRegistry({ apps: ['my_app'], storefront: { storeId, storefrontId, mode: 'live' } });
+
+startComponentBlocks({
+  storeId,
+  publicKey: 'host',                    // a placeholder: `url` reads the list on your server with your key
+  url: `${location.origin}/your-components`,
+  getToken: (app) => fetch(`/.swell/component-token?app=${app}`).then((r) => r.json()),
+  blocks: { 'my_app/gift_card': { component: 'GiftCardForm', title: 'Gift card' } },
+  storefront: { storeId, storefrontId, mode: 'live' },
+});
+```
+
+`startBlockRegistry` makes `window.SwellAppBlocks` an object whose `push` registers an app's blocks (registrations pushed before it starts count too). It mounts each block on every matching element, now and when one is added later (a cart drawer), once per element; it cleans up when the element leaves the page, and cleans up and mounts again when its props change. It ignores apps the page didn't load and a second registration of an app. Each mount gets `{ props, app, block, storefront, proxy }`, `proxy` being the app proxy's path on the page's origin.
+
+`startComponentBlocks` mounts each `component` block's App Component in a frame on its app's origin, with the block's props as `params` and `{ storefront, tokens }` as `context` (`tokens`: the element's `--swell-*` theme properties, listed in `BLOCK_TOKENS`). It sets `data-app-frame-ready` on the element once the frame is ready, so your CSS can hide the fallback, and unmounts the frame when the element leaves. Both return a function that stops them, and take `attribute` for a host whose elements name their block in another attribute.
+
 ## API reference
 
 ### Backend client

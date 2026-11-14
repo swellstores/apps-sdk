@@ -61,6 +61,13 @@
         "require": "./dist/components.d.cts"
       },
       "default": "./dist/components.js"
+    },
+    "./blocks": {
+      "types": {
+        "import": "./dist/blocks.d.ts",
+        "require": "./dist/blocks.d.cts"
+      },
+      "default": "./dist/blocks.js"
     }
   },
   "sideEffects": [
