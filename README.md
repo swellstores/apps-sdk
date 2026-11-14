@@ -46,10 +46,10 @@ import { isStorefrontRequest, verifySwellContext } from '@swell/apps-sdk';
 
 const context = await verifySwellContext(request.headers, { appId: 'my_app' });
 if (!isStorefrontRequest(context)) return new Response(null, { status: 403 });
-// context.storeId, context.storefrontId, context.storefrontHost, context.accountId, context.mode
+// context.storeId, context.storefrontId, context.storefrontHost, context.accountId, context.mode, context.clientIp
 ```
 
-`isStorefrontRequest` is true when `surface` is `'storefront'` and the context names a storefront. It proves the request came through one of the store's storefronts, not who sent it: storefront pages are public, so rate-limit these routes, and check that `accountId` (the logged-in customer, `undefined` for a visitor) owns any private data you return. `storefrontHost` is the address the shopper used, custom domains included; `mode` is `'live'`, `'preview'` or `'editor'`.
+`isStorefrontRequest` is true when `surface` is `'storefront'` and the context names a storefront. It proves the request came through one of the store's storefronts, not who sent it: storefront pages are public, so rate-limit these routes, and check that `accountId` (the logged-in customer, `undefined` for a visitor) owns any private data you return. `storefrontHost` is the address the shopper used, custom domains included; `mode` is `'live'`, `'preview'` or `'editor'`. `clientIp` is the shopper's IP address as Swell's own rate limits take it: through the app proxy your server only sees Swell's, so key per-shopper rate limits on it. The proxy forwards one credential of your own, `X-App-Authorization` (a signed-in customer's token, say); `Authorization` is Swell's.
 
 In a server component, pass `await headers()`. Keep the context and clients on the
 server, scoped to the incoming request.
