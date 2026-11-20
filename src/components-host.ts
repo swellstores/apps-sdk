@@ -120,7 +120,26 @@ function hostText(element: Element): HostText {
     const value = computed.getPropertyValue(name);
     if (value) text[name] = value;
   }
+  const lineHeight = inheritedLineHeight(element, computed);
+  if (lineHeight) text['line-height'] = lineHeight;
   return text;
+}
+
+/**
+ * The line height an element there would inherit: a number stays a number, so larger text in the component keeps
+ * its proportion. getComputedStyle gives pixels for a number too; the typed object model, where the browser has it,
+ * keeps the number, and elsewhere the pixels over the font size give it back.
+ */
+function inheritedLineHeight(element: Element, computed: CSSStyleDeclaration): string | undefined {
+  const typed = (element as Element & { computedStyleMap?: () => { get(name: string): unknown } }).computedStyleMap?.().get('line-height');
+  if (typed && typeof typed === 'object' && 'unit' in typed && 'value' in typed) {
+    const { unit, value } = typed as { unit: string; value: number };
+    return unit === 'number' ? String(value) : `${value}${unit === 'percent' ? '%' : unit}`;
+  }
+  const lineHeight = computed.getPropertyValue('line-height');
+  const fontSize = parseFloat(computed.getPropertyValue('font-size'));
+  if (!lineHeight.endsWith('px') || !fontSize) return lineHeight || undefined;
+  return String(Math.round((parseFloat(lineHeight) / fontSize) * 1000) / 1000);
 }
 
 /** Embeds a component frame in `placeholder`. Internal: hosts use createComponents().mount(). */

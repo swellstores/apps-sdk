@@ -81,8 +81,9 @@ export function startComponentFrame(options: FrameOptions = {}): void {
   const style = document.createElement('style');
   style.textContent = BASE_STYLE;
   document.head.appendChild(style);
-  // The host's text where the component sits, as an element there would inherit it. It comes first, so any style
-  // of the component outranks it. A value is a plain CSS value: one that could end the rule is left out.
+  // The host's text where the component sits, as an element there would inherit it. It sets the body, so `rem`
+  // keeps the browser's root size, in a cascade layer declared first, so every style of the component outranks it,
+  // layered or not. A value is a plain CSS value: one that could end the rule is left out.
   const hostText = document.createElement('style');
   document.head.prepend(hostText);
   const showHostText = (text: unknown) => {
@@ -91,7 +92,7 @@ export function startComponentFrame(options: FrameOptions = {}): void {
       const value = values[name];
       return typeof value === 'string' && value && !/[;{}!<>\\]|\/\*/.test(value) ? [`${name}:${value}`] : [];
     });
-    hostText.textContent = declarations.length ? `html{${declarations.join(';')}}` : '';
+    hostText.textContent = declarations.length ? `@layer swell-host{body{${declarations.join(';')}}}` : '';
   };
   let root = options.root ?? document.getElementById('root');
   if (!root) {

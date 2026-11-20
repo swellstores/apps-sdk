@@ -870,31 +870,17 @@ test('frame shows the host theme on its root, light from a host that sends none,
   assert.deepEqual(rootStyle(), ['dark', 'dark']);
 });
 
-test("frame's root takes the host's text below every style of the component, and follows it", async (t) => {
+test("frame puts the host's text on its body in a cascade layer, follows it, and leaves out what isn't a plain value", async (t) => {
+  // happy-dom ignores cascade layers: the browser check proves the cascade, this one the rule the frame writes
   const { win, send } = startFrame(t);
-  const root = win.document.documentElement;
+  const rule = () => win.document.head.firstElementChild.textContent;
   send({ type: 'init', props: HOST_PROPS, token: null, text: { 'font-family': 'Georgia, serif', color: 'rgb(10, 20, 30)', 'not-a-property': 'x' } });
   await tick();
-  assert.equal(win.getComputedStyle(root).fontFamily, 'Georgia, serif');
-  assert.equal(win.getComputedStyle(root).color, 'rgb(10, 20, 30)');
-  // The component's own style outranks it
-  const own = win.document.createElement('style');
-  own.textContent = 'html { color: rgb(1, 2, 3); }';
-  win.document.head.appendChild(own);
-  assert.equal(win.getComputedStyle(root).color, 'rgb(1, 2, 3)');
-  own.remove();
+  assert.equal(rule(), '@layer swell-host{body{font-family:Georgia, serif;color:rgb(10, 20, 30)}}');
 
-  send({ type: 'text', text: { color: 'rgb(200, 200, 200)' } });
-  await tick();
-  assert.equal(win.getComputedStyle(root).color, 'rgb(200, 200, 200)');
-  assert.notEqual(win.getComputedStyle(root).fontFamily, 'Georgia, serif');
-
-  // A value that would end the rule is no value: it is left out
   send({ type: 'text', text: { color: 'red}body{display:none', 'font-size': '13px' } });
   await tick();
-  assert.notEqual(win.getComputedStyle(win.document.body).display, 'none');
-  assert.equal(win.getComputedStyle(root).fontSize, '13px');
-  assert.notEqual(win.getComputedStyle(root).color, 'red');
+  assert.equal(rule(), '@layer swell-host{body{font-size:13px}}');
 });
 
 test('frame takes the theme from its URL before the host starts it, and keeps it there for a reload', async (t) => {
@@ -955,11 +941,12 @@ test("host keeps the frame element's color scheme for a frame runtime that appli
 
 test('host sends the text around its component in init, and again after an update that changes it', async (t) => {
   const { win, placeholder, handle, sent, receive } = embed(t);
-  Object.assign(win.document.body.style, { fontFamily: 'Georgia, serif', fontSize: '13px', color: 'rgb(10, 20, 30)' });
+  Object.assign(win.document.body.style, { fontFamily: 'Georgia, serif', fontSize: '13px', lineHeight: '1.5', color: 'rgb(10, 20, 30)' });
   receive({ type: 'hello', themes: true });
   await tick();
   const { text } = sent[0].message;
   assert.equal(text['font-family'], 'Georgia, serif');
+  assert.equal(text['line-height'], '1.5');
   assert.equal(text['font-size'], '13px');
   assert.equal(text.color, 'rgb(10, 20, 30)');
 

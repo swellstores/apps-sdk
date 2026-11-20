@@ -27,7 +27,7 @@ export interface WireProps {
   ui?: { config?: object };
 }
 
-/** The properties of the host's text that a frame's root takes, as an element in the host's page would inherit them. */
+/** The properties of the host's text that a frame's body takes, as an element in the host's page would inherit them. */
 export const HOST_TEXT = [
   'font-family',
   'font-size',
