@@ -278,6 +278,12 @@ export class ThemeLoader {
 
     const configs = response?.results || [];
 
+    // An empty list means nothing is published yet: caching it would 404 every
+    // page after the publish, so the next request asks the API again
+    if (configs.length === 0) {
+      return configs;
+    }
+
     // Cache for this version
     await cache.set(cacheKey, configs);
 
