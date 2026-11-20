@@ -21,8 +21,10 @@ export interface FrameOptions {
   importModule?: (url: string) => Promise<unknown>;
 }
 
-// #root is a flow root, so its children's margins count in the height reported to the host
-const BASE_STYLE = 'html,body{margin:0;padding:0;background:transparent}#root{display:flow-root}';
+// #root is a flow root, so its children's margins count in the height reported to the host. The frame takes the
+// content's height and never scrolls: content reaching past its edge, such as room for a focus ring, would show
+// scrollbars, and their width would wrap the content and change the height again.
+const BASE_STYLE = 'html,body{margin:0;padding:0;background:transparent}html{overflow:clip}#root{display:flow-root}';
 
 function isModule(value: unknown): value is ComponentModule {
   const module = value as Partial<ComponentModule> | null;

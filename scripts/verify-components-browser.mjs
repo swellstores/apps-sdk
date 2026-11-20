@@ -174,6 +174,8 @@ const FOCUS_BUNDLES = {
   Modal3dsLast: mod('<input id="x">', openModal(`<button id="m1">Cancel</button>${TDS}`)),
   ModalQuiet: mod('<button id="pay">Pay</button>', openQuietModal('<button id="m1">One</button><button id="m2">Two</button>')),
   ModalFrame: mod('<input id="x">', openBareFrame),
+  // A block reaching 4px past the component's sides, as the Swell UI disclosure leaves room for a focus ring
+  Wide: mod('<div style="margin:0 -4px;height:40px"></div>'),
   // Mounts, then throws on every update: the frame reports an error after ready
   Throws: mod('<input id="x"><input id="y">').replace('export function update() {}', "export function update() { throw new Error('update failed'); }"),
 };
@@ -466,6 +468,24 @@ async function emptyOverlayCase() {
   });
 }
 
+async function wideCase() {
+  // Content past the frame's edge never scrolls the frame, so it shows no scrollbars and its height doesn't flip
+  // as they come and go
+  await attempt(async () => {
+    const page = await openFocusPage('slots=Wide');
+    try {
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      const box = await page.locator('iframe').boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(40, 0);
+      await page.waitForTimeout(200);
+      assert.equal(await frame.evaluate(() => scrollX), 0, 'a wheel scrolled the frame sideways');
+    } finally {
+      await page.close();
+    }
+  });
+}
+
 async function uiCases() {
   const open = async (component) => {
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
@@ -557,6 +577,7 @@ try {
   await focusCases();
   await confinedOverlayCase();
   await emptyOverlayCase();
+  await wideCase();
   await uiCases();
   assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);
 
