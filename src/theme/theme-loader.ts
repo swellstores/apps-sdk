@@ -260,7 +260,11 @@ export class ThemeLoader {
     };
 
     const versionHash = this.getThemeVersionHash();
-    const cacheKey = this.buildMetadataCacheKey(versionHash, query);
+    const cacheKey = this.buildMetadataCacheKey(
+      versionHash,
+      this.getLiveConfigVersion(),
+      query,
+    );
     const cache = this.getCache();
 
     // Check cache first - version-based, valid forever for that version
@@ -277,6 +281,12 @@ export class ThemeLoader {
     );
 
     const configs = response?.results || [];
+
+    // An empty list means nothing is published yet: caching it would 404 every
+    // page after the publish, so the next request asks the API again
+    if (configs.length === 0) {
+      return configs;
+    }
 
     // Cache for this version
     await cache.set(cacheKey, configs);
@@ -403,6 +413,24 @@ export class ThemeLoader {
   }
 
   /**
+   * Get the published theme config version from headers, e.g. `live-2`, in
+   * live mode only. Preview and editor configs aren't affected by a publish.
+   */
+  private getLiveConfigVersion(): string | undefined {
+    return this.isDraftMode()
+      ? undefined
+      : this.swell.swellHeaders['theme-config-version'];
+  }
+
+  /**
+   * Whether this request reads the theme's draft (preview or editor) configs.
+   */
+  private isDraftMode(): boolean {
+    const mode = this.swell.swellHeaders['deployment-mode'];
+    return mode === 'editor' || mode === 'preview';
+  }
+
+  /**
    * Generate a Swell API query filter for this theme version.
    */
   private themeVersionQueryFilter(): Record<string, unknown> {
@@ -416,11 +444,7 @@ export class ThemeLoader {
     return {
       parent_id: themeId,
       branch_id: swellHeaders['theme-branch-id'] || null,
-      preview:
-        swellHeaders['deployment-mode'] === 'editor' ||
-        swellHeaders['deployment-mode'] === 'preview'
-          ? true
-          : { $ne: true },
+      preview: this.isDraftMode() ? true : { $ne: true },
     };
   }
 
@@ -463,10 +487,15 @@ export class ThemeLoader {
    */
   private buildMetadataCacheKey(
     version: string | undefined,
+    liveConfigVersion: string | undefined,
     query: Record<string, unknown>,
   ): string {
-    // Hash all args including instanceId for tenant isolation
-    const args = [this.swell.instanceId, version || 'default', query];
+    // Hash all args including instanceId for tenant isolation.
+    // In live mode the config version changes when a publish finishes, so a
+    // list cached before or during the publish is never read after it
+    const args = liveConfigVersion
+      ? [this.swell.instanceId, version || 'default', liveConfigVersion, query]
+      : [this.swell.instanceId, version || 'default', query];
     return `theme_configs:${md5(JSON.stringify(args))}`;
   }
 
