@@ -870,6 +870,19 @@ test('frame shows the host theme on its root, light from a host that sends none,
   assert.deepEqual(rootStyle(), ['dark', 'dark']);
 });
 
+test("frame puts the host's text on its body in a cascade layer, follows it, and leaves out what isn't a plain value", async (t) => {
+  // happy-dom ignores cascade layers: the browser check proves the cascade, this one the rule the frame writes
+  const { win, send } = startFrame(t);
+  const rule = () => win.document.head.firstElementChild.textContent;
+  send({ type: 'init', props: HOST_PROPS, token: null, text: { 'font-family': 'Georgia, serif', color: 'rgb(10, 20, 30)', 'not-a-property': 'x' } });
+  await tick();
+  assert.equal(rule(), '@layer swell-host{body{font-family:Georgia, serif;color:rgb(10, 20, 30)}}');
+
+  send({ type: 'text', text: { color: 'red}body{display:none', 'font-size': '13px' } });
+  await tick();
+  assert.equal(rule(), '@layer swell-host{body{font-size:13px}}');
+});
+
 test('frame takes the theme from its URL before the host starts it, and keeps it there for a reload', async (t) => {
   const { win, send } = startFrame(t, { search: `v=abc&parent=${encodeURIComponent(HOST)}&channel=c1&theme=dark` });
   const root = win.document.documentElement;
@@ -924,6 +937,25 @@ test("host keeps the frame element's color scheme for a frame runtime that appli
 
   handle.update({ theme: 'light' });
   assert.equal(iframe.style.colorScheme, 'normal');
+});
+
+test('host sends the text around its component in init, and again after an update that changes it', async (t) => {
+  const { win, placeholder, handle, sent, receive } = embed(t);
+  Object.assign(win.document.body.style, { fontFamily: 'Georgia, serif', fontSize: '13px', lineHeight: '1.5', color: 'rgb(10, 20, 30)' });
+  receive({ type: 'hello', themes: true });
+  await tick();
+  const { text } = sent[0].message;
+  assert.equal(text['font-family'], 'Georgia, serif');
+  assert.equal(text['line-height'], '1.5');
+  assert.equal(text['font-size'], '13px');
+  assert.equal(text.color, 'rgb(10, 20, 30)');
+
+  handle.update({ value: 'blue' });
+  assert.deepEqual(sent.map(({ message }) => message.type), ['init', 'update']);
+  placeholder.style.color = 'rgb(200, 200, 200)';
+  handle.update({ theme: 'dark' });
+  assert.deepEqual(sent.slice(-2).map(({ message }) => message.type), ['update', 'text']);
+  assert.equal(sent.at(-1).message.text.color, 'rgb(200, 200, 200)');
 });
 
 test('host sends its UI kit config in init and forwards ui updates', async (t) => {

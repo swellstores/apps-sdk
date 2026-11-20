@@ -1,6 +1,6 @@
 import type { ComponentModule, ComponentProps, ComponentTheme } from './components-types.js';
 import { firstTabbable } from './components-focus.js';
-import { TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
+import { HOST_TEXT, TOKEN_HEADER, unwrap, wrap } from './components-protocol.js';
 import type { FrameMessage, HostMessage, Rect, WireProps } from './components-protocol.js';
 
 export interface FrameOptions {
@@ -81,6 +81,19 @@ export function startComponentFrame(options: FrameOptions = {}): void {
   const style = document.createElement('style');
   style.textContent = BASE_STYLE;
   document.head.appendChild(style);
+  // The host's text where the component sits, as an element there would inherit it. It sets the body, so `rem`
+  // keeps the browser's root size, in a cascade layer declared first, so every style of the component outranks it,
+  // layered or not. A value is a plain CSS value: one that could end the rule is left out.
+  const hostText = document.createElement('style');
+  document.head.prepend(hostText);
+  const showHostText = (text: unknown) => {
+    const values = typeof text === 'object' && text !== null ? (text as Record<string, unknown>) : {};
+    const declarations = HOST_TEXT.flatMap((name) => {
+      const value = values[name];
+      return typeof value === 'string' && value && !/[;{}!<>\\]|\/\*/.test(value) ? [`${name}:${value}`] : [];
+    });
+    hostText.textContent = declarations.length ? `@layer swell-host{body{${declarations.join(';')}}}` : '';
+  };
   let root = options.root ?? document.getElementById('root');
   if (!root) {
     root = document.createElement('div');
@@ -315,6 +328,7 @@ export function startComponentFrame(options: FrameOptions = {}): void {
         actions = Array.isArray(message.actions) ? message.actions.filter(name => typeof name === 'string') : [];
         props = message.props;
         applyTheme();
+        showHostText(message.text);
         token = message.token;
         if (!mounting) {
           mounting = mount();
@@ -358,6 +372,9 @@ export function startComponentFrame(options: FrameOptions = {}): void {
         }
         return;
       }
+      case 'text':
+        showHostText(message.text);
+        return;
       case 'rect':
         if (overlay) placeRoot(message.rect);
         // An open popover places itself against the component on resize, as the UI kit's lists do
