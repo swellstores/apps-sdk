@@ -272,6 +272,8 @@ The frame is an iframe inside the target element, so it behaves like any element
 
 When a component opens a modal (a payment SDK's 3D Secure challenge, a QR code), its frame covers the viewport until the modal closes. The frame enters the browser's top layer (the Popover API), so z-index, `transform`, `opacity` and `overflow` on the target's ancestors cannot confine it; in browsers without the Popover API it is a fixed box with the highest z-index, which a transformed or filtered ancestor still confines. Meanwhile the rest of your page is `inert` and does not scroll, and keyboard focus moves into the modal.
 
+An open popover in the component, such as the list of a select, needs more room than the component's own box, so its frame covers the viewport the same way while the popover is open: the component stays where it was and keeps focus and its controls, and the popover can open past the component's edges, as the UI kit's lists do. A click outside the popover closes it, as on any page.
+
 Component frames load from the app installation's origin, a subdomain of `swell.store`. If the host page has a Content Security Policy, allow these origins in `frame-src`, for example `frame-src https://*.swell.store`.
 
 #### Rendering a place

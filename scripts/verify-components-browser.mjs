@@ -167,7 +167,25 @@ const openQuietModal = html => `window.openModal = () => { const modal = documen
 const openBareFrame = "window.openModal = () => { const frame = document.createElement('iframe'); frame.id = 'bare'; frame.srcdoc = '<input id=otp>'; Object.assign(frame.style, { position: 'fixed', inset: '0', width: '100vw', height: '100vh', border: '0' }); document.body.appendChild(frame); };";
 // A 3DS challenge: the payment SDK's modal holds the bank's page in a nested frame
 const TDS = '<iframe id="tds" srcdoc="<input id=otp>" style="height:40px"></iframe>';
+// A button whose list opens under it, 200px high, in a shadow root as the UI kit's selects have theirs, and keeps
+// to the button when the window resizes, as the kit's lists do
+const DROPDOWN_BUNDLE = `
+export function mount(root) {
+  const host = document.createElement('div');
+  root.appendChild(host);
+  const shadow = host.attachShadow({ mode: 'open' });
+  shadow.innerHTML = '<button id="open">Open</button><div id="list" popover="auto" style="position:fixed;inset:auto;margin:0;padding:0;border:0;width:160px;height:200px">List</div>';
+  const button = shadow.getElementById('open');
+  const list = shadow.getElementById('list');
+  const place = () => { const box = button.getBoundingClientRect(); list.style.top = box.bottom + 'px'; list.style.left = box.left + 'px'; };
+  button.addEventListener('click', () => { list.showPopover(); place(); });
+  addEventListener('resize', place);
+}
+export function update() {}
+export function unmount(root) { root.innerHTML = ''; }
+`;
 const FOCUS_BUNDLES = {
+  Dropdown: DROPDOWN_BUNDLE,
   Two: mod('<input id="x"><input id="y">'),
   Modal: mod('<input id="x">', openModal('<button id="m1">One</button><button id="m2">Two</button>')),
   Modal3ds: mod('<input id="x">', openModal(`${TDS}<button id="m1">Cancel</button>`)),
@@ -486,6 +504,40 @@ async function wideCase() {
   });
 }
 
+async function dropdownCase() {
+  // An open popover, such as the list of a select, needs room beyond the component's box: the frame covers the
+  // viewport while it is open, keeps the component where it was and usable, and comes back when it closes
+  await attempt(async () => {
+    const page = await openFocusPage('slots=Dropdown');
+    try {
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      const buttonOnPage = () => page.evaluate(() => document.querySelector('iframe').getBoundingClientRect().top).then(async (frameTop) =>
+        Math.round(frameTop + await frame.evaluate(() => document.querySelector('#root div').shadowRoot.getElementById('open').getBoundingClientRect().top)));
+      const before = await buttonOnPage();
+      await frame.locator('#open').click();
+      await page.waitForFunction(() => document.querySelector('iframe').matches(':popover-open'));
+      await settled(page);
+      const open = await frame.evaluate(() => {
+        const shadow = document.querySelector('#root div').shadowRoot;
+        const list = shadow.getElementById('list').getBoundingClientRect();
+        const button = shadow.getElementById('open').getBoundingClientRect();
+        return {
+          listUnderButton: Math.round(list.top) === Math.round(button.bottom),
+          listInView: list.bottom <= innerHeight,
+          rootInert: document.getElementById('root').hasAttribute('inert'),
+          focus: shadow.activeElement?.id ?? null,
+        };
+      });
+      assert.deepEqual(open, { listUnderButton: true, listInView: true, rootInert: false, focus: 'open' }, `the open list has no room: ${JSON.stringify(open)}`);
+      assert.equal(await buttonOnPage(), before, 'the component moved while its list was open');
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('iframe').matches(':popover-open') && document.querySelectorAll('[inert]').length === 0);
+    } finally {
+      await page.close();
+    }
+  });
+}
+
 async function uiCases() {
   const open = async (component) => {
     const page = await browser.newPage({ viewport: { width: 1000, height: 700 } });
@@ -578,6 +630,7 @@ try {
   await confinedOverlayCase();
   await emptyOverlayCase();
   await wideCase();
+  await dropdownCase();
   await uiCases();
   assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);
 

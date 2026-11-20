@@ -185,15 +185,20 @@ export function startComponentFrame(options: FrameOptions = {}): void {
 
   const focusModal = () => blocker && firstTabbable(blocker as HTMLElement)?.focus();
 
-  const setOverlay = (on: boolean) => {
-    if (overlay === on) return;
-    overlay = on;
+  // Overlay is on for a modal or for an open popover, such as the list of a select, which needs room beyond the
+  // component's box. Only a modal takes the component's controls and focus: a popover belongs to them.
+  let modal = false;
+  let popover = false;
+  const applyOverlay = (modalOpened = false) => {
     // The component's own controls are under the modal's backdrop: out of the Tab order and the pointer's reach
-    if (on) target.setAttribute('inert', '');
+    if (modal) target.setAttribute('inert', '');
     else target.removeAttribute('inert');
     // The modal takes focus from the component under it, or when nothing has focus, unless it took focus itself
     const active = document.activeElement;
-    if (on && (!active || active === document.body || target.contains(active))) focusModal();
+    if (modalOpened && (!active || active === document.body || target.contains(active))) focusModal();
+    const on = modal || popover;
+    if (overlay === on) return;
+    overlay = on;
     document.documentElement.style.overflow = on ? 'hidden' : '';
     post({ type: 'overlay', on });
     if (!on) {
@@ -202,6 +207,40 @@ export function startComponentFrame(options: FrameOptions = {}): void {
       reportHeight();
     }
   };
+
+  const setOverlay = (on: boolean) => {
+    const opened = on && !modal;
+    modal = on;
+    applyOverlay(opened);
+  };
+
+  const isOpenPopover = (element: Element) => {
+    try {
+      return element.matches(':popover-open');
+    } catch {
+      // A browser without the Popover API opens none
+      return false;
+    }
+  };
+  // Popovers in the page and in open shadow roots, where the UI kit renders the lists of its fields
+  const hasOpenPopover = (root: ParentNode): boolean =>
+    Array.from(root.querySelectorAll('*')).some(element => isOpenPopover(element) || (element.shadowRoot !== null && hasOpenPopover(element.shadowRoot)));
+
+  // Checked after what can open or close a popover; while one is open, on every frame, as it can also close
+  // without an event the frame sees, such as from a timer
+  let popoverCheck = 0;
+  const checkPopover = () => {
+    win.cancelAnimationFrame(popoverCheck);
+    popoverCheck = win.requestAnimationFrame(() => {
+      const open = hasOpenPopover(document.body);
+      if (open !== popover) {
+        popover = open;
+        applyOverlay();
+      }
+      if (popover) checkPopover();
+    });
+  };
+  for (const type of ['click', 'keydown', 'input', 'focusin']) win.addEventListener(type, checkPopover, true);
 
   // An SDK opened a modal: a fixed element covering the frame viewport (Stripe 3DS, QR codes, vendor modals).
   // An element without area covers nothing, even while the frame itself is zero high.
@@ -321,10 +360,12 @@ export function startComponentFrame(options: FrameOptions = {}): void {
       }
       case 'rect':
         if (overlay) placeRoot(message.rect);
+        // An open popover places itself against the component on resize, as the UI kit's lists do
+        if (overlay && popover) win.dispatchEvent(new Event('resize'));
         return;
       case 'focus':
-        // During overlay the modal takes focus, never the component under its backdrop
-        if (overlay) focusModal();
+        // During a modal the modal takes focus, never the component under its backdrop
+        if (modal) focusModal();
         else firstTabbable(target)?.focus();
         return;
     }
