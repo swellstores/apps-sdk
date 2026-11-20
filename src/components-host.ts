@@ -1,7 +1,7 @@
 import type { ComponentInput, ComponentTheme, ComponentToken } from './components-types.js';
 import { placeFrame } from './components-placement.js';
-import { unwrap, wrap } from './components-protocol.js';
-import type { FrameMessage, HostMessage, WireProps } from './components-protocol.js';
+import { HOST_TEXT, unwrap, wrap } from './components-protocol.js';
+import type { FrameMessage, HostMessage, HostText, WireProps } from './components-protocol.js';
 
 /** Controls one mounted component. */
 export interface ComponentHandle<TValue = unknown> {
@@ -112,6 +112,17 @@ function randomChannel(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
+/** The text where `element` sits, which an element in its place would inherit: the frame's root takes it. */
+function hostText(element: Element): HostText {
+  const computed = (element.ownerDocument.defaultView as Window).getComputedStyle(element);
+  const text: HostText = {};
+  for (const name of HOST_TEXT) {
+    const value = computed.getPropertyValue(name);
+    if (value) text[name] = value;
+  }
+  return text;
+}
+
 /** Embeds a component frame in `placeholder`. Internal: hosts use createComponents().mount(). */
 export function embedComponent<TValue = unknown, TContext = Record<string, unknown>>(placeholder: HTMLElement, options: EmbedOptions<TValue, TContext>): ComponentHandle<TValue> {
   const window = placeholder.ownerDocument.defaultView;
@@ -138,6 +149,8 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
   let startTimer: ReturnType<typeof setTimeout> | undefined;
   let greeted = false;
   let started = false;
+  // The host's text the frame last got, to send it again only when it changes
+  let sentText = '';
   let destroyed = false;
   // The component has rendered once: a later frame error leaves it usable, and in the Tab order
   let rendered = false;
@@ -251,7 +264,9 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
         await tokenLoaded;
         started = true;
         try {
-          post({ type: 'init', props, token, actions: Object.keys(options.actions ?? {}) });
+          const text = hostText(placeholder);
+          sentText = JSON.stringify(text);
+          post({ type: 'init', props, token, actions: Object.keys(options.actions ?? {}), text });
         } catch (error) {
           const reported = toError(error);
           skipInTabOrder();
@@ -325,6 +340,15 @@ export function embedComponent<TValue = unknown, TContext = Record<string, unkno
       Object.assign(props, changed);
       if (changed.theme && showsTheme) placed.iframe.style.colorScheme = changed.theme;
       send({ type: 'update', props: changed });
+      // An update, such as a new theme, may come with new text around the component
+      if (started) {
+        const text = hostText(placeholder);
+        const key = JSON.stringify(text);
+        if (key !== sentText) {
+          sentText = key;
+          send({ type: 'text', text });
+        }
+      }
     },
     async emit<T = unknown>(name: string, data?: unknown): Promise<T> {
       await Promise.race([live, startFailed]);

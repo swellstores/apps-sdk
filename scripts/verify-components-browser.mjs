@@ -486,6 +486,30 @@ async function emptyOverlayCase() {
   });
 }
 
+async function hostTextCase() {
+  // The frame's root takes the host's text where the component sits, as an element there would inherit it, and
+  // follows it after an update: plain text in the component looks like the host's
+  await attempt(async () => {
+    const page = await openFocusPage('slots=Two');
+    try {
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      const rootText = () => frame.evaluate(() => {
+        const style = getComputedStyle(document.documentElement);
+        return [style.fontFamily, style.fontSize, style.color, style.webkitFontSmoothing];
+      });
+      await page.evaluate(() => {
+        Object.assign(document.body.style, { fontFamily: 'Georgia, serif', fontSize: '13px', color: 'rgb(10, 20, 30)' });
+        document.body.style.setProperty('-webkit-font-smoothing', 'antialiased');
+        handles[0].update({ theme: 'dark' });
+      });
+      await frame.waitForFunction(() => getComputedStyle(document.documentElement).fontSize === '13px');
+      assert.deepEqual(await rootText(), ['Georgia, serif', '13px', 'rgb(10, 20, 30)', 'antialiased']);
+    } finally {
+      await page.close();
+    }
+  });
+}
+
 async function wideCase() {
   // Content past the frame's edge never scrolls the frame, so it shows no scrollbars and its height doesn't flip
   // as they come and go
@@ -630,6 +654,7 @@ try {
   await confinedOverlayCase();
   await emptyOverlayCase();
   await wideCase();
+  await hostTextCase();
   await dropdownCase();
   await uiCases();
   assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);
