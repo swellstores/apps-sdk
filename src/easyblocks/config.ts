@@ -30,8 +30,10 @@ import type {
   ThemeLayoutSectionGroupConfig,
   ThemePageSectionSchema,
   ThemeSectionConfig,
+  ThemeSectionSchema,
   ThemeSectionEnabledDisabled,
   ThemeSettingFieldSchema,
+  ThemeSettingsBlock,
 } from 'types/swell';
 
 // By default, Easyblocks wraps each section in a SelectionFrameController.
@@ -369,9 +371,13 @@ function getLayoutSectionGroupTemplateValues(
     (acc, sectionGroup) => {
       acc[getSectionGroupProp(sectionGroup.id)] =
         sectionGroup.sectionConfigs.map<NoCodeComponentEntry>(
-          ({ section, settings, schema }) => ({
-            _id: `SectionGroup__${section.type}_${getRandomId()}`,
+          ({ key, section, settings, schema }) => ({
+            // Ends with the section's key, so a save from the editor keeps it
+            _id: key
+              ? `SectionGroup__${sectionGroup.id}__${key}`
+              : `SectionGroup__${section.type}_${getRandomId()}`,
             _component: section.type,
+            disabled: section.disabled || false,
             ...reduce(
               settings?.section.settings,
               (acc, value, key) => {
@@ -385,8 +391,10 @@ function getLayoutSectionGroupTemplateValues(
               ? {
                   Blocks: settings.section.blocks.map<NoCodeComponentEntry>(
                     (block) => ({
-                      _id: `Block__${section.type}__${block.type}_${getRandomId()}`,
+                      // Starts with the block's key, as on page sections
+                      _id: `Block__${getBlockKey(block, schema) ?? section.type}__${block.type}_${getRandomId()}`,
                       _component: `Block__${section.type}__${block.type}`,
+                      disabled: block.disabled || false,
                       ...reduce(
                         block.settings,
                         (acc, value, key) => {
@@ -974,4 +982,16 @@ export function getEasyblocksBackend() {
 
 function getRandomId(): string {
   return (Math.random() + 1).toString(36).substring(7);
+}
+
+// getPageSections gives a section's blocks the id `<schema id>__<block key>`
+function getBlockKey(
+  block: ThemeSettingsBlock,
+  schema?: ThemeSectionSchema | null,
+): string | undefined {
+  const prefix = `${schema?.id}__`;
+
+  return block.id?.startsWith(prefix)
+    ? block.id.slice(prefix.length)
+    : undefined;
 }

@@ -287,6 +287,7 @@ export async function getPageSections(
 
     pageSections.push({
       id,
+      key,
       section: { id, ...section },
       schema,
       settings,
