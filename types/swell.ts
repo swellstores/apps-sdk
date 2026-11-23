@@ -493,6 +493,8 @@ export interface ThemeSectionGroup extends ThemeSectionGroupBase {
 
 export interface ThemeSectionConfig {
   id: string;
+  /** The section's key in its group's `sections` */
+  key?: string;
   section: ThemeSection;
   tag: string;
   schema?: ThemeSectionSchema | null;
