@@ -486,6 +486,60 @@ async function emptyOverlayCase() {
   });
 }
 
+async function hostTextCase() {
+  // The frame's body takes the host's text where the component sits, as an element there would inherit it, and
+  // follows it after an update: plain text in the component looks like the host's. It stays below every style of
+  // the component, layered or not, keeps rem at the browser's root size, and a line height as a number
+  await attempt(async () => {
+    const page = await openFocusPage('slots=Two');
+    try {
+      const frame = page.frames().find(item => item.url().startsWith(frameOrigin));
+      await page.evaluate(() => {
+        Object.assign(document.body.style, { fontFamily: 'Georgia, serif', fontSize: '13px', lineHeight: '1.5', color: 'rgb(10, 20, 30)' });
+        document.body.style.setProperty('-webkit-font-smoothing', 'antialiased');
+        handles[0].update({ theme: 'dark' });
+      });
+      await frame.waitForFunction(() => getComputedStyle(document.body).fontSize === '13px');
+      const seen = await frame.evaluate(() => {
+        const body = getComputedStyle(document.body);
+        const large = document.createElement('div');
+        large.style.fontSize = '26px';
+        large.textContent = 'Large';
+        const wide = document.createElement('div');
+        wide.style.width = '10rem';
+        document.getElementById('root').append(large, wide);
+        const color = () => getComputedStyle(document.body).color;
+        const layered = document.createElement('style');
+        layered.textContent = '@layer base { body { color: rgb(1, 2, 3); } }';
+        document.head.append(layered);
+        const underLayer = color();
+        layered.remove();
+        const first = document.createElement('style');
+        first.textContent = 'body { color: rgb(4, 5, 6); }';
+        document.head.prepend(first);
+        const underFirst = color();
+        first.remove();
+        return {
+          body: [body.fontFamily, body.fontSize, body.color, body.webkitFontSmoothing],
+          largeLineHeight: getComputedStyle(large).lineHeight,
+          rem: [getComputedStyle(document.documentElement).fontSize, wide.getBoundingClientRect().width],
+          underLayer,
+          underFirst,
+        };
+      });
+      assert.deepEqual(seen, {
+        body: ['Georgia, serif', '13px', 'rgb(10, 20, 30)', 'antialiased'],
+        largeLineHeight: '39px',
+        rem: ['16px', 160],
+        underLayer: 'rgb(1, 2, 3)',
+        underFirst: 'rgb(4, 5, 6)',
+      });
+    } finally {
+      await page.close();
+    }
+  });
+}
+
 async function wideCase() {
   // Content past the frame's edge never scrolls the frame, so it shows no scrollbars and its height doesn't flip
   // as they come and go
@@ -630,6 +684,7 @@ try {
   await confinedOverlayCase();
   await emptyOverlayCase();
   await wideCase();
+  await hostTextCase();
   await dropdownCase();
   await uiCases();
   assert.deepEqual(failures, [], `failures:\n${failures.join('\n')}`);

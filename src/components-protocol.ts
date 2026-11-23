@@ -27,8 +27,26 @@ export interface WireProps {
   ui?: { config?: object };
 }
 
+/** The properties of the host's text that a frame's body takes, as an element in the host's page would inherit them. */
+export const HOST_TEXT = [
+  'font-family',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'line-height',
+  'letter-spacing',
+  'color',
+  '-webkit-font-smoothing',
+  '-moz-osx-font-smoothing',
+] as const;
+
+/** The host's text where the component sits, as computed values; a property the host's browser lacks is left out. */
+export type HostText = Partial<Record<(typeof HOST_TEXT)[number], string>>;
+
 export type HostMessage =
-  | { type: 'init'; props: WireProps; token: string | null; actions?: string[] }
+  // text: the host's text; an older host sends none and the frame keeps the browser's defaults
+  | { type: 'init'; props: WireProps; token: string | null; actions?: string[]; text?: HostText }
+  | { type: 'text'; text: HostText }
   | { type: 'update'; props: Partial<WireProps> }
   | { type: 'token'; token: string | null }
   | { type: 'event'; call: number; name: string; data: unknown }
