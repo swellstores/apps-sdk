@@ -79,7 +79,7 @@ assert.ok(!/server-only/.test(componentsBrowser.outputFiles[0].text), 'Component
 const blocksBrowser = await build({ ...baseOptions, conditions: ['browser'], stdin: { contents: `import {startBlockRegistry} from '@swell/apps-sdk/blocks'; console.log(startBlockRegistry);`, resolveDir: fixture } });
 assert.ok(!/server-only/.test(blocksBrowser.outputFiles[0].text), 'Blocks resolved to the browser refusal');
 assert.deepEqual(pkg.dependencies ?? {}, {});
-assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.9.4' });
+assert.deepEqual(pkg.peerDependencies, { 'swell-js': '>=5.11.0' });
 await writeFile(join(output, 'bundles.json'), JSON.stringify(reports, null, 2));
 console.table(Object.fromEntries(Object.entries(reports).map(([name, { raw, gzip }]) => [name, { raw, gzip }])));
 console.log('ESM graphs, ESM-only size parity and every browser refusal passed');
