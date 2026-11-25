@@ -33,7 +33,7 @@ const storefront = require('@swell/apps-sdk/storefront');
 const components = require('@swell/apps-sdk/components');
 assert.deepEqual(Object.keys(components).sort(), ['BLOCK_TOKENS', 'createComponents', 'startComponentBlocks', 'startComponentFrame']);
 const blocks = require('@swell/apps-sdk/blocks');
-assert.deepEqual(Object.keys(blocks).sort(), ['BLOCK_LIMITS', 'BLOCK_PAGES', 'appFrontendOrigin', 'blockAllowedOn', 'blockCspSources', 'hasScriptBlocks', 'isComponentBlock', 'readAppBlocks', 'readInstalledBlocks', 'startBlockRegistry']);
+assert.deepEqual(Object.keys(blocks).sort(), ['BLOCK_LIMITS', 'BLOCK_PAGES', 'BLOCK_PLACEMENTS', 'appFrontendOrigin', 'blockAllowedOn', 'blockCspSources', 'blockPlacedAs', 'hasScriptBlocks', 'isComponentBlock', 'readAppBlocks', 'readInstalledBlocks', 'startBlockRegistry']);
 assert.equal(typeof components.createComponents, 'function');
 assert.deepEqual(Object.keys(root).sort(), ['SwellBackendAPI', 'SwellError', 'getStorefrontConfig', 'isStorefrontRequest', 'requireStoreUser', 'verifySwellContext', 'verifySwellWebhook'].sort());
 assert.deepEqual(Object.keys(storefront), ['createStorefrontClient']);

@@ -301,7 +301,7 @@ Hosts cannot override the built-in payment actions: `createIntent` and `getInten
 A storefront app that lets merchants place installed apps' blocks (widgets an app declares in its `swell.json` `storefront.embeds`) reads the declarations on its server, and starts the block runtimes in the page. `@swell/apps-sdk/blocks` reads the declarations as strictly as the app block standard asks: a declaration that breaks one rule is left out whole, so the page never shows part of an app.
 
 ```ts
-import { appFrontendOrigin, blockAllowedOn, blockCspSources, readInstalledBlocks } from '@swell/apps-sdk/blocks';
+import { appFrontendOrigin, blockAllowedOn, blockCspSources, blockPlacedAs, readInstalledBlocks } from '@swell/apps-sdk/blocks';
 
 // GET /:clients/:self/apps?expand=app with your installation's key, on your server
 const apps = readInstalledBlocks(installations, {
@@ -310,6 +310,7 @@ const apps = readInstalledBlocks(installations, {
 });
 
 blockAllowedOn(block, 'product');       // where a merchant may place a block, and where it renders
+blockPlacedAs(block, 'inline');         // offered inside sections that accept app blocks; 'section': as a section of its own
 const csp = blockCspSources(scriptApps, componentApps); // { scriptSrc, connectSrc, imgSrc, frameSrc }
 ```
 

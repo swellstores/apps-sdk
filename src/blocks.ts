@@ -9,6 +9,10 @@ export type BlockPage = 'home' | 'product' | 'category' | 'category_list' | 'sea
 /** The page types a block's `pages` may list. */
 export const BLOCK_PAGES: readonly BlockPage[] = Object.freeze(['home', 'product', 'category', 'category_list', 'search', 'cart', 'content', 'blog', 'blog_post', 'account', 'not_found']);
 
+export type BlockPlacement = 'section' | 'inline';
+/** Where a block's `placements` may say it goes: a section of its own, or inside a section that accepts app blocks. */
+export const BLOCK_PLACEMENTS: readonly BlockPlacement[] = Object.freeze(['section', 'inline']);
+
 export type BlockPropType = 'text' | 'textarea' | 'url' | 'number' | 'boolean' | 'select';
 /** A prop of a block: a field the host's editor renders, whose value reaches the block. */
 export interface BlockProp {
@@ -29,6 +33,7 @@ export interface Block {
   description?: string;
   icon?: string;
   pages?: BlockPage[];
+  placements?: BlockPlacement[];
   props?: BlockProp[];
   component?: string;
 }
@@ -85,7 +90,7 @@ const ORIGIN_RE = /^https:\/\/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?$/;
 const INTEGRITY_RE = /^(?:sha256-[A-Za-z0-9+/]{43}=|sha384-[A-Za-z0-9+/]{64}|sha512-[A-Za-z0-9+/]{86}==)$/;
 const ENTRY_KEYS = new Set(['version', 'app', 'name', 'script', 'integrity', 'connect', 'img', 'blocks']);
 const DECLARED_KEYS = new Set(['version', 'script', 'integrity', 'connect', 'img', 'blocks']);
-const BLOCK_KEYS = new Set(['id', 'label', 'description', 'icon', 'render', 'component', 'pages', 'props']);
+const BLOCK_KEYS = new Set(['id', 'label', 'description', 'icon', 'render', 'component', 'pages', 'placements', 'props']);
 const COMPONENT_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const PROP_KEYS = new Set(['id', 'type', 'label', 'description', 'default', 'options', 'min', 'max']);
 const PROP_TYPES = new Set(['text', 'textarea', 'url', 'number', 'boolean', 'select']);
@@ -164,7 +169,7 @@ function propOf(v: unknown): BlockProp | string {
 function blockOf(b: unknown): Block | string {
   const label = isObj(b) ? text(b.label) : null;
   if (!isObj(b) || typeof b.id !== 'string' || !BLOCK_ID_RE.test(b.id) || label === null || Object.keys(b).some((k) => !BLOCK_KEYS.has(k))) {
-    return 'must be {id: [a-z0-9_]{1,40}, label, description?, icon?, render?, component?, pages?, props?}';
+    return 'must be {id: [a-z0-9_]{1,40}, label, description?, icon?, render?, component?, pages?, placements?, props?}';
   }
   const description = b.description === undefined ? undefined : text(b.description, BLOCK_LIMITS.description);
   if (description === null) return `(${b.id}).description must be text of 1 to ${BLOCK_LIMITS.description} characters`;
@@ -178,6 +183,10 @@ function blockOf(b: unknown): Block | string {
   if (pages !== undefined && (!Array.isArray(pages) || !pages.length || pages.some((x, i) => !BLOCK_PAGES.includes(x as BlockPage) || pages.indexOf(x) !== i))) {
     return `(${b.id}).pages must be a non-empty list of ${BLOCK_PAGES.join(', ')}, each once`;
   }
+  const placements = b.placements;
+  if (placements !== undefined && (!Array.isArray(placements) || !placements.length || placements.some((x, i) => !BLOCK_PLACEMENTS.includes(x as BlockPlacement) || placements.indexOf(x) !== i))) {
+    return `(${b.id}).placements must be a non-empty list of ${BLOCK_PLACEMENTS.join(', ')}, each once`;
+  }
   if (b.props !== undefined && (!Array.isArray(b.props) || b.props.length > BLOCK_LIMITS.props)) return `(${b.id}).props must be a list of at most ${BLOCK_LIMITS.props}`;
   const props: BlockProp[] = [];
   for (const [i, p] of ((b.props as unknown[] | undefined) ?? []).entries()) {
@@ -188,7 +197,7 @@ function blockOf(b: unknown): Block | string {
   }
   return {
     id: b.id, label, ...(description ? { description } : {}), ...(b.icon ? { icon: b.icon as string } : {}),
-    ...(pages !== undefined ? { pages: pages as BlockPage[] } : {}), ...(b.props !== undefined ? { props } : {}), ...(component ? { component: b.component as string } : {}),
+    ...(pages !== undefined ? { pages: pages as BlockPage[] } : {}), ...(placements !== undefined ? { placements: placements as BlockPlacement[] } : {}), ...(b.props !== undefined ? { props } : {}), ...(component ? { component: b.component as string } : {}),
   };
 }
 
@@ -319,6 +328,8 @@ export function readInstalledBlocks(raw: unknown, options: InstalledOptions): Ap
 
 /** Whether a block may be placed on (and rendered on) a page of that type: its `pages`, else every type but account. */
 export const blockAllowedOn = (block: Pick<Block, 'pages'>, page: BlockPage): boolean => (block.pages ? block.pages.includes(page) : page !== 'account');
+/** Whether a block may be placed there: its `placements`, else a section of its own only. */
+export const blockPlacedAs = (block: Pick<Block, 'placements'>, placement: BlockPlacement): boolean => (block.placements ?? ['section']).includes(placement);
 /** Whether a block renders as a component in a frame (render "component"). */
 export const isComponentBlock = (block: Pick<Block, 'component'>): boolean => typeof block.component === 'string';
 /** Whether an app has `script` blocks (its script loads on a page that holds one). */

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Window } from 'happy-dom';
-import { BLOCK_LIMITS, appFrontendOrigin, blockAllowedOn, blockCspSources, hasScriptBlocks, isComponentBlock, readAppBlocks, readInstalledBlocks, startBlockRegistry } from '../dist/blocks.js';
+import { BLOCK_LIMITS, appFrontendOrigin, blockAllowedOn, blockPlacedAs, blockCspSources, hasScriptBlocks, isComponentBlock, readAppBlocks, readInstalledBlocks, startBlockRegistry } from '../dist/blocks.js';
 import { startComponentBlocks } from '../dist/components-blocks.js';
 
 const STORE = 'swell-apps';
@@ -23,7 +23,7 @@ const DEMO = {
   integrity: INTEGRITY,
   blocks: [
     { id: 'banner', label: 'Demo banner', props: [{ id: 'message', type: 'text', label: 'Message', default: 'Hello' }] },
-    { id: 'card', label: 'Demo card', render: 'component', component: 'Card', pages: ['home', 'content'] },
+    { id: 'card', label: 'Demo card', render: 'component', component: 'Card', pages: ['home', 'content'], placements: ['section', 'inline'] },
   ],
 };
 
@@ -36,7 +36,7 @@ test('readInstalledBlocks reads an installed app: its script on its installation
     script: `${ORIGIN}/embed.js?v=20273dda67cd`, integrity: INTEGRITY, connect: [], img: [],
     blocks: [
       { id: 'banner', label: 'Demo banner', props: [{ id: 'message', type: 'text', label: 'Message', default: 'Hello' }] },
-      { id: 'card', label: 'Demo card', pages: ['home', 'content'], component: 'Card' },
+      { id: 'card', label: 'Demo card', pages: ['home', 'content'], placements: ['section', 'inline'], component: 'Card' },
     ],
     frame: ORIGIN, appId: APP_ID, icon: 'https://cdn.swell.store/swell-apps/icon.png',
   }]);
@@ -56,7 +56,7 @@ test('readInstalledBlocks skips uninstalled, inactive and undeclared installatio
   ] }, { origin, onProblem: (m) => problems.push(m) });
   assert.deepEqual(apps, []);
   assert.deepEqual(problems, [
-    'the installed app "block_demo"\'s storefront.embeds (block_demo).blocks[2] must be {id: [a-z0-9_]{1,40}, label, description?, icon?, render?, component?, pages?, props?}; left out',
+    'the installed app "block_demo"\'s storefront.embeds (block_demo).blocks[2] must be {id: [a-z0-9_]{1,40}, label, description?, icon?, render?, component?, pages?, placements?, props?}; left out',
     'the installed app "block_demo"\'s storefront.embeds.script must be a frontend:// link on the app\'s frontend; left out',
     'the installed app "block_demo"\'s storefront.embeds must be {version?, script?, integrity?, connect?, img?, blocks}; left out',
   ]);
@@ -96,6 +96,7 @@ test('readAppBlocks refuses each broken rule, naming where', () => {
   assert.equal(problem({ blocks: [] }), 'x (demo).blocks must be a non-empty list');
   assert.equal(problem({ script: undefined }), 'x (demo).script is required for its script blocks');
   assert.equal(problem({ blocks: [{ id: 'b', label: 'B', pages: ['checkout'] }] }), 'x (demo).blocks[0] (b).pages must be a non-empty list of home, product, category, category_list, search, cart, content, blog, blog_post, account, not_found, each once');
+  assert.equal(problem({ blocks: [{ id: 'b', label: 'B', placements: ['inline', 'inline'] }] }), 'x (demo).blocks[0] (b).placements must be a non-empty list of section, inline, each once');
   assert.equal(problem({ blocks: [{ id: 'b', label: 'B', props: [{ id: 'n', type: 'number', label: 'N', min: 5, max: 1 }] }] }), 'x (demo).blocks[0] (b).props[0] (n).min and max are numbers (min at most max) of a number prop');
   assert.equal(problem({ blocks: [{ id: 'b', label: 'B', props: [{ id: 's', type: 'select', label: 'S', options: [{ value: 'a', label: 'A' }], default: 'z' }] }] }), 'x (demo).blocks[0] (b).props[0] (s).default must be a value of its type');
   assert.equal(problem({ blocks: [{ id: 'b', label: 'B' }, { id: 'b', label: 'Again' }] }), 'x (demo).blocks[1].id b is listed twice');
@@ -130,6 +131,10 @@ test('blockAllowedOn and blockCspSources', () => {
   assert.equal(blockAllowedOn({}, 'account'), false);
   assert.equal(blockAllowedOn({ pages: ['account'] }, 'account'), true);
   assert.equal(blockAllowedOn({ pages: ['product'] }, 'home'), false);
+  assert.equal(blockPlacedAs({}, 'section'), true);
+  assert.equal(blockPlacedAs({}, 'inline'), false);
+  assert.equal(blockPlacedAs({ placements: ['inline'] }, 'section'), false);
+  assert.equal(blockPlacedAs({ placements: ['section', 'inline'] }, 'inline'), true);
   const [app] = readInstalledBlocks({ results: [installation({ ...DEMO, connect: ['https://api.test'], img: ['data:'] })] }, { origin });
   assert.deepEqual(blockCspSources([app, app], [app]), {
     scriptSrc: [`${ORIGIN}/embed.js`], connectSrc: ['https://api.test'], imgSrc: ['data:'], frameSrc: [ORIGIN],
