@@ -365,6 +365,13 @@ export interface BlockStorefront {
   mode: 'live' | 'preview';
 }
 
+/** The page a block is mounted on: its page type and, when it has one, its Swell record's id. */
+export interface BlockPageContext {
+  type: BlockPage;
+  /** The record's id on a product, category, content page or blog post page. */
+  id?: string;
+}
+
 export interface BlockMountContext {
   props: Record<string, unknown>;
   app: string;
@@ -374,6 +381,8 @@ export interface BlockMountContext {
   proxy: string;
   /** The storefront's own public key, once the platform issues one. Never a key of the host's own installation. */
   publicKey?: string;
+  /** The page the block is on; a block in a cart drawer gets `{ type: 'cart' }`. Absent when the host doesn't say. */
+  page?: BlockPageContext;
 }
 
 export interface BlockRegistration {
@@ -386,6 +395,11 @@ export interface BlockRegistryOptions {
   apps: readonly string[];
   storefront: BlockStorefront;
   publicKey?: string;
+  /**
+   * The page each block is on: one for the whole page, or a function of the mount element (a cart drawer's blocks get
+   * `{ type: 'cart' }`). Mounts get no `page` when it's absent or the function returns undefined.
+   */
+  page?: BlockPageContext | ((element: Element) => BlockPageContext | undefined);
   /** The mount element's id attribute (default `data-app-block`; the props are always in `data-app-props`). */
   attribute?: string;
   /** The document (default: the global one). */
@@ -448,7 +462,11 @@ export function startBlockRegistry(options: BlockRegistryOptions): () => void {
     const entry: { props: string; cleanup?: () => void } = { props: raw };
     mounted.set(el, entry);
     try {
-      const off = definition.mount(el as HTMLElement, { props, app, block, storefront: options.storefront, proxy: `/.swell/apps/${app}`, ...(options.publicKey ? { publicKey: options.publicKey } : {}) });
+      const page = typeof options.page === 'function' ? options.page(el) : options.page;
+      const off = definition.mount(el as HTMLElement, {
+        props, app, block, storefront: options.storefront, proxy: `/.swell/apps/${app}`,
+        ...(options.publicKey ? { publicKey: options.publicKey } : {}), ...(page ? { page } : {}),
+      });
       if (typeof off === 'function') entry.cleanup = off;
     } catch (e) {
       console.error(e);

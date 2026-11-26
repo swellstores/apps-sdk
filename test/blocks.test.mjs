@@ -202,6 +202,24 @@ test('the registry reads another id attribute, and skips props that are not a JS
   assert.deepEqual(errors, ['Error: boom']);
 });
 
+test('the registry tells each mount its page: one for the page, or a cart drawer\'s own from a function of the element', async (t) => {
+  const win = page(t, block() + `<aside data-drawer>${block('{"message":"Drawer"}')}</aside>`);
+  const pages = [];
+  const product = { type: 'product', id: '64f1c0de0000000000000001' };
+  const stop = startBlockRegistry({ apps: ['block_demo'], storefront: STOREFRONT, document: win.document, page: product });
+  win.SwellAppBlocks.push({ app: 'block_demo', blocks: { banner: { mount: (el, c) => pages.push(c.page) } } });
+  assert.deepEqual(pages, [product, product]);
+  stop();
+  pages.length = 0;
+  const win2 = page(t, block() + `<aside data-drawer>${block('{"message":"Drawer"}')}</aside>`);
+  t.after(startBlockRegistry({
+    apps: ['block_demo'], storefront: STOREFRONT, document: win2.document,
+    page: (el) => (el.closest('[data-drawer]') ? { type: 'cart' } : product),
+  }));
+  win2.SwellAppBlocks.push({ app: 'block_demo', blocks: { banner: { mount: (el, c) => pages.push(c.page) } } });
+  assert.deepEqual(pages, [product, { type: 'cart' }]);
+});
+
 test('startComponentBlocks frames each component block with its props, the storefront and the theme tokens, and unmounts it when it leaves', async (t) => {
   const nativeFetch = globalThis.fetch;
   const lists = [];
